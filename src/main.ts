@@ -41,7 +41,12 @@ const rev = new IntersectionObserver(
   (es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add("in"), rev.unobserve(e.target))),
   { rootMargin: "0px 0px -8% 0px" },
 );
-$$(".reveal").forEach((el) => rev.observe(el));
+$$(".reveal").forEach((el) => {
+  // (siblings rise one after another)
+  const sibs = [...(el.parentElement?.children ?? [])].filter((c) => c.classList.contains("reveal"));
+  el.style.setProperty("--i", String(Math.max(0, sibs.indexOf(el))));
+  rev.observe(el);
+});
 
 // ── the demo: the Overleaf replica, editable (DESIGN MOCK: fake.ts) ──
 const src = $<HTMLTextAreaElement>("#src");
@@ -201,8 +206,14 @@ step(0);
 // ── one keystroke: the chunk grid (an illustration of the rule) ──
 const grid = $("#ks-grid");
 const N = 240;
-grid.innerHTML = "<i></i>".repeat(N);
+grid.innerHTML = Array.from({ length: N }, (_, k) => `<i style="--d:${(k % 20) * 18 + Math.floor(k / 20) * 30}"></i>`).join("");
 const cells = $$("i", grid);
+new IntersectionObserver(([e], io) => {
+  if (e.isIntersecting) {
+    grid.classList.add("in");
+    io.disconnect();
+  }
+}, { threshold: 0.3 }).observe(grid);
 let mode = "word";
 $$("[data-ks]").forEach((b) =>
   b.addEventListener("click", () => {
@@ -328,37 +339,10 @@ whileVisible($(".tier-grid"), async (alive) => {
   else watch.hidden = true;
 }
 
-// ── everywhere: one window, wiped from Overleaf to VS Code to the CLI as you scroll ──
+// ── everywhere: Overleaf, VS Code and the CLI, side by side, each running ──
 {
   const sec = $("#everywhere");
-  const prism = $("#prism");
-  const faces = (k: number) =>
-    $$("[data-face]", sec).forEach((el) => el.classList.toggle("on", Number(el.dataset.face) === k));
-  // (progress 0..1 → a turn that rests on each face: plateaus with eased moves between)
-  const ease = (x: number) => x * x * (3 - 2 * x);
-  let last = -1;
-  const frame = () => {
-    const r = sec.getBoundingClientRect();
-    const p = Math.min(1, Math.max(0, -r.top / (r.height - innerHeight)));
-    if (p === last) return;
-    last = p;
-    const seg = p * 3; // 3 stops: hold, move, hold, move, hold
-    const pos = seg < 0.7 ? 0 : seg < 1.3 ? ease((seg - 0.7) / 0.6) : seg < 1.7 ? 1 : seg < 2.3 ? 1 + ease((seg - 1.7) / 0.6) : 2;
-    // (face k is wiped in over face k-1 as pos goes k-1 → k; the one beneath recedes)
-    $$(".face", prism).forEach((f, k) => {
-      const t = k === 0 ? 1 : Math.min(1, Math.max(0, pos - (k - 1)));
-      const under = Math.min(1, Math.max(0, pos - k));
-      f.style.setProperty("--t", String(t));
-      f.style.setProperty("--u", String(under));
-    });
-    faces(Math.round(pos));
-  };
-  if (reduced.matches) faces(-1), $$("[data-face]", sec).forEach((e) => e.classList.add("on"));
-  else {
-    addEventListener("scroll", () => requestAnimationFrame(frame), { passive: true });
-    frame();
-  }
-
+  
   // each face types, repaints and runs, while on screen
   const tex = String.raw`\documentclass{article}
 \begin{document}
@@ -407,10 +391,10 @@ whileVisible($(".tier-grid"), async (alive) => {
       .replace(/(%\d+)/g, '<span class="v">$1</span>')
       .replace(/φ/g, '<span class="phi">φ</span>');
   const cmd = "phitex --ssa examples/phi.tex";
-  tty.innerHTML = `<span class="pr">$</span> ${cmd}\n` + ssaLines.map(colorTty).join("\n");
+  tty.innerHTML = `<span class="pt">$</span> ${cmd}\n` + ssaLines.map(colorTty).join("\n");
   whileVisible(tty, async (alive) => {
     while (alive() && !reduced.matches) {
-      let out = '<span class="pr">$</span> ';
+      let out = '<span class="pt">$</span> ';
       for (const ch of cmd) {
         if (!alive()) return;
         out += esc(ch);
