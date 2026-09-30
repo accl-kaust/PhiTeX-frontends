@@ -330,3 +330,8 @@ p.where b { color: var(--text); }
 .ev .win-body.split, .ev .win-body.vsb { grid-template-rows: .75fr 1.5fr; }
 .ev .pv-page { font-size: 9.5px; }
 .win-bar .tag { font-style: normal; }
+/* (fixed columns: streaming text must never resize a window) */
+.ev-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ev, .ev .face, .ev .win, .ev .win-body, .ev .tty { min-width: 0; }
+.ev .tty { overflow: hidden; text-overflow: clip; }
+@media (max-width: 1000px) { .ev-grid { grid-template-columns: minmax(0, 1fr); } }
