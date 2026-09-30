@@ -43,125 +43,137 @@ const rev = new IntersectionObserver(
 );
 $$(".reveal").forEach((el) => rev.observe(el));
 
-// ── the demo (DESIGN PREVIEW: fake.ts, not the core) ──
+// ── the demo: the Overleaf replica, editable (DESIGN MOCK: fake.ts) ──
 const src = $<HTMLTextAreaElement>("#src");
 const hl = $("#hl");
 const gutter = $("#gutter");
-const paper = $("#paper");
-const viewer = $("#viewer");
-const editor = $("#editor");
+const page = $("#r-page");
+const pdfPane = $(".r-pdf");
+const sw = $("#r-switch");
+const rec = $("#r-recompile");
 let preset = PRESETS[0];
 let prev = "";
 let hot = -1;
-let edits = 0;
-let builds = 0;
 let hotTimer = 0;
+let instant = false;
+let stale = false;
 
 function paintEditor() {
-  hl.innerHTML = highlight(src.value, hot);
-  const n = src.value.split("\n").length;
-  gutter.textContent = Array.from({ length: n }, (_, i) => i + 1).join("\n");
+  hl.innerHTML = highlight(src.value, instant ? hot : -1);
+  gutter.textContent = Array.from({ length: src.value.split("\n").length }, (_, i) => i + 1).join("\n");
   src.style.height = hl.offsetHeight + "px";
 }
 
 function render(changedAt?: number) {
   const t0 = performance.now();
-  const t = typeset(src.value, { runhead: preset.id === "book", pages: preset.id === "stress" ? 38 : preset.id === "book" ? 1 : 1 });
-  paper.innerHTML = t.html;
+  const t = typeset(src.value, { runhead: preset.id === "book" });
+  page.innerHTML = t.html;
   if (changedAt !== undefined) {
     hot = blockAt(src.value, changedAt);
-    const el = paper.querySelector(`.ch[data-b="${hot}"]`);
-    el?.classList.add("hot");
+    page.querySelector(`.ch[data-b="${hot}"]`)?.classList.add("hot");
     clearTimeout(hotTimer);
     hotTimer = window.setTimeout(() => {
-      paper.querySelectorAll(".ch.hot").forEach((e) => e.classList.remove("hot"));
+      page.querySelectorAll(".ch.hot").forEach((e) => e.classList.remove("hot"));
       hot = -1;
       paintEditor();
     }, 700);
-    builds++;
   }
-  paintEditor();
+  $("#s-chunks").textContent = `${changedAt === undefined ? 0 : 1} of ${t.chunks.toLocaleString()}`;
   requestAnimationFrame(() => {
-    const ms = performance.now() - t0;
-    if (changedAt === undefined) return;
-    $("#lat").textContent = ms.toFixed(1);
-    $("#bolt").classList.remove("tick");
-    void $("#bolt").offsetWidth;
-    $("#bolt").classList.add("tick");
-    $("#s-lat").textContent = `${ms.toFixed(1)} ms`;
-    $("#s-core").textContent = `${(0.1 + Math.random() * 0.2).toFixed(2)} ms`;
-    $("#s-chunks").textContent = `1 of ${t.chunks.toLocaleString()}`;
-    $("#s-builds").textContent = `${edits} → ${builds}`;
+    if (changedAt !== undefined) $("#lat").textContent = Math.max(1, performance.now() - t0).toFixed(0);
   });
+}
+
+function setInstant(on: boolean) {
+  instant = on;
+  sw.classList.toggle("inst", on);
+  sw.setAttribute("aria-checked", String(on));
+  pdfPane.classList.toggle("instant", on);
+  rec.classList.toggle("off", on);
+  if (on && stale) recompile();
+}
+function setStale(on: boolean) {
+  stale = on;
+  pdfPane.classList.toggle("stale", on);
+  rec.classList.toggle("nag", on);
+}
+function recompile() {
+  setStale(false);
+  render();
 }
 
 function load(id: string) {
   preset = PRESETS.find((p) => p.id === id)!;
   src.value = preset.files[preset.open];
   prev = src.value;
-  edits = builds = 0;
-  editor.scrollTop = 0;
+  $("#r-tab").textContent = $(`.r-file[data-preset="${id}"]`).firstChild!.textContent!.trim();
+  $("#editor").scrollTop = 0;
+  setStale(false);
   render();
-  $("#s-chunks").textContent = `— of ${blocks(src.value).length.toLocaleString()}`;
-  $$(".presets button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.preset === id)));
+  paintEditor();
+  $$(".r-file[data-preset]").forEach((b) => b.classList.toggle("on", b.dataset.preset === id));
 }
 
 let userTyped = false;
 src.addEventListener("input", () => {
-  edits++;
-  // (where the text changed: the first differing offset)
   const now = src.value;
   let a = 0;
   while (a < prev.length && a < now.length && prev[a] === now[a]) a++;
   prev = now;
-  render(a);
+  if (instant) render(a);
+  else setStale(true);
+  paintEditor();
 });
-src.addEventListener("keydown", () => (userTyped = true));
-src.addEventListener("pointerdown", () => (userTyped = true));
-$$(".presets button").forEach((b) =>
+let autoDirty = false;
+const takeOver = () => {
+  if (userTyped) return;
+  userTyped = true;
+  // (the auto-typing stops mid-word: give the reader the example as it was)
+  if (autoDirty) {
+    src.value = preset.files[preset.open];
+    prev = src.value;
+    render();
+    paintEditor();
+  }
+  setInstant(true);
+};
+src.addEventListener("keydown", takeOver);
+src.addEventListener("pointerdown", takeOver);
+sw.addEventListener("click", () => {
+  userTyped = true;
+  setInstant(!instant);
+});
+rec.addEventListener("click", recompile);
+$$(".r-file[data-preset]").forEach((b) =>
   b.addEventListener("click", () => {
     userTyped = true;
     load(b.dataset.preset!);
   }),
 );
-$<HTMLInputElement>("#show-chunks").addEventListener("change", (e) => {
-  const on = (e.target as HTMLInputElement).checked;
-  viewer.classList.toggle("no-chunks", !on);
-  editor.classList.toggle("no-chunks", !on);
-});
-$("#check").addEventListener("click", () => {
-  const out = $("#check-out");
-  out.textContent = "design preview: the real check (ph_check: incremental = fresh build) runs once the core is wired";
-  out.classList.add("show");
-  setTimeout(() => out.classList.remove("show"), 4000);
-});
 load("article");
 
-// Types into the demo on its own until the reader does.
+// Until the reader takes over: type in PDF mode (stale), flip to Instant, type on.
 async function autotype() {
-  await sleep(1600);
-  const phrases = ["Try it: ", "Edit any word. "];
-  for (const p of phrases) {
-    if (userTyped || reduced.matches) return;
-    const at = src.value.indexOf("Everything on the page");
-    for (const ch of p) {
-      if (userTyped) return;
-      const pos = src.value.indexOf("Everything on the page");
+  const at = () => src.value.indexOf("Everything on the page");
+  const type = async (text: string) => {
+    for (const ch of text) {
+      if (userTyped) return false;
+      const pos = at();
       src.value = src.value.slice(0, pos) + ch + src.value.slice(pos);
+      autoDirty = true;
       src.dispatchEvent(new Event("input"));
-      await sleep(55 + Math.random() * 90);
+      await sleep(50 + Math.random() * 80);
     }
-    await sleep(1400);
-    for (let i = 0; i < p.length; i++) {
-      if (userTyped) return;
-      const pos = src.value.indexOf("Everything on the page");
-      src.value = src.value.slice(0, pos - 1) + src.value.slice(pos);
-      src.dispatchEvent(new Event("input"));
-      await sleep(28);
-    }
-    void at;
-    await sleep(700);
-  }
+    return true;
+  };
+  if (reduced.matches) return setInstant(true);
+  await sleep(1400);
+  if (!(await type("With Recompile, "))) return;
+  await sleep(1200);
+  if (userTyped) return;
+  setInstant(true);
+  await sleep(900);
+  if (!(await type("but not with PhiTeX. "))) return;
 }
 autotype();
 
@@ -309,90 +321,6 @@ whileVisible($(".tier-grid"), async (alive) => {
   $("#ssa-tex").addEventListener("mouseleave", () => on(null));
 }
 
-// ── the Overleaf replica: PDF → ⚡ Instant (animated, not a recording) ──
-{
-  const code = $("#r-code");
-  const page = $("#r-page");
-  const pdf = $(".r-pdf");
-  const sw = $("#r-switch");
-  const rec = $("#r-recompile");
-  const chip = $("#r-chip b");
-  let text = String.raw`\documentclass{article}
-\usepackage{graphicx}
-
-\begin{document}
-\section{Results}\label{res}
-The instant build equals a full one after every edit.
-
-`;
-  const typed = [
-    "Typing here updates the page at once, ",
-    "with no Recompile. The page you look at is painted first.",
-  ];
-  const base = text;
-  const show = (t: string, caret: boolean) => {
-    code.innerHTML =
-      esc(t).replace(/(\\[A-Za-z]+)/g, '<span class="cs">$1</span>').replace(/([{}])/g, '<span class="br">$1</span>') + (caret ? '<span class="caret"></span>' : "");
-  };
-  const paint = (t: string, hot = false) => {
-    page.innerHTML = typeset(t).html;
-    if (hot) page.querySelectorAll(".ch").forEach((c, i, all) => i === all.length - 1 && c.classList.add("hot"));
-    if (hot) setTimeout(() => page.querySelectorAll(".ch.hot").forEach((c) => c.classList.remove("hot")), 60);
-  };
-  const setMode = (inst: boolean) => {
-    sw.classList.toggle("inst", inst);
-    pdf.classList.toggle("instant", inst);
-    rec.classList.toggle("off", inst);
-  };
-  show(text, true);
-  paint(text);
-  whileVisible($("#replica"), async (alive) => {
-    while (alive()) {
-      text = base;
-      setMode(false);
-      pdf.classList.remove("stale");
-      rec.classList.remove("nag");
-      show(text, true);
-      paint(text);
-      if (reduced.matches) {
-        setMode(true);
-        text += typed.join("");
-        show(text, false);
-        paint(text);
-        return;
-      }
-      await sleep(900);
-      // PDF mode: typing leaves the page stale
-      for (const ch of typed[0]) {
-        text += ch;
-        show(text, true);
-        await sleep(45 + Math.random() * 60);
-      }
-      pdf.classList.add("stale");
-      rec.classList.add("nag");
-      await sleep(1300);
-      // flip the switch
-      rec.classList.remove("nag");
-      setMode(true);
-      await sleep(350);
-      pdf.classList.remove("stale");
-      paint(text, true);
-      chip.textContent = "9";
-      await sleep(700);
-      for (const ch of typed[1]) {
-        if (!alive()) return;
-        text += ch;
-        show(text, true);
-        paint(text, true);
-        // (a plausible figure within the report's measured 4.5–20 ms; DESIGN PREVIEW)
-        chip.textContent = String(6 + Math.floor(Math.random() * 6));
-        await sleep(45 + Math.random() * 70);
-      }
-      await sleep(3200);
-    }
-  });
-}
-
 // ── links ──
 {
   const watch = $<HTMLAnchorElement>("#watch");
@@ -400,7 +328,7 @@ The instant build equals a full one after every edit.
   else watch.hidden = true;
 }
 
-// ── everywhere: the prism, turned by scroll ──
+// ── everywhere: one window, wiped from Overleaf to VS Code to the CLI as you scroll ──
 {
   const sec = $("#everywhere");
   const prism = $("#prism");
@@ -416,8 +344,13 @@ The instant build equals a full one after every edit.
     last = p;
     const seg = p * 3; // 3 stops: hold, move, hold, move, hold
     const pos = seg < 0.7 ? 0 : seg < 1.3 ? ease((seg - 0.7) / 0.6) : seg < 1.7 ? 1 : seg < 2.3 ? 1 + ease((seg - 1.7) / 0.6) : 2;
-    prism.style.setProperty("--turn", `${-120 * pos}deg`);
-    prism.style.setProperty("--tilt", `${Math.sin(pos * Math.PI) * 4 - 2}deg`);
+    // (face k is wiped in over face k-1 as pos goes k-1 → k; the one beneath recedes)
+    $$(".face", prism).forEach((f, k) => {
+      const t = k === 0 ? 1 : Math.min(1, Math.max(0, pos - (k - 1)));
+      const under = Math.min(1, Math.max(0, pos - k));
+      f.style.setProperty("--t", String(t));
+      f.style.setProperty("--u", String(under));
+    });
     faces(Math.round(pos));
   };
   if (reduced.matches) faces(-1), $$("[data-face]", sec).forEach((e) => e.classList.add("on"));

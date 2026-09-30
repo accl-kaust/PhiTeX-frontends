@@ -20,7 +20,7 @@
     <nav aria-label="Sections">
       <a href="#overleaf">Overleaf</a>
       <a href="#vscode">VS Code</a>
-      <a href="#try">Try it</a>
+      <a href="#top">Try it</a>
       <a href="#how">How it works</a>
       <a href="#faq">FAQ</a>
     </nav>
@@ -42,36 +42,40 @@
         </p>
         <div class="ctas">
           <a class="btn primary" href="#overleaf">Add to Overleaf</a>
-          <a class="btn ghost" href="#try">or try it on this page&nbsp;↓</a>
+          <a class="btn ghost" href="#replica">or type in the one below&nbsp;↓</a>
         </div>
-        <ul class="where" aria-label="Where PhiTeX runs">
-          <li><b>Overleaf</b><span>extension · unofficial</span></li>
-          <li><b>Your browser</b><span>WebAssembly, all local</span></li>
-          <li><b>VS Code</b><span>extension</span></li>
-          <li><b>Your terminal</b><span>one binary, any OS</span></li>
+        <ul class="where" aria-label="Where PhiTeX works">
+          <li><span>Works in</span></li>
+          <li><b>Overleaf</b></li>
+          <li><b>VS Code</b></li>
+          <li><b>the CLI</b></li>
         </ul>
       </div>
 
-      <figure class="replica hero-replica" id="replica" aria-label="Animated replica of the Overleaf editor with the Instant switch">
+      <figure class="replica hero-replica ol" id="replica" aria-label="Live demo: an Overleaf-style editor with PhiTeX">
         <div class="r-top">
-          <span class="r-menu">Menu</span><span class="r-menu">File</span><span class="r-menu">Edit</span><span class="r-menu">View</span>
-          <span class="r-title">thesis ▾</span>
-          <span class="r-share">Share</span>
+          <span class="r-logo" aria-hidden="true"></span><span class="r-menu">Menu</span>
+          <span class="r-title">Thesis ▾</span>
+          <span class="r-menu">History</span><span class="r-menu">Layout</span><span class="r-share">Share</span>
         </div>
         <div class="r-body">
-          <aside class="r-tree"><div class="r-tree-h">File tree</div><div class="r-file on">main.tex</div><div class="r-file">chapters/</div><div class="r-file">refs.bib</div><div class="r-file dim">figures/</div></aside>
-          <div class="r-editor"><div class="r-tab">main.tex</div><pre class="r-code" id="r-code"></pre></div>
+          <nav class="r-rail" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></nav>
+          <aside class="r-tree" aria-label="Examples"><div class="r-tree-h">File tree</div><button class="r-file on" data-preset="article">main.tex</button><button class="r-file" data-preset="book">thesis.tex</button><button class="r-file" data-preset="stress">long.tex <i>38 pp.</i></button><div class="r-file dim">refs.bib</div></aside>
+          <div class="r-editor">
+            <div class="r-etb"><span class="r-tab" id="r-tab">main.tex</span><span class="r-sp"></span><span class="r-cv"><b>Code</b><span>Visual</span></span></div>
+            <div class="r-scroll" id="editor"><div class="gutter" id="gutter" aria-hidden="true"></div><div class="code"><pre class="hl" id="hl" aria-hidden="true"></pre><textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="LaTeX source: type here"></textarea></div></div>
+          </div>
           <div class="r-pdf">
             <div class="r-tb">
-              <span class="r-recompile" id="r-recompile">Recompile</span>
-              <span class="r-switch" id="r-switch"><span class="opt pdf">PDF</span><span class="opt inst">⚡ Instant</span><span class="knob"></span></span>
-              <span class="r-sp"></span><span class="r-zoom">100% ▾</span>
+              <button class="r-recompile" id="r-recompile" type="button">Recompile</button>
+              <button class="r-switch" id="r-switch" type="button" role="switch" aria-checked="false" aria-label="Instant preview"><span class="opt pdf">PDF</span><span class="opt inst">⚡ Instant</span><span class="knob"></span></button>
+              <span class="r-sp"></span><span class="r-zoom">Fit ▾</span>
             </div>
-            <div class="r-stage"><div class="r-page" id="r-page"></div><div class="r-chip" id="r-chip">⚡ <b>9</b> ms</div><div class="r-stale" id="r-stale">Recompile to see your changes</div></div>
+            <div class="r-stage" id="viewer"><div class="r-page" id="r-page"></div><div class="r-chip" id="r-chip">⚡ <b id="lat">9</b> ms · <span id="s-chunks">1 of 12</span> chunks</div><div class="r-stale" id="r-stale">Recompile to see your changes</div></div>
           </div>
         </div>
-        <figcaption>Overleaf with PhiTeX installed: flip <b>PDF | ⚡ Instant</b>, and the page follows your typing. (Animated replica; PhiTeX is not affiliated with Overleaf.)</figcaption>
       </figure>
+      <p class="r-caption"><b>Type in it.</b> Overleaf with PhiTeX, redrawn for this page: flip <b>PDF | ⚡ Instant</b> and the page follows every keystroke, or pick another file on the left. PhiTeX is not affiliated with Overleaf.</p>
     </section>
 
     <!-- ───────────── PROMISES ───────────── -->
@@ -83,89 +87,19 @@
       </div>
     </section>
 
-    <!-- ───────────── EVERYWHERE (3D, scroll-driven) ───────────── -->
-    <section class="everywhere" id="everywhere" aria-label="One engine, everywhere">
-      <div class="ev-pin">
-        <header class="ev-head">
-          <p class="eyebrow"><span class="sect">§1</span> One engine, everywhere</p>
-          <h2 class="ev-title"><span data-face="0">In <em>Overleaf.</em></span><span data-face="1">In <em>VS Code.</em></span><span data-face="2">In your <em>terminal.</em></span></h2>
-          <ol class="ev-dots" aria-hidden="true"><li data-face="0">Overleaf</li><li data-face="1">VS Code</li><li data-face="2">Terminal</li></ol>
-        </header>
-        <div class="ev-scene" aria-hidden="true">
-          <div class="ev-prism" id="prism">
-            <div class="face f0">
-              <div class="win"><div class="win-bar"><span>thesis · Overleaf</span><em class="tag">extension</em></div>
-                <div class="win-body split"><pre class="ed" data-type="ol"></pre><div class="pv"><div class="pv-tb"><span class="sw on">⚡ Instant</span></div><div class="pv-page" data-page="ol"></div><span class="pv-chip">⚡ <b>9</b> ms</span></div></div></div>
-            </div>
-            <div class="face f1">
-              <div class="win vs"><div class="win-bar"><span>main.tex — VS Code</span><em class="tag">extension</em></div>
-                <div class="win-body vsb"><div class="act"><i></i><i></i><i></i><i></i></div><div class="explorer"><b>EXPLORER</b><span class="on">main.tex</span><span>book.tex</span></div><pre class="ed" data-type="vs"></pre><div class="pv"><div class="pv-tb"><span class="sw on">PhiTeX preview</span></div><div class="pv-page" data-page="vs"></div><span class="pv-chip">⚡ <b>7</b> ms</span></div></div></div>
-            </div>
-            <div class="face f2">
-              <div class="win term-win"><div class="win-bar"><span>~/PhiTeX — zsh</span><em class="tag">today</em></div>
-                <pre class="tty" id="tty"></pre></div>
-            </div>
-          </div>
-        </div>
-        <p class="ev-cap"><span data-face="0">In Overleaf: one switch in the PDF toolbar, and the page follows your typing.</span><span data-face="1">In VS Code: the same live page beside your editor, with errors in the Problems panel.</span><span data-face="2">In your terminal: <code>phitex --watch</code>, a PDF kept up to date on every save.</span></p>
-      </div>
-    </section>
-
-    <!-- ───────────── TRY IT ───────────── -->
-    <section class="try" id="try">
-      <header class="sec-head">
-        <p class="eyebrow"><span class="sect">§2</span> Try it</p>
-        <h2>Type. <em>Watch the page.</em></h2>
-        <p class="lede">An editor and a page, side by side. Change a word, and the chunk it's in is rebuilt and the page repainted. Pick an example: a LaTeX article, a book with references and an index, or 38 pages of stress.</p>
-      </header>
-      <!-- the demo window (DESIGN PREVIEW: simulated, see src/fake.ts) -->
-      <div class="demo reveal" id="demo" role="region" aria-label="Live demo">
-        <div class="demo-bar">
-          <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
-          <div class="presets" role="tablist" aria-label="Examples">
-            <button role="tab" aria-selected="true" data-preset="article">LaTeX article</button>
-            <button role="tab" aria-selected="false" data-preset="book">Book · refs &amp; index</button>
-            <button role="tab" aria-selected="false" data-preset="stress">Stress · 38 pages</button>
-          </div>
-          
-        </div>
-        <div class="demo-body">
-          <div class="editor" id="editor">
-            <div class="gutter" id="gutter" aria-hidden="true"></div>
-            <div class="code">
-              <pre class="hl" id="hl" aria-hidden="true"></pre>
-              <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="TeX source (type here)"></textarea>
-            </div>
-          </div>
-          <div class="viewer" id="viewer">
-            <div class="paper" id="paper" aria-live="off"></div>
-            <div class="bolt" id="bolt" aria-live="polite"><span>⚡</span> <b id="lat">—</b> ms</div>
-          </div>
-        </div>
-        <div class="demo-foot">
-          <div class="stat"><span class="k">keystroke → page</span><span class="v" id="s-lat">—</span></div>
-          <div class="stat"><span class="k">in the core</span><span class="v" id="s-core">—</span></div>
-          <div class="stat"><span class="k">chunks rebuilt</span><span class="v" id="s-chunks">—</span></div>
-          <div class="stat"><span class="k">edits → builds</span><span class="v" id="s-builds">—</span></div>
-          <div class="actions">
-            <label class="toggle"><input type="checkbox" id="show-chunks" checked /> <span>show rebuilt chunks</span></label>
-            <button class="chip" id="check" type="button">Check</button>
-            <button class="chip" id="pdf" type="button">PDF</button>
-          </div>
-        </div>
-        <p class="check-out" id="check-out" role="status"></p>
-      </div>
-    </section>
-
     <!-- ───────────── WRITERS ───────────── -->
     <section class="writers" id="writers">
       <header class="sec-head">
-        <p class="eyebrow"><span class="sect">§3</span> For writers</p>
+        <p class="eyebrow"><span class="sect">§1</span> A better way to write</p>
         <h2>Write. <em>PhiTeX handles the rest.</em></h2>
+        <p class="lede">A compiler you never wait for, never fight, and never have to think about.</p>
       </header>
       <div class="wr-grid">
         <div class="wr reveal"><b>References settle themselves</b><p><code>\ref</code>, <code>\cite</code>, the table of contents, the index: no more “run it twice”. PhiTeX repeats what it must until nothing changes, and only that.</p></div>
         <div class="wr reveal"><b>Big documents stay instant</b><p>A 400-page thesis edits as fast as a one-page letter. PhiTeX rebuilds the paragraph you touched and the pages it moved, never the whole book.</p></div>
+        <div class="wr reveal"><b>Click the page, land in the source</b><p>Click any word in the PDF and your cursor jumps to it. Select text in the editor and it lights up on the page. Both ways, always in sync.</p></div>
+        <div class="wr reveal"><b>Works offline</b><p>On a plane, in a library basement, behind a firewall: PhiTeX needs no server and no connection. Your document compiles where you are.</p></div>
+        <div class="wr reveal"><b>Easy on the eyes</b><p>Dark mode for the page as well as the editor, crisp at any zoom, and text you can select, copy and search, because the preview is vector, not an image.</p></div>
         <div class="wr reveal"><b>Your packages, your fonts</b><p>LaTeX with the packages you already use, BibTeX and biber, Unicode and OpenType fonts, SyncTeX: click the page to jump to the source.</p></div>
       </div>
     </section>
@@ -173,7 +107,7 @@
     <!-- ───────────── DIAGNOSTICS ───────────── -->
     <section class="diags" id="diagnostics">
       <header class="sec-head">
-        <p class="eyebrow"><span class="sect">§3.1</span> Friendly errors</p>
+        <p class="eyebrow"><span class="sect">§1.1</span> Friendly errors</p>
         <h2>Errors that <em>point at the line.</em></h2>
         <p class="lede">No wall of log. The preview says why the page looks the way it does, at the line to look at, and it never breaks. Incomplete input doesn't trap: an open <code>{</code> just runs to the end, and the last good page stays up, dimmed, with a banner saying why.</p>
       </header>
@@ -196,10 +130,38 @@
       <p class="fine">Every message comes from the compiler itself, with the exact place in your source. There's a <code>--json</code> mode for tools too.</p>
     </section>
 
+    <!-- ───────────── EVERYWHERE (3D, scroll-driven) ───────────── -->
+    <section class="everywhere" id="everywhere" aria-label="One engine, everywhere">
+      <div class="ev-pin">
+        <header class="ev-head">
+          <p class="eyebrow"><span class="sect">§2</span> One engine, everywhere</p>
+          <h2 class="ev-title"><span data-face="0">In <em>Overleaf.</em></span><span data-face="1">In <em>VS Code.</em></span><span data-face="2">In the <em>CLI.</em></span></h2>
+          
+        </header>
+        <div class="ev-scene" aria-hidden="true">
+          <div class="ev-stack" id="prism">
+            <div class="face f0">
+              <div class="win"><div class="win-bar"><span>thesis · Overleaf</span><em class="tag">extension</em></div>
+                <div class="win-body split"><pre class="ed" data-type="ol"></pre><div class="pv"><div class="pv-tb"><span class="sw on">⚡ Instant</span></div><div class="pv-page" data-page="ol"></div><span class="pv-chip">⚡ <b>9</b> ms</span></div></div></div>
+            </div>
+            <div class="face f1">
+              <div class="win vs"><div class="win-bar"><span>main.tex — VS Code</span><em class="tag">extension</em></div>
+                <div class="win-body vsb"><div class="act"><i></i><i></i><i></i><i></i></div><div class="explorer"><b>EXPLORER</b><span class="on">main.tex</span><span>book.tex</span></div><pre class="ed" data-type="vs"></pre><div class="pv"><div class="pv-tb"><span class="sw on">PhiTeX preview</span></div><div class="pv-page" data-page="vs"></div><span class="pv-chip">⚡ <b>7</b> ms</span></div></div></div>
+            </div>
+            <div class="face f2">
+              <div class="win term-win"><div class="win-bar"><span>~/PhiTeX — zsh</span><em class="tag">today</em></div>
+                <pre class="tty" id="tty"></pre></div>
+            </div>
+          </div>
+        </div>
+        <p class="ev-cap"><span data-face="0">In Overleaf: one switch in the PDF toolbar, and the page follows your typing.</span><span data-face="1">In VS Code: the same live page beside your editor, with errors in the Problems panel.</span><span data-face="2">In your terminal: <code>phitex --watch</code>, a PDF kept up to date on every save.</span></p>
+      </div>
+    </section>
+
     <!-- ───────────── OVERLEAF ───────────── -->
     <section class="overleaf" id="overleaf">
       <header class="sec-head">
-        <p class="eyebrow"><span class="sect">§4</span> For Overleaf</p>
+        <p class="eyebrow"><span class="sect">§3</span> For Overleaf</p>
         <h2>Instant, in Overleaf.<br /><em>No more Recompile.</em></h2>
         <p class="lede">A Chrome extension that adds a <b>PDF | ⚡ Instant</b> switch to Overleaf's PDF toolbar. Flip it, and the page repaints as you type: 8.7&nbsp;ms keystroke→page, measured on real Overleaf. The compiler runs in your browser. Nothing leaves it.</p>
       </header>
@@ -227,7 +189,7 @@
           <div class="vs-lines"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
         <div class="vs-copy">
-          <p class="eyebrow"><span class="sect">§5</span> For VS Code</p>
+          <p class="eyebrow"><span class="sect">§4</span> For VS Code</p>
           <h2>Your editor, <em>too.</em></h2>
           <p>The same instant preview beside your editor: a live page that follows your typing, errors in the Problems panel, and click-to-source both ways.</p>
           <p>It's the same engine and the same session as the Overleaf extension, in a webview.</p>
@@ -236,7 +198,7 @@
       </div>
       <div class="machine reveal">
         <div>
-          <p class="eyebrow"><span class="sect">§5.1</span> In your terminal</p>
+          <p class="eyebrow"><span class="sect">§4.1</span> In the CLI</p>
           <h3>A CLI, and a library.</h3>
           <p>One binary, for any OS. <code>phitex main.tex</code> writes your PDF, and <code>phitex --watch</code> keeps it up to date as you save. There's also a Rust library, <code>phitex_ssa::Doc</code>, to embed it in your own tools, plus <code>--ssa</code> to see your document the way the compiler does.</p>
         </div>
@@ -247,6 +209,34 @@
 <span class="c">…</span>
 %21 = <b>φ</b>(%7, %20, %1)          <span class="c">; \count1 (then)</span></pre>
       </div>
+    </section>
+
+    <!-- ───────────── NUMBERS ───────────── -->
+    <section class="numbers" id="numbers">
+      <header class="sec-head">
+        <p class="eyebrow"><span class="sect">§5</span> Numbers</p>
+        <h2>Measured, <em>not promised.</em></h2>
+        <p class="lede">Measured in Chromium, on the same engine the extensions ship.</p>
+      </header>
+      <div class="nums">
+        <div class="num-card reveal"><div class="big"><span data-count="8.7" data-dec="1">8.7</span><small>ms</small></div><p>keystroke → page on <b>real Overleaf</b>, 46 keys through CDP key input</p></div>
+        <div class="num-card reveal"><div class="big"><span>4.5–20</span><small>ms</small></div><p>keystroke → page in the browser, typing into a 3-paragraph document</p></div>
+        <div class="num-card reveal"><div class="big"><span>0.1–0.3</span><small>ms</small></div><p>the core's edit, even on a <b>185 KB, 38-page</b> document</p></div>
+        <div class="num-card reveal"><div class="big"><span data-count="24">24</span><small>→ 2</small></div><p>fast keystrokes, coalesced into 2 builds. One build is in flight at a time, and the rest merge.</p></div>
+      </div>
+      <details class="table-wrap reveal">
+        <summary>The core, per document (V8, medians of 11)</summary>
+        <table>
+          <thead><tr><th>document</th><th>pages</th><th>open</th><th>first paint</th><th>fixed point</th><th>fresh-build check</th></tr></thead>
+          <tbody>
+            <tr><td>3 paragraphs</td><td>1</td><td>16 ms</td><td>0.06–0.09 ms</td><td>same</td><td>0.8 ms</td></tr>
+            <tr><td>200 paragraphs, 18 KB</td><td>4</td><td>10 ms</td><td>0.10–0.26 ms</td><td>same</td><td>5.2 ms</td></tr>
+            <tr><td>2000 paragraphs, 185 KB</td><td>38</td><td>62 ms</td><td>0.23–0.26 ms</td><td>0.26–0.28 ms</td><td>47 ms</td></tr>
+            <tr><td><code>book.tex</code> + main (refs, .aux loop)</td><td>6</td><td>15 ms</td><td>0.14–0.21 ms</td><td>same</td><td>8.8 ms</td></tr>
+          </tbody>
+        </table>
+        <p class="fine">Source: phitex-overleaf <code>REPORT.md</code>, “Measured latencies”, from <code>bench/latency.mjs</code>.</p>
+      </details>
     </section>
 
     <!-- ───────────── HOW IT WORKS ───────────── -->
@@ -351,37 +341,9 @@
       </div>
     </section>
 
-    <!-- ───────────── NUMBERS ───────────── -->
-    <section class="numbers" id="numbers">
-      <header class="sec-head">
-        <p class="eyebrow"><span class="sect">§7</span> Numbers</p>
-        <h2>Measured, <em>not promised.</em></h2>
-        <p class="lede">Measured in Chromium, on the same engine the extensions ship.</p>
-      </header>
-      <div class="nums">
-        <div class="num-card reveal"><div class="big"><span data-count="8.7" data-dec="1">8.7</span><small>ms</small></div><p>keystroke → page on <b>real Overleaf</b>, 46 keys through CDP key input</p></div>
-        <div class="num-card reveal"><div class="big"><span>4.5–20</span><small>ms</small></div><p>keystroke → page in the browser, typing into a 3-paragraph document</p></div>
-        <div class="num-card reveal"><div class="big"><span>0.1–0.3</span><small>ms</small></div><p>the core's edit, even on a <b>185 KB, 38-page</b> document</p></div>
-        <div class="num-card reveal"><div class="big"><span data-count="24">24</span><small>→ 2</small></div><p>fast keystrokes, coalesced into 2 builds. One build is in flight at a time, and the rest merge.</p></div>
-      </div>
-      <details class="table-wrap reveal">
-        <summary>The core, per document (V8, medians of 11)</summary>
-        <table>
-          <thead><tr><th>document</th><th>pages</th><th>open</th><th>first paint</th><th>fixed point</th><th>fresh-build check</th></tr></thead>
-          <tbody>
-            <tr><td>3 paragraphs</td><td>1</td><td>16 ms</td><td>0.06–0.09 ms</td><td>same</td><td>0.8 ms</td></tr>
-            <tr><td>200 paragraphs, 18 KB</td><td>4</td><td>10 ms</td><td>0.10–0.26 ms</td><td>same</td><td>5.2 ms</td></tr>
-            <tr><td>2000 paragraphs, 185 KB</td><td>38</td><td>62 ms</td><td>0.23–0.26 ms</td><td>0.26–0.28 ms</td><td>47 ms</td></tr>
-            <tr><td><code>book.tex</code> + main (refs, .aux loop)</td><td>6</td><td>15 ms</td><td>0.14–0.21 ms</td><td>same</td><td>8.8 ms</td></tr>
-          </tbody>
-        </table>
-        <p class="fine">Source: phitex-overleaf <code>REPORT.md</code>, “Measured latencies”, from <code>bench/latency.mjs</code>.</p>
-      </details>
-    </section>
-
     <!-- ───────────── FAQ ───────────── -->
     <section class="faq" id="faq">
-      <header class="sec-head"><p class="eyebrow"><span class="sect">§8</span> FAQ</p><h2>Questions.</h2></header>
+      <header class="sec-head"><p class="eyebrow"><span class="sect">§7</span> FAQ</p><h2>Questions.</h2></header>
       <div class="qs">
         <details class="reveal"><summary>Is my document uploaded?</summary><p>No. Everything runs locally, in your browser, as WebAssembly. The extension's only requests go to overleaf.com, as you, for your own project's files, the same way the editor gets them. It has no analytics, no server and no remote code. This site makes no third-party requests either: its fonts and libraries are bundled.</p></details>
         <details class="reveal"><summary>Does it compile my LaTeX thesis?</summary><p>Yes. It handles LaTeX with your packages, BibTeX and biber, Unicode and OpenType fonts, and the PDF matches pdfTeX, XeTeX and LuaTeX byte for byte.</p></details>
