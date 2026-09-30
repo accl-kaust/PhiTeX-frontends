@@ -1,13 +1,13 @@
 .proof-hero { text-align: center; padding-top: 140px !important; }
 .proof-hero .display { font-size: clamp(40px, 6vw, 64px); line-height: 1.12; }
-.placeholder-banner { display: inline-block; margin: 0 0 28px; padding: 8px 16px; border-radius: 999px; background: #fcf1e3; color: #7a4304; font-size: 14px; border: 1px dashed #de8014; }
+.placeholder-banner { display: inline-block; margin: 0 0 28px; padding: 8px 16px; border-radius: 999px; background: #f1f4f9; color: #28518f; font-size: 14px; border: 1px dashed #97b6e5; }
 .placeholder-banner b { color: inherit; }
-:root[data-theme="dark"] .placeholder-banner { background: rgba(222,128,20,.12); color: #fcc483; }
-.ph { display: inline-block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #8f5514; background: #fcf1e3; border: 1px dashed #de8014; border-radius: 999px; padding: 2px 8px; vertical-align: middle; margin-left: 6px; }
+:root[data-theme="dark"] .placeholder-banner { background: rgba(101,151,224,.12); color: #c3d0e3; }
+.ph { display: inline-block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #28518f; background: #f1f4f9; border: 1px dashed #97b6e5; border-radius: 999px; padding: 2px 8px; vertical-align: middle; margin-left: 6px; }
 .hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 960px; margin: 56px auto 0; }
 .hs { display: flex; flex-direction: column; gap: 6px; padding: 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
 .hs .big { font-size: 44px; line-height: 52px; font-weight: 600; color: var(--text); }
-.hs [data-ph]::after { content: "*"; color: #de8014; }
+.hs [data-ph]::after { content: "*"; color: var(--accent); }
 @media (max-width: 760px) { .hero-stats { grid-template-columns: 1fr; } }
 .matrix-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-sm); }
 .matrix { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }

@@ -48,7 +48,7 @@ const DATA = {
 // charts: plain SVG, one axis each, legend + direct labels, hover tooltip, table view
 const css = (v: string) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-const series = () => (isDark() ? ["#d9762f", "#5b8fd8"] : ["#c2570c", "#366cbf"]);
+const series = () => (isDark() ? ["#5b8fd8", "#2e9e5b"] : ["#366cbf", "#098842"]);
 
 interface Line { name: string; values: number[]; }
 function lineChart(el: HTMLElement, o: { title: string; sub: string; xs: number[]; xLabel: string; yLabel: string; lines: Line[]; logY?: boolean; logX?: boolean; fmt: (v: number) => string }) {

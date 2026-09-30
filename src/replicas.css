@@ -180,7 +180,7 @@
 .ol .code pre, .ol .code textarea { font-family: "DM Mono", ui-monospace, Menlo, monospace; }
 .ol .hl { color: #000; }
 .ol .hl .cs { color: rgb(49, 132, 149); } .ol .hl .br { color: #000; } .ol .hl .cm { color: rgb(76, 136, 107); font-style: normal; } .ol .hl .nu { color: #000; } .ol .hl .ma { color: rgb(3, 106, 7); }
-.ol .hl .para-hot { background: rgba(222,128,20,.14); box-shadow: -3px 0 0 #de8014; }
+.ol .hl .para-hot { background: rgba(54,108,191,.14); box-shadow: -3px 0 0 #366cbf; }
 .ol .code textarea { caret-color: #000; }
 .ol .code textarea::selection { background: rgb(181, 213, 255); }
 .ol .r-pdf { background: var(--ol-n80); border-left: 1px solid #0f141b; }
@@ -196,9 +196,9 @@
 .ol .r-zoom { color: #fff; font-style: normal; }
 .ol .r-page { font-family: var(--serif); box-shadow: 0 2px 6px rgba(0,0,0,.4); }
 .ol .r-chip { background: var(--ol-n90); color: #fff; border: 0; border-radius: 999px; font-family: "DM Mono", ui-monospace, monospace; }
-.ol .r-chip b { color: #f7a445; }
+.ol .r-chip b { color: #97b6e5; }
 .ol .r-stale { background: var(--ol-n90); color: #fff; border: 0; border-radius: 999px; font-style: normal; }
-.ol .ch.hot { background-color: rgba(247, 164, 69, .3); }
+.ol .ch.hot { background-color: rgba(54, 108, 191, .18); }
 .r-caption { max-width: 1240px; width: 100%; margin: -40px auto 0; font-size: 15.5px; font-style: italic; color: var(--faint); }
 .r-caption b { color: var(--text); font-weight: 400; }
 @media (max-width: 900px) { .ol .r-body { grid-template-columns: 1fr 1fr; } .ol .r-rail, .ol .r-tree { display: none; } }
@@ -233,7 +233,7 @@
 .f0 .pv-tb { background: #1b222c; border-color: #0f141b; }
 .f0 .sw { background: #098842; color: #fff; border-radius: 999px; font-family: "Noto Sans", system-ui, sans-serif; font-size: 12.5px; }
 .f0 .pv-chip { background: #1b222c; color: #fff; border: 0; border-radius: 999px; }
-.f0 .pv-chip b { color: #f7a445; }
+.f0 .pv-chip b { color: #97b6e5; }
 .replica, .replica .r-body, .replica .r-editor, .replica .r-pdf { overflow: clip; }
 .r-editor .code pre, .r-editor .code textarea { white-space: pre; word-break: normal; overflow-wrap: normal; }
 .r-editor .code { min-width: max-content; }
