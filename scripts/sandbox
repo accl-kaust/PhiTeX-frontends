@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Run a command in a bubblewrap sandbox: this repo writable; PhiTeX, its
+# pinned export and phitex-overleaf read-only.
+# (Adapted from phitex-overleaf's scripts/sandbox, itself from PhiTeX's.)
+#
+#   scripts/sandbox [--net] <command> [args...]
+#
+# - System dirs (/usr, /etc) read-only; $HOME is an empty tmpfs.
+# - Only this repository (and npm's cache, inside it) is writable.
+# - No network unless --net is given (only to fetch dependencies).
+set -euo pipefail
+
+repo="$(cd "$(dirname "$0")/.." && pwd)"
+overleaf="${PHITEX_OVERLEAF:-$HOME/code/flinner/phitex-overleaf}"
+phitex="${PHITEX_SRC:-$HOME/code/flinner/PhiTeX}"
+export_="${PHITEX_REPO:-$HOME/code/tmp/phitex-241bd29}"
+
+net=(--unshare-net)
+if [ "${1:-}" = "--net" ]; then net=(--share-net); shift; fi
+[ $# -gt 0 ] || { echo "usage: $0 [--net] <command> [args...]" >&2; exit 2; }
+
+args=(
+  --unshare-all "${net[@]}"
+  --die-with-parent --new-session
+  --ro-bind /usr /usr
+  --symlink usr/bin /bin --symlink usr/bin /sbin
+  --symlink usr/lib /lib --symlink usr/lib /lib64
+  --ro-bind /etc /etc
+  --proc /proc --dev /dev
+  --tmpfs /tmp
+  --tmpfs "$HOME"
+  --bind "$repo" "$repo"
+  --ro-bind-try "$overleaf" "$overleaf"
+  --ro-bind-try "$phitex" "$phitex"
+  --ro-bind-try "$export_" "$export_"
+  --chdir "$PWD"
+  --clearenv
+  --setenv HOME "$HOME"
+  --setenv PATH "/usr/bin"
+  --setenv npm_config_cache "$repo/.cache/npm"
+  --setenv PLAYWRIGHT_BROWSERS_PATH 0
+  --setenv TERM "${TERM:-dumb}"
+  --setenv LANG "${LANG:-C.UTF-8}"
+  --setenv PHITEX_SANDBOX 1
+)
+[ -n "${CHROMIUM:-}" ] && args+=(--setenv CHROMIUM "$CHROMIUM")
+case "$PWD" in
+  "$repo"*) ;;
+  "$HOME"/code/tmp/*) args+=(--bind "$PWD" "$PWD" --chdir "$PWD") ;;
+  *) args+=(--chdir "$repo") ;;
+esac
+exec bwrap "${args[@]}" "$@"
