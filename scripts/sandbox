@@ -44,6 +44,10 @@ args=(
   --setenv PHITEX_SANDBOX 1
 )
 [ -n "${CHROMIUM:-}" ] && args+=(--setenv CHROMIUM "$CHROMIUM")
+# Build-time settings (VITE_REPO_URL, ...) pass through.
+while IFS='=' read -r name value; do
+  [[ $name == VITE_* ]] && args+=(--setenv "$name" "$value")
+done < <(env)
 case "$PWD" in
   "$repo"*) ;;
   "$HOME"/code/tmp/*) args+=(--bind "$PWD" "$PWD" --chdir "$PWD") ;;

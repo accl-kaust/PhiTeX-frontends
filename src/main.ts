@@ -1,7 +1,7 @@
 import "./style.css";
 import { PRESETS } from "./demo/presets.ts";
 import { blockAt, blocks, highlight, typeset } from "./fake.ts";
-import { REPOS } from "./links.ts";
+import { REPO } from "./links.ts";
 import phiTex from "./content/phi.tex?raw";
 import phiSsa from "./content/phi.ssa?raw";
 
@@ -394,7 +394,11 @@ The instant build equals a full one after every edit.
 }
 
 // ── links ──
-$<HTMLAnchorElement>("#watch").href = REPOS.PhiTeX;
+{
+  const watch = $<HTMLAnchorElement>("#watch");
+  if (REPO) watch.href = REPO;
+  else watch.hidden = true;
+}
 
 // ── everywhere: the prism, turned by scroll ──
 {
