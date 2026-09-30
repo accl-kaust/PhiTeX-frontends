@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PhiTeX: pick a tagline and a logo</title>
+  <script type="module" src="/src/pick.ts"></script>
+  <style>
+    .pk { max-width: 1240px; margin: 0 auto; padding: 48px clamp(16px,5vw,64px) 80px; }
+    .pk h1 { font: 400 42px/1.1 var(--serif); margin: 0 0 8px; }
+    .pk > p { color: var(--muted); font-style: italic; margin: 0 0 40px; }
+    .opt { border-top: 1px solid var(--text); padding: 22px 0 56px; }
+    .opt .lab { font-style: italic; color: var(--accent); font-size: 18px; }
+    .opt .lab b { font-style: normal; font-weight: 400; font-size: 26px; margin-right: 8px; }
+    .opt .kicker { margin-top: 28px; }
+    .opt .display.s { font-size: clamp(40px,5.6vw,78px); line-height: 1.02; max-width: 1100px; }
+    .opt .display.xs { font-size: clamp(32px,4.2vw,56px); line-height: 1.08; max-width: 1100px; }
+    .logos { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--text); }
+    .logo { border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 14px; }
+    .logo:nth-child(3n+1) { border-left: 0; padding-left: 0; }
+    .logo .art { height: 190px; display: grid; place-items: center; }
+    .logo p { margin: 0; color: var(--muted); font-size: 16px; }
+    .wm { font: 400 76px/1 var(--serif); white-space: nowrap; }
+    .wm .E { display: inline-block; transform: translateY(.215em); margin: 0 -.115em 0 -.1667em; }
+    .wm .X { margin-left: -.0em; }
+    .wm .P { margin-right: -.08em; }
+    .wm.red .E { color: var(--accent); }
+    .wm.phi-red .P { color: var(--accent); }
+    .fav { display: flex; gap: 18px; }
+    .fav div { width: 110px; height: 110px; display: grid; place-items: center; font: italic 400 86px/1 var(--serif); }
+    .fav .ink { background: #16130e; color: #f6f2e9; }
+    .fav .paper { background: #fffdf8; color: #b3261e; border: 1px solid var(--line-2); }
+    .fav .small { width: 32px; height: 32px; font-size: 26px; align-self: end; }
+    .logos svg { height: 180px; width: auto; overflow: visible; }
+    @media (max-width: 860px) { .logos { grid-template-columns: 1fr; } .logo { border-left: 0; padding-left: 0; } }
+  </style>
+</head>
+<body>
+<main class="pk">
+  <h1>Pick one of each.</h1>
+  <p>Taglines A–D, each set as the hero would set it, then logos 1–6. Reply with, say, “B + 1, with 5 as the favicon”.</p>
+
+  <section class="opt"><div class="lab"><b>A</b> the full claim</div>
+    <p class="kicker">PhiTeX</p>
+    <h2 class="display s">A modern multi-IR, incremental, <em>parallel</em> TeX compiler, byte-exact with Knuth's TeX.</h2>
+  </section>
+
+  <section class="opt"><div class="lab"><b>B</b> the one-liner</div>
+    <p class="kicker">PhiTeX</p>
+    <h2 class="display">The first <em>SSA</em> compiler for TeX.</h2>
+    <p class="lede">Your document, compiled like a program: every edit rebuilds only what it touched, and the PDF is byte-exact with Knuth's TeX.</p>
+  </section>
+
+  <section class="opt"><div class="lab"><b>C</b> the architecture</div>
+    <p class="kicker">PhiTeX</p>
+    <h2 class="display xs">An incremental, multi-IR compiler for TeX: documents compiled to <em>SSA</em>, laid out through a page IR, with Knuth's typesetting as pure functions.</h2>
+  </section>
+
+  <section class="opt"><div class="lab"><b>D</b> the mechanism</div>
+    <p class="kicker">PhiTeX</p>
+    <h2 class="display s">TeX as a program: <em>SSA</em> for the macros, an IR for the pages, early cutoff on every edit.</h2>
+  </section>
+
+  <section class="opt" style="padding-bottom:0"><div class="lab"><b>+</b> combined: B as the headline, C beneath it</div>
+    <p class="kicker">PhiTeX</p>
+    <h2 class="display">The first <em>SSA</em> compiler for TeX.</h2>
+    <p class="lede">An incremental, multi-IR compiler: documents compiled to SSA, laid out through a page IR, with Knuth's typesetting as pure functions. Byte-exact with Knuth's TeX.</p>
+  </section>
+
+  <h1 style="margin-top:80px">Logos</h1>
+  <p>All set in Computer Modern (CMU), the typeface the site and the output share.</p>
+  <div class="logos">
+    <div class="logo"><div class="art"><span class="wm"><span class="P">Φ</span>T<span class="E">E</span>X</span></div><p><b>1.</b> The wordmark: Φ, then T, a lowered E and X, like <code>\TeX</code>.</p></div>
+
+    <div class="logo"><div class="art">
+      <svg viewBox="0 0 160 180" aria-label="phi as a phi-node">
+        <path d="M40 18 C40 60, 80 60, 80 92 M120 18 C120 60, 80 60, 80 92" fill="none" stroke="var(--line-2)" stroke-width="2"/>
+        <circle cx="40" cy="14" r="5" fill="var(--text)"/><circle cx="120" cy="14" r="5" fill="var(--text)"/>
+        <text x="80" y="160" text-anchor="middle" font-family="CMU Serif" font-style="italic" font-size="110" fill="var(--accent)">φ</text>
+      </svg></div><p><b>2.</b> φ as a node: two arms meet in the φ, as in SSA.</p></div>
+
+    <div class="logo"><div class="art"><span class="wm red"><span class="P">Φ</span>T<span class="E">E</span>X</span></div><p><b>3.</b> The lowered E as the delta: only what changed is red.</p></div>
+
+    <div class="logo"><div class="art"><svg id="chunky" viewBox="0 0 150 180" aria-label="Phi drawn in chunks"></svg></div><p><b>4.</b> Φ built from chunks, one of them lit, as in the “one keystroke” animation.</p></div>
+
+    <div class="logo"><div class="art"><div class="fav"><div class="ink">φ</div><div class="paper">φ</div><div class="ink small">φ</div></div></div><p><b>5.</b> The monogram, as a favicon: italic φ on ink or paper (shown at 32 px too).</p></div>
+
+    <div class="logo"><div class="art">
+      <svg viewBox="0 0 140 180" aria-label="Phi in a page with golden margins">
+        <rect x="5" y="5" width="130" height="170" fill="var(--paper)" stroke="var(--text)" stroke-width="1.2"/>
+        <rect x="23" y="20" width="84" height="120" fill="none" stroke="var(--line-2)" stroke-dasharray="3 3"/>
+        <line x1="5" y1="5" x2="135" y2="175" stroke="var(--line)"/><line x1="135" y1="5" x2="5" y2="175" stroke="var(--line)"/>
+        <text x="65" y="112" text-anchor="middle" font-family="CMU Serif" font-size="92" fill="var(--accent)">Φ</text>
+      </svg></div><p><b>6.</b> Φ as the golden ratio: set in a page with the classical book margins.</p></div>
+  </div>
+</main>
+</body>
+</html>
