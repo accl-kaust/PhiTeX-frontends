@@ -3,7 +3,7 @@
 // page, and the Overleaf-skinned replica on /overleaf. Same engine, same ids.
 import { PRESETS } from "./demo/presets.ts";
 import { blockAt, highlight, typeset } from "./fake.ts";
-import { $, $$, reduced, sleep } from "./ui.ts";
+import { $, $$, reduced, sleep, whileVisible } from "./ui.ts";
 
 export function initReplica() {
   const src = $<HTMLTextAreaElement>("#src");
@@ -134,15 +134,31 @@ export function initReplica() {
     return true;
   };
 
-  async function autotype() {
+  if (!ol) {
+    // Home editor: live, and it types a phrase whenever it is on screen
+    // (it sits far down the page, so run it on visibility, not on load).
+    setInstant(true);
+    whileVisible(src, async (alive) => {
+      const phrase = "Edit anything, and the page keeps up. ";
+      while (alive() && !userTyped && !reduced.matches) {
+        await sleep(900);
+        if (!(await type(phrase))) return;
+        await sleep(2600);
+        if (userTyped || !alive()) return;
+        // clear what we typed and loop, so there is always something to see
+        src.value = preset.files[preset.open];
+        prev = src.value;
+        render();
+        paintEditor();
+        await sleep(700);
+      }
+    });
+    return;
+  }
+
+  // Overleaf hero (visible at once): type in PDF mode, flip to Instant, type on.
+  (async () => {
     if (reduced.matches) return setInstant(true);
-    if (!ol) {
-      // home: already live — just show a keystroke landing on the page.
-      await sleep(1600);
-      await type("Edit anything, and the page keeps up. ");
-      return;
-    }
-    // Overleaf: type in PDF mode (stale), flip to Instant, type on.
     await sleep(1400);
     if (!(await type("With Recompile, "))) return;
     await sleep(1200);
@@ -150,6 +166,5 @@ export function initReplica() {
     setInstant(true);
     await sleep(900);
     if (!(await type("but not with PhiTeX. "))) return;
-  }
-  autotype();
+  })();
 }
