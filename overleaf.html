@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PhiTeX for Overleaf: instant, no more Recompile</title>
+  <meta name="description" content="A browser extension that adds a PDF | ⚡ Instant switch to Overleaf's toolbar. The PhiTeX compiler runs in your browser and repaints the page as you type. Nothing leaves it." />
+  <meta name="color-scheme" content="dark light" />
+  <script>
+    try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+  </script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2316130e'/%3E%3Ctext x='32' y='49' font-family='serif' font-size='46' text-anchor='middle' fill='%23f6f2e9'%3E%CE%A6%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav" id="nav">
+    <a class="brand" href="index.html" aria-label="PhiTeX home"><span class="wm"><span class="P">Φ</span>T<span class="E">E</span>X</span></a>
+    <nav aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
+      <span class="nsep" aria-hidden="true"></span>
+      <a class="page" href="index.html">The compiler</a>
+      <a class="page" href="proof.html">Benchmarks</a>
+    </nav>
+    <a class="gh" data-repo href="#" aria-label="PhiTeX on GitHub" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.57.1.78-.25.78-.55v-2c-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.26.73-1.55-2.56-.3-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.2-3.1-.12-.3-.52-1.48.1-3.08 0 0 .98-.31 3.2 1.18a11.1 11.1 0 0 1 5.82 0c2.22-1.49 3.2-1.18 3.2-1.18.63 1.6.23 2.78.11 3.08.75.81 1.2 1.84 1.2 3.1 0 4.43-2.7 5.4-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .3.2.66.79.55A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg></a>
+    <button class="theme" id="theme" type="button" aria-label="Toggle dark and light theme">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path class="sun" d="M12 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10zM12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><path class="moon" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </header>
+
+  <main id="main">
+    <!-- ───────────── HERO ───────────── -->
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <p class="eyebrow"><a href="index.html">← PhiTeX, the compiler</a></p>
+        <h1 class="display">Instant, in Overleaf. <br /><em>No more Recompile.</em></h1>
+        <p class="subtitle">A browser extension that puts PhiTeX inside Overleaf.</p>
+        <p class="lede">
+          It adds a <b>PDF&nbsp;|&nbsp;⚡&nbsp;Instant</b> switch to Overleaf's PDF toolbar. Flip it, and the page repaints as you type: 8.7&nbsp;ms keystroke→page, measured on real Overleaf. The compiler runs in your browser. Nothing leaves it.
+        </p>
+        <div class="ctas">
+          <a class="btn primary" href="#install">Get the extension</a>
+          <a class="btn ghost" href="#demo">watch the 2-min demo&nbsp;↓</a>
+        </div>
+      </div>
+
+      <figure class="replica hero-replica ol" id="replica" aria-label="Live demo: an Overleaf-style editor with PhiTeX">
+        <div class="r-top">
+          <span class="r-logo" aria-hidden="true"></span><span class="r-menu">Menu</span>
+          <span class="r-title">Thesis ▾</span>
+          <span class="r-menu">History</span><span class="r-menu">Layout</span><span class="r-share">Share</span>
+        </div>
+        <div class="r-body">
+          <nav class="r-rail" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></nav>
+          <aside class="r-tree" aria-label="Examples"><div class="r-tree-h">File tree</div><button class="r-file on" data-preset="article">main.tex</button><button class="r-file" data-preset="book">thesis.tex</button><button class="r-file" data-preset="stress">long.tex <i>38 pp.</i></button><div class="r-file dim">refs.bib</div></aside>
+          <div class="r-editor">
+            <div class="r-etb"><span class="r-tab" id="r-tab">main.tex</span><span class="r-sp"></span><span class="r-cv"><b>Code</b><span>Visual</span></span></div>
+            <div class="r-scroll" id="editor"><div class="gutter" id="gutter" aria-hidden="true"></div><div class="code"><pre class="hl" id="hl" aria-hidden="true"></pre><textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="LaTeX source: type here"></textarea></div></div>
+          </div>
+          <div class="r-pdf">
+            <div class="r-tb">
+              <button class="r-recompile" id="r-recompile" type="button">Recompile</button>
+              <button class="r-switch" id="r-switch" type="button" role="switch" aria-checked="false" aria-label="Instant preview"><span class="opt pdf">PDF</span><span class="opt inst">⚡ Instant</span><span class="knob"></span></button>
+              <span class="r-sp"></span><span class="r-zoom">Fit ▾</span>
+            </div>
+            <div class="r-stage" id="viewer"><div class="r-page" id="r-page"></div><div class="r-chip" id="r-chip">⚡ <b id="lat">9</b> ms · <span id="s-chunks">1 of 12</span> chunks</div><div class="r-stale" id="r-stale">Recompile to see your changes</div></div>
+          </div>
+        </div>
+      </figure>
+      <p class="r-caption"><b>Type in it.</b> Overleaf with PhiTeX, redrawn for this page: flip <b>PDF | ⚡ Instant</b> and the page follows every keystroke, or pick another file on the left. PhiTeX is not affiliated with Overleaf.</p>
+    </section>
+
+    <!-- ───────────── DEMO VIDEO ───────────── -->
+    <section class="video-sec band" id="demo">
+      <header class="sec-head">
+        <p class="eyebrow">See it in action</p>
+        <h2>Two minutes, on <em>real Overleaf.</em></h2>
+        <p class="lede">The extension in a live Overleaf project: flip the switch, and the PDF follows the typing.</p>
+      </header>
+      <div class="video reveal" data-yt="Pw35Qo_k5i4">
+        <button class="video-play" type="button" aria-label="Play the PhiTeX for Overleaf demo on YouTube">
+          <span class="pbtn" aria-hidden="true">▶</span>
+          <span class="plabel">Watch the demo</span>
+          <span class="pnote">click to load</span>
+        </button>
+      </div>
+      <p class="fine">It's on YouTube. Nothing loads till you hit play.</p>
+    </section>
+
+    <!-- ───────────── FOR OVERLEAF ───────────── -->
+    <section class="band overleaf" id="how">
+      <header class="sec-head">
+        <p class="eyebrow">How it works</p>
+        <h2>Your browser does the compiling.</h2>
+        <p class="lede">The PhiTeX core runs as WebAssembly in the extension's offscreen document. It reads Overleaf's editor transactions as you type, collaborators' edits too, and repaints the preview. It never writes to Overleaf and never changes your documents.</p>
+      </header>
+
+      <div class="ol-facts">
+        <div class="fact reveal"><b>All local</b><p>The PhiTeX core runs in your browser as WebAssembly, in the extension's offscreen document. There is no server of ours, and no code is loaded remotely.</p></div>
+        <div class="fact reveal"><b>Your editor, untouched</b><p>The extension reads Overleaf's editor transactions, including collaborators' edits. It never writes to Overleaf and never changes your documents.</p></div>
+        <div class="fact reveal"><b>Your whole project</b><p>Every file, every package, every figure: PhiTeX builds the project exactly as Overleaf would, only as you type.</p></div>
+        <div class="fact reveal store"><b>Chrome Web Store</b><p>One click to install, free. It works on every Overleaf project.</p></div>
+      </div>
+    </section>
+
+    <!-- ───────────── INSTALL ───────────── -->
+    <section class="places" id="install">
+      <header class="sec-head">
+        <p class="eyebrow">Install</p>
+        <h2>Add it to your browser.</h2>
+        <p class="lede">Free, one click, on every Overleaf project. Same extension on each.</p>
+      </header>
+      <div class="stores reveal">
+        <a class="store" data-store="chrome" href="#" aria-label="PhiTeX on the Chrome Web Store">
+          <svg class="ico" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#fff"/><circle cx="24" cy="24" r="9" fill="#4285F4"/><path fill="#EA4335" d="M24 6a18 18 0 0 1 15.6 9H24a9 9 0 0 0-8.3 5.6L8.2 13A18 18 0 0 1 24 6z"/><path fill="#34A853" d="M8.2 13 15.7 26A9 9 0 0 0 28 32.5L20.4 41.7A18 18 0 0 1 8.2 13z"/><path fill="#FBBC05" d="M39.6 15A18 18 0 0 1 20.4 41.7L28 28.5A9 9 0 0 0 30.6 15z"/></svg>
+          <span class="lab"><b>Chrome</b><span>Web Store</span></span>
+        </a>
+        <a class="store" data-store="edge" href="#" aria-label="PhiTeX on Edge Add-ons">
+          <svg class="ico" viewBox="0 0 48 48" aria-hidden="true"><path fill="#0C88DA" d="M42 30c-2 7-9 13-18 13-6 0-12-3-14-8 3 2 7 2 11 0 5-3 7-8 7-12 0-3-3-5-6-5-7 0-11 6-11 6C12 11 22 4 32 7c6 4 12 12 10 23z"/><path fill="#2AC3A2" d="M24 4C13 4 4 12 4 23c0 2 0 3 1 5 2-6 8-10 14-10 4 0 7 2 9 4-1-6-6-10-11-10-4 0-7 1-9 4 3-7 9-12 16-12z"/></svg>
+          <span class="lab"><b>Edge</b><span>Add-ons</span></span>
+        </a>
+        <a class="store" data-store="firefox" href="#" aria-label="PhiTeX on Firefox Add-ons">
+          <svg class="ico" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FF9500" d="M43 17c0-3-2-7-4-9 1 3 1 6-1 9-2-5-6-8-10-10 1 2 1 4 0 6-5-3-10-2-14 1-4 3-7 9-7 15 0 10 8 17 18 17s18-8 18-18c0-4-2-8-5-11 1 3 1 6-1 8 2-4 6-5 6-8z"/><path fill="#FF5000" d="M24 45c-8 0-14-6-14-14 0-5 3-9 7-11-1 4 1 8 5 10-3-3-3-8 0-11 2 6 8 8 12 13 2 2 2 5 2 7 0 9-8 6-12 6z"/><circle cx="24" cy="28" r="10" fill="#FFCB00" opacity=".0"/></svg>
+          <span class="lab"><b>Firefox</b><span>Add-ons</span></span>
+        </a>
+      </div>
+      <p class="fine" style="margin-bottom:40px">Or grab it from the <a data-ext href="#">source repository</a>.</p>
+      <p class="then">Then, once it's installed:</p>
+      <ol class="install reveal two">
+        <li><b>Open</b><code>overleaf.com</code><span>any project, as usual</span></li>
+        <li><b>Flip</b><code>PDF | ⚡ Instant</code><span>in the PDF toolbar (Alt+Shift+P)</span></li>
+      </ol>
+      <p class="fine">Unofficial: made independently, not affiliated with or endorsed by Overleaf.</p>
+    </section>
+
+    <!-- ───────────── FAQ ───────────── -->
+    <section class="band faq" id="faq">
+      <header class="sec-head"><p class="eyebrow">FAQ</p><h2>Questions.</h2></header>
+      <div class="qs">
+        <details class="reveal"><summary>Is my document uploaded?</summary><p>No. Everything runs locally, in your browser, as WebAssembly. The extension's only requests go to overleaf.com, as you, for your own project's files, the same way the editor gets them. It has no analytics, no server and no remote code.</p></details>
+        <details class="reveal"><summary>Does it change my Overleaf project?</summary><p>No. The extension only reads Overleaf's editor transactions to keep its own preview in sync. It never writes to Overleaf, so your documents and history are untouched.</p></details>
+        <details class="reveal"><summary>Does it work with collaborators?</summary><p>Yes. It follows the same editor transactions Overleaf applies, so a collaborator's edits repaint your instant preview too.</p></details>
+        <details class="reveal"><summary>Is it the same engine as the CLI?</summary><p>Yes, the same PhiTeX core, compiled to WebAssembly. The PDF is byte-identical to pdfTeX, and the instant result always equals a full rebuild. <a href="index.html">See the compiler →</a></p></details>
+        <details class="reveal"><summary>Is it free and open source?</summary><p>Yes. The PhiTeX engine is free software under the GNU Affero General Public License v3.0 (<code>AGPL-3.0-only</code>).</p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="foot-cols">
+      <div><a class="brand small" href="index.html" aria-label="PhiTeX"><span class="wm"><span class="P">Φ</span>T<span class="E">E</span>X</span></a><p>A fast, modern TeX compiler.</p><p class="credit">Created by <a href="https://accl.kaust.edu.sa/" target="_blank" rel="noopener">ACCL, KAUST</a>.</p></div>
+      <div><p><i>Colophon.</i> Set in Computer Modern, the typeface Donald Knuth drew for TeX, in its Unicode cut (CMU, SIL Open Font License). The PhiTeX engine is free software under the GNU Affero General Public License v3.0.</p><p>Not affiliated with or endorsed by Overleaf. No analytics, no trackers.</p></div>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/overleaf.ts"></script>
+</body>
+</html>
