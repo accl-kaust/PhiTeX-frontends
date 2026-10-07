@@ -21,6 +21,18 @@ scripts/sandbox node scripts/shot.mjs     # writes to .cache/shots/ (gitignored)
 # the script sets executablePath to /usr/bin/chromium and passes --no-sandbox
 ```
 
+## Deploy
+
+Hosted on Cloudflare Pages. Deploys run from GitHub Actions
+(`.github/workflows/deploy.yml`) using Wrangler and a Cloudflare API token,
+not the Cloudflare GitHub App (the `accl-kaust` org requires an owner to
+approve that, which we sidestep). Every push to `main` builds and deploys.
+
+Required repo secrets: `CLOUDFLARE_API_TOKEN` (custom token with
+`Account > Cloudflare Pages: Edit`) and `CLOUDFLARE_ACCOUNT_ID`. Store
+links can be set as repo variables (`VITE_CHROME_URL`, etc.); otherwise the
+defaults in `links.ts` are used. The Pages project is `phitex-org`.
+
 ## Voice (this matters here)
 
 - **No em dashes in prose.** Use a colon, a full stop, or a comma. The only

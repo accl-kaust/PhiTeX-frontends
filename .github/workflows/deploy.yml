@@ -1,0 +1,38 @@
+name: Deploy to Cloudflare Pages
+
+# Builds the static site and deploys it to Cloudflare Pages over the API,
+# so no Cloudflare GitHub App / org-owner approval is needed. Requires two
+# repository secrets:
+#   CLOUDFLARE_API_TOKEN   custom token with Account > Cloudflare Pages: Edit
+#   CLOUDFLARE_ACCOUNT_ID  from the Cloudflare dashboard
+# The VITE_* values are optional repo "variables"; links.ts has defaults.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_REPO_URL: ${{ vars.VITE_REPO_URL }}
+          VITE_EXT_URL: ${{ vars.VITE_EXT_URL }}
+          VITE_CHROME_URL: ${{ vars.VITE_CHROME_URL }}
+          VITE_EDGE_URL: ${{ vars.VITE_EDGE_URL }}
+          VITE_FIREFOX_URL: ${{ vars.VITE_FIREFOX_URL }}
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=phitex-org --branch=main
