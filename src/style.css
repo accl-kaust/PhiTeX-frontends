@@ -503,3 +503,7 @@ p.where b { color: var(--text); }
 .byline a { color: var(--muted); font-style: normal; font-weight: 600; }
 .byline a:hover { color: var(--accent); }
 @media (max-width: 600px) { .byline { display: none; } }
+
+/* bold inside the typeset paper takes the paper's ink, not the UI text color
+   (the global `b { color: var(--text) }` is white in dark mode) */
+.r-page b, .pv-page b, .paper b { color: inherit; font-weight: 700; }
