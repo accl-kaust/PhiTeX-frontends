@@ -504,6 +504,8 @@ p.where b { color: var(--text); }
 .byline a:hover { color: var(--accent); }
 @media (max-width: 600px) { .byline { display: none; } }
 
-/* bold inside the typeset paper takes the paper's ink, not the UI text color
-   (the global `b { color: var(--text) }` is white in dark mode) */
-.r-page b, .pv-page b, .paper b { color: inherit; font-weight: 700; }
+/* The typeset paper is always ink-on-white. Force every element inside it to
+   the ink color so dark-mode UI rules (white headings, bold, links) never
+   leak in and render white-on-white. */
+.r-page, .r-page *, .pv-page, .pv-page *, .paper, .paper * { color: var(--paper-ink); }
+.r-page b, .pv-page b, .paper b { font-weight: 700; }
