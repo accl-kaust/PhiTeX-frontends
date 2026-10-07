@@ -33,7 +33,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: var(--n90); --band: var(--n85); --card: var(--n85);
+    --bg: var(--n90); --band: var(--n85); --card: var(--n80);
     --text: #fff; --muted: var(--n30); --faint: var(--n40); --line: var(--n80); --line-2: var(--n70);
     --accent: #6597e0; --accent-hover: #97b6e5; --accent-ink: var(--n90); --accent-soft: rgba(101, 151, 224, .14);
     --cool: #6597e0; --good: #53b57f; --code-bg: var(--n90);
@@ -43,7 +43,7 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg: var(--n90); --band: var(--n85); --card: var(--n85);
+  --bg: var(--n90); --band: var(--n85); --card: var(--n80);
   --text: #fff; --muted: var(--n30); --faint: var(--n40); --line: var(--n80); --line-2: var(--n70);
   --accent: #6597e0; --accent-hover: #97b6e5; --accent-ink: var(--n90); --accent-soft: rgba(101, 151, 224, .14);
   --cool: #6597e0; --good: #53b57f; --code-bg: var(--n90);
@@ -496,3 +496,10 @@ p.where b { color: var(--text); }
 /* footer credit */
 .foot .credit { margin-top: 14px; font-size: 14px; color: var(--n30); }
 .foot .credit a { color: #fff; font-weight: 600; }
+
+/* header byline: "by ACCL KAUST" next to the wordmark */
+.brandwrap { display: inline-flex; align-items: baseline; gap: 10px; }
+.byline { font: italic 13px/1 var(--sans); color: var(--faint); white-space: nowrap; }
+.byline a { color: var(--muted); font-style: normal; font-weight: 600; }
+.byline a:hover { color: var(--accent); }
+@media (max-width: 600px) { .byline { display: none; } }
