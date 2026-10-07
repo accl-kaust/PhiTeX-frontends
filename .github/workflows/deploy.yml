@@ -31,6 +31,13 @@ jobs:
           VITE_CHROME_URL: ${{ vars.VITE_CHROME_URL }}
           VITE_EDGE_URL: ${{ vars.VITE_EDGE_URL }}
           VITE_FIREFOX_URL: ${{ vars.VITE_FIREFOX_URL }}
+      # Create the Pages project on first run; a no-op (error) once it exists.
+      - uses: cloudflare/wrangler-action@v3
+        continue-on-error: true
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project create phitex-org --production-branch=main
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
