@@ -264,7 +264,7 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
 <body style="font:13px system-ui,sans-serif;padding:24px;color:var(--vscode-foreground)"><b>Starting phitex watch…</b><pre style="opacity:.75">${esc(said.slice(-8).join("\n"))}</pre></body></html>`;
   };
   waiting();
-  const w = spawn(cmd, ["watch", main, "--view", "--editor", "code -g {file}:{line}:{col}"], { cwd: folder, env: { ...process.env, CI: "" } });
+  const w = spawn(cmd, ["watch", main, "--editor", "code -g {file}:{line}:{col}"], { cwd: folder, env: { ...process.env, CI: "" } });
   watches.add(w);
   // (the tab closed, even while the watch starts: the watch ends with it)
   let closed = false;
