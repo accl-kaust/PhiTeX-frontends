@@ -1,4 +1,4 @@
-# Requests to partex-PhiTeX
+# Requests to PhiTeX
 
 What the Overleaf extension needs from the engine, open items first, in
 priority order. Rule: an engine gap is fixed in the engine, never worked
@@ -10,7 +10,7 @@ around in the extension. Updated 2026-10-06 against engine `3459953`
 ### XeTeX (0.3.0, the launch video)
 
 1. **`\XeTeXlinebreaklocale`** (and `\XeTeXlinebreakskip`,
-   `\XeTeXlinebreakpenalty`): fatal today ("not implemented in partex
+   `\XeTeXlinebreakpenalty`): fatal today ("not implemented in phitex
    yet"). Every polyglossia `chinese`/`japanese` document hits it, and so do
    `xeCJK` and `ctex` setups. Needed: ICU-style (UAX #14) break opportunities
    in native-font text, matching xelatex on CJK first.
@@ -26,9 +26,9 @@ around in the extension. Updated 2026-10-06 against engine `3459953`
 
 ### Embedding
 
-8. **The incremental link in `partex-core`**: `SsaLinker` (spliced link,
-   `link_full`, `Resolver`) lives in `partex-cli`, typed on `NativeHost`.
-   The extension carries its own port (`core-partex` `link_spliced`,
+8. **The incremental link in `phitex-core`**: `SsaLinker` (spliced link,
+   `link_full`, `Resolver`) lives in `phitex-cli`, typed on `NativeHost`.
+   The extension carries its own port (`core-phitex` `link_spliced`,
    `link_full`), which has to follow every engine change. Wanted: a
    `Linker` generic over `H: Host`, with the clock and deflate passed in.
 9. **The page in view first**: a rebuild that reports (or stops) once page
@@ -37,15 +37,15 @@ around in the extension. Updated 2026-10-06 against engine `3459953`
 10. **A format contract**: a format header the engine checks (engine commit
     or format version, and the sizes), with a clear error on a mismatch; and
     `Params::texlive()` instead of each embedder copying `texmf.cnf`'s sizes
-    (`core-partex` `texlive_params`).
-11. **Byte-exact deflate in `partex-core`**: wasm has no system zlib, so the
+    (`core-phitex` `texlive_params`).
+11. **Byte-exact deflate in `phitex-core`**: wasm has no system zlib, so the
     extension deflates with `miniz_oxide`. Its PDF is valid but not
     byte-identical to pdflatex's.
 12. **A wasm job in the gate**: `xtask check` builds the core for
     `wasm32-unknown-unknown` but never runs it. One job under
     `wasm32-wasip1` (an INITEX page, or a LaTeX article from a format) would
     catch a `std`-only API before an embedder does.
-13. **A stable embedding API** (`partex_core::embed`: open a job, edit,
+13. **A stable embedding API** (`phitex_core::embed`: open a job, edit,
     rebuild, take pages and files) that the extension pins to instead of a
     commit.
 

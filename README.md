@@ -237,7 +237,7 @@ Overleaf page                                            extension
       └─ postMessage ─▶ content script: session.ts (editor-agnostic)
                           edits → UTF-8 byte ranges, merged, one build in flight
                         ── port ─▶ offscreen document ─▶ Worker: core.wasm
-                                                            pdfTeX (partex), SSA rebuilds
+                                                            pdfTeX (phitex), SSA rebuilds
                                                             missing files → Shelf
 ```
 

@@ -17,9 +17,9 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use partex_xdvipdfmx::api::{Options, Session, split_xdv};
-use partex_xdvipdfmx::api::GlyphRun;
-use partex_xdvipdfmx::io::{Files, Format};
+use phitex_xdvipdfmx::api::{Options, Session, split_xdv};
+use phitex_xdvipdfmx::api::GlyphRun;
+use phitex_xdvipdfmx::io::{Files, Format};
 
 use crate::shelf;
 
@@ -188,7 +188,7 @@ pub type Started = Option<(Vec<u8>, Live, Session)>;
 
 /// The PDF xelatex makes of `xdv` (`job`.pdf), and each page's glyph runs.
 /// A fatal driver error (`Err`) leaves no PDF, as xelatex's pipe makes none.
-pub fn to_pdf(xdv: &[u8], job: &[u8], files: BTreeMap<Vec<u8>, Arc<[u8]>>, read: &Read, cache: &shelf::Cache, now: i64, started: &mut Started) -> partex_xdvipdfmx::ctx::Result<(Vec<u8>, Vec<Vec<GlyphRun>>)> {
+pub fn to_pdf(xdv: &[u8], job: &[u8], files: BTreeMap<Vec<u8>, Arc<[u8]>>, read: &Read, cache: &shelf::Cache, now: i64, started: &mut Started) -> phitex_xdvipdfmx::ctx::Result<(Vec<u8>, Vec<Vec<GlyphRun>>)> {
     // (an XDV the job did not finish, a fatal error's, has no postamble
     // and its 223s: no PDF, as xelatex's pipe makes none of it)
     if xdv.len() < 16 || 15 + usize::from(xdv[14]) > xdv.len() || xdv.last() != Some(&223) {
@@ -205,7 +205,7 @@ pub fn to_pdf(xdv: &[u8], job: &[u8], files: BTreeMap<Vec<u8>, Arc<[u8]>>, read:
         now,
         ..Options::default()
     };
-    let deflate: partex_xdvipdfmx::obj::Deflate = Box::new(|level, data| miniz_oxide::deflate::compress_to_vec_zlib(data, u8::try_from(level.clamp(0, 9)).unwrap_or(6)));
+    let deflate: phitex_xdvipdfmx::obj::Deflate = Box::new(|level, data| miniz_oxide::deflate::compress_to_vec_zlib(data, u8::try_from(level.clamp(0, 9)).unwrap_or(6)));
     LOOKUPS.with_borrow_mut(|l| *l = (0, 0, 0.0));
     let ms = |a: u64, b: u64| (b - a) as f64 / 1e6;
     let t0 = crate::clock_ns();

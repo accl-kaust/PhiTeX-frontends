@@ -1,7 +1,7 @@
 // The PDF after an edit, through the wasm core as the worker drives it:
 // open, fetch what it asks for (from a flat TeX Live), go, idle (the SSA
 // program, rebuilds prepared), one edit, then the PDF: whole (%%EOF)?
-//   node test/partex-pdf-edit.mjs CORE.wasm ASSETS.bin.gz MAIN.tex FLAT_DIR [AT] [TEXT]
+//   node test/phitex-pdf-edit.mjs CORE.wasm ASSETS.bin.gz MAIN.tex FLAT_DIR [AT] [TEXT]
 import { readFileSync, existsSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { WASI } from "node:wasi";

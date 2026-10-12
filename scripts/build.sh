@@ -6,7 +6,6 @@
 #
 #   scripts/build.sh          # release
 #   scripts/build.sh --dev    # also match the local mock (http://localhost:<any port>/project/*)
-#   scripts/build.sh --phitex # PhiTeX's core instead of partex's
 #
 # The wasm core: cargo for wasm32-wasip1, in the sandbox (PhiTeX read-only),
 # target dir inside this repo. No wasm-bindgen: the core has a raw C ABI
@@ -15,46 +14,37 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export CARGO_TARGET_DIR="$PWD/target"
 
-# The core: partex-PhiTeX's pdfTeX (core-partex/, real LaTeX), or with
-# --phitex PhiTeX's (core/). Either is a WASI reactor: link wasi-libc's
+# The core: PhiTeX's pdfTeX (core/, real LaTeX), a WASI reactor: link wasi-libc's
 # crt1-reactor.o, whose `_initialize` (run once by the host) runs libc's
 # constructors. A cdylib gets no crt of its own (rustc's -Zwasi-exec-model
 # applies to binaries only), and without it std's thread-local destructor
 # registration spins forever.
-engine=partex
-for a in "$@"; do [ "$a" = "--phitex" ] && engine=phitex; done
 sysroot=$(scripts/sandbox rustc --print sysroot)
 flags="-C target-feature=+bulk-memory,+simd128,+nontrapping-fptoint,+sign-ext -C link-arg=$sysroot/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o -C link-arg=--export=_initialize"
 rm -rf overleaf/dist && mkdir -p overleaf/dist
-if [ $engine = partex ]; then
-  (cd core-partex && CARGO_TARGET_DIR="$PWD/../target/partex" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_RUSTFLAGS="$flags" \
-    cargo build --release --target wasm32-wasip1)
-  cp target/partex/wasm32-wasip1/release/phitex_overleaf_partex.wasm overleaf/dist/core.wasm
-  # The LaTeX format, made by the same engine (mkfmt), and the fonts'
-  # metrics: one gzipped file the worker hands the core.
-  if [ ! -f target/fmt/pdflatex.fmt ]; then
-    (cd core-partex && CARGO_TARGET_DIR="$PWD/../target/partex" ../scripts/sandbox cargo build --release --bin mkfmt)
-    (ulimit -v 8000000; scripts/sandbox target/partex/release/mkfmt target/fmt texmf)
-  fi
-  scripts/sandbox python3 scripts/make-assets.py target/fmt/pdflatex.fmt overleaf/dist/assets.bin.gzdata
-  # XeTeX's: its format, made with its font index (the engine's otf-index
-  # over the fonts Shelf serves, scripts/font-index.sh), dvipdfmx.cfg and the
-  # TECkit mappings; a second file the worker loads for the first xelatex
-  # project only
-  # (made outside the sandbox: it reads Shelf's repo and runs its own bwrap)
-  if [ ! -f target/fmt-xe/fontindex.pxfi ]; then
-    echo "no target/fmt-xe/fontindex.pxfi: run scripts/font-index.sh first (after Shelf's release.py)" >&2
-    exit 1
-  fi
-  if [ ! -f target/fmt-xe/xelatex.fmt ]; then
-    (ulimit -v 8000000; scripts/sandbox env MKFMT_XETEX="$PWD/target/fmt-xe/fontindex.pxfi" target/partex/release/mkfmt target/fmt-xe texmf)
-  fi
-  scripts/sandbox python3 scripts/make-xe-assets.py target/fmt-xe overleaf/dist/assets-xelatex.bin.gzdata
-else
-  (cd core && ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_RUSTFLAGS="$flags" \
-    cargo build --release --target wasm32-wasip1)
-  cp target/wasm32-wasip1/release/phitex_overleaf_core.wasm overleaf/dist/core.wasm
+(cd core && CARGO_TARGET_DIR="$PWD/../target/phitex" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_RUSTFLAGS="$flags" \
+  cargo build --release --target wasm32-wasip1)
+cp target/phitex/wasm32-wasip1/release/phitex_overleaf_core.wasm overleaf/dist/core.wasm
+# The LaTeX format, made by the same engine (mkfmt), and the fonts'
+# metrics: one gzipped file the worker hands the core.
+if [ ! -f target/fmt/pdflatex.fmt ]; then
+  (cd core && CARGO_TARGET_DIR="$PWD/../target/phitex" ../scripts/sandbox cargo build --release --bin mkfmt)
+  (ulimit -v 8000000; scripts/sandbox target/phitex/release/mkfmt target/fmt texmf)
 fi
+scripts/sandbox python3 scripts/make-assets.py target/fmt/pdflatex.fmt overleaf/dist/assets.bin.gzdata
+# XeTeX's: its format, made with its font index (the engine's otf-index
+# over the fonts Shelf serves, scripts/font-index.sh), dvipdfmx.cfg and the
+# TECkit mappings; a second file the worker loads for the first xelatex
+# project only
+# (made outside the sandbox: it reads Shelf's repo and runs its own bwrap)
+if [ ! -f target/fmt-xe/fontindex.pxfi ]; then
+  echo "no target/fmt-xe/fontindex.pxfi: run scripts/font-index.sh first (after Shelf's release.py)" >&2
+  exit 1
+fi
+if [ ! -f target/fmt-xe/xelatex.fmt ]; then
+  (ulimit -v 8000000; scripts/sandbox env MKFMT_XETEX="$PWD/target/fmt-xe/fontindex.pxfi" target/phitex/release/mkfmt target/fmt-xe texmf)
+fi
+scripts/sandbox python3 scripts/make-xe-assets.py target/fmt-xe overleaf/dist/assets-xelatex.bin.gzdata
 # (the full license, shipped in the extension, where its links point)
 # (packs/: the list fetched ahead, and any Shelf packs shipped: data/bundled-packs.txt, none now)
 scripts/bundle-packs.sh
@@ -92,8 +82,8 @@ cp node_modules/pyodide/{pyodide.mjs,pyodide.asm.mjs,pyodide.asm.wasm,pyodide-lo
 # (.data, not .zip or .whl: Edge's store refuses archives inside a package)
 cp node_modules/pyodide/python_stdlib.zip overleaf/dist/pyodide/python_stdlib.data
 rm -f overleaf/minted/*.whl
-partex_dir=$(sed -n 's|^partex-core = { path = "\(.*\)/crates/partex-core" }|\1|p' core-partex/Cargo.toml)
-cp "core-partex/$partex_dir/tools/minted-pyodide/runner.mjs" overleaf/dist/minted/
+phitex_dir=$(sed -n 's|^phitex-core = { package = "partex-core", path = "\(.*\)/crates/partex-core" }|\1|p' core/Cargo.toml)
+cp "core/$phitex_dir/tools/minted-pyodide/runner.mjs" overleaf/dist/minted/
 : > overleaf/minted/wheels.txt
 for w in /usr/share/texmf-dist/scripts/minted/*.whl; do cp "$w" "overleaf/minted/$(basename "$w").data"; basename "$w" >> overleaf/minted/wheels.txt; done
 echo "minted: $(du -sh overleaf/dist/pyodide | cut -f1) Pyodide, $(wc -l < overleaf/minted/wheels.txt) wheels"
@@ -101,7 +91,7 @@ echo "minted: $(du -sh overleaf/dist/pyodide | cut -f1) Pyodide, $(wc -l < overl
 # The manifest: manifest.base.json, plus (--dev) the local mock's origin.
 dev=false; for a in "$@"; do [ "$a" = "--dev" ] && dev=true; done
 # (the engine's commit, from the pin, as version_name: debug reports name it)
-engine=$(grep -oE "partex-phitex-[0-9a-f+]+" core-partex/Cargo.toml | head -1 | sed 's/partex-phitex-//')
+engine=$(grep -oE "phitex-phitex-[0-9a-f+]+" core/Cargo.toml | head -1 | sed 's/phitex-phitex-//')
 scripts/sandbox node -e '
   const fs = require("fs"), m = JSON.parse(fs.readFileSync("overleaf/manifest.base.json"));
   m.version_name = `${m.version_name ?? m.version} (engine ${process.argv[2]})`;

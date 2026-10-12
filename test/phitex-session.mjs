@@ -1,6 +1,6 @@
-// The partex core (wasm) through its ph_* ABI under node:wasi, as the worker
+// The phitex core (wasm) through its ph_* ABI under node:wasi, as the worker
 // drives it: a 20-page article opened (packages from texmf/), then edits,
-// each timed.  node test/partex-session.mjs CORE.wasm ASSETS.bin.gz
+// each timed.  node test/phitex-session.mjs CORE.wasm ASSETS.bin.gz
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { WASI } from "node:wasi";

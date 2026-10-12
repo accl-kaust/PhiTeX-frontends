@@ -1,6 +1,6 @@
 # PhiTeX Instant 0.4.1: where a cold start's time goes
 
-Measured on 2026-10-08 against 0.4.1 (engine 44b4a63, branch `partex-engine`,
+Measured on 2026-10-08 against 0.4.1 (engine 44b4a63, branch `phitex-engine`,
 `extension/` as built at 39de975). No extension code was changed.
 Everything below comes from `bench/startup.mjs`.
 

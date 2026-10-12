@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 
-use phitex_overleaf_partex::{Session, add_assets};
+use phitex_overleaf_core::{Session, add_assets};
 
 fn assets() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");

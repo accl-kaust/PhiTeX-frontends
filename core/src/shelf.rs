@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use partex_core::host::FileKind;
+use phitex_core::host::FileKind;
 
 /// The files fetched (every file of every pack, by path), and each name's
 /// path (`engine TAB format TAB name` → path; None: Shelf has none).

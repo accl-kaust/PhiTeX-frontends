@@ -24,7 +24,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use phitex_overleaf_partex::{MemHost, add_assets, engine_params, run, xetex};
+use phitex_overleaf_core::{MemHost, add_assets, engine_params, run, xetex};
 
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();

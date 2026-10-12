@@ -16,7 +16,7 @@ Overleaf, and "Overleaf" is used only to say which site it works with.
 
 Third-party material:
 
-- dist/core.wasm: the PhiTeX engine (partex: a pdfTeX-compatible
+- dist/core.wasm: the PhiTeX engine (phitex: a pdfTeX-compatible
   engine, and PhiTeX's SSA crates), by the copyright holder above, and the
   Rust crates miniz_oxide (MIT OR Zlib OR Apache-2.0) and adler2 (0BSD OR
   MIT OR Apache-2.0).

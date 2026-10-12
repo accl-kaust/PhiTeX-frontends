@@ -1,7 +1,7 @@
 # phitex-diff (PhiTeX's latexdiff) as a small wasm module of its own, for the
 # extension: two versions' files in, the marked-up .tex and the changes out
 # (diff.ts). Built by scripts/build.sh into dist/diff.wasm; pinned to a PhiTeX
-# commit like core-partex (a git archive under ~/code/tmp).
+# commit like core-phitex (a git archive under ~/code/tmp).
 [package]
 name = "phitex-diff-wasm"
 version = "0.0.0"
@@ -13,7 +13,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-phitex-diff = { path = "../../../tmp/partex-phitex-171ff74/crates/phitex-diff" }
+phitex-diff = { path = "../../../tmp/phitex-171ff74/crates/phitex-diff" }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
 
 [profile.release]

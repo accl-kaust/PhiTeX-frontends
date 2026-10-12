@@ -1,4 +1,4 @@
-//! A shipped page ([`Page`], partex's page IR) as the panel's draw list:
+//! A shipped page ([`Page`], phitex's page IR) as the panel's draw list:
 //! JSON in PDF points (bp) from the page's top left, `{"w","h","f": [font
 //! names], "t": [[x, y, size, font, text, width]], "r": [[x, y, w, h]]}`,
 //! the same as `core/`'s. Positions are tex.web's `hlist_out` /
@@ -9,7 +9,7 @@
 
 use std::fmt::Write as _;
 
-use partex_core::pageir::{Item, LeaderKind, Page};
+use phitex_core::pageir::{Item, LeaderKind, Page};
 
 use crate::esc;
 

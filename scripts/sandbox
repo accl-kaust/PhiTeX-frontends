@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run a command in a bubblewrap sandbox: this repo writable, PhiTeX and partex read-only.
+# Run a command in a bubblewrap sandbox: this repo writable, the pinned PhiTeX read-only.
 # (Adapted from PhiTeX's scripts/sandbox.)
 #
 #   scripts/sandbox [--net] <command> [args...]
@@ -12,10 +12,9 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-phitex="${PHITEX_REPO:-$HOME/code/tmp/phitex-0ae189b}"
-partex="${PARTEX_REPO:-$HOME/code/tmp/partex-phitex-0cf6457}"
+phitex="${PHITEX_REPO:-$HOME/code/tmp/phitex-0cf6457}"
 # (phitex-diff, diff-wasm's: its own PhiTeX export until the engine's pin has it)
-diffrepo="${DIFF_REPO:-$HOME/code/tmp/partex-phitex-171ff74}"
+diffrepo="${DIFF_REPO:-$HOME/code/tmp/phitex-171ff74}"
 # (Shelf's checkout, read-only: scripts/bundle-packs.sh takes the bundled
 # packs from its releases; keep-packs.txt is written outside the sandbox)
 shelf="${SHELF_REPO:-$HOME/code/flinner/shelf.PhiTeX.org}"
@@ -49,8 +48,7 @@ args=(
   --bind "$cargo_home/registry" "$cargo_home/registry"
   --bind "$cargo_home/git" "$cargo_home/git"
   --bind "$repo" "$repo"
-  --ro-bind "$phitex" "$phitex"
-  --ro-bind-try "$partex" "$partex"
+  --ro-bind-try "$phitex" "$phitex"
   --ro-bind-try "$diffrepo" "$diffrepo"
   --ro-bind-try "$shelf" "$shelf"
   --chdir "$PWD"

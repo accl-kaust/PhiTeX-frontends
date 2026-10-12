@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::rc::Rc;
 
-use phitex_overleaf_partex::{MemHost, engine_params, run};
+use phitex_overleaf_core::{MemHost, engine_params, run};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -24,7 +24,7 @@ fn main() {
     let engine = if xetex { "-engine=xetex" } else { "-engine=pdftex" };
     let mut host = MemHost::default();
     host.fallback = Some(Box::new(move |name: &[u8]| {
-        if name == phitex_overleaf_partex::xetex::INDEX {
+        if name == phitex_overleaf_core::xetex::INDEX {
             return std::fs::read(index.as_ref()?).ok();
         }
         // (a font by its path inside TeX Live)

@@ -2,7 +2,7 @@
 //! worker gets control back between slices, so each page is drawn as soon
 //! as it is shipped, and the tab's requests are answered while the build
 //! runs. The build is the one `Session::build` makes, cut where the engine
-//! stops anyway (partex's DESIGN 4.10):
+//! stops anyway (phitex's DESIGN 4.10):
 //!
 //! - plain (the first paint): `Tex::start`, then `resume` every
 //!   [`SLICE`] commands (`Tex::set_stop_at`);
@@ -12,7 +12,7 @@
 //!   `ssa::settle` goes on with it), then the link.
 //!
 //! Pages shipped so far are drawn from their own PDFs
-//! (`partex_core::pagepdf::Shipments`), with the hash the finished PDF's
+//! (`phitex_core::pagepdf::Shipments`), with the hash the finished PDF's
 //! page will have when the stream draws it whole (else a hash no built page
 //! has). An edit while the first trip runs waits for it (the worker queues
 //! it); one while the trips settle stops them at the next step, and its
@@ -21,9 +21,9 @@ use std::fmt::Write as _;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-use partex_core::pagepdf::Shipments;
-use partex_core::ssa::{self, ColdRun, SsaTracker};
-use partex_core::{FileKind, Step, Tex, Untracked};
+use phitex_core::pagepdf::Shipments;
+use phitex_core::ssa::{self, ColdRun, SsaTracker};
+use phitex_core::{FileKind, Step, Tex, Untracked};
 
 use crate::{MemHost, Session, clock_ns, esc, ms, native_tools, no_tools, shelf};
 
@@ -335,7 +335,7 @@ impl Session {
             Some(Run::Trip1 { tex, .. }) => tex.host_mut(),
             _ => self.tex.as_mut()?.host_mut(),
         };
-        let mut read = |n: &[u8], kind: FileKind| partex_core::Host::read_file(host, n, kind).map(|f| f.contents);
+        let mut read = |n: &[u8], kind: FileKind| phitex_core::Host::read_file(host, n, kind).map(|f| f.contents);
         let (pdf, _) = st.shipped.page_pdf(k, &mut read)?;
         let d = phitex_draw::Pdf::open(&std::sync::Arc::from(pdf))?.draw(0, &mut self.pdf_fonts)?;
         st.draws.insert(h, d.clone());

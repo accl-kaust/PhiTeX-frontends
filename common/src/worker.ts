@@ -77,7 +77,7 @@ export interface Res {
 
 interface Core {
   memory: WebAssembly.Memory;
-  /** The partex core: the LaTeX format and fonts (assets.bin.gzdata: gzip, gunzipped). */
+  /** The phitex core: the LaTeX format and fonts (assets.bin.gzdata: gzip, gunzipped). */
   ph_assets?(p: number, n: number): number;
   ph_alloc(n: number): number;
   ph_free(p: number, n: number): void;
@@ -91,7 +91,7 @@ interface Core {
   ph_edit(h: number, p: number, n: number, page: number, dpi: number): number;
   ph_png_last(): void;
   ph_set_file(h: number, p: number, n: number): number;
-  /** The partex core: a binary file (`str name`, then the bytes). */
+  /** The phitex core: a binary file (`str name`, then the bytes). */
   ph_set_bytes?(h: number, p: number, n: number): number;
   ph_png(h: number, page: number, dpi: number): void;
   ph_pdf(h: number): void;
@@ -173,7 +173,7 @@ function framed(parts: Uint8Array[]): Uint8Array {
 }
 
 /**
- * `\write18` (core-partex system.rs): latexminted with Pygments in Pyodide,
+ * `\write18` (core-phitex system.rs): latexminted with Pygments in Pyodide,
  * the engine's tools/minted-pyodide runner, loaded (and bundled: no code
  * from the network) only for a project that uses minted; the core runs
  * commands only once it is (`ph_set_system`).
@@ -397,7 +397,7 @@ let core: Core;
 let module: WebAssembly.Module;
 let assets: Promise<Uint8Array> | undefined;
 
-/** The partex core's assets (the format, the fonts' metrics), fetched and gunzipped once. */
+/** The phitex core's assets (the format, the fonts' metrics), fetched and gunzipped once. */
 const loadAssets = () =>
   (assets ??= platform().asset("dist/assets.bin.gzdata").then(async (r) => {
     if (!r.ok) throw new Error(`assets: ${r.status}`);
@@ -478,7 +478,7 @@ function call<T>(f: Frame, g: (p: number, n: number) => T): T {
 }
 
 /**
- * PDF mode (the partex core): page `page` to be rendered from the PDF, by
+ * PDF mode (the phitex core): page `page` to be rendered from the PDF, by
  * the offscreen document (pdf.js). The PDF goes along only when it changed
  * since the last one this worker sent (its length and hash say so).
  */
@@ -941,7 +941,7 @@ async function onRequest(r: Req): Promise<void> {
       running = null;
     }
     shipPdf(r);
-    // (the partex core draws pages only as draw lists, whatever the dpi)
+    // (the phitex core draws pages only as draw lists, whatever the dpi)
     if (res.png && (("dpi" in r && r.dpi === 0) || (core.ph_assets && res.png[0] !== 0x89))) {
       res.draws = res.png.length ? newImages(r.client, JSON.parse(new TextDecoder().decode(res.png))) : undefined;
       delete res.png;
@@ -957,7 +957,7 @@ async function onRequest(r: Req): Promise<void> {
     // (and a core that fails to load at all says so: the reply always goes)
     // (XeTeX's PDF driver, xdvipdfmx, stops with a panic too: said so)
     const why = panicText();
-    res = { id: r.id, ok: false, error: `${/partex_xdvipdfmx|xdvipdfmx/.test(why) ? "PDF driver failed" : "core trapped"}: ${e}${why}` };
+    res = { id: r.id, ok: false, error: `${/xdvipdfmx/.test(why) ? "PDF driver failed" : "core trapped"}: ${e}${why}` };
     sessions.clear();
     packsGiven.clear();
     await load().catch((l) => (res.error = `core failed to load: ${l}`));

@@ -1,6 +1,6 @@
-// A LaTeX document in the partex core (wasm), the extension's way: run,
+// A LaTeX document in the phitex core (wasm), the extension's way: run,
 // fetch what the job found missing (here: kpsewhich, standing in for
-// Shelf), run again.  node test/partex-latex.mjs CORE.wasm FMT DOC.tex
+// Shelf), run again.  node test/phitex-latex.mjs CORE.wasm FMT DOC.tex
 import { readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { WASI } from "node:wasi";

@@ -6,7 +6,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 names=("$@"); [ ${#names[@]} -eq 0 ] && names=(article revtex ieeetran acmart xelatex longtail)
-run() { timeout 900 systemd-run --user --scope -q --slice=partex.slice -p MemoryMax=16G -p MemorySwapMax=0 nice -n 19 ionice -c3 \
+run() { timeout 900 systemd-run --user --scope -q --slice=phitex.slice -p MemoryMax=16G -p MemorySwapMax=0 nice -n 19 ionice -c3 \
   scripts/sandbox --net node bench/startup.mjs "$@"; }
 for net in ${PHITEX_NETS:-fast slow}; do
   flag=; [ $net = slow ] && flag=--slow

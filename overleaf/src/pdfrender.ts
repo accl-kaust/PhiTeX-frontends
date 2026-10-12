@@ -1,6 +1,6 @@
 // PDF pages to PNG, in the offscreen document: pdf.js (Apache-2.0, bundled
 // in dist/pdfjs/, no remote code), as Overleaf's own viewer draws them. The
-// partex core writes the PDF pdfTeX writes (its fonts embedded, TikZ as PDF
+// phitex core writes the PDF pdfTeX writes (its fonts embedded, TikZ as PDF
 // paths); a page is drawn here and goes to the tab as a PNG, the panel's
 // image path.
 

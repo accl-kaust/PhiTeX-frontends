@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The partex core's assets: the LaTeX format and the fonts' metrics, one file.
+"""The phitex core's assets: the LaTeX format and the fonts' metrics, one file.
 
     python3 scripts/make-assets.py FMT OUT [TFM_DIR...]
 

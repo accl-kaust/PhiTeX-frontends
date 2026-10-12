@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use phitex_overleaf_partex::{MemHost, run, texlive_params};
+use phitex_overleaf_core::{MemHost, run, texlive_params};
 
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();

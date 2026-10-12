@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 
-use phitex_overleaf_partex::{Session, add_assets};
+use phitex_overleaf_core::{Session, add_assets};
 
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();

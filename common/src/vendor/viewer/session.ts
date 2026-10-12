@@ -119,7 +119,7 @@ export type StreamEvent =
 
 /**
  * `phitex watch`'s events, the host building from disk (Options.remote,
- * crates/partex-cli/src/view.rs): a page shipped while the build runs, how
+ * crates/phitex-cli/src/view.rs): a page shipped while the build runs, how
  * far it is, its problems, the build in (or a pass of it, settling), a
  * newer save superseding it, and a forward search's place.
  */
@@ -543,7 +543,7 @@ export class PreviewSession {
       r.json = d.json;
     }
     this.opened = true;
-    const latex = r.json.engine === "partex";
+    const latex = r.json.engine === "phitex";
     // (diagnosed before this was known: say it again with it)
     if (latex !== this.latex) this.lastWarned = 0;
     this.latex = latex;
@@ -609,7 +609,7 @@ export class PreviewSession {
   /** The engine the main file asked for at the last open (before the shims' choice), and its preamble then. */
   private wanted?: Engine;
   private preamble?: string;
-  /** The core runs LaTeX (the open reply's `engine`; until it says, as partex's, the default build). */
+  /** The core runs LaTeX (the open reply's `engine`; until it says, as phitex's, the default build). */
   private latex = true;
   private diags: Diagnostic[] = [];
   /** The last build's first TeX error (the core's status), if it had one. */

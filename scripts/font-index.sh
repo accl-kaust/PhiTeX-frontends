@@ -11,8 +11,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 shelf="${1:-$HOME/code/flinner/shelf.PhiTeX.org}"
 label="${2:-tl2026}"
-partex_root=$(sed -n 's|^partex-core = { path = "\(.*\)/crates/partex-core" }|\1|p' core-partex/Cargo.toml)
-engine="$(cd "core-partex/$partex_root" && pwd)"
+phitex_root=$(sed -n 's|^phitex-core = { package = "partex-core", path = "\(.*\)/crates/partex-core" }|\1|p' core/Cargo.toml)
+engine="$(cd "core/$phitex_root" && pwd)"
 tree=target/shelf-fonts
 rm -rf "$tree"
 mkdir -p "$tree" target/fmt-xe

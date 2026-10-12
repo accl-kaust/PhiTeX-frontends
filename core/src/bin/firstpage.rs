@@ -17,7 +17,7 @@ use std::process::Command;
 use std::sync::Arc;
 use std::time::Instant;
 
-use phitex_overleaf_partex::{Session, add_assets};
+use phitex_overleaf_core::{Session, add_assets};
 
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();

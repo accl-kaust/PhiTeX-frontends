@@ -1,5 +1,5 @@
 //! BibTeX between a build's trips, as latexmk runs it between pdflatex
-//! runs: the engine's own BibTeX (`partex-bibtex`, in process, so in wasm
+//! runs: the engine's own BibTeX (`phitex-bibtex`, in process, so in wasm
 //! too), on each `.aux` the trip wrote that asks for one (`\bibdata`); its
 //! `.bbl` is put where the next trip reads it. As the CLI's
 //! `bibtex::after_pass`, a run is made again only when its `.aux` changed.
@@ -32,7 +32,7 @@ impl HostFiles<'_> {
     }
 }
 
-impl partex_bibtex::Files for HostFiles<'_> {
+impl phitex_bibtex::Files for HostFiles<'_> {
     fn aux(&mut self, name: &[u8]) -> Option<Vec<u8>> {
         self.auxes.get(name).map(|b| b.to_vec()).or_else(|| self.host.files.get(name).map(|b| b.to_vec()))
     }
@@ -62,7 +62,7 @@ pub fn tools(memo: Memo) -> impl FnMut(&mut MemHost, &[(Vec<u8>, Arc<[u8]>)]) ->
             }
             memo.borrow_mut().insert(name.clone(), contents.clone());
             let base = name.strip_suffix(b".aux").unwrap_or(name).to_vec();
-            let out = partex_bibtex::run(&base, &partex_bibtex::Options::default(), &mut HostFiles { host, auxes: &auxes });
+            let out = phitex_bibtex::run(&base, &phitex_bibtex::Options::default(), &mut HostFiles { host, auxes: &auxes });
             // (a .bbl the same as the one the job has is not a write: the
             // next trip would read the same bytes, and the trips must see it
             // as unchanged to settle; as the CLI's memo)
