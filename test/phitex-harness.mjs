@@ -1,4 +1,4 @@
-// Run the phitex core (core-phitex/) under node:wasi: one INITEX job.
+// Run the phitex core (core/) under node:wasi: one INITEX job.
 import { readFileSync } from "node:fs";
 import { WASI } from "node:wasi";
 const bytes = readFileSync(process.argv[2]);

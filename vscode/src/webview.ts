@@ -5,14 +5,12 @@
 
 import { apply, type Told } from "../../common/src/vendor/viewer/remote.ts";
 import { Panel, type PanelPrefs } from "../../common/src/vendor/viewer/panel.ts";
-import { setFontBase } from "../../common/src/vendor/viewer/page2.ts";
 
 declare function acquireVsCodeApi(): { postMessage(m: unknown): void; getState(): unknown; setState(s: unknown): void };
 declare const PHITEX_FONTS: string;
 
 const vscode = acquireVsCodeApi();
 const ask = (m: unknown) => vscode.postMessage(m);
-setFontBase(PHITEX_FONTS);
 
 const panel = new Panel(
   {
@@ -23,7 +21,6 @@ const panel = new Panel(
     onMain: (m) => ask({ t: "main", m }),
     onReload: () => ask({ t: "clean" }),
     onClean: () => ask({ t: "clean" }),
-    onFormat: () => {},
     onGoto: (file, line) => ask({ t: "goto", file, line }),
     onGotoRange: (file, from, to) => ask({ t: "range", file, from, to }),
     onSyncSource: (k, x, y) => ask({ t: "sync", k, x, y }),
@@ -36,7 +33,6 @@ const panel = new Panel(
     save: (prefs) => vscode.setState({ prefs }),
   },
   {
-    pdfjs: false,
     header: true,
     // (VS Code's words: no Overleaf here, nothing to disclaim; the license a click away)
     words: {

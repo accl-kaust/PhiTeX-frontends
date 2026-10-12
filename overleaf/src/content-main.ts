@@ -4,7 +4,6 @@
 
 import "./platform.ts";
 import { platform } from "./common/platform.ts";
-import { setFontBase } from "./common/vendor/viewer/page2.ts";
 import type { Edit } from "./common/vendor/viewer/edits.ts";
 import { older } from "./common/version.ts";
 import { PreviewSession, type CoreReq, type CoreRes, type CoreTransport, type CoreEvent, type EditorHost } from "./common/vendor/viewer/session.ts";
@@ -13,14 +12,11 @@ import { type DiffRunner, compareButton } from "./diffui.ts";
 import { filesAt, type Version } from "./history.ts";
 import { Compare, gate, LATEXDIFF_LOOK } from "./common/vendor/viewer/compare.ts";
 import { SUPPORT, unseen, type News } from "./news.ts";
-import { Panel, pageFormat, type DiffLook, type PanelPrefs, type Prefs } from "./common/vendor/viewer/panel.ts";
+import { Panel, type DiffLook, type PanelPrefs, type Prefs } from "./common/vendor/viewer/panel.ts";
 import { channel, follow, tee, type Ask } from "./mirror.ts";
 import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/vendor/viewer/engines.ts";
 import { hostPackages } from "./common/vendor/viewer/packages.ts";
 import { drawPage } from "./common/tabrender.ts";
-
-// (the pages' text fonts: the extension's own, Latin Modern)
-setFontBase(chrome.runtime.getURL("fonts/"));
 
 /** The panel's preferences, in the extension's own storage (not the page's). */
 const prefs: Prefs = {
@@ -230,13 +226,14 @@ class ChromeTransport implements CoreTransport {
       if (r.event) return this.events.forEach((f) => f(r));
       if (r.png) r.png = unb64(r.png);
       if (r.pdf) r.pdf = unb64(r.pdf);
-      // (PDF mode: the page drawn here, from the PDF; the PDF itself only for a download)
+      // (the page drawn here by MuPDF, from the PDF; the PDF itself only for a download)
       if (r.render) {
         const scale = (devicePixelRatio || 1) * 2;
         const img = await drawPage(r.render.key, r.render.page, scale, r.pdf).catch((e) => (console.warn("[phitex] draw", e), null));
         if (img) {
           r.canvas = img.canvas;
           r.size = [img.w, img.h];
+          r.links = img.links;
         }
         delete r.pdf;
       }
@@ -994,7 +991,6 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     },
     onDebug: (on) => session && (session.debug = on),
     onMain: (m) => session?.setMain(m),
-    onFormat: (f) => session?.setFormat(f),
     // (the hook moves the editor's cursor there: the one thing it writes)
     onGoto: (file, line) => DETACHED ? ask({ t: "goto", file, line }) : window.postMessage({ src: "phitex-content", type: "goto", file, line }, location.origin),
     onSyncSource: (k, x, y) => (DETACHED ? ask({ t: "sync", k, x, y }) : void shown()?.toSource(k, x, y)),
@@ -1076,9 +1072,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
       }
     }
     if (c.panel) {
-      const p = c.panel.newValue as { format?: string; zoom?: string } | undefined;
-      panel.formatTo(pageFormat(p?.format));
-      if (!p) panel.zoomTo("fit");
+      if (!c.panel.newValue) panel.zoomTo("fit");
     }
   });
   chrome.runtime.onMessage.addListener((m) => {
@@ -1176,7 +1170,6 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
       workers: workers === 1 ? 1 : undefined,
       // (a XeLaTeX project: approximated with pdfLaTeX, unless chosen for it)
       shims: async (main) => (projectEngine || !approximable(main) ? null : shimTexts((p) => platform().asset(p))),
-      format: pageFormat((saved as PanelPrefs | undefined)?.format),
       packages: hostPackages(transport),
     };
     session = new PreviewSession(host, transport, gate(tee(panel, ch, () => mirrored), () => compare?.showing !== "diff"), opts);

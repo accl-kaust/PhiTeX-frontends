@@ -67,7 +67,6 @@ const core = startCore(root, store, (s) => console.error("core:", s));
 const transport = new HostTransport(core.host);
 const session = new PreviewSession(host, transport, sink, {
   engine: (main) => resolve("auto", undefined, main),
-  format: "vector",
   packages: hostPackages(transport as never),
 });
 for (const [file, bytes] of Object.entries(binaries)) await transport.request({ op: "binary", file, bytes });

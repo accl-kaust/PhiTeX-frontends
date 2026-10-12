@@ -18,7 +18,7 @@ import { platform } from "./platform.ts";
 
 /** What the worker needs of its thread. */
 export interface WorkerHost {
-  /** The worker's name ("draw": the draw worker). */
+  /** The worker's name. */
   name: string;
   post(m: unknown, transfer?: ArrayBuffer[]): void;
   listen(f: (r: Req) => void): void;
@@ -58,20 +58,15 @@ export type Req =
   | { id: number; client: string; op: "trace"; on: boolean }
   | { id: number; client: string; op: "auxdump" }
   | { id: number; client: string; op: "check"; file?: string; expect?: string }
-  | { id: number; client: string; op: "close" }
-  /** (the draw worker: the PDF the core just linked, to draw pages from) */
-  | { id: number; client: string; op: "drawpdf"; pdf: Uint8Array };
+  | { id: number; client: string; op: "close" };
 
 export interface Res {
   id: number;
   ok: boolean;
   json?: any;
-  png?: Uint8Array;
-  /** A page as its draw list (asked for with dpi 0): see session.ts's Draws. */
-  draws?: unknown;
   pdf?: Uint8Array;
-  /** PDF mode: the page to render from the PDF (`pdf`, or the last one sent with this key). */
-  render?: { page: number; dpi: number; key: string };
+  /** The page to draw from the PDF (`pdf`, or the last one sent with this key). */
+  render?: { page: number; key: string };
   error?: string;
 }
 
@@ -89,11 +84,9 @@ interface Core {
   ph_set_system?(on: number): void;
   ph_close(h: number): void;
   ph_edit(h: number, p: number, n: number, page: number, dpi: number): number;
-  ph_png_last(): void;
   ph_set_file(h: number, p: number, n: number): number;
   /** The phitex core: a binary file (`str name`, then the bytes). */
   ph_set_bytes?(h: number, p: number, n: number): number;
-  ph_png(h: number, page: number, dpi: number): void;
   ph_pdf(h: number): void;
   ph_check(h: number): void;
   ph_status(h: number): void;
@@ -106,10 +99,6 @@ interface Core {
   ph_auxdump?(h: number): void;
   ph_panic_ptr?(): number;
   ph_panic_len?(): number;
-  ph_draw_set?(slot: number, p: number, n: number): number;
-  ph_draw_page?(slot: number, k: number): number;
-  ph_draw_hash?(slot: number, k: number): void;
-  ph_draw_drop?(slot: number): void;
   ph_text(h: number, p: number, n: number): void;
   _initialize?(): void;
 }
@@ -173,7 +162,7 @@ function framed(parts: Uint8Array[]): Uint8Array {
 }
 
 /**
- * `\write18` (core-phitex system.rs): latexminted with Pygments in Pyodide,
+ * `\write18` (core system.rs): latexminted with Pygments in Pyodide,
  * the engine's tools/minted-pyodide runner, loaded (and bundled: no code
  * from the network) only for a project that uses minted; the core runs
  * commands only once it is (`ph_set_system`).
@@ -427,20 +416,10 @@ async function loadXe(): Promise<void> {
   xeCore = core;
 }
 
-/** The clients whose project is XeTeX's: their pages are drawn here (with the glyph runs), not by the draw worker. */
-const xetexClients = new Set<string>();
-
-/**
- * The draw worker (a second instance of the core, named "draw"): it only
- * draws pages from the PDF the build worker links, so pages draw while a
- * build, or readying the next one, runs there.
- */
-let DRAW = false;
-
 async function load(): Promise<void> {
   // (the compile, Shelf's index and the assets at once: none waits on another)
-  const shelf = DRAW ? undefined : loadShelf().catch(() => undefined);
-  if (!DRAW) loadAssets().catch(() => undefined);
+  const shelf = loadShelf().catch(() => undefined);
+  loadAssets().catch(() => undefined);
   module ??= await WebAssembly.compileStreaming(platform().asset("dist/core.wasm"));
   let memory: WebAssembly.Memory | undefined;
   await shelf;
@@ -451,7 +430,7 @@ async function load(): Promise<void> {
   core = inst.exports as unknown as Core;
   memory = core.memory;
   core._initialize?.();
-  if (core.ph_assets && !DRAW) {
+  if (core.ph_assets) {
     const a = await loadAssets();
     const p = core.ph_alloc(a.length);
     new Uint8Array(core.memory.buffer, p >>> 0, a.length).set(a);
@@ -478,12 +457,12 @@ function call<T>(f: Frame, g: (p: number, n: number) => T): T {
 }
 
 /**
- * PDF mode (the phitex core): page `page` to be rendered from the PDF, by
- * the offscreen document (pdf.js). The PDF goes along only when it changed
- * since the last one this worker sent (its length and hash say so).
+ * Page `page`, to be drawn from the PDF by MuPDF in the tab. The PDF goes
+ * along only when it changed since the last one this worker sent (its
+ * length and hash say so).
  */
 let lastPdf = "";
-function pdfPage(h: number, page: number, dpi: number): Partial<Res> {
+function pdfPage(h: number, page: number): Partial<Res> {
   core.ph_pdf(h);
   const pdf = outBytes();
   if (!pdf.length) return {};
@@ -493,7 +472,7 @@ function pdfPage(h: number, page: number, dpi: number): Partial<Res> {
   const key = `${h}:${pdf.length}:${x}`;
   const same = key === lastPdf;
   lastPdf = key;
-  return { render: { page, dpi, key }, pdf: same ? undefined : pdf };
+  return { render: { page, key }, pdf: same ? undefined : pdf };
 }
 
 function outBytes(): Uint8Array {
@@ -514,11 +493,8 @@ function handle(r: Req): Res {
     case "open": {
       // (one core: pdfLaTeX's or XeTeX's; LuaTeX's not yet)
       if (r.engine && r.engine !== "pdflatex" && r.engine !== "xelatex") return { id: r.id, ok: false, error: `${r.engine} is not available in this version` };
-      imagesSent.delete(r.client);
       // (a new session: a new store of Shelf's files)
       packsGiven.delete(r.client);
-      if (r.engine === "xelatex") xetexClients.add(r.client);
-      else xetexClients.delete(r.client);
       if (h) core.ph_close(h);
       const f = new Frame().u32(r.fuel).str(r.main).u32(Object.keys(r.files).length);
       for (const [n, t] of Object.entries(r.files)) f.str(n).str(t);
@@ -553,18 +529,11 @@ function handle(r: Req): Res {
     }
     case "edit": {
       const f = new Frame().str(r.file).u32(r.start).u32(r.end).str(r.text);
-      const ok = call(f, (p, n) => core.ph_edit(h, p, n, r.page < 0 ? 0xffffffff : r.page, Math.max(r.dpi, 0)));
+      // (no page drawn by the core: the tab draws it from the PDF)
+      const ok = call(f, (p, n) => core.ph_edit(h, p, n, 0xffffffff, 0));
       const json = outJson();
-      let png: Uint8Array | undefined;
-      // (dpi -1: the page from the PDF, drawn in the tab by pdf.js)
-      if (ok && r.page >= 0 && r.dpi < 0 && core.ph_assets) return { id: r.id, ok: true, json, ...pdfPage(h, Math.min(r.page, Math.max((json.pages ?? 1) - 1, 0)), 0) };
-      if (ok && r.page >= 0) {
-        core.ph_png_last();
-        png = outBytes();
-        // (PDF mode: no draw list; the PDF, for the offscreen document's renderer)
-        if (!png.length && core.ph_assets) return { id: r.id, ok: ok === 1, json, ...pdfPage(h, Math.min(r.page, Math.max((json.pages ?? 1) - 1, 0)), r.dpi) };
-      }
-      return { id: r.id, ok: ok === 1, json, png };
+      if (ok && r.page >= 0) return { id: r.id, ok: true, json, ...pdfPage(h, Math.min(r.page, Math.max((json.pages ?? 1) - 1, 0))) };
+      return { id: r.id, ok: ok === 1, json };
     }
     case "set_file": {
       const ok = call(new Frame().str(r.file).str(r.text), (p, n) => core.ph_set_file(h, p, n));
@@ -579,17 +548,9 @@ function handle(r: Req): Res {
       return { id: r.id, ok: ok === 1 };
     }
     case "png": {
-      if (building.has(r.client)) {
-        // (the build running: the page drawn from its shipped stream, or not shipped yet)
-        core.ph_png(h, r.page, 0);
-        const png = outBytes();
-        return png.length ? { id: r.id, ok: true, png } : { id: r.id, ok: false, error: "page not shipped yet" };
-      }
-      if (r.dpi < 0 && core.ph_assets) return { id: r.id, ok: true, ...pdfPage(h, r.page, 0) };
-      core.ph_png(h, r.page, r.dpi);
-      const png = outBytes();
-      if (!png.length && core.ph_assets) return { id: r.id, ok: true, ...pdfPage(h, r.page, r.dpi) };
-      return { id: r.id, ok: true, png };
+      // (the build running: no PDF yet, the page comes when it is in)
+      if (building.has(r.client)) return { id: r.id, ok: false, error: "page not shipped yet" };
+      return { id: r.id, ok: true, ...pdfPage(h, r.page) };
     }
     case "status": {
       core.ph_status(h);
@@ -611,8 +572,6 @@ function handle(r: Req): Res {
       // (debugging: each rebuild's trace kept in the build log, `log`)
       core.ph_trace?.(h, r.on ? 1 : 0);
       return { id: r.id, ok: !!core.ph_trace };
-    case "drawpdf":
-      return { id: r.id, ok: false, error: "drawpdf is the draw worker's" };
     case "origins":
       // (each glyph of page `page`, in stream order, with its source bytes)
       if (!core.ph_origins) return { id: r.id, ok: false, error: "this core keeps no origins" };
@@ -715,7 +674,6 @@ function stepOnce(): void {
     const waiting = [...building.values()].flatMap((x) => x.queue);
     building.clear();
     sessions.clear();
-    shipped.clear();
     host.post({ event: "done", client, ok: false, error: `core trapped: ${e}${why}` });
     for (const q of waiting) host.post({ id: q.id, ok: false, error: `core trapped: ${e}${why}` } as Res);
     void load().catch(() => undefined);
@@ -733,9 +691,6 @@ function stepOnce(): void {
     return;
   }
   building.delete(client);
-  // (the finished PDF to the drawer first: later page requests go there)
-  shipped.delete(client);
-  shipFor(client);
   host.post({ event: "done", client, ok: !!json.done, json });
   host.post({ settled: true });
   inbox.unshift(...b.queue);
@@ -769,118 +724,6 @@ tick.port1.onmessage = async () => {
   if (inbox.length || building.size) kick();
 };
 
-/**
- * PhiTeX's PNGs are stored, not deflated (~0.9 MB a page at 96 dpi), and a
- * chrome port carries them as base64 JSON: recompressed here with the
- * browser's own encoder (lossless) they are ~20x smaller. (REPORT.md: a
- * deflated PNG, or raw pixels, from phitex-layout would make this moot.)
- */
-async function compress(png: Uint8Array): Promise<Uint8Array> {
-  if (typeof OffscreenCanvas === "undefined" || png.length < 32 * 1024) return png;
-  const bmp = await createImageBitmap(new Blob([png as BlobPart], { type: "image/png" }));
-  const c = new OffscreenCanvas(bmp.width, bmp.height);
-  c.getContext("2d")!.drawImage(bmp, 0, 0);
-  bmp.close();
-  return new Uint8Array(await (await c.convertToBlob({ type: "image/png" })).arrayBuffer());
-}
-
-/** The page hashes each client's drawer was last given a PDF for. */
-const shipped = new Map<string, string>();
-
-/** After a build: the PDF to the draw worker (through the offscreen document) if its pages changed. */
-function shipPdf(r: Req): void {
-  if (!core.ph_draw_set || !(r.op === "open" || r.op === "status" || (r.op === "edit" && r.page >= 0))) return;
-  shipFor(r.client);
-}
-
-/** Client `client`'s PDF to the drawer, if its pages changed since the last one sent. */
-function shipFor(client: string): void {
-  const h = sessions.get(client);
-  // (a streamed build running has no PDF yet: its end sends it)
-  if (!h || !core.ph_draw_set || xetexClients.has(client) || building.has(client)) return;
-  core.ph_pages(h);
-  const key = new TextDecoder().decode(outBytes());
-  if (shipped.get(client) === key) return;
-  shipped.set(client, key);
-  core.ph_pdf(h);
-  const pdf = outBytes();
-  if (pdf.length) host.post({ drawPdf: true, client, pdf }, [pdf.buffer as ArrayBuffer]);
-}
-
-// ---- the draw worker ----
-
-const slots = new Map<string, number>();
-/** Per client: the page last asked for (drawn around first) and the PDF's version. */
-const around = new Map<string, number>();
-const version = new Map<string, number>();
-let nextSlot = 1;
-
-function drawPage(slot: number, k: number): { draws?: unknown; hash: string; fresh: boolean } {
-  const got = core.ph_draw_page!(slot, k);
-  const json = got ? new TextDecoder().decode(outBytes()) : "";
-  core.ph_draw_hash!(slot, k);
-  return { draws: json ? JSON.parse(json) : undefined, hash: new TextDecoder().decode(outBytes()), fresh: got === 1 };
-}
-
-/** Every page drawn ahead, nearest the one read first, a page a task (so asks come between). */
-function drawAhead(client: string, n: number): void {
-  const v = version.get(client);
-  let at = 0;
-  const next = (): void => {
-    if (version.get(client) !== v || !slots.has(client)) return;
-    const p = around.get(client) ?? 0;
-    const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => Math.abs(a - p) - Math.abs(b - p));
-    if (at >= order.length) return;
-    try {
-      drawPage(slots.get(client)!, order[at++]);
-    } catch {
-      return;
-    }
-    setTimeout(next, 0);
-  };
-  setTimeout(next, 0);
-}
-
-/** Per client: the images whose pixels it was sent (its view keeps them; an open starts again). */
-const imagesSent = new Map<string, Set<string>>();
-
-/** `draws` with only the images `client` has not been sent: a figure's pixels cross once, not every keystroke. */
-function newImages<T>(client: string, draws: T): T {
-  const I = (draws as { I?: Record<string, string> } | undefined)?.I;
-  if (!I) return draws;
-  let sent = imagesSent.get(client);
-  if (!sent) imagesSent.set(client, (sent = new Set()));
-  for (const id of Object.keys(I)) {
-    if (sent.has(id)) delete I[id];
-    else sent.add(id);
-  }
-  return draws;
-}
-
-function handleDraw(r: Req): Res {
-  let slot = slots.get(r.client);
-  if (r.op === "close") {
-    if (slot) core.ph_draw_drop!(slot);
-    slots.delete(r.client);
-    imagesSent.delete(r.client);
-    return { id: r.id, ok: true };
-  }
-  if (!slot) slots.set(r.client, (slot = nextSlot++));
-  if (r.op === "drawpdf") {
-    const n = call(new Frame().bytes(r.pdf), (p, len) => core.ph_draw_set!(slot!, p + 4, len - 4));
-    version.set(r.client, (version.get(r.client) ?? 0) + 1);
-    drawAhead(r.client, n);
-    return { id: r.id, ok: true, json: { pages: n } };
-  }
-  if (r.op === "png") {
-    around.set(r.client, r.page);
-    const t = performance.now();
-    const d = drawPage(slot, r.page);
-    return { id: r.id, ok: !!d.draws, draws: newImages(r.client, d.draws) as Res["draws"], json: { hash: d.hash, draw_ms: performance.now() - t, kept: !d.fresh } };
-  }
-  return { id: r.id, ok: false, error: `the draw worker does not do ${r.op}` };
-}
-
 /** The panic the core kept before its trap (`: message`), or "". */
 function panicText(): string {
   // (the memory it had: a trap with no panic is often an allocation that failed, wasm32's 4 GB)
@@ -907,25 +750,14 @@ let idleTrap: string | undefined;
 
 async function onRequest(r: Req): Promise<void> {
   let res: Res;
-  if (!DRAW && idleTrap) {
+  if (idleTrap) {
     await ready;
     const why = idleTrap;
     idleTrap = undefined;
     sessions.clear();
     packsGiven.clear();
-    shipped.clear();
     await load().catch(() => undefined);
     host.post({ id: r.id, ok: false, error: `core trapped: ${why}` } as Res);
-    return;
-  }
-  if (DRAW) {
-    await ready;
-    try {
-      res = handleDraw(r);
-    } catch (e) {
-      res = { id: r.id, ok: false, error: `draw worker: ${e}` };
-    }
-    host.post(res);
     return;
   }
   try {
@@ -940,17 +772,6 @@ async function onRequest(r: Req): Promise<void> {
     } finally {
       running = null;
     }
-    shipPdf(r);
-    // (the phitex core draws pages only as draw lists, whatever the dpi)
-    if (res.png && (("dpi" in r && r.dpi === 0) || (core.ph_assets && res.png[0] !== 0x89))) {
-      res.draws = res.png.length ? newImages(r.client, JSON.parse(new TextDecoder().decode(res.png))) : undefined;
-      delete res.png;
-    } else if (res.png?.length) {
-      const t = performance.now();
-      const raw = res.png.length;
-      res.png = await compress(res.png);
-      if (res.json) Object.assign(res.json, { png_raw: raw, png_bytes: res.png.length, png_compress_ms: performance.now() - t });
-    }
   } catch (e) {
     // A trap (a PhiTeX panic, with panic = "abort") leaves the instance
     // unusable: start a new one; every client must open again.
@@ -962,8 +783,7 @@ async function onRequest(r: Req): Promise<void> {
     packsGiven.clear();
     await load().catch((l) => (res.error = `core failed to load: ${l}`));
   }
-  const transfer = [res.png?.buffer, res.pdf?.buffer].filter((b): b is ArrayBuffer => !!b);
-  host.post(res, transfer);
+  host.post(res, res.pdf ? [res.pdf.buffer as ArrayBuffer] : []);
   // (after the reply: the engine readied for its first rebuild, so the
   // first keystroke after a cold build doesn't pay it; a message arriving
   // meanwhile waits that long, once per cold build)
@@ -975,11 +795,8 @@ async function onRequest(r: Req): Promise<void> {
       const did = core?.ph_idle?.() ?? 0;
       host.post({ preparing: false });
       // (the idle work changed the output, the trips that settle references
-      // after one-trip keystrokes: the drawer gets the PDF, the tabs lay out again)
-      if (did) {
-        for (const c of sessions.keys()) shipFor(c);
-        host.post({ settled: true });
-      }
+      // after one-trip keystrokes: the tabs lay out again)
+      if (did) host.post({ settled: true });
     } catch (e) {
       host.post({ preparing: false });
       // (told to the next request: see idleTrap)
@@ -991,7 +808,6 @@ async function onRequest(r: Req): Promise<void> {
 /** Run the worker on `h`: the core loads now, requests are served in order as they come. */
 export function startWorker(h: WorkerHost): void {
   host = h;
-  DRAW = h.name === "draw";
   ready = load();
   h.listen((r) => {
     inbox.push(r);

@@ -17,12 +17,12 @@ import type { WorkerData } from "./worker.ts";
 /** The host and its workers, for the extension at `root`, its store in `store`. */
 export function startCore(root: string, store: string, log: (s: string) => void): { host: CoreHost; stop(): void } {
   const threads: Worker[] = [];
-  const spawn = (name?: "draw"): CoreWorker => {
+  const spawn = (): CoreWorker => {
     const { port1, port2 } = new MessageChannel();
     const flag = new SharedArrayBuffer(4);
     const i32 = new Int32Array(flag);
-    const data: WorkerData = { root, store, name: name ?? "", port: port2, flag };
-    const w = new Worker(join(root, "dist/worker.js"), { workerData: data, transferList: [port2], name: name ?? "core" });
+    const data: WorkerData = { root, store, name: "", port: port2, flag };
+    const w = new Worker(join(root, "dist/worker.js"), { workerData: data, transferList: [port2], name: "core" });
     port1.on("message", (m: { n: number; pack: string }) => {
       void packRaw(m.pack)
         .then((p) => p.raw, (e) => (log(`pack ${m.pack}: ${e}`), null))
@@ -35,7 +35,7 @@ export function startCore(root: string, store: string, log: (s: string) => void)
     port1.unref();
     const cw: CoreWorker = { postMessage: (m: unknown, transfer?: ArrayBuffer[]) => w.postMessage(m, transfer), onmessage: null };
     w.on("message", (d) => cw.onmessage?.({ data: d }));
-    w.on("error", (e) => log(`core worker${name ? ` (${name})` : ""} stopped: ${e}`));
+    w.on("error", (e) => log(`core worker stopped: ${e}`));
     threads.push(w);
     return cw;
   };

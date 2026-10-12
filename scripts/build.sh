@@ -91,7 +91,7 @@ echo "minted: $(du -sh overleaf/dist/pyodide | cut -f1) Pyodide, $(wc -l < overl
 # The manifest: manifest.base.json, plus (--dev) the local mock's origin.
 dev=false; for a in "$@"; do [ "$a" = "--dev" ] && dev=true; done
 # (the engine's commit, from the pin, as version_name: debug reports name it)
-engine=$(grep -oE "phitex-phitex-[0-9a-f+]+" core/Cargo.toml | head -1 | sed 's/phitex-phitex-//')
+engine=$(grep -oE "tmp/phitex-[0-9a-f+]+" core/Cargo.toml | head -1 | sed "s|tmp/phitex-||")
 scripts/sandbox node -e '
   const fs = require("fs"), m = JSON.parse(fs.readFileSync("overleaf/manifest.base.json"));
   m.version_name = `${m.version_name ?? m.version} (engine ${process.argv[2]})`;

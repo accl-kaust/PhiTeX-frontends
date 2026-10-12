@@ -168,7 +168,6 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   const transport = new HostTransport(core.host);
   const session = new PreviewSession(host, transport, sink, {
     engine: (main) => resolve("auto", undefined, main),
-    format: "vector",
     packages: hostPackages(transport as never),
   });
 

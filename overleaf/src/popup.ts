@@ -52,8 +52,6 @@ async function render(): Promise<void> {
     };
     note.append(b);
   }
-  const panelPrefs = (s.panel ?? {}) as { format?: string };
-  seg("format", panelPrefs.format === "pdfjs" ? "pdfjs" : "vector", (v) => chrome.storage.local.set({ panel: { ...panelPrefs, format: v } }));
   const tips = $<HTMLInputElement>("tips");
   tips.checked = !s.tipOff;
   tips.onchange = () => chrome.storage.local.set({ tipOff: !tips.checked });

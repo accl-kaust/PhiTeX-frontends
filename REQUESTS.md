@@ -28,7 +28,7 @@ around in the extension. Updated 2026-10-06 against engine `3459953`
 
 8. **The incremental link in `phitex-core`**: `SsaLinker` (spliced link,
    `link_full`, `Resolver`) lives in `phitex-cli`, typed on `NativeHost`.
-   The extension carries its own port (`core-phitex` `link_spliced`,
+   The extension carries its own port (`core` `link_spliced`,
    `link_full`), which has to follow every engine change. Wanted: a
    `Linker` generic over `H: Host`, with the clock and deflate passed in.
 9. **The page in view first**: a rebuild that reports (or stops) once page
@@ -37,7 +37,7 @@ around in the extension. Updated 2026-10-06 against engine `3459953`
 10. **A format contract**: a format header the engine checks (engine commit
     or format version, and the sizes), with a clear error on a mismatch; and
     `Params::texlive()` instead of each embedder copying `texmf.cnf`'s sizes
-    (`core-phitex` `texlive_params`).
+    (`core` `texlive_params`).
 11. **Byte-exact deflate in `phitex-core`**: wasm has no system zlib, so the
     extension deflates with `miniz_oxide`. Its PDF is valid but not
     byte-identical to pdflatex's.

@@ -2,7 +2,7 @@
 // Overleaf tab, through the offscreen document's port; a VS Code preview, in
 // the extension host): each client's requests go to its worker, the packages
 // it asks for are resolved here (shelf.ts), its binary files kept and given
-// again after each open, the draw worker fed the PDF each build links, its
+// again after each open, its
 // compares diffed (diff.ts), and Shelf's release told. Bytes stay bytes here: a transport that carries JSON
 // (a chrome port) encodes them itself.
 
@@ -21,8 +21,8 @@ export interface CoreWorker {
 }
 
 export interface CoreHostOptions {
-  /** A new worker running the core (worker.ts); "draw": the one that only draws pages. */
-  spawn(name?: "draw"): CoreWorker;
+  /** A new worker running the core (worker.ts). */
+  spawn(): CoreWorker;
   /** The two-worker start (see below), where the machine allows it. */
   two: boolean;
 }
@@ -52,14 +52,6 @@ export class CoreHost {
   private ssa: CoreWorker | undefined;
   /** Per client in the two-worker start: B not ready yet ("plain") or ready ("ssa"), and its open's number (a newer open drops an older B's). */
   private dual = new Map<string, { phase: "plain" | "ssa"; open: number }>();
-  /**
-   * The draw worker: a second core instance that only draws pages, from the
-   * PDF the build worker links. Pages draw while a build (or readying the
-   * next one) runs; the page read first, then the rest ahead of time.
-   */
-  private drawer: CoreWorker;
-  /** The clients whose drawer has their current PDF: their pages are asked there. */
-  private drawn = new Set<string>();
   private replies = new Map<number, (r: Res) => void>();
   private nextId = 1;
   /** Every client's end: the worker's progress (a Shelf pack fetched mid-build) goes to each. */
@@ -86,14 +78,9 @@ export class CoreHost {
     void index().catch(() => undefined);
     this.worker = o.spawn();
     this.worker.onmessage = (e) => this.fromWorker(e.data);
-    this.drawer = o.spawn("draw");
-    this.drawer.onmessage = (e: { data: Res }) => {
-      this.replies.get(e.data.id)?.(e.data);
-      this.replies.delete(e.data.id);
-    };
   }
 
-  private fromWorker(d: Res & { fetching?: string; name?: string; failed?: boolean; drawPdf?: boolean; client?: string; pdf?: Uint8Array; preparing?: boolean; settled?: boolean; event?: string }): void {
+  private fromWorker(d: Res & { fetching?: string; name?: string; failed?: boolean; client?: string; preparing?: boolean; settled?: boolean; event?: string }): void {
     // (a streamed build's pages, progress and end: its client's only)
     if (d.event && d.client) {
       this.saying.get(d.client)?.(d);
@@ -101,11 +88,6 @@ export class CoreHost {
     }
     if (d.fetching) {
       for (const p of this.clients) p({ event: "fetching", pack: d.fetching, name: d.name, failed: d.failed });
-      return;
-    }
-    if (d.drawPdf && d.client && d.pdf) {
-      this.drawer.postMessage({ id: this.nextId++, client: d.client, op: "drawpdf", pdf: d.pdf } as Req, [d.pdf.buffer as ArrayBuffer]);
-      this.drawn.add(d.client);
       return;
     }
     if (d.settled) {
@@ -127,7 +109,7 @@ export class CoreHost {
 
   /** A new client, `client` its unique name; what the host says to it goes to `post` (replies carry its own ids). */
   connect(client: string, post: (m: any) => void): CoreClient {
-    const { worker, dual, drawn, replies } = this;
+    const { worker, dual, replies } = this;
     // (a client gone: what it was told late is dropped)
     const say = (m: any) => {
       try {
@@ -189,10 +171,6 @@ export class CoreHost {
       }
       const id = this.nextId++;
       replies.set(id, (r) => say({ ...r, id: m.id }));
-      // (a new session: its pages from the build worker until its PDF reaches the drawer)
-      if (m.op === "open") drawn.delete(client);
-      // (the draw worker draws draw lists; a page from the PDF, dpi -1, is the build worker's)
-      if (m.op === "png" && m.dpi >= 0 && drawn.has(client)) return this.drawer.postMessage({ ...m, id, client } as Req);
       if (m.op === "open") {
         // (an open carries the binary files given so far, figures and fonts: the first build has them)
         const bins = Object.fromEntries(binaries);
@@ -220,7 +198,6 @@ export class CoreHost {
           }
           dual.set(client, { phase: "ssa", open });
           worker.postMessage({ id: this.nextId++, client, op: "close" } as Req);
-          drawn.delete(client);
           say({ event: "switched" });
         });
         // (B builds behind A's pages: not streamed, its open answers when it is in)
@@ -240,8 +217,6 @@ export class CoreHost {
       worker.postMessage({ id: this.nextId++, client, op: "close" });
       this.ssa?.postMessage({ id: this.nextId++, client, op: "close" });
       dual.delete(client);
-      this.drawer.postMessage({ id: this.nextId++, client, op: "close" });
-      drawn.delete(client);
     };
     return { message, close };
   }
