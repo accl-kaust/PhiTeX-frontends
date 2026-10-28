@@ -1,0 +1,24 @@
+[package]
+name = "phitex-frontends-core"
+version = "0.0.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+publish = false
+description = "The engine for the frontends (Overleaf, VS Code builtin): PhiTeX's Build as a WASI reactor on wasm32-wasip1-threads, its threads the host's workers on shared memory, its files from the host (Shelf) through one thread that never blocks"
+
+[[bin]]
+name = "core"
+path = "src/main.rs"
+
+[dependencies]
+phitex-tex = { path = "../phitex/crates/engines/tex" }
+serde_json = "1"
+
+# (thin LTO and parallel codegen: the engine's release speed without fat
+# LTO's long link, as PhiTeX's fastdev; this machine is shared)
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 16
+debug = false
+panic = "abort"
