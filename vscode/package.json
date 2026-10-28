@@ -72,6 +72,11 @@
           "type": "string",
           "default": "phitex",
           "description": "The phitex command (for the \"phitex watch\" engine): a name on the PATH or a full path."
+        },
+        "phitex.trace": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Write what the preview does (each request, page drawn and event, with its time) to the PhiTeX output: for a bug report."
         }
       }
     }

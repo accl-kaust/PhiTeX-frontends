@@ -137,7 +137,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   const rel = (d: vscode.TextDocument) => (d.uri.scheme === "file" ? relPath(folder, d.uri.fsPath) : null);
   let rest: ReturnType<typeof setTimeout> | undefined;
   const subs = [
-    relay(view, transport, () => void savePdf(transport, folder, main)),
+    relay(view, transport, () => void savePdf(transport, folder, main), (s) => log.appendLine(s)),
     // (the editor's changes as they are typed: one change an edit, more the file's whole text)
     vscode.workspace.onDidChangeTextDocument((e) => {
       const r = rel(e.document);
@@ -284,7 +284,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   const link = new WatchLink(page0);
   view.webview.html = viewHtml(view.webview, ext);
   subs.push(
-    relay(view, link, () => void savePdf(link, folder, main)),
+    relay(view, link, () => void savePdf(link, folder, main), (s) => log.appendLine(s)),
     { dispose: () => link.close() },
   );
   // (the cursor, once it rests 150 ms: its words marked on the page)

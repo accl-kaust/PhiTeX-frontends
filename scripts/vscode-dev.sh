@@ -38,6 +38,7 @@ cat > "$profile/user/User/settings.json" <<EOF
 {
   "phitex.engine": "phitex watch",
   "phitex.path": "$phitex",
+  "phitex.trace": true,
   "workbench.startupEditor": "none"
 }
 EOF

@@ -19,10 +19,15 @@ export function viewHtml(view: vscode.Webview, ext: vscode.Uri): string {
 }
 
 /** What the webview of `view` asks, answered by `core`; `pdf`: its download asked. */
-export function relay(view: vscode.WebviewPanel, core: CoreTransport & { joined?(): void }, pdf: () => void): vscode.Disposable {
+export function relay(view: vscode.WebviewPanel, core: CoreTransport & { joined?(): void }, pdf: () => void, log?: (s: string) => void): vscode.Disposable {
   core.onEvent?.((e: CoreEvent) => void view.webview.postMessage({ t: "event", e } satisfies Down));
   return view.webview.onDidReceiveMessage(async (m: Up) => {
     if (m.t === "hello") core.joined?.();
+    // (the webview's trace: errors and blocks always, the rest with phitex.trace)
+    if (m.t === "log") {
+      if (log && (vscode.workspace.getConfiguration("phitex").get<boolean>("trace") || /^ *\d+ ms {2}(error|rejected|blocked|draw:)/.test(m.s))) log("webview: " + m.s);
+      return;
+    }
     if (m.t === "pdf") pdf();
     if (m.t !== "req") return;
     const r = await core.request(m.op as never).catch((e): CoreRes => ({ ok: false, error: String(e) }));

@@ -19,12 +19,26 @@ declare function acquireVsCodeApi(): { postMessage(m: unknown): void; getState()
 declare const PHITEX_ROOT: string;
 
 /** What the webview says to the extension host. */
-export type Up = { t: "hello" } | { t: "req"; id: number; op: { op: string; [k: string]: unknown } } | { t: "pdf" };
+export type Up = { t: "hello" } | { t: "req"; id: number; op: { op: string; [k: string]: unknown } } | { t: "pdf" } | { t: "log"; s: string };
 /** What the extension host says to the webview. */
 export type Down = { t: "res"; id: number; r: CoreRes & { render?: { page: number; key: string } } } | { t: "event"; e: CoreEvent };
 
 const vscode = acquireVsCodeApi();
 const up = (m: Up) => vscode.postMessage(m);
+
+// (what the webview does, told to the extension host's PhiTeX output: with
+// phitex.trace, every request, draw and event with its time; always, an
+// error, and the thread blocked (a beat every 250 ms late by 500 ms or more))
+const t0 = performance.now();
+const trace = (s: string) => up({ t: "log", s: `${(performance.now() - t0).toFixed(0).padStart(7)} ms  ${s}` });
+addEventListener("error", (e) => trace(`error: ${e.message} at ${e.filename}:${e.lineno}`));
+addEventListener("unhandledrejection", (e) => trace(`rejected: ${String((e as PromiseRejectionEvent).reason?.stack ?? (e as PromiseRejectionEvent).reason).slice(0, 400)}`));
+let beat = performance.now();
+setInterval(() => {
+  const late = performance.now() - beat - 250;
+  if (late >= 500) trace(`blocked ${late.toFixed(0)} ms`);
+  beat = performance.now();
+}, 250);
 
 // (tabrender's MuPDF, from the extension's dist/mupdf/; nothing else of the platform is asked here)
 setPlatform({
@@ -50,19 +64,28 @@ class Relay implements CoreTransport {
   constructor() {
     addEventListener("message", (m: MessageEvent<Down>) => {
       const d = m.data;
-      if (d.t === "event") return this.events.forEach((f) => f(d.e));
+      if (d.t === "event") return (trace(`event ${d.e.event}`), this.events.forEach((f) => f(d.e)));
       if (d.t === "res") (this.waiting.get(d.id)?.(d), this.waiting.delete(d.id));
     });
   }
 
   async request(op: object): Promise<CoreRes> {
     const o = op as { op: string; page?: number };
+    const t = performance.now();
+    const r = await this.ask(o);
+    trace(`${o.op}${o.page !== undefined ? " " + o.page : ""}: ${r.ok ? "ok" : "failed " + r.error} ${(performance.now() - t).toFixed(0)} ms`);
+    return r;
+  }
+
+  private async ask(o: { op: string; page?: number }): Promise<CoreRes> {
     // (the outline: MuPDF's, from the PDF last drawn)
     if (o.op === "outline") return { ok: true, json: { items: this.key ? outlineOf(this.key) : [] } };
     const id = this.next++;
     const { r } = await new Promise<Down & { t: "res" }>((ok) => (this.waiting.set(id, ok), up({ t: "req", id, op: o })));
     if (!r.render) return r;
-    const img = await drawPage(r.render.key, r.render.page, panel.pixelsPerPoint(), r.pdf).catch((e) => (console.warn("[phitex] draw", e), null));
+    const t = performance.now();
+    const img = await drawPage(r.render.key, r.render.page, panel.pixelsPerPoint(), r.pdf).catch((e) => (trace(`draw: ${e}`), null));
+    trace(`draw ${r.render.key} page ${r.render.page} at ${panel.pixelsPerPoint().toFixed(2)} px/pt${r.pdf ? `, PDF ${r.pdf.length} bytes` : ""}: ${img ? `${img.canvas.querySelector("canvas")?.width}x${img.canvas.querySelector("canvas")?.height}` : "none"} ${(performance.now() - t).toFixed(0)} ms`);
     if (!img) return { ok: false, error: "no such page" };
     this.key = r.render.key;
     return { ok: true, canvas: img.canvas, size: [img.w, img.h], links: img.links };
