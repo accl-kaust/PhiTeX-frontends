@@ -7,7 +7,7 @@
 
 import * as vscode from "vscode";
 import { readdir, readFile } from "node:fs/promises";
-import { spawn, type ChildProcess } from "node:child_process";
+import { LanguageClient, State } from "vscode-languageclient/node";
 import { join } from "node:path";
 import { setPlatform } from "../../common/src/platform.ts";
 import { PreviewSession, type EditorHost, type PreviewSink } from "../../common/src/viewer/session.ts";
@@ -220,14 +220,15 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
 }
 
 /**
- * The preview by `phitex watch` (the setting phitex.engine): the native
- * engine builds from disk, again at each save, and serves the viewer every
- * host shows (PhiTeX's viewer/src); the webview shows its page. A
- * double-click on a page opens the source here (the watch runs `code -g`,
- * this window's: VSCODE_IPC_HOOK_CLI); a double-click in the editor shows
- * its line on the page (the watch's /sync).
+ * The preview by `phitex watch --lsp` (the setting phitex.engine): the
+ * native engine as this folder's language server. The editors' buffers are
+ * built as they are typed (didChange), TeX's errors are diagnostics, a
+ * double-click on a page opens its source here (window/showDocument), and
+ * the cursor's words are marked on the page (phitex/cursor, when the
+ * cursor rests). The watch serves the viewer every host shows (PhiTeX's
+ * viewer/src) and says where (window/logMessage); the webview shows it.
  */
-const watches = new Set<ChildProcess>();
+const watches = new Set<LanguageClient>();
 /** A folder's preview by its watch: one a folder, shown again when asked again. */
 const watchViews = new Map<string, vscode.WebviewPanel | "starting">();
 async function previewWatch(folder: string, ed: vscode.TextEditor | undefined, log: vscode.OutputChannel): Promise<void> {
@@ -264,61 +265,80 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
 <body style="font:13px system-ui,sans-serif;padding:24px;color:var(--vscode-foreground)"><b>Starting phitex watch…</b><pre style="opacity:.75">${esc(said.slice(-8).join("\n"))}</pre></body></html>`;
   };
   waiting();
-  const w = spawn(cmd, ["watch", main, "--editor", "code -g {file}:{line}:{col}"], { cwd: folder, env: { ...process.env, CI: "" } });
-  watches.add(w);
+  const client = new LanguageClient(
+    "phitex",
+    "PhiTeX",
+    { command: cmd, args: ["watch", main, "--lsp"], options: { cwd: folder, env: { ...process.env, CI: "" } } },
+    {
+      documentSelector: ["latex", "tex", "bibtex"].map((language) => ({ scheme: "file", language, pattern: `${folder}/**/*` })),
+      workspaceFolder: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folder)),
+      outputChannel: log,
+    },
+  );
+  watches.add(client);
   // (the tab closed, even while the watch starts: the watch ends with it)
   let closed = false;
-  let sub: vscode.Disposable | undefined;
+  const subs: vscode.Disposable[] = [];
   view.onDidDispose(() => {
     closed = true;
     watchViews.delete(folder);
-    sub?.dispose();
-    w.kill();
-    watches.delete(w);
+    subs.forEach((s) => s.dispose());
+    watches.delete(client);
+    void client.stop().catch(() => undefined);
   });
-  const url = await new Promise<string | null>((done) => {
-    let out = "";
-    const take = (b: Buffer) => {
-      const t = b.toString();
-      log.append(t);
-      out += t;
-      said.push(...t.split("\n").map((l) => l.trim()).filter(Boolean));
+  // (what the watch says: the tab's text while it starts, and the viewer's
+  // address when it is up)
+  let found: (u: string | null) => void = () => undefined;
+  const url = new Promise<string | null>((done) => (found = done));
+  subs.push(
+    client.onNotification("window/logMessage", (p: { message: string }) => {
+      log.appendLine(p.message);
+      said.push(...p.message.split("\n").map((l) => l.trim()).filter(Boolean));
       if (!closed) waiting();
-      const m = out.match(/http:\/\/127\.0\.0\.1:\d+\/[0-9a-f]+\//);
-      if (m) done(m[0]);
-    };
-    w.stdout.on("data", take);
-    w.stderr.on("data", take);
-    w.on("error", (e) => (log.appendLine(`phitex watch: ${e}`), done(null)));
-    w.on("exit", () => done(null));
-  });
+      const m = p.message.match(/http:\/\/127\.0\.0\.1:\d+\/[0-9a-f]+\//);
+      if (m) found(m[0]);
+    }),
+  );
+  try {
+    await client.start();
+  } catch (e) {
+    log.appendLine(`phitex watch --lsp: ${e}`);
+    found(null);
+  }
+  const page0 = await url;
   if (closed) return;
-  if (!url) {
-    watches.delete(w);
+  if (!page0) {
+    watches.delete(client);
     view.dispose();
-    void vscode.window.showErrorMessage(`PhiTeX: \`${cmd} watch\` did not start (see the PhiTeX output). Install phitex, or set phitex.path, or phitex.engine to "builtin".`, "Show output").then((a) => a && log.show());
+    void vscode.window.showErrorMessage(`PhiTeX: \`${cmd} watch --lsp\` did not start (see the PhiTeX output). Install phitex, or set phitex.path, or phitex.engine to "builtin".`, "Show output").then((a) => a && log.show());
     return;
   }
-  const page = (await vscode.env.asExternalUri(vscode.Uri.parse(url))).toString();
+  const page = (await vscode.env.asExternalUri(vscode.Uri.parse(page0))).toString();
   const origin = new URL(page).origin;
   view.webview.html = `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src ${origin}; style-src 'unsafe-inline';">
 </head><body style="margin:0;height:100vh;overflow:hidden"><iframe src="${page}" style="border:0;width:100%;height:100%" allow="clipboard-write"></iframe></body></html>`;
-  // (a double-click in the editor: that line on the page)
-  sub = vscode.window.onDidChangeTextEditorSelection((e) => {
-    const r = relPath(folder, e.textEditor.document.uri.fsPath);
-    if (!r || e.kind !== vscode.TextEditorSelectionChangeKind.Mouse || e.selections[0].isEmpty) return;
-    const pos = e.selections[0].active;
-    void fetch(`${url}sync?file=${encodeURIComponent(r)}&line=${pos.line + 1}&col=${pos.character + 1}`).catch(() => undefined);
-  });
-  w.on("exit", (code) => {
-    log.appendLine(`phitex watch ended (${code})`);
-    if (!closed) view.dispose();
-  });
+  // (the cursor, once it rests 150 ms: its words marked on the page)
+  let rest: ReturnType<typeof setTimeout> | undefined;
+  subs.push(
+    vscode.window.onDidChangeTextEditorSelection((e) => {
+      if (!relPath(folder, e.textEditor.document.uri.fsPath)) return;
+      clearTimeout(rest);
+      rest = setTimeout(() => {
+        const at = e.selections[0].active;
+        void client.sendNotification("phitex/cursor", { textDocument: { uri: e.textEditor.document.uri.toString() }, position: { line: at.line, character: at.character } });
+      }, 150);
+    }),
+    client.onDidChangeState((s) => {
+      if (s.newState !== State.Stopped) return;
+      log.appendLine("phitex watch ended");
+      if (!closed) view.dispose();
+    }),
+  );
 }
 
 export function deactivate(): void {
-  for (const w of watches) w.kill();
+  for (const c of watches) void c.stop().catch(() => undefined);
   core?.host.stop();
   core?.stop();
   core = undefined;
