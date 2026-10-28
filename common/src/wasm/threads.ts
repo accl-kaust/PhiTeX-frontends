@@ -17,6 +17,8 @@ export interface ThreadData {
   ids: SharedArrayBuffer;
   /** The BroadcastChannel to thread 0 (one per core). */
   channel: string;
+  /** The environment every thread has (`NAME=value`). */
+  env: string[];
   tid: number;
   arg: number;
 }
@@ -41,7 +43,7 @@ export function imports(d: Omit<ThreadData, "tid" | "arg">, spawn: Spawn, post: 
   const text = (p: number, n: number) => new TextDecoder().decode(new Uint8Array(d.memory.buffer).slice(p, p + n));
   return {
     env: { memory: d.memory },
-    wasi_snapshot_preview1: wasi(d.memory, (s) => post({ t: "log", s })),
+    wasi_snapshot_preview1: wasi(d.memory, (s) => post({ t: "log", s }), d.env),
     wasi: {
       "thread-spawn": (arg: number) => {
         const tid = Atomics.add(ids, 0, 1);

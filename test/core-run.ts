@@ -8,6 +8,8 @@
 //
 //   scripts/sandbox --net node test/core-run.ts [FILE.tex] [--threads N] [--ini] [--cold] [--kpse] [--timeline] [--minted]
 //
+// --wasm PATH: the core built elsewhere (e.g. with --features profile).
+// --env NAME=value (repeatable): the core's environment, e.g. PHITEX_TEX_TIME=1.
 // --minted: \write18 runs latexminted in Pyodide (PhiTeX's
 // tools/minted-pyodide runner, Pyodide from node_modules, minted's wheels
 // from TeX Live's scripts/minted).
@@ -27,12 +29,13 @@ const run = promisify(execFile);
 const args = process.argv.slice(2);
 const flag = (f: string) => args.includes(f);
 const value = (f: string) => (args.includes(f) ? args[args.indexOf(f) + 1] : undefined);
-const file = args.find((a, i) => a.endsWith(".tex") && args[i - 1] !== "--threads");
+const file = args.find((a, i) => a.endsWith(".tex") && !["--threads", "--wasm", "--env"].includes(args[i - 1]));
 const ini = !file || flag("--ini");
 const kpse = flag("--kpse");
 const text = file ? await readFile(file, "latin1") : "\\catcode`\\{=1 \\catcode`\\}=2 \\font\\x=cmr10 \\x \\shipout\\hbox{Hello}\\end\n";
 
-const wasm = new URL("../target/core/wasm32-wasip1-threads/release/core.wasm", import.meta.url);
+// (--wasm PATH: another build, e.g. target/core-profile's)
+const wasm = value("--wasm") ?? new URL("../target/core/wasm32-wasip1-threads/release/core.wasm", import.meta.url);
 const module = await WebAssembly.compile(await readFile(wasm));
 // (the format's state kept between runs, as the hosts' stores keep it;
 // kpsewhich's answers too, as the hosts' Shelf index answers at once)
@@ -76,6 +79,8 @@ const shell = flag("--minted")
   : undefined;
 let shellCalls = 0;
 const core = Core.start(module, {
+  // (--env NAME=value, repeatable: the engine's switches)
+  env: args.flatMap((a, i) => (args[i - 1] === "--env" ? [a] : [])),
   shell: shell && (async (command, files) => {
     shellCalls++;
     const r = await shell(command, files);

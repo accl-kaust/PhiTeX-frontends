@@ -28,6 +28,8 @@ export interface CoreOptions {
   spawn: Spawn;
   resolve: Resolve;
   fetch?: Fetch;
+  /** The core's environment, every thread's (`NAME=value`: the engine's switches, e.g. PHITEX_TEX_TIME=1). */
+  env?: string[];
   /** The runner of `\write18`'s allowed commands (minted): without it they are refused. */
   shell?: Shell;
   /** The core's events (`{event: "built", ...}`). */
@@ -78,7 +80,7 @@ export class Core {
     new Int32Array(ids)[0] = 1;
     const channel = `phitex-core-${Date.now()}-${cores++}-${Math.random()}`;
     const out = new BroadcastChannel(channel);
-    const inst = new WebAssembly.Instance(module, imports({ module, memory, ids, channel }, o.spawn, (m) => out.postMessage(m)));
+    const inst = new WebAssembly.Instance(module, imports({ module, memory, ids, channel, env: o.env ?? [] }, o.spawn, (m) => out.postMessage(m)));
     return new Core(memory, inst, [new BroadcastChannel(channel), out], o);
   }
 

@@ -1,6 +1,7 @@
 // The WASI (preview 1) the core needs, on every thread alike, in a browser
 // or Node: the clock, randomness, sleeping, stderr, and the environment
-// below; no files (the core's come from the host, files.rs). A call std
+// the host gives (core.ts's `env`); no files (the core's come from the
+// host, files.rs). A call std
 // makes that the core never needs answers ENOSYS or, for a descriptor,
 // EBADF, so std's start (its preopens' scan) finds nothing and goes on.
 
@@ -16,24 +17,22 @@ export class Exit extends Error {
   }
 }
 
-/** The core's environment (none: every thread's stack is set where it is started). */
-const ENV: string[] = [];
-
 /** A sleep's wait (poll_oneoff): on a flag nobody sets. */
 const sleeper = new Int32Array(new SharedArrayBuffer(4));
 
-export function wasi(memory: WebAssembly.Memory, stderr: (s: string) => void): Record<string, (...a: any[]) => number> {
+/** WASI on `memory`; `environ` as `NAME=value` (the engine's switches, e.g. PHITEX_TEX_TIME=1). */
+export function wasi(memory: WebAssembly.Memory, stderr: (s: string) => void, environ: string[] = []): Record<string, (...a: any[]) => number> {
   const view = () => new DataView(memory.buffer);
   // (TextDecoder and getRandomValues take no views of shared memory: copies)
   const copy = (p: number, n: number) => new Uint8Array(memory.buffer).slice(p, p + n);
   const dec = new TextDecoder();
   // (each NUL-terminated)
-  const env = ENV.map((e) => new TextEncoder().encode(e + "\0"));
+  const env = environ.map((e) => new TextEncoder().encode(e + "\0"));
   const now = (id: number): bigint =>
     id === 0 ? BigInt(Date.now()) * 1_000_000n : BigInt(Math.round((performance.timeOrigin + performance.now()) * 1e6));
   const calls: Record<string, (...a: any[]) => number> = {
     environ_sizes_get(count: number, size: number) {
-      view().setUint32(count, ENV.length, true);
+      view().setUint32(count, env.length, true);
       view().setUint32(size, env.reduce((a, e) => a + e.length, 0), true);
       return 0;
     },
