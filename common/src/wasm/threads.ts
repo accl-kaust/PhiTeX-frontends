@@ -35,8 +35,8 @@ export type Spawn = (data: ThreadData) => void;
 /** What threads tell thread 0. */
 export type ThreadMsg = { t: "spawn"; tid: number; arg: number } | { t: "want"; name: string } | { t: "fetch"; id: string } | { t: "shell"; id: number; frame: Uint8Array } | { t: "event"; json: string } | { t: "log"; s: string } | { t: "trap"; tid: number; error: string };
 
-/** The memory's limits (core/build.rs: 64 MiB at first, up to 4 GiB). */
-export const PAGES_INITIAL = 1024;
+/** The memory's limits (core/build.rs: 1 GiB at first, up to 4 GiB; growing it while threads run trips a V8 bug, so it starts large). */
+export const PAGES_INITIAL = 16384;
 export const PAGES_MAX = 65536;
 
 export function newMemory(): WebAssembly.Memory {

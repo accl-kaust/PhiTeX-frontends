@@ -1,6 +1,7 @@
-//! The reactor's memory, stack and exports (wasm32 only): memory up to
-//! 4 GiB, shared with the host's workers (common/src/wasm/ names the same
-//! limits), each thread's stack 8 MiB as a native process's, and the
+//! The reactor's memory, stack and exports (wasm32 only): memory 1 GiB at
+//! first, up to 4 GiB, shared with the host's workers (common/src/wasm/
+//! names the same limits; it starts large because growing a shared memory
+//! while threads run trips a V8 bug: out-of-bounds traps in safe code), each thread's stack 8 MiB as a native process's, and the
 //! `ph_*` functions the host calls (a reactor's binary exports none by
 //! itself).
 
@@ -22,7 +23,7 @@ const EXPORTS: [&str; 12] = [
 fn main() {
     if std::env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("wasm32") {
         for a in [
-            "--initial-memory=67108864",
+            "--initial-memory=1073741824",
             "--max-memory=4294967296",
             "-zstack-size=8388608",
         ] {
