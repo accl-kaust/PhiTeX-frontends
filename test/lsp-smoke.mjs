@@ -33,15 +33,30 @@ const text = readFileSync(`${dir}/${main}`, "utf8");
 c.sendNotification("textDocument/didOpen", { textDocument: { uri, languageId: "latex", version: 1, text } });
 await until(() => diags.some((d) => d.uri === uri));
 console.log(`${at()} first build: ${diags.at(-1).diagnostics.length} diagnostics`);
+// (the viewer's connection, as its page makes it: the events after a build)
+const events = [];
+const ws = new WebSocket(new URL("ws", url).toString().replace(/^http/, "ws"));
+ws.onmessage = (m) => { const r = JSON.parse(m.data); if (r.event) events.push(r); };
+await new Promise((r) => (ws.onopen = r));
+const pdf = async () => new Uint8Array(await (await fetch(new URL("doc.pdf", url))).arrayBuffer());
+const before = await pdf();
+const at0 = text.split("\n").findIndex((l) => l.includes("Some text"));
+c.sendNotification("textDocument/didChange", { textDocument: { uri, version: 2 }, contentChanges: [{ range: { start: { line: at0, character: 0 }, end: { line: at0, character: 0 } }, text: "Typed words. " }] });
+for (let i = 0; i < 50 && !events.some((e) => e.event === "settled"); i++) await new Promise((r) => setTimeout(r, 100));
+const after = await pdf();
+console.log(`${at()} viewer events after an unsaved edit: ${JSON.stringify(events.map((e) => e.event))}; doc.pdf ${before.length} -> ${after.length} bytes, ${Buffer.compare(Buffer.from(before), Buffer.from(after)) === 0 ? "UNCHANGED" : "changed"}`);
+c.sendNotification("textDocument/didChange", { textDocument: { uri, version: 3 }, contentChanges: [{ range: { start: { line: at0, character: 0 }, end: { line: at0, character: 13 } }, text: "" }] });
+await new Promise((r) => setTimeout(r, 500));
+
 // (an unsaved edit with an error, then its fix)
 const line = text.split("\n").findIndex((l) => l.includes("Some text"));
 const n0 = diags.length;
-c.sendNotification("textDocument/didChange", { textDocument: { uri, version: 2 }, contentChanges: [{ range: { start: { line, character: 0 }, end: { line, character: 0 } }, text: "\\undefinedmacro " }] });
+c.sendNotification("textDocument/didChange", { textDocument: { uri, version: 4 }, contentChanges: [{ range: { start: { line, character: 0 }, end: { line, character: 0 } }, text: "\\undefinedmacro " }] });
 await until(() => diags.length > n0 && diags.at(-1).uri === uri && diags.at(-1).diagnostics.length > 0);
 const d = diags.at(-1).diagnostics[0];
 console.log(`${at()} error: line ${d.range.start.line + 1}: ${d.message.split("\n")[0]}`);
 const n1 = diags.length;
-c.sendNotification("textDocument/didChange", { textDocument: { uri, version: 3 }, contentChanges: [{ range: { start: { line, character: 0 }, end: { line, character: 16 } }, text: "" }] });
+c.sendNotification("textDocument/didChange", { textDocument: { uri, version: 5 }, contentChanges: [{ range: { start: { line, character: 0 }, end: { line, character: 16 } }, text: "" }] });
 await until(() => diags.length > n1 && diags.at(-1).uri === uri && diags.at(-1).diagnostics.length === 0);
 console.log(`${at()} fixed: diagnostics cleared`);
 c.sendNotification("phitex/cursor", { textDocument: { uri }, position: { line, character: 3 } });
