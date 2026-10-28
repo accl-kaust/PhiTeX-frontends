@@ -1,27 +1,25 @@
 // PhiTeX ⚡ Instant in VS Code: "PhiTeX: Open Preview" typesets the project
-// the active .tex file is in, in the extension host (common/src/session.ts,
-// its core in worker threads: core.ts), and draws it in a webview beside the
-// editor (webview.ts: common/src/panel.ts, the sink calls sent on as
-// remote.ts's `tee` sends them). The editor's changes go in as edits as they
-// are typed (changes.ts); a double-click on a page opens its source there.
+// the active .tex file is in and shows its pages in a webview beside the
+// editor (webview.ts: the viewer every host shows, its session and panel,
+// the pages drawn there by MuPDF). Its core is the builtin engine (core.ts:
+// the wasm core in the extension host, CoreSession) or, with the setting
+// phitex.engine "phitex watch", the native engine as the folder's language
+// server; the webview's requests are relayed to it (relay.ts). The editor's
+// changes go to the core as they are typed, the cursor's place too (its
+// words marked on the page); a double-click on a page opens its source.
 
 import * as vscode from "vscode";
 import { readdir, readFile } from "node:fs/promises";
 import { LanguageClient, State } from "vscode-languageclient/node";
 import { join } from "node:path";
 import { setPlatform } from "../../common/src/platform.ts";
-import { PreviewSession, type EditorHost, type PreviewSink } from "../../common/src/viewer/session.ts";
-import { tee, type Told } from "../../common/src/viewer/remote.ts";
-import { hostPackages } from "../../common/src/viewer/packages.ts";
-import { resolve } from "../../common/src/viewer/engines.ts";
-import type { Edit } from "../../common/src/viewer/edits.ts";
-import { findMain, relPath, toEdits } from "./changes.ts";
-import { HostTransport, startCore } from "./core.ts";
+import type { CoreTransport } from "../../common/src/viewer/session.ts";
+import type { Core, CoreSession } from "../../common/src/wasm/core.ts";
+import { findMain, relPath } from "./changes.ts";
+import { prefetch, startCore } from "./core.ts";
+import type { CoreIndex } from "../../common/src/wasm/host.ts";
 import { nodePlatform } from "./platform.ts";
 import { relay, viewHtml, WatchLink } from "./relay.ts";
-
-/** The webview → extension host messages (overleaf/src/mirror.ts's Ask, less the channel's own). */
-type Ask = { t: "hello" } | { t: "need"; k: number } | { t: "page"; k: number } | { t: "goto"; file: string; line: number } | { t: "range"; file: string; from: number; to: number } | { t: "sync"; k: number; x: number; y: number } | { t: "select"; sel: { k: number; rects: [number, number, number, number][] }[] } | { t: "pdf" } | { t: "clean" } | { t: "main"; m: string };
 
 /** The project's text files (what the core reads as source), and the binary ones it is given apart. */
 const TEXT = /\.(tex|sty|cls|bib|bst|cfg|def|clo|fd|ltx|bbx|cbx|lbx|dtx|ins|txt|csv|dat|tikz|pgf|bbl)$/i;
@@ -43,80 +41,45 @@ async function walk(dir: string, base = dir, out: string[] = []): Promise<string
   return out;
 }
 
-/** The project in `folder`: the open documents' text over what is on disk. */
-class FolderHost implements EditorHost {
-  readonly folder: string;
-  binaries: Record<string, Uint8Array> = {};
-  private active?: string;
-  private subs: vscode.Disposable[] = [];
-
-  constructor(folder: string, active?: string) {
-    this.folder = folder;
-    this.active = active;
+/** The project in `folder`: its text files (the open documents' text over what is on disk) and its binary ones. */
+async function loadProject(folder: string): Promise<{ files: Record<string, string>; binaries: Record<string, Uint8Array> }> {
+  const files: Record<string, string> = {};
+  const binaries: Record<string, Uint8Array> = {};
+  for (const p of await walk(folder)) {
+    const r = relPath(folder, p);
+    if (!r) continue;
+    if (BINARY.test(p)) binaries[r] = new Uint8Array(await readFile(p));
+    else files[r] = await readFile(p, "utf8");
   }
-
-  rel(uri: vscode.Uri): string | null {
-    return uri.scheme === "file" ? relPath(this.folder, uri.fsPath) : null;
+  for (const d of vscode.workspace.textDocuments) {
+    const r = d.uri.scheme === "file" ? relPath(folder, d.uri.fsPath) : null;
+    if (r && TEXT.test(r)) files[r] = d.getText();
   }
-
-  async loadProject(): Promise<Record<string, string>> {
-    const files: Record<string, string> = {};
-    this.binaries = {};
-    for (const p of await walk(this.folder)) {
-      const r = relPath(this.folder, p);
-      if (!r) continue;
-      if (BINARY.test(p)) this.binaries[r] = new Uint8Array(await readFile(p));
-      else files[r] = await readFile(p, "utf8");
-    }
-    for (const d of vscode.workspace.textDocuments) {
-      const r = this.rel(d.uri);
-      if (r && TEXT.test(r)) files[r] = d.getText();
-    }
-    return files;
-  }
-
-  mainFile(files: Record<string, string>): string | null {
-    return findMain(files, this.active);
-  }
-
-  onOpen(cb: (file: string, text: string) => void): void {
-    this.subs.push(
-      vscode.window.onDidChangeActiveTextEditor((e) => {
-        const r = e && this.rel(e.document.uri);
-        if (r && TEXT.test(r)) cb(r, e.document.getText());
-      }),
-    );
-  }
-
-  onChanges(cb: (file: string, edits: Edit[]) => void): void {
-    this.subs.push(
-      vscode.workspace.onDidChangeTextDocument((e) => {
-        const r = this.rel(e.document.uri);
-        if (r && TEXT.test(r) && e.contentChanges.length) cb(r, toEdits(e.contentChanges));
-      }),
-    );
-  }
-
-  ready(): void {
-    const e = vscode.window.activeTextEditor;
-    const r = e && this.rel(e.document.uri);
-    if (r) this.active = r;
-  }
-
-  dispose(): void {
-    this.subs.forEach((s) => s.dispose());
-  }
+  return { files, binaries };
 }
 
-/** A sink whose every call does nothing: the panel is the webview's, the calls sent there by `tee`. */
-function quietSink(over: Partial<PreviewSink>): PreviewSink {
-  return new Proxy(over as PreviewSink, {
-    get: (t, k) => (k in t ? t[k as keyof PreviewSink] : () => undefined),
-    has: () => true,
-  });
+/** `file:line:col` (from 1, as the core's `source` answers) opened in the editor. */
+async function gotoPlace(folder: string, place: string): Promise<void> {
+  const m = place.match(/^(.*):(\d+):(\d+)$/);
+  if (!m) return;
+  const d = await vscode.workspace.openTextDocument(vscode.Uri.file(join(folder, m[1])));
+  const at = new vscode.Position(Math.max(0, +m[2] - 1), Math.max(0, +m[3] - 1));
+  const e = await vscode.window.showTextDocument(d, { viewColumn: vscode.ViewColumn.One, selection: new vscode.Range(at, at) });
+  e.revealRange(new vscode.Range(at, at), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
 
-let core: ReturnType<typeof startCore> | undefined;
+/** The PDF `transport` gives, saved where the user says. */
+async function savePdf(transport: CoreTransport, folder: string, main: string): Promise<void> {
+  const r = await transport.request({ op: "pdf" });
+  if (!r.pdf?.length) return void vscode.window.showWarningMessage("PhiTeX: no PDF yet (see the diagnostics).");
+  const to = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(join(folder, main.replace(/\.tex$/, "") + ".pdf")) });
+  if (to) await vscode.workspace.fs.writeFile(to, r.pdf);
+}
+
+let builtin: ReturnType<typeof startCore> | undefined;
+/** The builtin engine's folder (its document keys), and its preview: the core holds one document, so one preview. */
+let builtinFolder = "";
+let builtinView: vscode.WebviewPanel | undefined;
 
 export function activate(ctx: vscode.ExtensionContext): void {
   const root = ctx.extensionPath;
@@ -129,94 +92,85 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
 async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.OutputChannel): Promise<void> {
   const ed = vscode.window.activeTextEditor;
-  const folder = ed ? vscode.workspace.getWorkspaceFolder(ed.document.uri) : vscode.workspace.workspaceFolders?.[0];
-  if (!folder || folder.uri.scheme !== "file") {
+  const ws = ed ? vscode.workspace.getWorkspaceFolder(ed.document.uri) : vscode.workspace.workspaceFolders?.[0];
+  if (!ws || ws.uri.scheme !== "file") {
     void vscode.window.showErrorMessage("PhiTeX: open a .tex file in a folder first.");
     return;
   }
-  if (vscode.workspace.getConfiguration("phitex").get<string>("engine") === "phitex watch") return previewWatch(ctx.extensionUri, folder.uri.fsPath, ed, log);
-  core ??= startCore(root, join(ctx.globalStorageUri.fsPath, "store"), (s) => log.appendLine(s));
-  const host = new FolderHost(folder.uri.fsPath, ed ? (relPath(folder.uri.fsPath, ed.document.uri.fsPath) ?? undefined) : undefined);
+  const folder = ws.uri.fsPath;
+  if (vscode.workspace.getConfiguration("phitex").get<string>("engine") === "phitex watch") return previewWatch(ctx.extensionUri, folder, ed, log);
+  if (builtinView && builtinFolder === folder) return builtinView.reveal(vscode.ViewColumn.Beside, true);
+  builtinView?.dispose();
+
+  const project = await loadProject(folder);
+  const main = findMain(project.files, ed ? (relPath(folder, ed.document.uri.fsPath) ?? undefined) : undefined);
+  if (!main) return void vscode.window.showErrorMessage("PhiTeX: no .tex file with \\documentclass in this folder.");
+  builtinFolder = folder;
+  builtin ??= startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"));
 
   const view = vscode.window.createWebviewPanel("phitex.preview", "⚡ PhiTeX", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {
     enableScripts: true,
     retainContextWhenHidden: true,
     localResourceRoots: [vscode.Uri.joinPath(ctx.extensionUri, "dist"), vscode.Uri.joinPath(ctx.extensionUri, "fonts")],
   });
-  const asset = (p: string) => view.webview.asWebviewUri(vscode.Uri.joinPath(ctx.extensionUri, p)).toString();
-  const nonce = Math.random().toString(36).slice(2);
-  view.webview.html = `<!doctype html><html><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${view.webview.cspSource} data: blob:; font-src ${view.webview.cspSource} data:; style-src ${view.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
-<meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0;height:100vh"><script nonce="${nonce}">window.PHITEX_FONTS=${JSON.stringify(asset("fonts/"))};</script><script nonce="${nonce}" src="${asset("dist/webview.js")}"></script></body></html>`;
+  builtinView = view;
+  view.webview.html = viewHtml(view.webview, ctx.extensionUri);
 
-  // (the webview's panel told everything the session tells its sink, once it said hello)
-  let live = false;
-  const ch = { postMessage: (m: Told) => void view.webview.postMessage(m) };
-  const goto = async (file: string, at: (d: vscode.TextDocument) => vscode.Range, focus = true) => {
-    const d = await vscode.workspace.openTextDocument(vscode.Uri.file(join(host.folder, file)));
-    const r = at(d);
-    const e = await vscode.window.showTextDocument(d, { viewColumn: vscode.ViewColumn.One, preserveFocus: !focus, selection: r });
-    e.revealRange(r, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  let core: Core, session: CoreSession, index: CoreIndex;
+  try {
+    ({ core, session, index } = await builtin);
+  } catch (e) {
+    builtin = undefined;
+    log.appendLine(`core: ${e}`);
+    view.dispose();
+    return void vscode.window.showErrorMessage(`PhiTeX: the engine did not start: ${e}`);
+  }
+  // (a double-click's source: the core says where, the editor goes there)
+  const transport: CoreTransport = {
+    request: async (op) => {
+      const r = await session.request(op as never);
+      if ((op as { op: string }).op === "source" && r.ok && typeof r.json?.place === "string") void gotoPlace(folder, r.json.place);
+      return r;
+    },
+    onEvent: (cb) => session.onEvent(cb),
   };
-  const sink = tee(
-    quietSink({
-      goto: (file, from, to, focus) => void goto(file, (d) => new vscode.Range(d.positionAt(from), d.positionAt(to)), focus ?? false),
-    }),
-    ch,
-    () => live,
-  );
-  const transport = new HostTransport(core.host);
-  const session = new PreviewSession(host, transport, sink, {
-    engine: (main) => resolve("auto", undefined, main),
-    packages: hostPackages(transport as never),
-  });
-
-  view.webview.onDidReceiveMessage(async (a: Ask) => {
-    if (a.t === "hello") {
-      live = true;
-      void session.resync();
-    }
-    if (a.t === "need") void session.fetch(a.k);
-    if (a.t === "page") void session.setPage(a.k);
-    if (a.t === "sync") void session.toSource(a.k, a.x, a.y);
-    if (a.t === "select") void session.selectPage(a.sel);
-    if (a.t === "goto") void goto(a.file, (d) => d.lineAt(Math.max(0, Math.min(a.line - 1, d.lineCount - 1))).range);
-    if (a.t === "range") void goto(a.file, (d) => new vscode.Range(d.positionAt(a.from), d.positionAt(a.to)), false);
-    if (a.t === "main") void session.setMain(a.m);
-    if (a.t === "clean") session.clean(await host.loadProject());
-    if (a.t === "pdf") {
-      const pdf = await session.pdf();
-      if (!pdf?.length) return void vscode.window.showWarningMessage("PhiTeX: no complete PDF yet (see the diagnostics).");
-      const to = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(join(host.folder, (session.main ?? "main.tex").replace(/\.tex$/, "") + "-instant.pdf")) });
-      if (to) await vscode.workspace.fs.writeFile(to, pdf);
-    }
-  });
-  // (the editor's cursor: its word highlighted on the page, as it moves;
-  // a selection: what came from it highlighted, on every page)
+  const rel = (d: vscode.TextDocument) => (d.uri.scheme === "file" ? relPath(folder, d.uri.fsPath) : null);
+  let rest: ReturnType<typeof setTimeout> | undefined;
   const subs = [
+    relay(view, transport, () => void savePdf(transport, folder, main)),
+    // (the editor's changes as they are typed: one change an edit, more the file's whole text)
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      const r = rel(e.document);
+      if (!r || !TEXT.test(r) || !e.contentChanges.length) return;
+      const [c] = e.contentChanges;
+      if (e.contentChanges.length === 1) core.push({ ask: "edit", file: r, start: c.rangeOffset, end: c.rangeOffset + c.rangeLength, text: c.text });
+      else core.push({ ask: "set_file", file: r, text: e.document.getText() });
+    }),
+    // (the cursor, once it rests 150 ms: its words marked on the page)
     vscode.window.onDidChangeTextEditorSelection((e) => {
-      const r = host.rel(e.textEditor.document.uri);
+      const r = rel(e.textEditor.document);
       if (!r) return;
-      const d = e.textEditor.document, s = e.selections[0];
-      if (s.isEmpty) session.follow(r, d.offsetAt(s.active));
-      else void session.selectSource(r, d.offsetAt(s.start), d.offsetAt(s.end));
+      clearTimeout(rest);
+      rest = setTimeout(() => {
+        const at = e.selections[0].active;
+        core.push({ ask: "cursor", file: r, line: at.line, col: at.character });
+      }, 150);
     }),
   ];
   view.onDidDispose(() => {
     subs.forEach((s) => s.dispose());
-    host.dispose();
-    transport.close();
+    if (builtinView === view) builtinView = undefined;
+    // (the document closed: the core idle until the next preview)
+    if (!builtinView) core.close();
   });
 
-  try {
-    // (the project read, its binary files given first: the first build has them)
-    await host.loadProject();
-    for (const [file, bytes] of Object.entries(host.binaries)) await transport.request({ op: "binary", file, bytes });
-    await session.start();
-  } catch (e) {
-    log.appendLine(`start: ${e}`);
-    void vscode.window.showErrorMessage(`PhiTeX: ${e}`);
+  // (the project's binary files first, then its text and the open)
+  for (const [file, bytes] of Object.entries(project.binaries)) core.provide(file, { path: "./" + file, bytes });
+  prefetch(core, index, project.files, "pdflatex");
+  const r = await session.request({ op: "open", main, files: project.files } as never);
+  if (!r.ok) {
+    log.appendLine(`open: ${r.error}`);
+    void vscode.window.showErrorMessage(`PhiTeX: ${r.error}`);
   }
 }
 
@@ -352,17 +306,8 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   );
 }
 
-/** The watch's PDF, saved where the user says. */
-async function savePdf(link: WatchLink, folder: string, main: string): Promise<void> {
-  const r = await link.request({ op: "pdf" });
-  if (!r.pdf?.length) return void vscode.window.showWarningMessage("PhiTeX: no PDF yet (see the diagnostics).");
-  const to = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(join(folder, main.replace(/\.tex$/, "") + ".pdf")) });
-  if (to) await vscode.workspace.fs.writeFile(to, r.pdf);
-}
-
 export function deactivate(): void {
   for (const c of watches) void c.stop().catch(() => undefined);
-  core?.host.stop();
-  core?.stop();
-  core = undefined;
+  void builtin?.then(({ core }) => core.close()).catch(() => undefined);
+  builtin = undefined;
 }

@@ -417,6 +417,16 @@ export class CoreSession implements CoreTransport {
   onEvent(cb: (e: CoreEvent) => void): void {
     this.events.push(cb);
   }
+
+  /** An event of the host's own (a pack it fetches), told as the core's are. */
+  tell(e: unknown): void {
+    for (const f of this.events) f(e as CoreEvent);
+  }
+
+  /** The viewer (re)loaded: it has no PDF, the next `png` sends it. */
+  joined(): void {
+    this.sent = -1;
+  }
 }
 
 /**

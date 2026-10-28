@@ -1,94 +1,71 @@
-// The VS Code extension's core path without VS Code: the core host on Node
-// worker threads (core.ts, dist/worker.js), a session on a project folder,
-// its sink recording what the webview would be told. Checks the pages come,
-// an edit is typeset, and how long the first page took.
+// The VS Code extension's builtin engine without VS Code: the core in this
+// thread, its threads Node worker threads (core.ts, dist/thread.js), a
+// project folder opened through CoreSession as the webview's requests open
+// it. Checks the first build settles with pages and a PDF, an edit pushed
+// as the editor pushes it settles again with a different PDF, and how long
+// each took.
 //
-//   scripts/build-vscode.sh && scripts/sandbox node vscode/dist/smoke.mjs FOLDER [MAIN]
+//   scripts/build-vscode.sh && scripts/sandbox --net node vscode/dist/smoke.mjs FOLDER [MAIN]
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, mkdtempSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { setPlatform } from "../../common/src/platform.ts";
-import { PreviewSession, type EditorHost, type PreviewSink } from "../../common/src/viewer/session.ts";
-import { hostPackages } from "../../common/src/viewer/packages.ts";
-import { resolve } from "../../common/src/viewer/engines.ts";
-import type { Edit } from "../../common/src/viewer/edits.ts";
 import { findMain } from "../src/changes.ts";
-import { HostTransport, startCore } from "../src/core.ts";
+import { prefetch, startCore } from "../src/core.ts";
 import { nodePlatform } from "../src/platform.ts";
 
 const [folder, mainArg] = process.argv.slice(2);
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const store = mkdtempSync(join(tmpdir(), "phitex-store-"));
-setPlatform(nodePlatform(root, store));
+setPlatform(nodePlatform(root, mkdtempSync(join(tmpdir(), "phitex-store-"))));
 
 const files: Record<string, string> = {};
-const binaries: Record<string, Uint8Array> = {};
 const walk = (d: string) => {
   for (const n of readdirSync(d)) {
     const p = join(d, n);
     if (statSync(p).isDirectory()) walk(p);
-    else if (/\.(png|jpe?g|pdf|eps)$/i.test(n)) binaries[relative(folder, p)] = new Uint8Array(readFileSync(p));
-    else if (/\.(tex|sty|cls|bib|bst|cfg|def|clo|bbl)$/i.test(n)) files[relative(folder, p)] = readFileSync(p, "utf8");
+    else if (/\.(tex|sty|cls|bib)$/.test(n)) files[relative(folder, p)] = readFileSync(p, "utf8");
   }
 };
 walk(folder);
-
-let changes: ((file: string, edits: Edit[]) => void) | undefined;
-const host: EditorHost = {
-  loadProject: async () => ({ ...files }),
-  mainFile: (f) => mainArg ?? findMain(f),
-  onOpen() {},
-  onChanges: (cb) => void (changes = cb),
-};
+const main = mainArg ?? findMain(files);
+if (!main) throw new Error("no main .tex file");
 
 const t0 = performance.now();
-const told: Record<string, number> = {};
-let pages = 0, drawn = 0, first = 0, firstDraw = 0, errors: string[] = [];
-const sink = new Proxy({} as PreviewSink, {
-  get: (_t, k: string) => (...a: any[]) => {
-    told[k] = (told[k] ?? 0) + 1;
-    if (k === "layout") {
-      pages = a[0].length;
-      if (pages && !first) first = performance.now() - t0;
-    }
-    if (k === "page" && a[0]) {
-      drawn++;
-      if (!firstDraw) firstDraw = performance.now() - t0;
-    }
-    if (k === "error") errors.push(String(a[0]));
-  },
-  has: () => true,
+const ms = () => Math.round(performance.now() - t0);
+const { core, session, index } = await startCore(root, () => folder, (s) => process.stderr.write(s.endsWith("\n") ? s : s + "\n"));
+console.log(`core started: ${ms()} ms`);
+
+let settled = 0;
+let wake = () => {};
+const fetched: string[] = [];
+session.onEvent((e: any) => {
+  if (e.event === "settled") (settled++, wake());
+  if (e.event === "fetching" && !e.failed) fetched.push(e.pack);
+});
+const next = (n: number) => new Promise<void>((ok, fail) => {
+  const timer = setTimeout(() => fail(new Error(`no build settled in 120 s (${settled} settled)`)), 120_000);
+  wake = () => settled >= n && (clearTimeout(timer), ok());
 });
 
-const core = startCore(root, store, (s) => console.error("core:", s));
-const transport = new HostTransport(core.host);
-const session = new PreviewSession(host, transport, sink, {
-  engine: (main) => resolve("auto", undefined, main),
-  packages: hostPackages(transport as never),
-});
-for (const [file, bytes] of Object.entries(binaries)) await transport.request({ op: "binary", file, bytes });
-await session.start();
-// (the pages in view drawn: the webview asks for them)
-for (let k = 0; k < Math.min(pages, 2); k++) await session.fetch(k);
-const opened = performance.now() - t0;
-console.log(`opened: ${pages} pages, layout at ${first.toFixed(0)} ms, first page drawn at ${firstDraw.toFixed(0)} ms, start ${opened.toFixed(0)} ms`);
+prefetch(core, index, files, "pdflatex");
+const r = await session.request({ op: "open", main, files } as never);
+if (!r.ok) throw new Error(`open: ${r.error}`);
+await next(1);
+const pages = await session.request({ op: "pages" } as never);
+const first = core.pdf();
+console.log(`first build: ${ms()} ms, ${pages.json?.pages?.length ?? "?"} pages, PDF ${first?.length ?? 0} bytes, packs fetched: ${fetched.length} (${fetched.join(" ")})`);
 
-// (an edit, typed as VS Code reports it: a word inserted into the main file's body)
-const main = session.main!;
+// (an edit as the editor pushes it: a word after the main file's \begin{document})
 const at = files[main].indexOf("\\begin{document}") + "\\begin{document}".length;
 const t1 = performance.now();
-drawn = 0;
-changes?.(main, [{ from: at, to: at, text: "\nHello from VS Code. " }]);
-for (let i = 0; i < 200 && !drawn; i++) await new Promise((r) => setTimeout(r, 25));
-console.log(`edit: ${drawn ? `page drawn ${(performance.now() - t1).toFixed(0)} ms after` : "no page drawn in 5 s"}`);
-console.log(`sink calls: ${JSON.stringify(told)}`);
-if (errors.length) console.log(`errors: ${errors.join(" | ")}`);
-const st = await transport.request({ op: "status" });
-console.log(`status: ${JSON.stringify({ pages: st.json?.pages, how: st.json?.how, texError: st.json?.texError })}`);
-transport.close();
-core.host.stop();
-core.stop();
-process.exit(pages > 0 && drawn > 0 ? 0 : 1);
+core.push({ ask: "edit", file: main, start: at, end: at, text: "\nSmoke test words.\n" });
+await next(2);
+const second = core.pdf();
+const changed = !!first && !!second && Buffer.compare(Buffer.from(first), Buffer.from(second)) !== 0;
+console.log(`edit: ${Math.round(performance.now() - t1)} ms, PDF ${changed ? "changed" : "UNCHANGED"}`);
+const png = await session.request({ op: "png", page: 0 } as never);
+console.log(`png: ${png.ok ? "render " + JSON.stringify((png as any).render) : "FAILED " + png.error}`);
+core.close();
+process.exit(first && changed && png.ok ? 0 : 1);
