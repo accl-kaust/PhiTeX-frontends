@@ -133,6 +133,12 @@ impl Index {
         })
     }
 
+    /// The pack that holds `path` (its id names its content).
+    #[must_use]
+    pub fn pack_of(&self, path: &str) -> Option<&str> {
+        self.rows.get(path).map(|r| &*r.pack)
+    }
+
     /// The packs to fetch for `path` with `engine`: its own, then what its
     /// loading reads.
     #[must_use]

@@ -236,12 +236,14 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
     let session = std::thread::Builder::new().stack_size(STACK).spawn(move || {
         let t0 = std::time::Instant::now();
         let f = files().clone();
+        let k = files().clone();
         let cached = lock(&PRELUDE).take();
         let had = cached.is_some();
         let opts = Options {
             jobname: main.strip_suffix(".tex").unwrap_or(&main).to_owned(),
             name: format!("./{main}"),
             finder: Arc::new(move |name: &str| f.get(name, engine, &Host)),
+            content_key: Some(Arc::new(move |path: &str| k.key(path))),
             threads,
             epoch: Some(0),
             time_limit: None,

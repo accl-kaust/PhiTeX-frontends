@@ -115,6 +115,16 @@ impl Files {
         }
     }
 
+    /// The content key of the file the build was given as `path`
+    /// (Options::content_key): a Shelf file's pack, whose id names its
+    /// content, and its path; none for any other (the project's, the
+    /// bundled texmf/'s), which the engine hashes.
+    pub fn key(&self, path: &str) -> Option<Vec<u8>> {
+        let rel = path.strip_prefix(shelf::TL)?;
+        let pack = self.lock().index.clone()?.pack_of(rel)?.to_owned();
+        Some([pack.as_bytes(), b"\0", rel.as_bytes()].concat())
+    }
+
     fn by_name(&self, mut s: MutexGuard<'_, State>, name: &str, host: &dyn Host) -> Option<Found> {
         if !s.by_name.contains_key(name) {
             s.by_name.insert(name.to_owned(), Entry::Asked);
