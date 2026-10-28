@@ -10,6 +10,8 @@
 //   scripts/sandbox --net node test/core-run.ts [FILE.tex] [--threads N] [--ini] [--cold] [--kpse] [--timeline] [--minted]
 //
 // --cold: the store's formats not given (built again, and stored).
+// --store DIR: the store there (scripts/make-formats.sh: the formats shipped).
+// --packs FILE: the ids of the packs the build fetched, written there.
 // --wasm PATH: the core built elsewhere (e.g. with --features profile).
 // --env NAME=value (repeatable): the core's environment, e.g. PHITEX_TEX_TIME=1.
 // --minted: \write18 runs latexminted in Pyodide (PhiTeX's
@@ -34,7 +36,7 @@ const run = promisify(execFile);
 const args = process.argv.slice(2);
 const flag = (f: string) => args.includes(f);
 const value = (f: string) => (args.includes(f) ? args[args.indexOf(f) + 1] : undefined);
-const file = args.find((a, i) => a.endsWith(".tex") && !["--threads", "--wasm", "--env"].includes(args[i - 1]));
+const file = args.find((a, i) => a.endsWith(".tex") && !["--threads", "--wasm", "--env", "--store", "--packs"].includes(args[i - 1]));
 const ini = !file || flag("--ini");
 const kpse = flag("--kpse");
 const text = file ? await readFile(file, "utf8") : "\\catcode`\\{=1 \\catcode`\\}=2 \\font\\x=cmr10 \\x \\shipout\\hbox{Hello}\\end\n";
@@ -44,7 +46,7 @@ const wasm = value("--wasm") ?? new URL("../target/core/wasm32-wasip1-threads/re
 const module = await WebAssembly.compile(await readFile(wasm));
 // (the session's store kept between runs, as the hosts' stores keep it;
 // kpsewhich's answers too, as the hosts' Shelf index answers at once)
-const storeDir = `target/core-run-store${kpse ? "-kpse" : ""}/`;
+const storeDir = (value("--store") ?? `target/core-run-store${kpse ? "-kpse" : ""}`) + "/";
 const stored: Promise<void>[] = [];
 let formatBytes = 0;
 const store: Store = {
@@ -168,6 +170,8 @@ async function idle(e: any): Promise<void> {
   const log = core.file(e.log);
   if (log) stored.push(writeFile("target/core-run.log", log));
   if (!first.pages && log) console.log(new TextDecoder().decode(log).split("\n").slice(-25).join("\n"));
+  // (--packs FILE: the packs this build fetched, one id a line)
+  if (value("--packs")) stored.push(writeFile(value("--packs")!, timeline.map(([id]) => id + "\n").join("")));
   await Promise.all([...stored, writeFile(pathsFile, JSON.stringify(paths))]);
   process.exit(first.pages > 0 ? 0 : 1);
 }

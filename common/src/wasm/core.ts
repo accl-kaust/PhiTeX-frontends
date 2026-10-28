@@ -164,21 +164,47 @@ export class Core {
     this.provide(name, f);
   }
 
-  private async fetch(id: string): Promise<void> {
-    let b: Uint8Array | null = null;
-    try {
-      const gz = await this.o.fetch?.(id);
-      // (gunzipped here, natively and off the core's threads)
-      if (gz) b = new Uint8Array(await new Response(new Blob([gz as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
-    } catch (e) {
-      this.o.log?.(`fetch ${id}: ${e}\n`);
+  /** Packs being fetched (its gunzipped bytes to come), and those given to the core: each given once. */
+  private packs = new Map<string, Promise<Uint8Array | null>>();
+  private given = new Set<string>();
+
+  /**
+   * Pack `id` given to the core (`ph_pack`): asked by it (`asked`: answered
+   * even if it could not be had), or ahead of its asking (`prefetch`: a
+   * failure not given, so the core's own ask fetches it again). A pack in
+   * flight is shared by both.
+   */
+  private async fetch(id: string, asked = true): Promise<void> {
+    let p = this.packs.get(id);
+    if (!p) {
+      p = (async () => {
+        try {
+          const gz = await this.o.fetch?.(id);
+          // (gunzipped here, natively and off the core's threads)
+          return gz ? new Uint8Array(await new Response(new Blob([gz as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer()) : null;
+        } catch (e) {
+          this.o.log?.(`fetch ${id}: ${e}\n`);
+          return null;
+        }
+      })();
+      this.packs.set(id, p);
     }
+    const b = await p;
+    if (this.given.has(id)) return;
+    if (!b && !asked) return void this.packs.delete(id);
+    this.given.add(id);
+    this.packs.delete(id);
     const n = new TextEncoder().encode(id);
     const d = b ?? new Uint8Array();
     const [pn, pd] = [this.put(n), this.put(d)];
     this.x.ph_pack(pn, n.length, pd, d.length, b ? 1 : 0);
     this.x.ph_free(pn, n.length);
     this.x.ph_free(pd, d.length);
+  }
+
+  /** Shelf's pack `id` fetched and given to the core before it asks (a project's packages, all at once). */
+  prefetch(id: string): void {
+    if (!this.given.has(id) && !this.packs.has(id)) void this.fetch(id, false);
   }
 
   private async stored(key: string): Promise<void> {
@@ -368,7 +394,8 @@ export class CoreSession implements CoreTransport {
       const o = req as Extract<CoreReq, { op: "open" }>;
       try {
         for (const [name, text] of Object.entries(o.files)) if (name !== o.main) this.core.provide(name, { path: "./" + name, bytes: new TextEncoder().encode(text) });
-        this.core.open({ ...this.opts, main: o.main, text: o.files[o.main] ?? "", engine: o.engine ?? this.opts.engine });
+        const text = o.files[o.main] ?? "";
+        this.core.open({ ...this.opts, main: o.main, text, engine: plainTeX(text) ? "pdftex" : (o.engine ?? this.opts.engine) });
       } catch (e) {
         return { ok: false, error: String(e) };
       }
@@ -390,6 +417,15 @@ export class CoreSession implements CoreTransport {
   onEvent(cb: (e: CoreEvent) => void): void {
     this.events.push(cb);
   }
+}
+
+/**
+ * A plain TeX document (no \documentclass, ends with \bye): pdfTeX's plain
+ * format, not LaTeX's (the viewer's engines are LaTeX's only).
+ */
+function plainTeX(text: string): boolean {
+  const body = text.replace(/(^|[^\\])%.*$/gm, "$1");
+  return !/\\documentclass/.test(body) && /\\bye\b/.test(body);
 }
 
 /** phitex-live's `origins` answer (base64 columns) as sync.ts reads it: `{files, g}`. */

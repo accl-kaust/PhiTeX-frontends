@@ -9,21 +9,27 @@
 # The wasm core: core/ (PhiTeX's live document, phitex-live) for
 # wasm32-wasip1-threads, a WASI reactor whose threads are the browser's
 # workers on one shared memory (common/src/wasm/); cargo in the sandbox
-# (PhiTeX read-only), its target directory inside this repo. PHITEX_WASM_DIR:
-# a directory with core.wasm and diff.wasm built elsewhere (a build
-# machine's), copied instead of built here.
+# (PhiTeX read-only), its target directory inside this repo; with it, the
+# formats it ships (scripts/make-formats.sh: pdfLaTeX's, made by that very
+# core.wasm). PHITEX_WASM_DIR: a directory with core.wasm, diff.wasm and
+# formats/ built elsewhere (a build machine's, together), copied instead.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 rm -rf overleaf/dist && mkdir -p overleaf/dist
+rm -rf overleaf/formats && mkdir -p overleaf/formats
 if [ -n "${PHITEX_WASM_DIR:-}" ]; then
   cp "$PHITEX_WASM_DIR/core.wasm" "$PHITEX_WASM_DIR/diff.wasm" overleaf/dist/
+  cp "$PHITEX_WASM_DIR"/formats/*.gzdata overleaf/formats/
 else
   # (a reactor binary: its `_initialize` run once by thread 0; the memory,
   # stack and exports are core/build.rs's)
   (cd core && CARGO_TARGET_DIR="$PWD/../target/core" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_THREADS_RUSTFLAGS="-Zwasi-exec-model=reactor" \
     cargo build --release --target wasm32-wasip1-threads)
   cp target/core/wasm32-wasip1-threads/release/core.wasm overleaf/dist/core.wasm
+  # (its formats, made by it: a first open reads pdfLaTeX's instead of building it)
+  scripts/sandbox --net scripts/make-formats.sh overleaf/dist/core.wasm target/formats
+  cp target/formats/*.gzdata overleaf/formats/
   # PhiTeX's latexdiff (phitex-diff) as its own small wasm module, for the
   # compare: diff-wasm/, on phitex/'s phitex-diff
   (cd diff-wasm && CARGO_TARGET_DIR="$PWD/target" ../scripts/sandbox cargo build --release --target wasm32-unknown-unknown)
@@ -53,19 +59,10 @@ lm=/usr/share/texmf-dist/fonts/opentype/public
 cp $lm/lm/lmroman10-{regular,bold,italic,bolditalic}.otf $lm/lm/lmmono10-regular.otf $lm/lm-math/latinmodern-math.otf common/fonts/
 rm -rf overleaf/fonts overleaf/shims && cp -r common/fonts common/shims overleaf/
 # MuPDF's WebAssembly build (mupdf on npm, AGPL-3.0-or-later), which draws
-# the pages in the tab (tabrender.ts): the version and tarball PhiTeX's
-# viewer pins (phitex/scripts/fetch-mupdf.sh), fetched once into
-# target/mupdf/ and checked by its SHA-256
-mupdf_version=$(sed -n 's/^version=//p' phitex/scripts/fetch-mupdf.sh)
-mupdf_sha=$(sed -n 's/^sha256=//p' phitex/scripts/fetch-mupdf.sh)
-tgz=target/mupdf/mupdf-$mupdf_version.tgz
-if [ ! -f "$tgz" ] || [ "$(sha256sum "$tgz" | cut -d' ' -f1)" != "$mupdf_sha" ]; then
-  mkdir -p target/mupdf && curl -fsSL --retry 3 "https://registry.npmjs.org/mupdf/-/mupdf-$mupdf_version.tgz" -o "$tgz"
-fi
-[ "$(sha256sum "$tgz" | cut -d' ' -f1)" = "$mupdf_sha" ] || { echo "mupdf: SHA-256 mismatch ($tgz)" >&2; exit 1; }
-mkdir -p overleaf/dist/mupdf
-for f in mupdf.js mupdf-wasm.js mupdf-wasm.wasm; do tar -xzOf "$tgz" "package/dist/$f" > "overleaf/dist/mupdf/$f"; done
-tar -xzOf "$tgz" package/LICENSE > overleaf/dist/mupdf/LICENSE 2>/dev/null || true
+# the pages in the tab (tabrender.ts): PhiTeX's pin, fetched once into
+# target/mupdf/ (scripts/fetch-mupdf.sh, checked by its SHA-256)
+[ -s target/mupdf/mupdf-wasm.wasm ] || scripts/fetch-mupdf.sh
+mkdir -p overleaf/dist/mupdf && cp target/mupdf/* overleaf/dist/mupdf/
 # minted: Pyodide (Python in wasm), the engine's latexminted runner, and TeX
 # Live's four wheels (latexminted, latexrestricted, latex2pydata, Pygments);
 # bundled, loaded by the core's worker at a project's first \write18

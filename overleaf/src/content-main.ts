@@ -1188,6 +1188,12 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
       },
     });
     (globalThis as any).__phitexSession = session; // (tests, devtools)
+    // (a build in: its fetch round closed, as a build request's answer closes
+    // it; the session's remote mode has none, so the last pack fetched
+    // would stay "loading")
+    transport.onEvent((e) => {
+      if (e.event === "settled") void (session as unknown as { core: CoreTransport }).core.request({ op: "status" });
+    });
     // (a compare's session: the marked-up document opened as a project of its own)
     diffImpl = compare = compareWith(host, transport, opts);
     devMark("start");

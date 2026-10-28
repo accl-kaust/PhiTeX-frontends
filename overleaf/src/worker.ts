@@ -21,6 +21,9 @@ import { Core, CoreSession, type Store } from "./common/wasm/core.ts";
 import { mintedShell } from "./common/wasm/minted.ts";
 import { indexBytes } from "./common/release.ts";
 import { packRaw, shipped } from "./common/shelf.ts";
+import { hasPack } from "./common/packstore.ts";
+import { Index, formatOf, shelfEngine, type ReleaseMeta } from "./common/resolve.ts";
+import { referenced } from "./common/viewer/packages.ts";
 import { spawnThread } from "./thread.ts";
 
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
@@ -30,8 +33,37 @@ const gunzip = async (s: ReadableStream) => new Uint8Array(await new Response(s.
 let project = "";
 const KV = "core.kv";
 const scoped = (key: string) => (key.startsWith("doc/") ? `doc/${project}/${key.slice(4)}` : key);
+/**
+ * A format's state the extension ships (formats/, scripts/make-formats.sh:
+ * pdfLaTeX's, made by this very core.wasm, gzipped): `format/NAME` is
+ * `formats/NAME.gzdata`, `format/NAME/pkgrec` `formats/NAME.pkgrec.gzdata`.
+ * NAME holds the engine's identity, so a core.wasm other than the one that
+ * made it never asks for it: it builds its own, as without one.
+ */
+async function shippedFormat(key: string): Promise<Uint8Array | null> {
+  const name = key.slice("format/".length).replaceAll("/", ".");
+  const r = await platform().asset(`formats/${name}.gzdata`).catch(() => null);
+  return r?.ok ? gunzip(r.body!) : null;
+}
+/**
+ * The packs a first document reads beside format NAME (its fonts'
+ * metrics, pdftex.map: `formats/NAME.packs.txt`, make-formats.sh's warm
+ * build), fetched at once when the core reads the format: the build asks
+ * for each only when it reaches it.
+ */
+async function formatPacks(key: string): Promise<void> {
+  const r = await platform().asset(`formats/${key.slice("format/".length)}.packs.txt`).catch(() => null);
+  if (!r?.ok) return;
+  const { core } = await started;
+  for (const id of (await r.text()).split("\n").filter(Boolean)) core.prefetch(id);
+}
 const store: Store = {
-  get: async (key) => (await platform().kv.get<Uint8Array>(KV, scoped(key))) ?? null,
+  async get(key) {
+    if (/^format\/[^/]+$/.test(key)) void formatPacks(key);
+    const kept = await platform().kv.get<Uint8Array>(KV, scoped(key)).catch(() => undefined);
+    if (kept) return kept;
+    return key.startsWith("format/") ? shippedFormat(key) : null;
+  },
   put: (key, bytes) => platform().kv.write([[KV, scoped(key), bytes]]),
 };
 
@@ -56,19 +88,58 @@ let threads: Worker[] = [];
 let dead: string | undefined;
 let stderr = "";
 
+/**
+ * Pack `id`: one the extension ships (packs/), else kept in this browser,
+ * else Shelf's, the tab told while it comes (`fetching`, the session's
+ * packages: one that could not be had, `failed`).
+ */
+async function pack(id: string): Promise<Uint8Array | null> {
+  if ((await shipped()).has(id)) return new Uint8Array(await (await platform().asset(`packs/${id}.pack`)).arrayBuffer());
+  const kept = await hasPack(id).catch(() => false);
+  // (by its name: the id less the content hash, `amsmath-0123456789ab`)
+  const name = id.replace(/-[0-9a-f]{12}$/, "");
+  if (!kept) post({ event: "fetching", pack: name, name: id });
+  try {
+    return (await packRaw(id)).raw;
+  } catch (e) {
+    post({ event: "fetching", pack: name, name: id, failed: true });
+    throw e;
+  }
+}
+
+/**
+ * The packs a project's sources load (their \documentclass, \usepackage and
+ * font names, packages.ts's scan), and those their loading reads (the
+ * index's deps), fetched all at once when it opens: the core asks for each
+ * file only when its build reaches it, one after another.
+ */
+let lookup: Index | undefined;
+async function prefetch(core: Core, files: Record<string, string>, engine: string): Promise<void> {
+  const ix = await index;
+  lookup ??= new Index(new TextDecoder().decode(ix.tsv), ix.meta);
+  const bundled = new Set(ix.names);
+  const e = shelfEngine(engine);
+  const ids = new Set<string>();
+  for (const name of new Set(Object.values(files).flatMap(referenced))) {
+    if (name in files || bundled.has(name)) continue;
+    const path = lookup.resolve(name, formatOf(name), e);
+    if (path) for (const id of lookup.packs(path, e)) ids.add(id);
+  }
+  for (const id of ids) core.prefetch(id);
+}
+
 const module = WebAssembly.compileStreaming(fetch(at("dist/core.wasm")));
 const index = (async () => {
   const { gz, meta } = await indexBytes();
   const names = (await (await platform().asset("texmf/names.txt")).text()).split("\n").filter(Boolean);
-  return { tsv: await gunzip(gz), release: new TextEncoder().encode(JSON.stringify(meta)), names };
+  return { tsv: await gunzip(gz), meta: meta as ReleaseMeta, release: new TextEncoder().encode(JSON.stringify(meta)), names };
 })();
 
 async function start(): Promise<{ core: Core; session: CoreSession }> {
   const t0 = performance.now();
   const core = Core.start(await module, {
     spawn: (d) => void threads.push(spawnThread(d)),
-    // (a pack the extension ships, packs/; else kept in this browser, else Shelf's)
-    fetch: async (id) => ((await shipped()).has(id) ? new Uint8Array(await (await platform().asset(`packs/${id}.pack`)).arrayBuffer()) : (await packRaw(id)).raw),
+    fetch: pack,
     async resolve(name) {
       const r = await platform().asset("texmf/" + name).catch(() => null);
       return r?.ok ? { path: name, bytes: new Uint8Array(await r.arrayBuffer()) } : null;
@@ -115,7 +186,9 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
       [threads, dead, stderr] = [[], undefined, ""];
       started = start();
     }
-    const r = await (await started).session.request(m as never);
+    const { core, session } = await started;
+    if (m.op === "open") void prefetch(core, (m.files ?? {}) as Record<string, string>, String(m.engine ?? "pdflatex")).catch((e) => console.warn("[phitex core] prefetch:", e));
+    const r = await session.request(m as never);
     post({ ...r, id: m.id });
   } catch (err) {
     post({ id: m.id, ok: false, error: String(err) });

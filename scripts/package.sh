@@ -15,9 +15,10 @@ mkdir -p store
 rm -f "$out"
 
 if grep -q localhost overleaf/manifest.json; then echo "manifest has localhost: not a release build" >&2; exit 1; fi
-files=(manifest.json popup.html offscreen.html LICENSE.txt NOTICE.txt icons fonts shims dist texmf packs minted shelf-index.tsv.gzdata shelf-release.json)
+files=(manifest.json popup.html offscreen.html LICENSE.txt NOTICE.txt icons fonts shims dist texmf packs minted formats shelf-index.tsv.gzdata shelf-release.json)
 for f in "${files[@]}"; do [ -e "overleaf/$f" ] || { echo "missing overleaf/$f" >&2; exit 1; }; done
 [ -s overleaf/dist/core.wasm ] || { echo "no core.wasm" >&2; exit 1; }
+ls overleaf/formats/pdflatex-*.gzdata > /dev/null 2>&1 || { echo "no pdfLaTeX format in overleaf/formats (scripts/make-formats.sh)" >&2; exit 1; }
 [ -s overleaf/texmf/names.txt ] || { echo "no texmf/ (scripts/fetch-texmf.sh)" >&2; exit 1; }
 [ -s overleaf/shelf-index.tsv.gzdata ] || { echo "no shelf-index.tsv.gzdata (scripts/shelf-index.sh, then build.sh)" >&2; exit 1; }
 # (Edge refuses a package that holds archives)
