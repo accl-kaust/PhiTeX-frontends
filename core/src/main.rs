@@ -6,9 +6,10 @@
 //!
 //! - `ph_open` starts a session thread, which runs the build and tells the
 //!   host when it is done (`phitex.event`, JSON);
-//! - a file the build lacks is asked of the host (`phitex.want`) by the
-//!   thread that needs it, which waits until thread 0 answers
-//!   (`ph_provide`): [`files`].
+//! - a file the build lacks is resolved by Shelf's index (`ph_set_index`)
+//!   and its pack asked of the host (`phitex.fetch`), or asked by name
+//!   (`phitex.want`), by the thread that needs it, which waits until
+//!   thread 0 answers (`ph_pack`, `ph_provide`): [`files`].
 //!
 //! Requests and answers are bytes in the module's memory: the host gets
 //! room with `ph_alloc`, and takes an answer's bytes at `ph_output_ptr`,
@@ -17,6 +18,7 @@
 //! gives back with `ph_set_prelude` before a later open).
 
 mod files;
+mod shelf;
 
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
@@ -31,14 +33,27 @@ unsafe extern "C" {
     /// `ph_provide`, from its thread 0, later.
     #[link_name = "want"]
     fn host_want(name: *const u8, len: usize);
+    /// Asks the host for Shelf's pack `id`: it answers with `ph_pack`.
+    #[link_name = "fetch"]
+    fn host_fetch(id: *const u8, len: usize);
     /// Tells the host of an event: JSON.
     #[link_name = "event"]
     fn host_event(json: *const u8, len: usize);
 }
 
-fn want(name: &str) {
-    // SAFETY: the host reads `len` bytes at `name` before returning.
-    unsafe { host_want(name.as_ptr(), name.len()) }
+/// The host, as the files ask it.
+struct Host;
+
+impl files::Host for Host {
+    fn want(&self, name: &str) {
+        // SAFETY: the host reads `len` bytes at `name` before returning.
+        unsafe { host_want(name.as_ptr(), name.len()) }
+    }
+
+    fn fetch(&self, pack: &str) {
+        // SAFETY: as `want`.
+        unsafe { host_fetch(pack.as_ptr(), pack.len()) }
+    }
 }
 
 fn event(v: &Value) {
@@ -73,16 +88,21 @@ fn bytes<'a>(p: *const u8, n: usize) -> &'a [u8] {
     unsafe { std::slice::from_raw_parts(p, n) }
 }
 
+/// The layout of the host's `n` bytes (never zero-sized).
+fn layout(n: usize) -> std::alloc::Layout {
+    std::alloc::Layout::array::<u8>(n.max(1)).expect("a size the host can have")
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn ph_alloc(n: usize) -> *mut u8 {
-    let mut v = std::mem::ManuallyDrop::new(Vec::<u8>::with_capacity(n.max(1)));
-    v.as_mut_ptr()
+    // SAFETY: the layout is not zero-sized.
+    unsafe { std::alloc::alloc(layout(n)) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ph_free(p: *mut u8, n: usize) {
-    // SAFETY: `p` came from `ph_alloc(n)`.
-    drop(unsafe { Vec::from_raw_parts(p, 0, n.max(1)) });
+    // SAFETY: `p` came from `ph_alloc(n)`, the same layout.
+    unsafe { std::alloc::dealloc(p, layout(n)) }
 }
 
 #[unsafe(no_mangle)]
@@ -136,8 +156,42 @@ pub extern "C" fn ph_provide(
     files().provide(&name, file);
 }
 
-/// Opens a document: JSON `{main, text, threads?, ini?}` (`ini`: the text
-/// is the whole job, no format). Answered at once; the build runs on a
+/// The host's answer to `fetch`: Shelf's pack `id` as served (gzip), or
+/// `ok` 0 (it could not be had).
+#[unsafe(no_mangle)]
+pub extern "C" fn ph_pack(id: *const u8, id_len: usize, data: *const u8, data_len: usize, ok: i32) {
+    let id = String::from_utf8_lossy(bytes(id, id_len)).into_owned();
+    files().pack(&id, (ok != 0).then(|| bytes(data, data_len)));
+}
+
+/// Shelf's index (its TSV, gunzipped) and `release.json`, and the names of
+/// the extension's bundled texmf/ (one a line): names are resolved here
+/// from now on. 0: done; 1: `release.json` is not JSON.
+#[unsafe(no_mangle)]
+pub extern "C" fn ph_set_index(
+    tsv: *const u8,
+    tsv_len: usize,
+    release: *const u8,
+    release_len: usize,
+    bundled: *const u8,
+    bundled_len: usize,
+) -> i32 {
+    let Ok(release) = serde_json::from_slice::<Value>(bytes(release, release_len)) else {
+        return 1;
+    };
+    let index = shelf::Index::new(&String::from_utf8_lossy(bytes(tsv, tsv_len)), &release);
+    let names = String::from_utf8_lossy(bytes(bundled, bundled_len))
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(str::to_owned)
+        .collect();
+    files().set_index(Some(index), names);
+    0
+}
+
+/// Opens a document: JSON `{main, text, engine?, threads?, ini?}`
+/// (`engine`: pdflatex, the default, or xelatex...; `ini`: the text is
+/// the whole job, no format). Answered at once; the build runs on a
 /// session thread, which tells `{event: "built", ...}` when it is in.
 #[unsafe(no_mangle)]
 pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
@@ -148,8 +202,11 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
     let text: String = req["text"].as_str().unwrap_or("").to_owned();
     let threads = req["threads"].as_u64().and_then(|t| usize::try_from(t).ok());
     let ini = req["ini"].as_bool().unwrap_or(false);
+    let engine = shelf::engine(req["engine"].as_str().unwrap_or("pdflatex"));
     spawn_workers();
-    std::thread::spawn(move || {
+    // (the build runs here, as on a native main thread: its stack as large;
+    // a stack has no guard page in wasm, an overflow writes over the heap)
+    let session = std::thread::Builder::new().stack_size(STACK).spawn(move || {
         let t0 = std::time::Instant::now();
         let f = files().clone();
         let cached = lock(&PRELUDE).take();
@@ -157,7 +214,7 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
         let opts = Options {
             jobname: main.strip_suffix(".tex").unwrap_or(&main).to_owned(),
             name: format!("./{main}"),
-            finder: Arc::new(move |name: &str| f.get(name, want).map(|x| (x.0.clone(), x.1.clone()))),
+            finder: Arc::new(move |name: &str| f.get(name, engine, &Host)),
             threads,
             epoch: Some(0),
             time_limit: None,
@@ -180,12 +237,18 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
             "bytes": len,
             "pdf": b.is_pdf(),
             "prelude": prelude,
+            "prelude_complete": b.prelude_complete(),
+            "prelude_diagnostics": b.prelude_diagnostics().iter().map(|d| format!("{}:{}: {}", d.file, d.line, d.message)).collect::<Vec<_>>(),
             "ms": t0.elapsed().as_secs_f64() * 1000.0,
             "log": log,
         }));
     });
-    0
+    i32::from(session.is_err()) * 2
 }
+
+/// Every thread's stack: a native process's main thread's (wasm has no
+/// guard page: an overflow would write over the heap unseen).
+const STACK: usize = 8 << 20;
 
 /// The engine's workers are std's threads, which wasi-threads starts as
 /// the host's workers (set before the first build; a reactor runs no
@@ -193,7 +256,7 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
 fn spawn_workers() {
     phitex_tex::set_spawn_worker(Box::new(|f| {
         std::thread::Builder::new()
-            .stack_size(8 << 20)
+            .stack_size(STACK)
             .spawn(f)
             .expect("a worker thread");
     }));

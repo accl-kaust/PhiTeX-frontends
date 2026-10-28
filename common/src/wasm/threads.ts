@@ -3,7 +3,7 @@
 // it calls the core's exports and never blocks. A thread the core starts
 // (`wasi.thread-spawn`, std's thread::spawn) is a worker of the platform's
 // (`Spawn`: a browser's module worker, a Node worker thread) entering
-// `wasi_thread_start`; what it tells the host (a file it lacks, an event)
+// `wasi_thread_start`; what it tells the host (a file or a pack it lacks, an event)
 // goes to thread 0 on a BroadcastChannel, so no thread needs a port to it,
 // and it waits for the answer inside the core (files.rs).
 
@@ -25,7 +25,7 @@ export interface ThreadData {
 export type Spawn = (data: ThreadData) => void;
 
 /** What threads tell thread 0. */
-export type ThreadMsg = { t: "want"; name: string } | { t: "event"; json: string } | { t: "log"; s: string } | { t: "trap"; tid: number; error: string };
+export type ThreadMsg = { t: "want"; name: string } | { t: "fetch"; id: string } | { t: "event"; json: string } | { t: "log"; s: string } | { t: "trap"; tid: number; error: string };
 
 /** The memory's limits (core/build.rs: 64 MiB at first, up to 4 GiB). */
 export const PAGES_INITIAL = 1024;
@@ -51,6 +51,7 @@ export function imports(d: Omit<ThreadData, "tid" | "arg">, spawn: Spawn, post: 
     },
     phitex: {
       want: (p: number, n: number) => post({ t: "want", name: text(p, n) }),
+      fetch: (p: number, n: number) => post({ t: "fetch", id: text(p, n) }),
       event: (p: number, n: number) => post({ t: "event", json: text(p, n) }),
     },
   };

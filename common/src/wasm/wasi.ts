@@ -1,6 +1,6 @@
 // The WASI (preview 1) the core needs, on every thread alike, in a browser
-// or Node: the clock, randomness, sleeping, stderr; no files (the core's
-// come from the host by name, files.rs) and no environment. A call std
+// or Node: the clock, randomness, sleeping, stderr, and the environment
+// below; no files (the core's come from the host, files.rs). A call std
 // makes that the core never needs answers ENOSYS or, for a descriptor,
 // EBADF, so std's start (its preopens' scan) finds nothing and goes on.
 
@@ -16,6 +16,14 @@ export class Exit extends Error {
   }
 }
 
+/**
+ * The core's environment: every thread std starts gets an 8 MiB stack, as
+ * the core's own (a thread the engine starts itself gets std's default
+ * otherwise, and a stack has no guard page in wasm: an overflow writes
+ * over the heap unseen).
+ */
+const ENV = ["RUST_MIN_STACK=8388608"];
+
 /** A sleep's wait (poll_oneoff): on a flag nobody sets. */
 const sleeper = new Int32Array(new SharedArrayBuffer(4));
 
@@ -24,15 +32,26 @@ export function wasi(memory: WebAssembly.Memory, stderr: (s: string) => void): R
   // (TextDecoder and getRandomValues take no views of shared memory: copies)
   const copy = (p: number, n: number) => new Uint8Array(memory.buffer).slice(p, p + n);
   const dec = new TextDecoder();
+  // (each NUL-terminated)
+  const env = ENV.map((e) => new TextEncoder().encode(e + "\0"));
   const now = (id: number): bigint =>
     id === 0 ? BigInt(Date.now()) * 1_000_000n : BigInt(Math.round((performance.timeOrigin + performance.now()) * 1e6));
   const calls: Record<string, (...a: any[]) => number> = {
     environ_sizes_get(count: number, size: number) {
-      view().setUint32(count, 0, true);
-      view().setUint32(size, 0, true);
+      view().setUint32(count, ENV.length, true);
+      view().setUint32(size, env.reduce((a, e) => a + e.length, 0), true);
       return 0;
     },
-    environ_get: () => 0,
+    environ_get(ptrs: number, buf: number) {
+      const v = view();
+      const m = new Uint8Array(memory.buffer);
+      env.forEach((e, i) => {
+        v.setUint32(ptrs + 4 * i, buf, true);
+        m.set(e, buf);
+        buf += e.length;
+      });
+      return 0;
+    },
     args_sizes_get(count: number, size: number) {
       view().setUint32(count, 0, true);
       view().setUint32(size, 0, true);

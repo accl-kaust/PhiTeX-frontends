@@ -4,11 +4,13 @@
 //! `ph_*` functions the host calls (a reactor's binary exports none by
 //! itself).
 
-const EXPORTS: [&str; 9] = [
+const EXPORTS: [&str; 11] = [
     "ph_alloc",
     "ph_free",
     "ph_open",
     "ph_provide",
+    "ph_pack",
+    "ph_set_index",
     "ph_output_ptr",
     "ph_output_len",
     "ph_take_output",

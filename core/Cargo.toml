@@ -12,6 +12,8 @@ path = "src/main.rs"
 
 [dependencies]
 phitex-tex = { path = "../phitex/crates/engines/tex" }
+# (Shelf's packs are gzip: PhiTeX's own inflate)
+phitex-codecs = { path = "../phitex/crates/codecs" }
 serde_json = "1"
 
 # (thin LTO and parallel codegen: the engine's release speed without fat

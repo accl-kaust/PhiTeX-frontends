@@ -1,19 +1,25 @@
 // Thread 0 of the core (core/: PhiTeX's Build on wasm32-wasip1-threads):
 // the module instantiated on a fresh shared memory, its exports called
 // here, never waiting. What the core's threads tell (threads.ts) arrives on
-// the core's BroadcastChannel: a file the build lacks is resolved by the
-// host (`Resolve`: Shelf, the project, asynchronously) and given back with
-// `ph_provide`, while the thread that asked waits inside the core; an
+// the core's BroadcastChannel: a Shelf pack the build needs (the core
+// resolves names by Shelf's index itself, `setIndex`) is fetched by the
+// host (`Fetch`: its bundled packs, its pack store, Shelf) and given back
+// with `ph_pack`; a file asked by name (the bundled texmf/, or anything
+// without the index) is the host's `Resolve`, given back with
+// `ph_provide`; meanwhile the thread that asked waits inside the core. An
 // event goes to the host.
 
 import { type Spawn, type ThreadMsg, imports, newMemory } from "./threads.ts";
 
 /** A file by name: its path as the build should report it, and its bytes; null if it is nowhere. */
 export type Resolve = (name: string) => Promise<{ path: string; bytes: Uint8Array } | null>;
+/** A Shelf pack by id, as Shelf serves it (gzip); null if it could not be had. */
+export type Fetch = (id: string) => Promise<Uint8Array | null>;
 
 export interface CoreOptions {
   spawn: Spawn;
   resolve: Resolve;
+  fetch?: Fetch;
   /** The core's events (`{event: "built", ...}`). */
   event: (e: any) => void;
   /** What the core writes to stderr (a panic's message). */
@@ -29,6 +35,8 @@ interface Exports {
   ph_free(p: number, n: number): void;
   ph_open(p: number, n: number): number;
   ph_provide(name: number, nameLen: number, path: number, pathLen: number, data: number, dataLen: number, found: number): void;
+  ph_pack(id: number, idLen: number, data: number, dataLen: number, ok: number): void;
+  ph_set_index(tsv: number, tsvLen: number, release: number, releaseLen: number, bundled: number, bundledLen: number): number;
   ph_output_ptr(): number;
   ph_output_len(): number;
   ph_take_output(): void;
@@ -65,6 +73,7 @@ export class Core {
 
   private heard(m: ThreadMsg): void {
     if (m.t === "want") void this.want(m.name);
+    else if (m.t === "fetch") void this.fetch(m.id);
     else if (m.t === "event") this.o.event(JSON.parse(m.json));
     else if (m.t === "log") this.o.log?.(m.s);
     else if (m.t === "trap") this.o.trap?.(m.tid, m.error);
@@ -78,6 +87,36 @@ export class Core {
       this.o.log?.(`resolve ${name}: ${e}\n`);
     }
     this.provide(name, f);
+  }
+
+  private async fetch(id: string): Promise<void> {
+    let b: Uint8Array | null = null;
+    try {
+      b = (await this.o.fetch?.(id)) ?? null;
+    } catch (e) {
+      this.o.log?.(`fetch ${id}: ${e}\n`);
+    }
+    const n = new TextEncoder().encode(id);
+    const d = b ?? new Uint8Array();
+    const [pn, pd] = [this.put(n), this.put(d)];
+    this.x.ph_pack(pn, n.length, pd, d.length, b ? 1 : 0);
+    this.x.ph_free(pn, n.length);
+    this.x.ph_free(pd, d.length);
+  }
+
+  /**
+   * Shelf's index (its TSV, gunzipped), its release.json, and the names of
+   * the bundled texmf/: the core resolves names itself from now on, and
+   * asks for packs (`fetch`) instead of names.
+   */
+  setIndex(tsv: Uint8Array, release: Uint8Array, bundled: string[]): void {
+    const names = new TextEncoder().encode(bundled.join("\n"));
+    const [pt, pr, pn] = [this.put(tsv), this.put(release), this.put(names)];
+    const r = this.x.ph_set_index(pt, tsv.length, pr, release.length, pn, names.length);
+    this.x.ph_free(pt, tsv.length);
+    this.x.ph_free(pr, release.length);
+    this.x.ph_free(pn, names.length);
+    if (r !== 0) throw new Error(`ph_set_index: ${r}`);
   }
 
   /** Gives the core a file (a project's, before the build asks for it), or says it is nowhere. */
