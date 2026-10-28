@@ -1,0 +1,5 @@
+{ "project": "test/scenarios/live", "name": "live",
+  "steps": [ { "shot": "first" },
+    { "cursor": "sentence" }, { "shot": "cursor" },
+    { "type": " Typed live.", "after": "the page follows it.", "keys": 80 }, { "idle": 2000 }, { "shot": "edited" },
+    { "dblpage": [0, 0.35, 0.25] }, { "shot": "dblclick" } ] }

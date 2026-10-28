@@ -1,50 +1,34 @@
 #!/usr/bin/env bash
 # Build the browser extension into overleaf/ (load that directory unpacked):
 # its TypeScript (overleaf/src, and common/src through overleaf/src/common)
-# to overleaf/dist, the engine and its assets beside it. VS Code's
-# extension takes the engine's files from there (scripts/build-vscode.sh).
+# to overleaf/dist, the engine and its assets beside it.
 #
 #   scripts/build.sh          # release
 #   scripts/build.sh --dev    # also match the local mock (http://localhost:<any port>/project/*)
 #
-# The wasm core: cargo for wasm32-wasip1, in the sandbox (PhiTeX read-only),
-# target dir inside this repo. No wasm-bindgen: the core has a raw C ABI
-# and the worker its own WASI shim (see REPORT.md, "Why wasip1").
+# The wasm core: core/ (PhiTeX's live document, phitex-live) for
+# wasm32-wasip1-threads, a WASI reactor whose threads are the browser's
+# workers on one shared memory (common/src/wasm/); cargo in the sandbox
+# (PhiTeX read-only), its target directory inside this repo. PHITEX_WASM_DIR:
+# a directory with core.wasm and diff.wasm built elsewhere (a build
+# machine's), copied instead of built here.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-export CARGO_TARGET_DIR="$PWD/target"
 
-# The core: PhiTeX's pdfTeX (core/, real LaTeX), a WASI reactor: link wasi-libc's
-# crt1-reactor.o, whose `_initialize` (run once by the host) runs libc's
-# constructors. A cdylib gets no crt of its own (rustc's -Zwasi-exec-model
-# applies to binaries only), and without it std's thread-local destructor
-# registration spins forever.
-sysroot=$(scripts/sandbox rustc --print sysroot)
-flags="-C target-feature=+bulk-memory,+simd128,+nontrapping-fptoint,+sign-ext -C link-arg=$sysroot/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o -C link-arg=--export=_initialize"
 rm -rf overleaf/dist && mkdir -p overleaf/dist
-(cd core && CARGO_TARGET_DIR="$PWD/../target/phitex" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_RUSTFLAGS="$flags" \
-  cargo build --release --target wasm32-wasip1)
-cp target/phitex/wasm32-wasip1/release/phitex_overleaf_core.wasm overleaf/dist/core.wasm
-# The LaTeX format, made by the same engine (mkfmt), and the fonts'
-# metrics: one gzipped file the worker hands the core.
-if [ ! -f target/fmt/pdflatex.fmt ]; then
-  (cd core && CARGO_TARGET_DIR="$PWD/../target/phitex" ../scripts/sandbox cargo build --release --bin mkfmt)
-  (ulimit -v 8000000; scripts/sandbox target/phitex/release/mkfmt target/fmt texmf)
+if [ -n "${PHITEX_WASM_DIR:-}" ]; then
+  cp "$PHITEX_WASM_DIR/core.wasm" "$PHITEX_WASM_DIR/diff.wasm" overleaf/dist/
+else
+  # (a reactor binary: its `_initialize` run once by thread 0; the memory,
+  # stack and exports are core/build.rs's)
+  (cd core && CARGO_TARGET_DIR="$PWD/../target/core" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_THREADS_RUSTFLAGS="-Zwasi-exec-model=reactor" \
+    cargo build --release --target wasm32-wasip1-threads)
+  cp target/core/wasm32-wasip1-threads/release/core.wasm overleaf/dist/core.wasm
+  # PhiTeX's latexdiff (phitex-diff) as its own small wasm module, for the
+  # compare: diff-wasm/, on phitex/'s phitex-diff
+  (cd diff-wasm && CARGO_TARGET_DIR="$PWD/target" ../scripts/sandbox cargo build --release --target wasm32-unknown-unknown)
+  cp diff-wasm/target/wasm32-unknown-unknown/release/phitex_diff_wasm.wasm overleaf/dist/diff.wasm
 fi
-scripts/sandbox python3 scripts/make-assets.py target/fmt/pdflatex.fmt overleaf/dist/assets.bin.gzdata
-# XeTeX's: its format, made with its font index (the engine's otf-index
-# over the fonts Shelf serves, scripts/font-index.sh), dvipdfmx.cfg and the
-# TECkit mappings; a second file the worker loads for the first xelatex
-# project only
-# (made outside the sandbox: it reads Shelf's repo and runs its own bwrap)
-if [ ! -f target/fmt-xe/fontindex.pxfi ]; then
-  echo "no target/fmt-xe/fontindex.pxfi: run scripts/font-index.sh first (after Shelf's release.py)" >&2
-  exit 1
-fi
-if [ ! -f target/fmt-xe/xelatex.fmt ]; then
-  (ulimit -v 8000000; scripts/sandbox env MKFMT_XETEX="$PWD/target/fmt-xe/fontindex.pxfi" target/phitex/release/mkfmt target/fmt-xe texmf)
-fi
-scripts/sandbox python3 scripts/make-xe-assets.py target/fmt-xe overleaf/dist/assets-xelatex.bin.gzdata
 # (the full license, shipped in the extension, where its links point)
 # (packs/: the list fetched ahead, and any Shelf packs shipped: data/bundled-packs.txt, none now)
 scripts/bundle-packs.sh
@@ -59,12 +43,8 @@ rm -rf overleaf/texmf && cp -r texmf overleaf/texmf
 # (SHELF_INDEX, SHELF_RELEASE: another release's, a local Shelf's for a --dev build)
 cp "${SHELF_INDEX:-shelf-index.tsv.gz}" overleaf/shelf-index.tsv.gzdata
 cp "${SHELF_RELEASE:-shelf-release.json}" overleaf/shelf-release.json
-# PhiTeX's latexdiff (phitex-diff) as its own small wasm module, for the
-# compare: diff-wasm/, on phitex/'s phitex-diff
-(cd diff-wasm && CARGO_TARGET_DIR="$PWD/target" ../scripts/sandbox cargo build --release --target wasm32-unknown-unknown)
-cp diff-wasm/target/wasm32-unknown-unknown/release/phitex_diff_wasm.wasm overleaf/dist/diff.wasm
-# (the page renderer: PhiTeX's viewer/src at the pinned engine commit)
-scripts/vendor-viewer.sh
+# The extension's TypeScript, as the modules it loads (dist/: the content
+# script's, the offscreen document's, the core's worker and its threads')
 scripts/sandbox npx tsc -p overleaf
 # Latin Modern (GUST Font License), the fonts the pages are drawn in (page2.ts):
 # common/fonts (kept up to date from TeX Live here), and the XeLaTeX stand-ins
@@ -72,18 +52,29 @@ scripts/sandbox npx tsc -p overleaf
 lm=/usr/share/texmf-dist/fonts/opentype/public
 cp $lm/lm/lmroman10-{regular,bold,italic,bolditalic}.otf $lm/lm/lmmono10-regular.otf $lm/lm-math/latinmodern-math.otf common/fonts/
 rm -rf overleaf/fonts overleaf/shims && cp -r common/fonts common/shims overleaf/
-# pdf.js (Apache-2.0), the PDF-mode page renderer (pdfrender.ts)
-mkdir -p overleaf/dist/pdfjs && cp node_modules/pdfjs-dist/build/pdf.min.mjs node_modules/pdfjs-dist/build/pdf.worker.min.mjs node_modules/pdfjs-dist/LICENSE overleaf/dist/pdfjs/
+# MuPDF's WebAssembly build (mupdf on npm, AGPL-3.0-or-later), which draws
+# the pages in the tab (tabrender.ts): the version and tarball PhiTeX's
+# viewer pins (phitex/scripts/fetch-mupdf.sh), fetched once into
+# target/mupdf/ and checked by its SHA-256
+mupdf_version=$(sed -n 's/^version=//p' phitex/scripts/fetch-mupdf.sh)
+mupdf_sha=$(sed -n 's/^sha256=//p' phitex/scripts/fetch-mupdf.sh)
+tgz=target/mupdf/mupdf-$mupdf_version.tgz
+if [ ! -f "$tgz" ] || [ "$(sha256sum "$tgz" | cut -d' ' -f1)" != "$mupdf_sha" ]; then
+  mkdir -p target/mupdf && curl -fsSL --retry 3 "https://registry.npmjs.org/mupdf/-/mupdf-$mupdf_version.tgz" -o "$tgz"
+fi
+[ "$(sha256sum "$tgz" | cut -d' ' -f1)" = "$mupdf_sha" ] || { echo "mupdf: SHA-256 mismatch ($tgz)" >&2; exit 1; }
+mkdir -p overleaf/dist/mupdf
+for f in mupdf.js mupdf-wasm.js mupdf-wasm.wasm; do tar -xzOf "$tgz" "package/dist/$f" > "overleaf/dist/mupdf/$f"; done
+tar -xzOf "$tgz" package/LICENSE > overleaf/dist/mupdf/LICENSE 2>/dev/null || true
 # minted: Pyodide (Python in wasm), the engine's latexminted runner, and TeX
 # Live's four wheels (latexminted, latexrestricted, latex2pydata, Pygments);
-# bundled, loaded by the worker only for a project that uses minted
+# bundled, loaded by the core's worker at a project's first \write18
 mkdir -p overleaf/dist/pyodide overleaf/dist/minted overleaf/minted
 cp node_modules/pyodide/{pyodide.mjs,pyodide.asm.mjs,pyodide.asm.wasm,pyodide-lock.json,package.json} overleaf/dist/pyodide/
 # (.data, not .zip or .whl: Edge's store refuses archives inside a package)
 cp node_modules/pyodide/python_stdlib.zip overleaf/dist/pyodide/python_stdlib.data
 rm -f overleaf/minted/*.whl
-phitex_dir=$(sed -n 's|^phitex-core = { package = "partex-core", path = "\(.*\)/crates/partex-core" }|\1|p' core/Cargo.toml)
-cp "core/$phitex_dir/tools/minted-pyodide/runner.mjs" overleaf/dist/minted/
+cp phitex/tools/minted-pyodide/runner.mjs overleaf/dist/minted/
 : > overleaf/minted/wheels.txt
 for w in /usr/share/texmf-dist/scripts/minted/*.whl; do cp "$w" "overleaf/minted/$(basename "$w").data"; basename "$w" >> overleaf/minted/wheels.txt; done
 echo "minted: $(du -sh overleaf/dist/pyodide | cut -f1) Pyodide, $(wc -l < overleaf/minted/wheels.txt) wheels"

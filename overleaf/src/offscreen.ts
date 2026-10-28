@@ -1,17 +1,29 @@
-// The offscreen document: an extension page (cross-origin isolated by the
-// manifest, for SharedArrayBuffer once the core is multithreaded) that runs
-// the core's host (common/src/corehost.ts: its workers, the packages and
-// compares it answers) and relays each tab's port to it.
-// Binary files and results cross base64: runtime ports carry JSON.
+// The offscreen document: an extension page, cross-origin isolated by the
+// manifest (SharedArrayBuffer: the core's memory is shared with its
+// threads), that relays each tab's port to a core of its own: a worker
+// (worker.ts, the core's thread 0), started when the tab connects and
+// ended when it goes, its threads with it. What is not the core's is
+// answered here: Shelf's release (told to each tab: an extension older than
+// it needs asks for an update) and a compare's latexdiff (diff.wasm).
+// Binary files and the PDF cross base64: runtime ports carry JSON.
 
 import "./platform.ts";
-import { CoreHost } from "./common/corehost.ts";
+import { platform } from "./common/platform.ts";
+import { refresh, type Release } from "./common/release.ts";
+import { type DiffReply, type DiffReq, loadDiff } from "./common/viewer/diff.ts";
 
-const host = new CoreHost({
-  spawn: () => new Worker(new URL("worker.js", import.meta.url), { type: "module" }),
-  // (one worker on a machine with fewer than 4 cores or 4 GB)
-  two: navigator.hardwareConcurrency >= 4 && ((navigator as { deviceMemory?: number }).deviceMemory ?? 8) >= 4,
-});
+let release: Release | undefined;
+const ports = new Set<chrome.runtime.Port>();
+const told = (r: Release | undefined) => {
+  release = r;
+  for (const p of ports) p.postMessage({ event: "release", release: r });
+};
+// (at most once a day; a newer index is read by the next core)
+void refresh().then(told, () => undefined);
+setInterval(() => void refresh().then(told, () => undefined), 3600 * 1000);
+
+/** diff.wasm, loaded at the first compare. */
+let diffRun: Promise<(r: DiffReq) => DiffReply> | undefined;
 
 function b64(b: Uint8Array): string {
   let s = "";
@@ -21,12 +33,40 @@ function b64(b: Uint8Array): string {
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "phitex") return;
-  const client = host.connect(`tab${port.sender?.tab?.id}:${port.sender?.frameId ?? 0}:${Math.random()}`, (m) => {
+  ports.add(port);
+  const core = new Worker(new URL("worker.js", import.meta.url), { type: "module", name: "phitex-core" });
+  const say = (m: any) => {
+    try {
+      port.postMessage(m);
+    } catch {
+      /* (the tab went away) */
+    }
+  };
+  core.onmessage = (e) => {
+    const m = e.data;
     // (the tab draws the page from the PDF, sent when it changed)
     if (m.pdf) m.pdf = b64(m.pdf);
-    port.postMessage(m);
+    say(m);
+  };
+  core.onerror = (e) => say({ event: "console", item: { kind: "error", text: `core worker: ${e.message}` } });
+  if (release) say({ event: "release", release });
+  port.onMessage.addListener((m) => {
+    if (m.op === "latexdiff") {
+      (diffRun ??= platform().asset("dist/diff.wasm").then(async (r) => loadDiff(await r.arrayBuffer()))).then(
+        (run) => say({ id: m.id, ok: true, json: run(m.req) }),
+        (e) => say({ id: m.id, ok: false, error: `latexdiff: ${e}` }),
+      );
+      return;
+    }
+    // (the project's binary files, figures: as bytes to the core)
+    if (m.op === "binary") {
+      const bytes = Uint8Array.from(atob(m.b64), (c) => c.charCodeAt(0));
+      return core.postMessage({ id: m.id, op: "binary", file: m.file, bytes }, [bytes.buffer]);
+    }
+    core.postMessage(m);
   });
-  // (the project's binary files, figures: as bytes to the host)
-  port.onMessage.addListener((m) => client.message(m.op === "binary" ? { ...m, bytes: Uint8Array.from(atob(m.b64), (c) => c.charCodeAt(0)) } : m));
-  port.onDisconnect.addListener(() => client.close());
+  port.onDisconnect.addListener(() => {
+    ports.delete(port);
+    core.terminate();
+  });
 });

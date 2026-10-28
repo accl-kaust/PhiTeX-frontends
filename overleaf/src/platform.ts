@@ -17,6 +17,8 @@ const DBS: Record<string, { name: string; version: number; stores: string[] }> =
   /** (3: packs whole, by id, with use times; 2 kept every file apart, 1 Shelf's flat text files) */
   shelf: { name: "phitex-shelf", version: 3, stores: ["packs", "meta", "kv"] },
   release: { name: "phitex-release", version: 1, stores: ["kv"] },
+  /** The core's session store (common/src/wasm/core.ts's Store): the formats' state and records, the documents' keys. */
+  core: { name: "phitex-core", version: 1, stores: ["kv"] },
 };
 
 const opened = new Map<string, Promise<IDBDatabase>>();

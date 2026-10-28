@@ -97,7 +97,7 @@ check(pages.ok && pages.json.pages.length === build0.pages, "pages: one hash a p
 const status = await t.request({ op: "status" });
 check(status.ok && status.json.pages === build0.pages && status.json.engine === "phitex", "status: the pages, the engine", status);
 const o0 = await t.request({ op: "origins", page: 0 });
-check(o0.ok && o0.json.n > 0 && o0.json.files.includes(main), `origins of page 0: ${o0.json?.n} glyphs, files ${JSON.stringify(o0.json?.files)}`, o0);
+check(o0.ok && o0.json.g.length > 0 && o0.json.files.includes(main) && o0.json.g.some((g: number[]) => g[2] >= 0 && g[4] > g[3]), `origins of page 0: ${o0.json?.g?.length} glyphs, files ${JSON.stringify(o0.json?.files)}`, o0);
 const pdf0 = await t.request({ op: "pdf" });
 check(!!pdf0.pdf && new TextDecoder().decode(pdf0.pdf.subarray(0, 5)) === "%PDF-", `pdf: ${pdf0.pdf?.length} bytes`, pdf0.error);
 // (a page to draw: the PDF along the first time, its key the next)
