@@ -189,9 +189,9 @@ The repository holds the frontends of one engine:
   host's API: the session (`session.ts`), the core's worker (`worker.ts`)
   and its host (`corehost.ts`: the workers, packages, compares), packages
   and their cache (`shelf.ts`, `packstore.ts`, `prefetch.ts`,
-  `release.ts`, `resolve.ts`), the preview panel (`panel.ts`, and PhiTeX's
-  page renderer in `vendor/viewer/`), the compare (`compare.ts`, `diff.ts`),
-  and the fonts and XeLaTeX stand-ins. Where it runs is a `Platform`
+  `release.ts`, `resolve.ts`), and PhiTeX's viewer (`viewer/`, a link to
+  the `phitex/` submodule's `viewer/src`: the session, the panel, the page
+  renderer, the compare), and the fonts and XeLaTeX stand-ins. Where it runs is a `Platform`
   (`platform.ts`): the extension's files, a key-value store, fetch.
 - `overleaf/`: the browser extension (Chrome, Edge, Firefox): the manifest,
   the content scripts that read Overleaf's editor and dock the panel, the

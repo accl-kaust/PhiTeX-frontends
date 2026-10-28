@@ -3,8 +3,8 @@
 // what the panel is asked (a page in view, a page wanted, a double-click, a
 // download) sent back to it (extension.ts's Ask).
 
-import { apply, type Told } from "../../common/src/vendor/viewer/remote.ts";
-import { Panel, type PanelPrefs } from "../../common/src/vendor/viewer/panel.ts";
+import { apply, type Told } from "../../common/src/viewer/remote.ts";
+import { Panel, type PanelPrefs } from "../../common/src/viewer/panel.ts";
 
 declare function acquireVsCodeApi(): { postMessage(m: unknown): void; getState(): unknown; setState(s: unknown): void };
 declare const PHITEX_FONTS: string;

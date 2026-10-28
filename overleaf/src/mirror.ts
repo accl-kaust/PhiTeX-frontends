@@ -4,8 +4,8 @@
 // scrolls to. One BroadcastChannel a project, between the two tabs' content
 // scripts.
 
-import type { PreviewSink } from "./common/vendor/viewer/session.ts";
-import { apply, tee, type Told } from "./common/vendor/viewer/remote.ts";
+import type { PreviewSink } from "./common/viewer/session.ts";
+import { apply, tee, type Told } from "./common/viewer/remote.ts";
 
 export { tee };
 

@@ -4,18 +4,18 @@
 
 import "./platform.ts";
 import { platform } from "./common/platform.ts";
-import type { Edit } from "./common/vendor/viewer/edits.ts";
+import type { Edit } from "./common/viewer/edits.ts";
 import { older } from "./common/version.ts";
-import { PreviewSession, type CoreReq, type CoreRes, type CoreTransport, type CoreEvent, type EditorHost } from "./common/vendor/viewer/session.ts";
+import { PreviewSession, type CoreReq, type CoreRes, type CoreTransport, type CoreEvent, type EditorHost } from "./common/viewer/session.ts";
 import { readZip } from "./common/zip.ts";
 import { type DiffRunner, compareButton } from "./diffui.ts";
 import { filesAt, type Version } from "./history.ts";
-import { Compare, gate, LATEXDIFF_LOOK } from "./common/vendor/viewer/compare.ts";
+import { Compare, gate, LATEXDIFF_LOOK } from "./common/viewer/compare.ts";
 import { SUPPORT, unseen, type News } from "./news.ts";
-import { Panel, type DiffLook, type PanelPrefs, type Prefs } from "./common/vendor/viewer/panel.ts";
+import { Panel, type DiffLook, type PanelPrefs, type Prefs } from "./common/viewer/panel.ts";
 import { channel, follow, tee, type Ask } from "./mirror.ts";
-import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/vendor/viewer/engines.ts";
-import { hostPackages } from "./common/vendor/viewer/packages.ts";
+import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
+import { hostPackages } from "./common/viewer/packages.ts";
 import { drawPage } from "./common/tabrender.ts";
 
 /** The panel's preferences, in the extension's own storage (not the page's). */

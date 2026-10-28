@@ -60,7 +60,7 @@ rm -rf overleaf/texmf && cp -r texmf overleaf/texmf
 cp "${SHELF_INDEX:-shelf-index.tsv.gz}" overleaf/shelf-index.tsv.gzdata
 cp "${SHELF_RELEASE:-shelf-release.json}" overleaf/shelf-release.json
 # PhiTeX's latexdiff (phitex-diff) as its own small wasm module, for the
-# compare: diff-wasm/, against its PhiTeX export (scripts/sandbox: DIFF_REPO)
+# compare: diff-wasm/, on phitex/'s phitex-diff
 (cd diff-wasm && CARGO_TARGET_DIR="$PWD/target" ../scripts/sandbox cargo build --release --target wasm32-unknown-unknown)
 cp diff-wasm/target/wasm32-unknown-unknown/release/phitex_diff_wasm.wasm overleaf/dist/diff.wasm
 # (the page renderer: PhiTeX's viewer/src at the pinned engine commit)
@@ -90,8 +90,8 @@ echo "minted: $(du -sh overleaf/dist/pyodide | cut -f1) Pyodide, $(wc -l < overl
 
 # The manifest: manifest.base.json, plus (--dev) the local mock's origin.
 dev=false; for a in "$@"; do [ "$a" = "--dev" ] && dev=true; done
-# (the engine's commit, from the pin, as version_name: debug reports name it)
-engine=$(grep -oE "tmp/phitex-[0-9a-f+]+" core/Cargo.toml | head -1 | sed "s|tmp/phitex-||")
+# (the engine's commit, the phitex/ submodule's, as version_name: debug reports name it)
+engine=$(git -C phitex rev-parse --short HEAD)
 scripts/sandbox node -e '
   const fs = require("fs"), m = JSON.parse(fs.readFileSync("overleaf/manifest.base.json"));
   m.version_name = `${m.version_name ?? m.version} (engine ${process.argv[2]})`;

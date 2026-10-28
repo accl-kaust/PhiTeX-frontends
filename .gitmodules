@@ -1,0 +1,4 @@
+[submodule "phitex"]
+	path = phitex
+	url = git@github.com:accl-kaust/PhiTeX.git
+	shallow = true

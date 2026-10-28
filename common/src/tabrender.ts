@@ -5,8 +5,8 @@
 // the page.
 
 import { platform } from "./platform.ts";
-import { MupdfDoc, toCanvas } from "./vendor/viewer/mupdf.ts";
-import type { PageImage } from "./vendor/viewer/types.ts";
+import { MupdfDoc, toCanvas } from "./viewer/mupdf.ts";
+import type { PageImage } from "./viewer/types.ts";
 
 let lib: Promise<any> | undefined;
 const mupdf = () => (lib ??= import(platform().assetUrl("dist/mupdf/mupdf.js")));
