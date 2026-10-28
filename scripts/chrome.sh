@@ -8,8 +8,9 @@ cd "$(dirname "$0")/.."
 port="${PHITEX_CDP_PORT:-9222}"
 profile="$PWD/${PHITEX_PROFILE:-.chrome-profile}"
 pkill -f -- "--user-data-dir=$profile( |$)" && sleep 2
-# (PHITEX_HEADLESS=1: no window, as in scripts/sandbox, which has no display)
-headless=(); [ -n "${PHITEX_HEADLESS:-}" ] && headless=(--headless=new)
+# (PHITEX_HEADLESS=1: no window, as in scripts/sandbox, which has no display;
+# its size PHITEX_WINDOW, 1600,1000 by default, for screenshots)
+headless=(); [ -n "${PHITEX_HEADLESS:-}" ] && headless=(--headless=new "--window-size=${PHITEX_WINDOW:-1600,1000}")
 nohup chromium "${headless[@]}" --user-data-dir="$profile" --remote-debugging-port="$port" --no-first-run \
   --disable-features=DisableLoadExtensionCommandLineSwitch --load-extension="$PWD/overleaf" \
   "${1:-http://localhost:8123/project/mock}" > /dev/null 2>&1 &

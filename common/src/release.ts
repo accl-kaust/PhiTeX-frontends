@@ -15,7 +15,7 @@
 // the tabs (an update asked for, a line shown); the extension keeps
 // working either way (its index's packs stay on Shelf).
 //
-// Used by the core's host and the workers (corehost.ts, worker.ts: one store).
+// Used by the offscreen document and the core's workers (one store).
 
 import { SHELF } from "./shelf.ts";
 import { platform } from "./platform.ts";

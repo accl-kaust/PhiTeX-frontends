@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # The store uploads: a release build of the browser extension (overleaf/), zipped.
 #   scripts/package.sh        → store/phitex-instant-<version>.zip (Chrome Web Store, Edge Add-ons)
-#                               store/phitex-instant-<version>-firefox.zip (Firefox Add-ons)
+# (Firefox: none for now; the core runs on threads, workers on shared memory,
+# which Firefox's extension pages don't give it: its single-threaded build
+# is still to come)
 # Checks: the release manifest (no localhost), only what the extension
 # runs (no sources, tests or maps), the wasm core and the license in.
 set -euo pipefail
@@ -26,24 +28,4 @@ if find overleaf/dist -name '*.map' | grep -q .; then echo "source maps in dist"
 (cd overleaf && scripts_zip=1 zip -q -r -X "../$out" "${files[@]}")
 echo "$out ($(du -h "$out" | cut -f1))"
 
-# Firefox: no offscreen documents and no service worker; the background is a
-# page that runs the core (firefox-bg.html), and an add-on id
-fx="store/phitex-instant-$version-firefox.zip"
-tmp="$PWD/target/fx-pack"; rm -rf "$tmp"; mkdir -p "$tmp"
-(cd overleaf && cp -r "${files[@]}" firefox-bg.html "$tmp/")
-scripts/sandbox python3 - "$tmp/manifest.json" <<'PY'
-import json, sys
-p = sys.argv[1]; m = json.load(open(p))
-# (unlimitedStorage: no prompt in Chrome, one in Firefox, whose add-ons' storage is kept anyway)
-m["permissions"] = [x for x in m["permissions"] if x not in ("offscreen", "unlimitedStorage")]
-m.pop("minimum_chrome_version", None)
-m["background"] = {"page": "firefox-bg.html"}
-m["browser_specific_settings"] = {"gecko": {"id": "phitex-instant@phitex.org", "strict_min_version": "142.0",
-    "data_collection_permissions": {"required": ["none"]}}}
-json.dump(m, open(p, "w"), indent=2)
-PY
-rm -f "$fx"
-(cd "$tmp" && zip -q -r -X - .) > "$fx"
-rm -rf "$tmp"
-echo "$fx ($(du -h "$fx" | cut -f1))"
 unzip -l "$out" | tail -n +4 | head -n -2 | awk '{print "  " $4}'

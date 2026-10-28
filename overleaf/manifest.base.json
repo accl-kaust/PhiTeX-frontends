@@ -60,8 +60,7 @@
         "dist/common/packages.js",
         "LICENSE.txt",
         "dist/common/tabrender.js",
-        "dist/pdfjs/pdf.min.mjs",
-        "dist/pdfjs/pdf.worker.min.mjs",
+        "dist/mupdf/*",
         "dist/common/viewer/*.js",
         "fonts/*",
         "shims/*"

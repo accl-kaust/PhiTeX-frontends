@@ -1,12 +1,18 @@
 // Overleaf's wiring of a PreviewSession: the page hook (hook.ts, in the
 // page's world) for the editor, the project ZIP for the files, a chrome
-// port to the offscreen document's worker for the core, and the panel.
+// port to the offscreen document, which relays it to this tab's core (a
+// worker of its own: worker.ts, the core's viewer protocol, CoreSession),
+// and the panel. The session is in its remote mode, as on `phitex watch`:
+// the core's events say when the pages are in (settled) and what the build
+// found (diagnostics); this script opens the project itself (its files,
+// then setMain), and the editor's edits go to the core as requests.
 
 import "./platform.ts";
 import { platform } from "./common/platform.ts";
 import type { Edit } from "./common/viewer/edits.ts";
 import { older } from "./common/version.ts";
-import { PreviewSession, type CoreReq, type CoreRes, type CoreTransport, type CoreEvent, type EditorHost } from "./common/viewer/session.ts";
+import { PreviewSession, guessMain, type CoreReq, type CoreRes, type CoreTransport, type CoreEvent, type EditorHost } from "./common/viewer/session.ts";
+import { charOffset } from "./common/viewer/edits.ts";
 import { readZip } from "./common/zip.ts";
 import { type DiffRunner, compareButton } from "./diffui.ts";
 import { filesAt, type Version } from "./history.ts";
@@ -15,7 +21,6 @@ import { SUPPORT, unseen, type News } from "./news.ts";
 import { Panel, type DiffLook, type PanelPrefs, type Prefs } from "./common/viewer/panel.ts";
 import { channel, follow, tee, type Ask } from "./mirror.ts";
 import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
-import { hostPackages } from "./common/viewer/packages.ts";
 import { drawPage } from "./common/tabrender.ts";
 
 /** The panel's preferences, in the extension's own storage (not the page's). */
@@ -222,6 +227,8 @@ class ChromeTransport implements CoreTransport {
   async connect(): Promise<void> {
     await chrome.runtime.sendMessage({ type: "ensure-offscreen" });
     this.port = chrome.runtime.connect({ name: "phitex" });
+    // (the project: the core keeps the document's records under it)
+    this.port.postMessage({ id: 0, op: "hello", project: project() });
     this.port.onMessage.addListener(async (r: any) => {
       if (r.event) return this.events.forEach((f) => f(r));
       if (r.png) r.png = unb64(r.png);
@@ -1149,8 +1156,6 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     await transport.connect();
     devMark("connected");
     giveBinary = (path, bytes) => transport.request({ op: "binary", file: path, b64: b64of(bytes) } as never);
-    // (workers: 1 keeps the one-worker start, a plain first paint then the SSA program in the same worker; a debugging switch)
-    const { panel: saved, workers } = await chrome.storage.local.get(["panel", "workers"]);
     let engineSetting: EngineChoice = "auto", projectEngine: Engine | undefined;
     const readEngine = async () => {
       const { engine, engines } = await chrome.storage.local.get(["engine", "engines"]);
@@ -1167,16 +1172,35 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     const host = new OverleafHost(panel);
     const opts: ConstructorParameters<typeof PreviewSession>[3] = {
       engine: (main) => resolve(engineSetting, projectEngine, main),
-      workers: workers === 1 ? 1 : undefined,
       // (a XeLaTeX project: approximated with pdfLaTeX, unless chosen for it)
       shims: async (main) => (projectEngine || !approximable(main) ? null : shimTexts((p) => platform().asset(p))),
-      packages: hostPackages(transport),
     };
-    session = new PreviewSession(host, transport, gate(tee(panel, ch, () => mirrored), () => compare?.showing !== "diff"), opts);
+    const sink = gate(tee(panel, ch, () => mirrored), () => compare?.showing !== "diff");
+    session = new PreviewSession(host, transport, sink, {
+      ...opts,
+      // (a double-click's source: bytes of the file as the session has it,
+      // the editor put there)
+      remote: {
+        source: (file, start, end) => {
+          const t = session.text(file);
+          if (t !== undefined) window.postMessage({ src: "phitex-content", type: "gotoRange", file, from: charOffset(t, start), to: charOffset(t, end), focus: true }, location.origin);
+        },
+      },
+    });
     (globalThis as any).__phitexSession = session; // (tests, devtools)
+    // (a compare's session: the marked-up document opened as a project of its own)
     diffImpl = compare = compareWith(host, transport, opts);
     devMark("start");
-    await session.start();
+    // (the project read, its figures given to the core as they come; then
+    // opened: the core builds it and says when its pages are in)
+    const files = await host.loadProject();
+    session.refresh(files);
+    const main = guessMain(files);
+    sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), main);
+    if (!main) throw new Error("no main .tex file found");
+    await session.setMain(main);
+    // (the editor's open file announced again: its text, unsaved edits and all, wins over the ZIP's)
+    host.ready();
     devMark("started");
     ch.postMessage({ t: "up" });
     // (closed docs: fetched again and diffed in, so collaborators' edits to

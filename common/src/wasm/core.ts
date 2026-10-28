@@ -325,9 +325,13 @@ export class Core {
  * ops, `pdf` (the PDF the viewer is shown, the watch's doc.pdf), `png`
  * answered as the old worker answered it (`render: {page, key}`, the PDF
  * along when it changed since the last sent: the host's transport draws
- * the page with MuPDF, as the CLI's page draws it from doc.pdf) and `open`
- * (the project's files given, the document opened: the reply is the
- * core's `open`, its build comes as events).
+ * the page from it, as the CLI's page draws it from doc.pdf), `open` (the
+ * project's files given, the document opened: the reply is the core's
+ * `open`, its build comes as events) and `cursor` (the editor's, pushed:
+ * a `reveal` event). `origins` is answered as the viewer reads it
+ * (sync.ts's `{files, g}`, a glyph `[x, y, file, start, end, synth]`),
+ * from phitex-live's columns (base64 little-endian words, the synthesized
+ * glyphs a bit each).
  */
 export class CoreSession implements CoreTransport {
   private next = 1;
@@ -369,13 +373,40 @@ export class CoreSession implements CoreTransport {
         return { ok: false, error: String(e) };
       }
     }
+    if (req.op === "cursor") {
+      const c = req as unknown as { file: string; line: number; col: number };
+      try {
+        this.core.push({ ask: "cursor", file: c.file, line: c.line, col: c.col });
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    }
     const r = this.core.request({ ...req, id });
-    return r.ok ? { ok: true, json: r.json } : { ok: false, error: r.error ?? "refused" };
+    if (!r.ok) return { ok: false, error: r.error ?? "refused" };
+    return { ok: true, json: req.op === "origins" ? glyphRows(r.json) : r.json };
   }
 
   onEvent(cb: (e: CoreEvent) => void): void {
     this.events.push(cb);
   }
+}
+
+/** phitex-live's `origins` answer (base64 columns) as sync.ts reads it: `{files, g}`. */
+function glyphRows(j: { files: string[]; n: number; file?: string; start?: string; end?: string; synth?: string; x?: string; y?: string }): { files: string[]; g: number[][] } {
+  if (!j?.n || !j.file) return { files: j?.files ?? [], g: [] };
+  const words = (b64: string) => {
+    const b = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return new DataView(b.buffer);
+  };
+  const [file, start, end, synth, x, y] = [j.file, j.start!, j.end!, j.synth!, j.x!, j.y!].map(words);
+  const g: number[][] = [];
+  for (let i = 0; i < j.n; i++) {
+    const f = file.getUint32(4 * i, true);
+    const s = 4 * (i >> 5) < synth.byteLength ? (synth.getUint32(4 * (i >> 5), true) >>> (i & 31)) & 1 : 0;
+    g.push([x.getFloat32(4 * i, true), y.getFloat32(4 * i, true), f === 0xffffffff ? -1 : f, start.getUint32(4 * i, true), end.getUint32(4 * i, true), s]);
+  }
+  return { files: j.files, g };
 }
 
 const u32 = (n: number) => new Uint8Array(new Uint32Array([n]).buffer);
