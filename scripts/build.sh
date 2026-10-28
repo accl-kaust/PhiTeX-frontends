@@ -20,7 +20,7 @@ rm -rf overleaf/dist && mkdir -p overleaf/dist
 rm -rf overleaf/formats && mkdir -p overleaf/formats
 if [ -n "${PHITEX_WASM_DIR:-}" ]; then
   cp "$PHITEX_WASM_DIR/core.wasm" "$PHITEX_WASM_DIR/diff.wasm" overleaf/dist/
-  cp "$PHITEX_WASM_DIR"/formats/*.gzdata overleaf/formats/
+  cp "$PHITEX_WASM_DIR"/formats/* overleaf/formats/
 else
   # (a reactor binary: its `_initialize` run once by thread 0; the memory,
   # stack and exports are core/build.rs's)
@@ -29,7 +29,7 @@ else
   cp target/core/wasm32-wasip1-threads/release/core.wasm overleaf/dist/core.wasm
   # (its formats, made by it: a first open reads pdfLaTeX's instead of building it)
   scripts/sandbox --net scripts/make-formats.sh overleaf/dist/core.wasm target/formats
-  cp target/formats/*.gzdata overleaf/formats/
+  cp target/formats/* overleaf/formats/
   # PhiTeX's latexdiff (phitex-diff) as its own small wasm module, for the
   # compare: diff-wasm/, on phitex/'s phitex-diff
   (cd diff-wasm && CARGO_TARGET_DIR="$PWD/target" ../scripts/sandbox cargo build --release --target wasm32-unknown-unknown)

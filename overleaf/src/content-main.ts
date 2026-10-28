@@ -21,7 +21,7 @@ import { SUPPORT, unseen, type News } from "./news.ts";
 import { Panel, type DiffLook, type PanelPrefs, type Prefs } from "./common/viewer/panel.ts";
 import { channel, follow, tee, type Ask } from "./mirror.ts";
 import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
-import { drawPage } from "./common/tabrender.ts";
+import { pageOf } from "./common/tabrender.ts";
 
 /** The panel's preferences, in the extension's own storage (not the page's). */
 const prefs: Prefs = {
@@ -231,18 +231,19 @@ class ChromeTransport implements CoreTransport {
     this.port.postMessage({ id: 0, op: "hello", project: project() });
     this.port.onMessage.addListener(async (r: any) => {
       if (r.event) return this.events.forEach((f) => f(r));
-      if (r.png) r.png = unb64(r.png);
       if (r.pdf) r.pdf = unb64(r.pdf);
-      // (the page drawn here by MuPDF, from the PDF; the PDF itself only for a download)
-      if (r.render) {
-        const scale = (devicePixelRatio || 1) * 2;
-        const img = await drawPage(r.render.key, r.render.page, scale, r.pdf).catch((e) => (console.warn("[phitex] draw", e), null));
+      // (a page drawn by the core's worker: shown from its image, its text
+      // over it; MuPDF can't run here, overleaf.com's policy forbids the
+      // tab WebAssembly)
+      if (r.image) {
+        const img = await pageOf(r.drawn, unb64(r.image)).catch((e) => (console.warn("[phitex] draw", e), null));
         if (img) {
           r.canvas = img.canvas;
           r.size = [img.w, img.h];
           r.links = img.links;
         }
-        delete r.pdf;
+        delete r.image;
+        delete r.drawn;
       }
       this.waiting.get(r.id)?.(r);
       this.waiting.delete(r.id);
@@ -271,7 +272,8 @@ class ChromeTransport implements CoreTransport {
     if (contextGone()) return Promise.resolve({ ok: false, error: GONE } as CoreRes);
     return new Promise((res) => {
       this.waiting.set(id, res);
-      this.port.postMessage({ id, ...req });
+      // (a page drawn at twice the screen's pixels: sharp when zoomed in)
+      this.port.postMessage({ id, ...req, ...(req.op === "png" ? { scale: (devicePixelRatio || 1) * 2 } : {}) });
     });
   }
   onLost(cb: () => void) {

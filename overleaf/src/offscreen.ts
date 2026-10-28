@@ -44,8 +44,9 @@ chrome.runtime.onConnect.addListener((port) => {
   };
   core.onmessage = (e) => {
     const m = e.data;
-    // (the tab draws the page from the PDF, sent when it changed)
+    // (bytes as base64: the port carries JSON; a page's image, the PDF only for a download)
     if (m.pdf) m.pdf = b64(m.pdf);
+    if (m.image) m.image = b64(m.image);
     say(m);
   };
   core.onerror = (e) => say({ event: "console", item: { kind: "error", text: `core worker: ${e.message}` } });

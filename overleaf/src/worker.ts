@@ -25,6 +25,7 @@ import { hasPack } from "./common/packstore.ts";
 import { Index, formatOf, shelfEngine, type ReleaseMeta } from "./common/resolve.ts";
 import { referenced } from "./common/viewer/packages.ts";
 import { spawnThread } from "./thread.ts";
+import { MupdfDoc } from "./common/viewer/mupdf.ts";
 
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
 const gunzip = async (s: ReadableStream) => new Uint8Array(await new Response(s.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
@@ -146,7 +147,10 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
     },
     store,
     shell,
-    event: post,
+    event: (e) => {
+      if (e?.event === "settled") version++;
+      post(e);
+    },
     log: (s) => {
       stderr = (stderr + s).slice(-4000);
       console.warn("[phitex core]", s);
@@ -165,6 +169,37 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
 }
 
 let started = start();
+
+/**
+ * The pages drawn here, by MuPDF, not in the tab: overleaf.com's policy
+ * (no 'wasm-unsafe-eval') forbids the tab WebAssembly, and this worker is
+ * the extension's. The build's PDF opened once a build (`settled`), a page
+ * drawn at the scale the tab asks for and encoded losslessly (PNG: the text
+ * stays sharp), sent with its size, links and text (the tab lays its text
+ * layer over it); the outline and a search read from the same document.
+ */
+let mupdf: Promise<any> | undefined;
+let doc: { version: number; d: MupdfDoc } | undefined;
+let version = 0;
+async function current(core: Core): Promise<MupdfDoc | null> {
+  if (doc?.version === version) return doc.d;
+  const v = version;
+  const pdf = core.pdf();
+  if (!pdf) return null;
+  const m = await (mupdf ??= import(/* @vite-ignore */ at("dist/mupdf/mupdf.js")));
+  doc?.d.destroy();
+  doc = { version: v, d: new MupdfDoc(m, pdf) };
+  return doc.d;
+}
+async function drawn(core: Core, page: number, scale: number): Promise<Record<string, unknown>> {
+  const d = (await current(core))?.draw(page, scale);
+  if (!d) return { ok: false, json: { error: "no such page" } };
+  const c = new OffscreenCanvas(d.pw, d.ph);
+  c.getContext("2d")!.putImageData(new ImageData(d.rgba as Uint8ClampedArray<ArrayBuffer>, d.pw, d.ph), 0, 0);
+  const image = new Uint8Array(await (await c.convertToBlob({ type: "image/png" })).arrayBuffer());
+  const { rgba: _, ...shown } = d;
+  return { ok: true, image, drawn: shown };
+}
 
 self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: unknown }>) => {
   const m = e.data;
@@ -188,6 +223,9 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
     }
     const { core, session } = await started;
     if (m.op === "open") void prefetch(core, (m.files ?? {}) as Record<string, string>, String(m.engine ?? "pdflatex")).catch((e) => console.warn("[phitex core] prefetch:", e));
+    if (m.op === "png") return post({ ...(await drawn(core, Number(m.page ?? 0), Number(m.scale ?? 2))), id: m.id });
+    if (m.op === "outline") return post({ id: m.id, ok: true, json: { items: (await current(core))?.outline() ?? [] } });
+    if (m.op === "find") return post({ id: m.id, ok: true, json: { hits: (await current(core))?.search(String(m.q ?? "")) ?? [] } });
     const r = await session.request(m as never);
     post({ ...r, id: m.id });
   } catch (err) {

@@ -101,8 +101,14 @@ http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   const send = (code, type, body) => (res.writeHead(code, { "content-type": type }), res.end(body));
   let m;
-  if (u.pathname === "/project/mock" || u.pathname === "/project/mock/")
-    return send(200, "text/html; charset=utf-8", fs.readFileSync(path.join(dir, "overleaf.html")));
+  // (with Overleaf's script policy: a nonce, strict-dynamic, and no
+  // 'wasm-unsafe-eval', so WebAssembly compiled in the tab fails here as it
+  // does on overleaf.com, where content scripts get the page's policy)
+  if (u.pathname === "/project/mock" || u.pathname === "/project/mock/") {
+    const nonce = Math.random().toString(36).slice(2);
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": `script-src 'nonce-${nonce}' 'unsafe-inline' 'strict-dynamic' https: 'report-sample'` });
+    return res.end(fs.readFileSync(path.join(dir, "overleaf.html"), "utf8").replaceAll("<script", `<script nonce="${nonce}"`));
+  }
   // (the editor: CodeMirror 6 and Overleaf's grammar, scripts/mock-editor.sh)
   if (u.pathname === "/project/mock/editor.js") {
     const f = path.join(dir, "build/editor.js");
