@@ -15,11 +15,21 @@ import { type Spawn, type ThreadMsg, imports, newMemory } from "./threads.ts";
 export type Resolve = (name: string) => Promise<{ path: string; bytes: Uint8Array } | null>;
 /** A Shelf pack by id, as Shelf serves it (gzip); null if it could not be had. */
 export type Fetch = (id: string) => Promise<Uint8Array | null>;
+/** What a `\write18` command did (PhiTeX's ShellRan, without `read`). */
+export interface Ran {
+  status: number;
+  wrote: [string, Uint8Array][];
+  removed: string[];
+}
+/** Runs `command` (quoted by the engine) over exactly `files` (minted.ts). */
+export type Shell = (command: string, files: [string, Uint8Array][]) => Promise<Ran>;
 
 export interface CoreOptions {
   spawn: Spawn;
   resolve: Resolve;
   fetch?: Fetch;
+  /** The runner of `\write18`'s allowed commands (minted): without it they are refused. */
+  shell?: Shell;
   /** The core's events (`{event: "built", ...}`). */
   event: (e: any) => void;
   /** What the core writes to stderr (a panic's message). */
@@ -36,6 +46,7 @@ interface Exports {
   ph_open(p: number, n: number): number;
   ph_provide(name: number, nameLen: number, path: number, pathLen: number, data: number, dataLen: number, found: number): void;
   ph_pack(id: number, idLen: number, data: number, dataLen: number, ok: number): void;
+  ph_shell_done(id: number, p: number, n: number): void;
   ph_set_index(tsv: number, tsvLen: number, release: number, releaseLen: number, bundled: number, bundledLen: number): number;
   ph_output_ptr(): number;
   ph_output_len(): number;
@@ -74,6 +85,7 @@ export class Core {
   private heard(m: ThreadMsg): void {
     if (m.t === "want") void this.want(m.name);
     else if (m.t === "fetch") void this.fetch(m.id);
+    else if (m.t === "shell") void this.shell(m.id, m.frame);
     else if (m.t === "event") this.o.event(JSON.parse(m.json));
     else if (m.t === "log") this.o.log?.(m.s);
     else if (m.t === "trap") this.o.trap?.(m.tid, m.error);
@@ -104,6 +116,24 @@ export class Core {
     this.x.ph_pack(pn, n.length, pd, d.length, b ? 1 : 0);
     this.x.ph_free(pn, n.length);
     this.x.ph_free(pd, d.length);
+  }
+
+  // (frames as core/src/shell.rs: a call `u32 n, command, files`; files
+  // `u32 count, (u32 n, name, u32 n, bytes) x count`; an answer `i32
+  // status, files written, files removed`)
+  private async shell(id: number, frame: Uint8Array): Promise<void> {
+    let ran: Ran = { status: 127 << 8, wrote: [], removed: [] };
+    try {
+      const r = reader(frame);
+      const command = new TextDecoder().decode(r.bytes());
+      if (this.o.shell) ran = await this.o.shell(command, r.files());
+    } catch (e) {
+      this.o.log?.(`\\write18: ${e}\n`);
+    }
+    const out = framed([i32(ran.status), files(ran.wrote), files(ran.removed.map((n) => [n, new Uint8Array()]))]);
+    const p = this.put(out);
+    this.x.ph_shell_done(id, p, out.length);
+    this.x.ph_free(p, out.length);
   }
 
   /**
@@ -175,4 +205,30 @@ export class Core {
     new Uint8Array(this.memory.buffer).set(b, p);
     return p;
   }
+}
+
+const u32 = (n: number) => new Uint8Array(new Uint32Array([n]).buffer);
+const i32 = (n: number) => new Uint8Array(new Int32Array([n]).buffer);
+const framed = (parts: Uint8Array[]) => {
+  const out = new Uint8Array(parts.reduce((a, p) => a + p.length, 0));
+  let at = 0;
+  for (const p of parts) (out.set(p, at), (at += p.length));
+  return out;
+};
+const sized = (b: Uint8Array) => framed([u32(b.length), b]);
+/** `u32 count, (u32 n, name, u32 n, bytes) x count`. */
+const files = (fs: [string, Uint8Array][]) => framed([u32(fs.length), ...fs.flatMap(([n, b]) => [sized(new TextEncoder().encode(n)), sized(b)])]);
+
+function reader(b: Uint8Array) {
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  let at = 0;
+  const u = () => ((at += 4), dv.getUint32(at - 4, true));
+  const bytes = () => {
+    const n = u();
+    return b.subarray((at += n) - n, at);
+  };
+  return {
+    bytes,
+    files: (): [string, Uint8Array][] => Array.from({ length: u() }, () => [new TextDecoder().decode(bytes()), bytes().slice()]),
+  };
 }

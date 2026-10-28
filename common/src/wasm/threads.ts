@@ -25,7 +25,7 @@ export interface ThreadData {
 export type Spawn = (data: ThreadData) => void;
 
 /** What threads tell thread 0. */
-export type ThreadMsg = { t: "want"; name: string } | { t: "fetch"; id: string } | { t: "event"; json: string } | { t: "log"; s: string } | { t: "trap"; tid: number; error: string };
+export type ThreadMsg = { t: "want"; name: string } | { t: "fetch"; id: string } | { t: "shell"; id: number; frame: Uint8Array } | { t: "event"; json: string } | { t: "log"; s: string } | { t: "trap"; tid: number; error: string };
 
 /** The memory's limits (core/build.rs: 64 MiB at first, up to 4 GiB). */
 export const PAGES_INITIAL = 1024;
@@ -52,6 +52,7 @@ export function imports(d: Omit<ThreadData, "tid" | "arg">, spawn: Spawn, post: 
     phitex: {
       want: (p: number, n: number) => post({ t: "want", name: text(p, n) }),
       fetch: (p: number, n: number) => post({ t: "fetch", id: text(p, n) }),
+      shell: (id: number, p: number, n: number) => post({ t: "shell", id, frame: new Uint8Array(d.memory.buffer).slice(p, p + n) }),
       event: (p: number, n: number) => post({ t: "event", json: text(p, n) }),
     },
   };

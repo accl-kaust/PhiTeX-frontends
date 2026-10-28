@@ -11,6 +11,10 @@
 //!   (`phitex.want`), by the thread that needs it, which waits until
 //!   thread 0 answers (`ph_pack`, `ph_provide`): [`files`].
 //!
+//! - a `\write18` the engine allows (latexminted) is posted to the host
+//!   (`phitex.shell`), which runs it and answers (`ph_shell_done`):
+//!   [`shell`], only when the open says the host has a runner.
+//!
 //! Requests and answers are bytes in the module's memory: the host gets
 //! room with `ph_alloc`, and takes an answer's bytes at `ph_output_ptr`,
 //! `ph_output_len` (`ph_take_output` hands over the last build's output,
@@ -19,6 +23,7 @@
 
 mod files;
 mod shelf;
+mod shell;
 
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
@@ -36,6 +41,10 @@ unsafe extern "C" {
     /// Asks the host for Shelf's pack `id`: it answers with `ph_pack`.
     #[link_name = "fetch"]
     fn host_fetch(id: *const u8, len: usize);
+    /// Posts `\write18` call `id` to the host (its frame, shell.rs): it
+    /// answers with `ph_shell_done`.
+    #[link_name = "shell"]
+    fn host_shell(id: u32, frame: *const u8, len: usize);
     /// Tells the host of an event: JSON.
     #[link_name = "event"]
     fn host_event(json: *const u8, len: usize);
@@ -60,6 +69,16 @@ fn event(v: &Value) {
     let s = v.to_string();
     // SAFETY: as `want`.
     unsafe { host_event(s.as_ptr(), s.len()) }
+}
+
+fn shell_hook() -> &'static Arc<shell::Hook> {
+    static HOOK: OnceLock<Arc<shell::Hook>> = OnceLock::new();
+    HOOK.get_or_init(|| {
+        Arc::new(shell::Hook::new(|id, frame| {
+            // SAFETY: the host reads the frame before returning.
+            unsafe { host_shell(id, frame.as_ptr(), frame.len()) }
+        }))
+    })
 }
 
 fn files() -> &'static Arc<Files> {
@@ -164,6 +183,12 @@ pub extern "C" fn ph_pack(id: *const u8, id_len: usize, data: *const u8, data_le
     files().pack(&id, (ok != 0).then(|| bytes(data, data_len)));
 }
 
+/// The host's answer to `\write18` call `id` (its frame, shell.rs).
+#[unsafe(no_mangle)]
+pub extern "C" fn ph_shell_done(id: u32, frame: *const u8, len: usize) {
+    shell_hook().done(id, bytes(frame, len));
+}
+
 /// Shelf's index (its TSV, gunzipped) and `release.json`, and the names of
 /// the extension's bundled texmf/ (one a line): names are resolved here
 /// from now on. 0: done; 1: `release.json` is not JSON.
@@ -189,9 +214,10 @@ pub extern "C" fn ph_set_index(
     0
 }
 
-/// Opens a document: JSON `{main, text, engine?, threads?, ini?}`
+/// Opens a document: JSON `{main, text, engine?, threads?, ini?, shell?}`
 /// (`engine`: pdflatex, the default, or xelatex...; `ini`: the text is
-/// the whole job, no format). Answered at once; the build runs on a
+/// the whole job, no format; `shell`: the host runs `\write18`'s allowed
+/// commands, else they are refused). Answered at once; the build runs on a
 /// session thread, which tells `{event: "built", ...}` when it is in.
 #[unsafe(no_mangle)]
 pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
@@ -203,6 +229,7 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
     let threads = req["threads"].as_u64().and_then(|t| usize::try_from(t).ok());
     let ini = req["ini"].as_bool().unwrap_or(false);
     let engine = shelf::engine(req["engine"].as_str().unwrap_or("pdflatex"));
+    let shell = req["shell"].as_bool().unwrap_or(false);
     spawn_workers();
     // (the build runs here, as on a native main thread: its stack as large;
     // a stack has no guard page in wasm, an overflow writes over the heap)
@@ -220,6 +247,7 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
             time_limit: None,
             prelude_jobname: "pdflatex".to_owned(),
             prelude_bytes: cached,
+            shell_hook: shell.then(|| Arc::clone(shell_hook()) as Arc<dyn phitex_tex::ShellHook>),
             ..Options::default()
         };
         let prelude = (!ini).then(|| "\\input pdflatex.ini\n".to_owned());

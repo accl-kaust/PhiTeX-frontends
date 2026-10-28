@@ -6,7 +6,11 @@
 // given before the build; or (--kpse) every name found by kpsewhich (TeX
 // Live on this machine).
 //
-//   scripts/sandbox --net node test/core-run.ts [FILE.tex] [--threads N] [--ini] [--cold] [--kpse] [--timeline]
+//   scripts/sandbox --net node test/core-run.ts [FILE.tex] [--threads N] [--ini] [--cold] [--kpse] [--timeline] [--minted]
+//
+// --minted: \write18 runs latexminted in Pyodide (PhiTeX's
+// tools/minted-pyodide runner, Pyodide from node_modules, minted's wheels
+// from TeX Live's scripts/minted).
 //
 // Without FILE: a plain TeX job in ini mode (cmr10), DVI out.
 
@@ -16,6 +20,7 @@ import { existsSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { promisify } from "node:util";
 import { Core } from "../common/src/wasm/core.ts";
+import { mintedShell } from "../common/src/wasm/minted.ts";
 import { spawner } from "../vscode/src/thread.ts";
 
 const run = promisify(execFile);
@@ -57,7 +62,26 @@ async function fetchPack(id: string): Promise<Uint8Array | null> {
   await writeFile(kept, b);
   return b;
 }
+const WHEELS = "/usr/share/texmf-dist/scripts/minted/";
+const shell = flag("--minted")
+  ? mintedShell(async () => {
+      const t = performance.now();
+      const { loadPyodide } = await import("pyodide");
+      const { createMintedRunner } = await import("../phitex/tools/minted-pyodide/runner.mjs" as string);
+      const wheels = await Promise.all((await readdir(WHEELS)).filter((f) => f.endsWith(".whl")).map(async (f) => [f, new Uint8Array(await readFile(WHEELS + f))]));
+      const r = await createMintedRunner({ loadPyodide, wheels });
+      console.log(`minted: Pyodide and latexminted loaded in ${(performance.now() - t).toFixed(0)} ms`);
+      return r;
+    })
+  : undefined;
+let shellCalls = 0;
 const core = Core.start(module, {
+  shell: shell && (async (command, files) => {
+    shellCalls++;
+    const r = await shell(command, files);
+    console.log(`  \\write18 ${command.slice(0, 60)}: status ${r.status}, ${files.length} files in, ${r.wrote.length} written, ${r.removed.length} removed`);
+    return r;
+  }),
   spawn: spawner(new URL("../vscode/src/thread.ts", import.meta.url)),
   async fetch(id) {
     const t = performance.now() - t0;
@@ -110,4 +134,4 @@ if (!kpse) {
   for (const n of dir ? await readdir(dir) : []) if (n !== main && /\.(tex|sty|cls|bib|bst|cfg|def|png|pdf|jpg)$/.test(n)) core.provide(n, { path: "./" + n, bytes: new Uint8Array(await readFile(dir + n)) });
 }
 if (!ini && existsSync(store) && !flag("--cold")) core.setPrelude(new Uint8Array(await readFile(store)));
-core.open({ main, text, ini, threads: value("--threads") ? Number(value("--threads")) : undefined });
+core.open({ main, text, ini, shell: !!shell, threads: value("--threads") ? Number(value("--threads")) : undefined });
