@@ -115,14 +115,22 @@ impl Files {
         }
     }
 
-    /// The content key of the file the build was given as `path`
-    /// (Options::content_key): a Shelf file's pack, whose id names its
-    /// content, and its path; none for any other (the project's, the
-    /// bundled texmf/'s), which the engine hashes.
-    pub fn key(&self, path: &str) -> Option<Vec<u8>> {
-        let rel = path.strip_prefix(shelf::TL)?;
-        let pack = self.lock().index.clone()?.pack_of(rel)?.to_owned();
-        Some([pack.as_bytes(), b"\0", rel.as_bytes()].concat())
+    /// The path and content key of the file `name` would be for `engine`
+    /// (Options::content_key), from Shelf's index alone, nothing fetched: a
+    /// Shelf file's path as [`Files::get`] gives it, its key the id of its
+    /// pack (which names the pack's content) and its texmf path. None for
+    /// any other (the project's, the bundled texmf/'s), which the engine
+    /// finds and hashes.
+    pub fn key(&self, name: &str, engine: &str) -> Option<(String, Vec<u8>)> {
+        let s = self.lock();
+        let ix = s.index.clone()?;
+        let rel = ix.resolve(name, shelf::format_of(name), engine)?;
+        let engine_tree = ["tex/xelatex/", "tex/xetex/", "tex/lualatex/", "tex/luatex/"].iter().any(|t| rel.starts_with(t));
+        if matches!(s.by_name.get(name), Some(Entry::Given(_))) || (!name.contains('/') && s.bundled.contains(name) && !engine_tree) {
+            return None;
+        }
+        let pack = ix.pack_of(rel)?;
+        Some((format!("{}{rel}", shelf::TL), [pack.as_bytes(), b"\0", rel.as_bytes()].concat()))
     }
 
     fn by_name(&self, mut s: MutexGuard<'_, State>, name: &str, host: &dyn Host) -> Option<Found> {

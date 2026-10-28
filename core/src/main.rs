@@ -243,7 +243,7 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
             jobname: main.strip_suffix(".tex").unwrap_or(&main).to_owned(),
             name: format!("./{main}"),
             finder: Arc::new(move |name: &str| f.get(name, engine, &Host)),
-            content_key: Some(Arc::new(move |path: &str| k.key(path))),
+            content_key: Some(Arc::new(move |name: &str| k.key(name, engine))),
             threads,
             epoch: Some(0),
             time_limit: None,
