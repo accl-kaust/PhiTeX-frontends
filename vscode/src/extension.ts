@@ -253,7 +253,7 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
   const main = findMain(files, active);
   if (!main) return void vscode.window.showErrorMessage("PhiTeX: no .tex file with \\documentclass in this folder.");
   const cmd = vscode.workspace.getConfiguration("phitex").get<string>("path") || "phitex";
-  log.appendLine(`phitex watch: ${cmd} watch ${main} --view (in ${folder})`);
+  log.appendLine(`phitex watch: ${cmd} watch ${main} --lsp (in ${folder})`);
   // (the tab at once, saying what the watch does until its viewer is up: a
   // first run builds the format, seconds)
   const view = vscode.window.createWebviewPanel("phitex.watch", "⚡ phitex watch", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true });
@@ -292,8 +292,8 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
   let found: (u: string | null) => void = () => undefined;
   const url = new Promise<string | null>((done) => (found = done));
   subs.push(
+    // (the client writes each one to the PhiTeX output itself)
     client.onNotification("window/logMessage", (p: { message: string }) => {
-      log.appendLine(p.message);
       said.push(...p.message.split("\n").map((l) => l.trim()).filter(Boolean));
       if (!closed && !shown) waiting();
       const m = p.message.match(/http:\/\/127\.0\.0\.1:\d+\/[0-9a-f]+\//);
