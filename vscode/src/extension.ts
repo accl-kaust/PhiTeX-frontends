@@ -18,6 +18,7 @@ import type { Edit } from "../../common/src/viewer/edits.ts";
 import { findMain, relPath, toEdits } from "./changes.ts";
 import { HostTransport, startCore } from "./core.ts";
 import { nodePlatform } from "./platform.ts";
+import { relay, viewHtml, WatchLink } from "./relay.ts";
 
 /** The webview → extension host messages (overleaf/src/mirror.ts's Ask, less the channel's own). */
 type Ask = { t: "hello" } | { t: "need"; k: number } | { t: "page"; k: number } | { t: "goto"; file: string; line: number } | { t: "range"; file: string; from: number; to: number } | { t: "sync"; k: number; x: number; y: number } | { t: "select"; sel: { k: number; rects: [number, number, number, number][] }[] } | { t: "pdf" } | { t: "clean" } | { t: "main"; m: string };
@@ -133,7 +134,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     void vscode.window.showErrorMessage("PhiTeX: open a .tex file in a folder first.");
     return;
   }
-  if (vscode.workspace.getConfiguration("phitex").get<string>("engine") === "phitex watch") return previewWatch(folder.uri.fsPath, ed, log);
+  if (vscode.workspace.getConfiguration("phitex").get<string>("engine") === "phitex watch") return previewWatch(ctx.extensionUri, folder.uri.fsPath, ed, log);
   core ??= startCore(root, join(ctx.globalStorageUri.fsPath, "store"), (s) => log.appendLine(s));
   const host = new FolderHost(folder.uri.fsPath, ed ? (relPath(folder.uri.fsPath, ed.document.uri.fsPath) ?? undefined) : undefined);
 
@@ -233,19 +234,19 @@ const watches = new Set<LanguageClient>();
 const stopping = new Set<Promise<void>>();
 /** A folder's preview by its watch: one a folder, shown again when asked again. */
 const watchViews = new Map<string, vscode.WebviewPanel | "starting">();
-async function previewWatch(folder: string, ed: vscode.TextEditor | undefined, log: vscode.OutputChannel): Promise<void> {
+async function previewWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor | undefined, log: vscode.OutputChannel): Promise<void> {
   const have = watchViews.get(folder);
   if (have === "starting") return;
   if (have) return have.reveal(vscode.ViewColumn.Beside, true);
   watchViews.set(folder, "starting");
   try {
-    await startWatch(folder, ed, log);
+    await startWatch(ext, folder, ed, log);
   } finally {
     if (watchViews.get(folder) === "starting") watchViews.delete(folder);
   }
 }
 
-async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log: vscode.OutputChannel): Promise<void> {
+async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor | undefined, log: vscode.OutputChannel): Promise<void> {
   const files: Record<string, string> = {};
   for (const p of await walk(folder)) {
     const r = relPath(folder, p);
@@ -258,7 +259,11 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
   log.appendLine(`phitex watch: ${cmd} watch ${main} --lsp (in ${folder})`);
   // (the tab at once, saying what the watch does until its viewer is up: a
   // first run builds the format, seconds)
-  const view = vscode.window.createWebviewPanel("phitex.watch", "⚡ phitex watch", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true });
+  const view = vscode.window.createWebviewPanel("phitex.watch", "⚡ phitex watch", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {
+    enableScripts: true,
+    retainContextWhenHidden: true,
+    localResourceRoots: [vscode.Uri.joinPath(ext, "dist"), vscode.Uri.joinPath(ext, "fonts")],
+  });
   watchViews.set(folder, view);
   const said: string[] = [];
   const waiting = () => {
@@ -319,12 +324,15 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
     void vscode.window.showErrorMessage(`PhiTeX: \`${cmd} watch --lsp\` did not start (see the PhiTeX output). Install phitex, or set phitex.path, or phitex.engine to "builtin".`, "Show output").then((a) => a && log.show());
     return;
   }
+  // (the viewer in the webview, its core the watch's, through this host:
+  // the watch's address is this host's, local to the watch)
   shown = true;
-  const page = (await vscode.env.asExternalUri(vscode.Uri.parse(page0))).toString();
-  const origin = new URL(page).origin;
-  view.webview.html = `<!doctype html><html><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src ${origin}; style-src 'unsafe-inline';">
-</head><body style="margin:0;height:100vh;overflow:hidden"><iframe src="${page}" style="border:0;width:100%;height:100%" allow="clipboard-write"></iframe></body></html>`;
+  const link = new WatchLink(page0);
+  view.webview.html = viewHtml(view.webview, ext);
+  subs.push(
+    relay(view, link, () => void savePdf(link, folder, main)),
+    { dispose: () => link.close() },
+  );
   // (the cursor, once it rests 150 ms: its words marked on the page)
   let rest: ReturnType<typeof setTimeout> | undefined;
   subs.push(
@@ -342,6 +350,14 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
       if (!closed) view.dispose();
     }),
   );
+}
+
+/** The watch's PDF, saved where the user says. */
+async function savePdf(link: WatchLink, folder: string, main: string): Promise<void> {
+  const r = await link.request({ op: "pdf" });
+  if (!r.pdf?.length) return void vscode.window.showWarningMessage("PhiTeX: no PDF yet (see the diagnostics).");
+  const to = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(join(folder, main.replace(/\.tex$/, "") + ".pdf")) });
+  if (to) await vscode.workspace.fs.writeFile(to, r.pdf);
 }
 
 export function deactivate(): void {

@@ -20,6 +20,9 @@ scripts/sandbox "${es[@]}" vscode/src/webview.ts --platform=browser --format=iif
 for f in core.wasm diff.wasm assets.bin.gzdata assets-xelatex.bin.gzdata assets-names.txt; do
   cp overleaf/dist/$f vscode/dist/$f
 done
+# (MuPDF, which the webview draws the pages with)
+[ -s target/mupdf/mupdf-wasm.wasm ] || scripts/fetch-mupdf.sh
+mkdir -p vscode/dist/mupdf && cp target/mupdf/* vscode/dist/mupdf/
 for d in texmf packs fonts shims; do
   rm -rf "vscode/$d"
   cp -r "overleaf/$d" "vscode/$d"

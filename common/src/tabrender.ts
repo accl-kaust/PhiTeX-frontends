@@ -5,8 +5,9 @@
 // the page.
 
 import { platform } from "./platform.ts";
-import { MupdfDoc, toCanvas } from "./viewer/mupdf.ts";
+import { MupdfDoc, toCanvas, type Hit } from "./viewer/mupdf.ts";
 import type { PageImage } from "./viewer/types.ts";
+import type { Entry } from "./viewer/outline.ts";
 
 let lib: Promise<any> | undefined;
 const mupdf = () => (lib ??= import(platform().assetUrl("dist/mupdf/mupdf.js")));
@@ -31,4 +32,14 @@ export async function drawPage(key: string, page: number, scale: number, pdf?: U
   }
   const d = docs.get(key)?.draw(page, scale);
   return d ? { canvas: toCanvas(d), w: d.w, h: d.h, links: d.links } : null;
+}
+
+/** Where `q` is in the PDF under `key` (MuPDF's text, every page). */
+export function findIn(key: string, q: string): Hit[] {
+  return docs.get(key)?.search(q) ?? [];
+}
+
+/** The PDF under `key`'s outline (its bookmarks). */
+export function outlineOf(key: string): Entry[] {
+  return docs.get(key)?.outline() ?? [];
 }

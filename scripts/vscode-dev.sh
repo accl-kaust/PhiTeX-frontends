@@ -28,9 +28,13 @@ if [ -z "$folder" ]; then
 fi
 folder=$(cd "$folder" && pwd)
 
-# (the extension's bundle, as scripts/build-vscode.sh makes it)
+# (the extension's and the webview's bundles, and MuPDF, as scripts/build-vscode.sh makes them)
 scripts/sandbox node_modules/.bin/esbuild --bundle --log-level=warning --sourcemap=inline vscode/src/extension.ts \
   --platform=node --format=cjs --target=node20 --external:vscode --outfile=vscode/dist/extension.js
+scripts/sandbox node_modules/.bin/esbuild --bundle --log-level=warning --sourcemap=inline vscode/src/webview.ts \
+  --platform=browser --format=iife --target=es2022 --outfile=vscode/dist/webview.js
+[ -s target/mupdf/mupdf-wasm.wasm ] || scripts/fetch-mupdf.sh
+mkdir -p vscode/dist/mupdf && cp target/mupdf/* vscode/dist/mupdf/
 
 profile=$repo/target/vscode-dev
 mkdir -p "$profile/user/User" "$profile/extensions"
