@@ -3,6 +3,10 @@ target/
 node_modules/
 store/*.zip
 store/vscode/
+# (each published version unpacked for its store listing: 1.6 GB, kept here
+# only; the cluster drivers snapshot what git doesn't ignore)
+store/0.*/
+store/beta*/
 mock/build/
 diff-wasm/target/
 # (the browser extension's build: scripts/build.sh)
