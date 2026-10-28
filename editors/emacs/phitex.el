@@ -30,7 +30,7 @@
            (lambda ()
              (when (buffer-live-p buf)
                (with-current-buffer buf
-                 (when-let ((s (eglot-current-server)))
+                 (when-let* ((s (eglot-current-server)))
                    (jsonrpc-notify s :phitex/cursor (eglot--TextDocumentPositionParams))))))))))
 
 (add-hook 'eglot-managed-mode-hook
