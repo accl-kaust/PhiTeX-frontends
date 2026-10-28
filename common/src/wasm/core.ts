@@ -9,7 +9,7 @@
 // `ph_provide`; meanwhile the thread that asked waits inside the core. An
 // event goes to the host.
 
-import { type Spawn, type ThreadMsg, imports, newMemory } from "./threads.ts";
+import { type Spawn, type ThreadData, type ThreadMsg, imports, newMemory } from "./threads.ts";
 
 /** A file by name: its path as the build should report it, and its bytes; null if it is nowhere. */
 export type Resolve = (name: string) => Promise<{ path: string; bytes: Uint8Array } | null>;
@@ -65,9 +65,11 @@ export class Core {
   /** (heard on one, posted on the other: a BroadcastChannel never hears its own posts) */
   private channels: [hear: BroadcastChannel, post: BroadcastChannel];
   private o: CoreOptions;
+  /** What every thread's worker is started with, less its id and argument. */
+  private shared: Omit<ThreadData, "tid" | "arg">;
 
-  private constructor(memory: WebAssembly.Memory, inst: WebAssembly.Instance, channels: [BroadcastChannel, BroadcastChannel], o: CoreOptions) {
-    [this.memory, this.channels, this.o] = [memory, channels, o];
+  private constructor(shared: Omit<ThreadData, "tid" | "arg">, inst: WebAssembly.Instance, channels: [BroadcastChannel, BroadcastChannel], o: CoreOptions) {
+    [this.shared, this.memory, this.channels, this.o] = [shared, shared.memory, channels, o];
     this.x = inst.exports as unknown as Exports;
     this.x._initialize();
     channels[0].onmessage = (ev: MessageEvent<ThreadMsg>) => this.heard(ev.data);
@@ -80,12 +82,14 @@ export class Core {
     new Int32Array(ids)[0] = 1;
     const channel = `phitex-core-${Date.now()}-${cores++}-${Math.random()}`;
     const out = new BroadcastChannel(channel);
-    const inst = new WebAssembly.Instance(module, imports({ module, memory, ids, channel, env: o.env ?? [] }, o.spawn, (m) => out.postMessage(m)));
-    return new Core(memory, inst, [new BroadcastChannel(channel), out], o);
+    const shared = { module, memory, ids, channel, env: o.env ?? [] };
+    const inst = new WebAssembly.Instance(module, imports(shared, o.spawn, (m) => out.postMessage(m)));
+    return new Core(shared, inst, [new BroadcastChannel(channel), out], o);
   }
 
   private heard(m: ThreadMsg): void {
-    if (m.t === "want") void this.want(m.name);
+    if (m.t === "spawn") this.o.spawn({ ...this.shared, tid: m.tid, arg: m.arg });
+    else if (m.t === "want") void this.want(m.name);
     else if (m.t === "fetch") void this.fetch(m.id);
     else if (m.t === "shell") void this.shell(m.id, m.frame);
     else if (m.t === "event") this.o.event(JSON.parse(m.json));
