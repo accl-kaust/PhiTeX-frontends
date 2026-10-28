@@ -3,9 +3,9 @@
 // it calls the core's exports and never blocks. A thread the core starts
 // (`wasi.thread-spawn`, std's thread::spawn) is a worker of the platform's
 // (`Spawn`: a browser's module worker, a Node worker thread) entering
-// `wasi_thread_start`; what it tells the host (a file or a pack it lacks, an event)
+// `wasi_thread_start`; what it tells the host (a file or a pack it lacks, the store's bytes, an event)
 // goes to thread 0 on a BroadcastChannel, so no thread needs a port to it,
-// and it waits for the answer inside the core (files.rs).
+// and it waits for the answer inside the core (files.rs, store.rs).
 //
 // Thread 0 starts every worker, also a thread's: a thread's thread-spawn
 // takes the new id and asks thread 0 for the worker. A browser starts a
@@ -33,7 +33,16 @@ export interface ThreadData {
 export type Spawn = (data: ThreadData) => void;
 
 /** What threads tell thread 0. */
-export type ThreadMsg = { t: "spawn"; tid: number; arg: number } | { t: "want"; name: string } | { t: "fetch"; id: string } | { t: "shell"; id: number; frame: Uint8Array } | { t: "event"; json: string } | { t: "log"; s: string } | { t: "trap"; tid: number; error: string };
+export type ThreadMsg =
+  | { t: "spawn"; tid: number; arg: number }
+  | { t: "want"; name: string }
+  | { t: "fetch"; id: string }
+  | { t: "shell"; id: number; frame: Uint8Array }
+  | { t: "store_get"; key: string }
+  | { t: "store_put"; key: string; bytes: Uint8Array }
+  | { t: "event"; json: string }
+  | { t: "log"; s: string }
+  | { t: "trap"; tid: number; error: string };
 
 /**
  * The memory's size (core/build.rs): as large at first as it may ever be,
@@ -67,6 +76,8 @@ export function imports(d: Omit<ThreadData, "tid" | "arg">, spawn: Spawn | null,
       want: (p: number, n: number) => post({ t: "want", name: text(p, n) }),
       fetch: (p: number, n: number) => post({ t: "fetch", id: text(p, n) }),
       shell: (id: number, p: number, n: number) => post({ t: "shell", id, frame: new Uint8Array(d.memory.buffer).slice(p, p + n) }),
+      store_get: (p: number, n: number) => post({ t: "store_get", key: text(p, n) }),
+      store_put: (p: number, n: number, b: number, m: number) => post({ t: "store_put", key: text(p, n), bytes: new Uint8Array(d.memory.buffer).slice(b, b + m) }),
       event: (p: number, n: number) => post({ t: "event", json: text(p, n) }),
     },
   };

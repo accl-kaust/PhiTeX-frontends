@@ -8,19 +8,23 @@
 //! `ph_*` functions the host calls (a reactor's binary exports none by
 //! itself).
 
-const EXPORTS: [&str; 12] = [
+const EXPORTS: [&str; 16] = [
     "ph_alloc",
     "ph_free",
     "ph_open",
+    "ph_close",
+    "ph_request",
+    "ph_push",
     "ph_provide",
     "ph_pack",
+    "ph_stored",
     "ph_set_index",
     "ph_shell_done",
     "ph_output_ptr",
     "ph_output_len",
-    "ph_take_output",
-    "ph_take_prelude",
-    "ph_set_prelude",
+    "ph_main_output",
+    "ph_pdf",
+    "ph_file",
 ];
 
 fn main() {

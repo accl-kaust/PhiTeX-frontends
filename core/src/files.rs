@@ -15,6 +15,11 @@
 //! condition variable until the host's thread 0 answers (`ph_provide`,
 //! `ph_pack`). Absent is an answer too, kept like a present file: TeX
 //! probes many names that are nowhere.
+//!
+//! The session (phitex-live) asks in two steps, as kpathsea and a read:
+//! where a name is ([`Files::locate`], which waits as above) and the bytes
+//! at that path ([`Files::read`], from memory: what was located was
+//! given), each file shared, copied only into the engine's hands.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
@@ -24,11 +29,14 @@ use crate::shelf::{self, Index};
 /// A file as the engine takes it: the path it reports, and the bytes.
 pub type Found = (String, Vec<u8>);
 
+/// A file kept: its path, and its bytes, shared.
+type Kept = (String, Arc<Vec<u8>>);
+
 enum Entry {
     /// Asked for; the host has not answered yet.
     Asked,
     /// The host's answer (none: the file is nowhere).
-    Given(Option<Arc<Found>>),
+    Given(Option<Kept>),
 }
 
 enum Pack {
@@ -40,6 +48,8 @@ enum Pack {
 #[derive(Default)]
 struct State {
     by_name: HashMap<String, Entry>,
+    /// The host's files by the path it gave (without `./`).
+    by_given_path: HashMap<String, Arc<Vec<u8>>>,
     /// Shelf's files by texmf path, from the packs fetched.
     by_path: HashMap<String, Arc<Vec<u8>>>,
     packs: HashMap<String, Pack>,
@@ -80,12 +90,36 @@ impl Files {
         s.bundled = bundled;
     }
 
+    /// Where the file `name` is for `engine` (Shelf's name): the path the
+    /// engine reports (`/usr/share/texmf-dist/...` for Shelf's, the host's
+    /// for its own), waiting for the host when it must.
+    pub fn locate(&self, name: &str, engine: &str, host: &dyn Host) -> Option<String> {
+        self.find(name, engine, host).map(|(p, _)| p)
+    }
+
+    /// The bytes of the file at `path`, as [`Files::locate`] gave it (or a
+    /// name the host gave, the project's: `main.tex`); none: not here.
+    pub fn read(&self, path: &str) -> Option<Arc<Vec<u8>>> {
+        let s = self.lock();
+        if let Some(rel) = path.strip_prefix(shelf::TL) {
+            return s.by_path.get(rel).cloned();
+        }
+        let plain = path.strip_prefix("./").unwrap_or(path);
+        if let Some(b) = s.by_given_path.get(plain) {
+            return Some(b.clone());
+        }
+        match s.by_name.get(plain) {
+            Some(Entry::Given(Some((_, b)))) => Some(b.clone()),
+            _ => None,
+        }
+    }
+
     /// The file `name` for `engine` (Shelf's name), waiting for the host
     /// when it must.
-    pub fn get(&self, name: &str, engine: &str, host: &dyn Host) -> Option<Found> {
+    fn find(&self, name: &str, engine: &str, host: &dyn Host) -> Option<Kept> {
         let mut s = self.lock();
         if let Some(Entry::Given(f)) = s.by_name.get(name) {
-            return f.as_deref().cloned();
+            return f.clone();
         }
         let Some(ix) = s.index.clone() else {
             return self.by_name(s, name, host);
@@ -106,7 +140,7 @@ impl Files {
         }
         loop {
             if let Some(b) = s.by_path.get(path) {
-                return Some((format!("{}{path}", shelf::TL), b.to_vec()));
+                return Some((format!("{}{path}", shelf::TL), b.clone()));
             }
             if matches!(s.packs.get(&own), Some(Pack::Done)) {
                 return None;
@@ -133,14 +167,14 @@ impl Files {
         Some((format!("{}{rel}", shelf::TL), [pack.as_bytes(), b"\0", rel.as_bytes()].concat()))
     }
 
-    fn by_name(&self, mut s: MutexGuard<'_, State>, name: &str, host: &dyn Host) -> Option<Found> {
+    fn by_name(&self, mut s: MutexGuard<'_, State>, name: &str, host: &dyn Host) -> Option<Kept> {
         if !s.by_name.contains_key(name) {
             s.by_name.insert(name.to_owned(), Entry::Asked);
             host.want(name);
         }
         loop {
             if let Some(Entry::Given(f)) = s.by_name.get(name) {
-                return f.as_deref().cloned();
+                return f.clone();
             }
             s = self.wait(s);
         }
@@ -149,7 +183,13 @@ impl Files {
     /// The host's answer for `name` (none: it is nowhere), given before it
     /// was asked for (the project's own files) or after.
     pub fn provide(&self, name: &str, file: Option<Found>) {
-        self.lock().by_name.insert(name.to_owned(), Entry::Given(file.map(Arc::new)));
+        let file = file.map(|(p, b)| (p, Arc::new(b)));
+        let mut s = self.lock();
+        if let Some((p, b)) = &file {
+            s.by_given_path.insert(p.strip_prefix("./").unwrap_or(p).to_owned(), b.clone());
+        }
+        s.by_name.insert(name.to_owned(), Entry::Given(file));
+        drop(s);
         self.answered.notify_all();
     }
 

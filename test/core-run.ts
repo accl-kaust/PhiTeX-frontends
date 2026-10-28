@@ -4,24 +4,29 @@
 // repo's copy) resolved inside the core, its packs from target/shelf-cache/
 // or Shelf itself, the bundled texmf/ by name, the document's directory
 // given before the build; or (--kpse) every name found by kpsewhich (TeX
-// Live on this machine).
+// Live on this machine). The session's store (the format's state, the
+// records) in target/core-run-store/, as the hosts' stores keep it.
 //
 //   scripts/sandbox --net node test/core-run.ts [FILE.tex] [--threads N] [--ini] [--cold] [--kpse] [--timeline] [--minted]
 //
+// --cold: the store's formats not given (built again, and stored).
 // --wasm PATH: the core built elsewhere (e.g. with --features profile).
 // --env NAME=value (repeatable): the core's environment, e.g. PHITEX_TEX_TIME=1.
 // --minted: \write18 runs latexminted in Pyodide (PhiTeX's
 // tools/minted-pyodide runner, Pyodide from node_modules, minted's wheels
 // from TeX Live's scripts/minted).
 //
-// Without FILE: a plain TeX job in ini mode (cmr10), DVI out.
+// Without FILE: a plain TeX job in ini mode (cmr10), DVI out. The first
+// build's output is written to target/core-run.pdf (or .dvi), its log to
+// target/core-run.log; the harness ends once the core is idle (its records
+// stored, its log written).
 
 import { execFile } from "node:child_process";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { promisify } from "node:util";
-import { Core } from "../common/src/wasm/core.ts";
+import { Core, type Store } from "../common/src/wasm/core.ts";
 import { mintedShell } from "../common/src/wasm/minted.ts";
 import { spawner } from "../vscode/src/thread.ts";
 
@@ -32,14 +37,28 @@ const value = (f: string) => (args.includes(f) ? args[args.indexOf(f) + 1] : und
 const file = args.find((a, i) => a.endsWith(".tex") && !["--threads", "--wasm", "--env"].includes(args[i - 1]));
 const ini = !file || flag("--ini");
 const kpse = flag("--kpse");
-const text = file ? await readFile(file, "latin1") : "\\catcode`\\{=1 \\catcode`\\}=2 \\font\\x=cmr10 \\x \\shipout\\hbox{Hello}\\end\n";
+const text = file ? await readFile(file, "utf8") : "\\catcode`\\{=1 \\catcode`\\}=2 \\font\\x=cmr10 \\x \\shipout\\hbox{Hello}\\end\n";
 
 // (--wasm PATH: another build, e.g. target/core-profile's)
 const wasm = value("--wasm") ?? new URL("../target/core/wasm32-wasip1-threads/release/core.wasm", import.meta.url);
 const module = await WebAssembly.compile(await readFile(wasm));
-// (the format's state kept between runs, as the hosts' stores keep it;
+// (the session's store kept between runs, as the hosts' stores keep it;
 // kpsewhich's answers too, as the hosts' Shelf index answers at once)
-const store = `target/core-run${kpse ? "-kpse" : ""}.prelude`;
+const storeDir = `target/core-run-store${kpse ? "-kpse" : ""}/`;
+const stored: Promise<void>[] = [];
+let formatBytes = 0;
+const store: Store = {
+  async get(key) {
+    if (flag("--cold") && key.startsWith("format/")) return null;
+    return readFile(storeDir + encodeURIComponent(key)).then((b) => new Uint8Array(b), () => null);
+  },
+  put(key, bytes) {
+    if (/^format\/[^/]+$/.test(key)) formatBytes = bytes.length;
+    const p = mkdir(storeDir, { recursive: true }).then(() => writeFile(storeDir + encodeURIComponent(key), bytes));
+    stored.push(p);
+    return p;
+  },
+};
 const pathsFile = "target/core-run.paths.json";
 const paths: Record<string, string | null> = existsSync(pathsFile) ? JSON.parse(await readFile(pathsFile, "utf8")) : {};
 const t0 = performance.now();
@@ -88,6 +107,7 @@ const core = Core.start(module, {
     return r;
   }),
   spawn: spawner(new URL("../vscode/src/thread.ts", import.meta.url)),
+  store,
   async fetch(id) {
     const t = performance.now() - t0;
     try {
@@ -107,17 +127,9 @@ const core = Core.start(module, {
     const path = paths[name];
     return path ? { path, bytes: new Uint8Array(await readFile(path)) } : null;
   },
-  async event(e) {
-    if (e.event !== "built") return;
-    const out = core.takeOutput();
-    const stored = e.prelude ? writeFile(store, core.takePrelude()) : undefined;
-    const ms = performance.now() - t0;
-    console.log(`built: ${e.pages} page(s), ${out.length} bytes ${e.pdf ? "PDF" : "DVI"}, build ${e.ms.toFixed(0)} ms, ${ms.toFixed(0)} ms from start, ${wants} files asked by name, ${packs} packs (${fetched} from Shelf)${e.prelude ? `, format state ${(e.prelude / 1e6).toFixed(1)} MB stored` : ""}`);
-    if (!e.prelude_complete || e.prelude_diagnostics?.length) console.log("format:", e.prelude_complete ? "complete" : "INCOMPLETE", e.prelude_diagnostics.slice(0, 10));
-    if (flag("--timeline")) for (const [id, a, b] of timeline) console.log(`  ${a.toFixed(0).padStart(6)} → ${b.toFixed(0).padStart(6)} ms  ${id}`);
-    if (!e.pages) console.log(e.log.split("\n").slice(-25).join("\n"));
-    await Promise.all([stored, writeFile(`target/core-run.${e.pdf ? "pdf" : "dvi"}`, out), writeFile(pathsFile, JSON.stringify(paths))]);
-    process.exit(e.pages > 0 ? 0 : 1);
+  event(e) {
+    if (e.event === "build" || e.event === "failed") built(e);
+    else if (e.event === "idle") void idle(e);
   },
   log(s) {
     stderr += s;
@@ -138,5 +150,25 @@ if (!kpse) {
   const dir = file ? file.slice(0, file.lastIndexOf("/") + 1) || "./" : null;
   for (const n of dir ? await readdir(dir) : []) if (n !== main && /\.(tex|sty|cls|bib|bst|cfg|def|png|pdf|jpg)$/.test(n)) core.provide(n, { path: "./" + n, bytes: new Uint8Array(await readFile(dir + n)) });
 }
-if (!ini && existsSync(store) && !flag("--cold")) core.setPrelude(new Uint8Array(await readFile(store)));
+let first: any;
+/** The first build in: its output written, what it took said. */
+function built(e: any): void {
+  if (first) return;
+  first = e;
+  const out = core.mainOutput();
+  const ms = performance.now() - t0;
+  console.log(`built: ${e.pages ?? 0} page(s), ${out?.bytes.length ?? 0} bytes ${out ? (out.pdf ? "PDF" : "DVI") : ""}, build ${(e.wall_ms ?? 0).toFixed(0)} ms, ${ms.toFixed(0)} ms from start, ${wants} files asked by name, ${packs} packs (${fetched} from Shelf)${formatBytes ? `, format state ${(formatBytes / 1e6).toFixed(1)} MB stored` : ""}`);
+  if (e.errors?.length || e.message) console.log("errors:", e.message ?? "", (e.errors ?? []).slice(0, 10));
+  if (flag("--timeline")) for (const [id, a, b] of timeline) console.log(`  ${a.toFixed(0).padStart(6)} → ${b.toFixed(0).padStart(6)} ms  ${id}`);
+  if (out) stored.push(writeFile(`target/core-run.${out.pdf ? "pdf" : "dvi"}`, out.bytes));
+}
+/** Idle after it: the log read, the stores awaited, the harness done. */
+async function idle(e: any): Promise<void> {
+  if (!first) return;
+  const log = core.file(e.log);
+  if (log) stored.push(writeFile("target/core-run.log", log));
+  if (!first.pages && log) console.log(new TextDecoder().decode(log).split("\n").slice(-25).join("\n"));
+  await Promise.all([...stored, writeFile(pathsFile, JSON.stringify(paths))]);
+  process.exit(first.pages > 0 ? 0 : 1);
+}
 core.open({ main, text, ini, shell: !!shell, threads: value("--threads") ? Number(value("--threads")) : undefined });

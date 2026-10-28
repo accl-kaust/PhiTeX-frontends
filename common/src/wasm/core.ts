@@ -1,15 +1,26 @@
-// Thread 0 of the core (core/: PhiTeX's Build on wasm32-wasip1-threads):
-// the module instantiated on a fresh shared memory, its exports called
-// here, never waiting. What the core's threads tell (threads.ts) arrives on
-// the core's BroadcastChannel: a Shelf pack the build needs (the core
-// resolves names by Shelf's index itself, `setIndex`) is fetched by the
-// host (`Fetch`: its bundled packs, its pack store, Shelf) and given back
-// with `ph_pack`; a file asked by name (the bundled texmf/, or anything
-// without the index) is the host's `Resolve`, given back with
-// `ph_provide`; meanwhile the thread that asked waits inside the core. An
-// event goes to the host.
+// Thread 0 of the core (core/: PhiTeX's live document, phitex-live, on
+// wasm32-wasip1-threads): the module instantiated on a fresh shared memory,
+// its exports called here, never waiting. What the core's threads tell
+// (threads.ts) arrives on the core's BroadcastChannel: a Shelf pack the
+// build needs (the core resolves names by Shelf's index itself,
+// `setIndex`) is fetched by the host (`Fetch`: its bundled packs, its pack
+// store, Shelf) and given back with `ph_pack`; a file asked by name (the
+// bundled texmf/, or anything without the index) is the host's `Resolve`,
+// given back with `ph_provide`; the session's stored bytes (the format's
+// state, the records) are the host's `Store`, given back with `ph_stored`;
+// meanwhile the thread that asked waits inside the core. An event (the
+// viewer's, `phitex watch`'s own) goes to the host.
+//
+// The viewer's protocol is the core's own (phitex-live's Viewer): a
+// request is answered at once, here, from the document's state (`request`),
+// and what it asks of the document (an edit) wakes the core's session
+// thread, which builds and tells `settled` when the pages are in.
+// `CoreSession` is that as the viewer's `CoreTransport`, so a
+// PreviewSession talks to the wasm core as it talks to `phitex watch` over
+// its WebSocket.
 
 import { type Spawn, type ThreadData, type ThreadMsg, imports, newMemory } from "./threads.ts";
+import type { CoreEvent, CoreReq, CoreRes, CoreTransport } from "../viewer/session.ts";
 
 /** A file by name: its path as the build should report it, and its bytes; null if it is nowhere. */
 export type Resolve = (name: string) => Promise<{ path: string; bytes: Uint8Array } | null>;
@@ -23,6 +34,16 @@ export interface Ran {
 }
 /** Runs `command` (quoted by the engine) over exactly `files` (minted.ts). */
 export type Shell = (command: string, files: [string, Uint8Array][]) => Promise<Ran>;
+/**
+ * What the session keeps between sessions, by key (core/src/store.rs):
+ * `doc/NAME` the document's own (the host scopes them to the project),
+ * `format/NAME` a format's state and `format/NAME/pkgrec` beside it (any
+ * project's). `get` answers null for a key it has nothing under.
+ */
+export interface Store {
+  get(key: string): Promise<Uint8Array | null>;
+  put(key: string, bytes: Uint8Array): void | Promise<void>;
+}
 
 export interface CoreOptions {
   spawn: Spawn;
@@ -32,8 +53,10 @@ export interface CoreOptions {
   env?: string[];
   /** The runner of `\write18`'s allowed commands (minted): without it they are refused. */
   shell?: Shell;
-  /** The core's events (`{event: "built", ...}`). */
-  event: (e: any) => void;
+  /** The session's store (the format's state, the records): without it nothing is kept, every open builds its format. */
+  store?: Store;
+  /** The core's events (the viewer's, `{event: "build", ...}`, `{event: "idle"}`); more listen with `onEvent`. */
+  event?: (e: any) => void;
   /** What the core writes to stderr (a panic's message). */
   log?: (s: string) => void;
   /** A thread trapped: the core is gone. */
@@ -46,15 +69,41 @@ interface Exports {
   ph_alloc(n: number): number;
   ph_free(p: number, n: number): void;
   ph_open(p: number, n: number): number;
+  ph_close(): void;
+  ph_request(p: number, n: number): number;
+  ph_push(p: number, n: number): number;
   ph_provide(name: number, nameLen: number, path: number, pathLen: number, data: number, dataLen: number, found: number): void;
   ph_pack(id: number, idLen: number, data: number, dataLen: number, ok: number): void;
+  ph_stored(key: number, keyLen: number, data: number, dataLen: number, found: number): void;
   ph_shell_done(id: number, p: number, n: number): void;
   ph_set_index(tsv: number, tsvLen: number, release: number, releaseLen: number, bundled: number, bundledLen: number): number;
   ph_output_ptr(): number;
   ph_output_len(): number;
-  ph_take_output(): void;
-  ph_take_prelude(): void;
-  ph_set_prelude(p: number, n: number): void;
+  ph_main_output(): number;
+  ph_pdf(): number;
+  ph_file(p: number, n: number): number;
+}
+
+/** What the editor changes besides the viewer's requests (core/src/main.rs's `ph_push`); offsets in UTF-16. */
+export type Push =
+  | { ask: "set_file"; file: string; text: string }
+  | { ask: "edit"; file: string; start: number; end: number; text: string }
+  | { ask: "closed"; file: string }
+  | { ask: "cursor"; file: string; line: number; col: number }
+  | { ask: "rebuild" };
+
+/** A document to open (core/src/main.rs's `ph_open`). */
+export interface Open {
+  main: string;
+  /** The main file's text, as the editor holds it. */
+  text: string;
+  /** The program: pdflatex (the default), latex, xelatex, pdftex, tex... */
+  engine?: string;
+  threads?: number;
+  /** The text is the whole job: no format. */
+  ini?: boolean;
+  /** `\write18`'s allowed commands run by the host (`CoreOptions.shell`). */
+  shell?: boolean;
 }
 
 let cores = 0;
@@ -68,8 +117,11 @@ export class Core {
   /** What every thread's worker is started with, less its id and argument. */
   private shared: Omit<ThreadData, "tid" | "arg">;
 
+  private listeners: ((e: any) => void)[] = [];
+
   private constructor(shared: Omit<ThreadData, "tid" | "arg">, inst: WebAssembly.Instance, channels: [BroadcastChannel, BroadcastChannel], o: CoreOptions) {
     [this.shared, this.memory, this.channels, this.o] = [shared, shared.memory, channels, o];
+    if (o.event) this.listeners.push(o.event);
     this.x = inst.exports as unknown as Exports;
     this.x._initialize();
     channels[0].onmessage = (ev: MessageEvent<ThreadMsg>) => this.heard(ev.data);
@@ -92,7 +144,12 @@ export class Core {
     else if (m.t === "want") void this.want(m.name);
     else if (m.t === "fetch") void this.fetch(m.id);
     else if (m.t === "shell") void this.shell(m.id, m.frame);
-    else if (m.t === "event") this.o.event(JSON.parse(m.json));
+    else if (m.t === "store_get") void this.stored(m.key);
+    else if (m.t === "store_put") void this.keep(m.key, m.bytes);
+    else if (m.t === "event") {
+      const e = JSON.parse(m.json);
+      for (const f of this.listeners) f(e);
+    }
     else if (m.t === "log") this.o.log?.(m.s);
     else if (m.t === "trap") this.o.trap?.(m.tid, m.error);
   }
@@ -122,6 +179,29 @@ export class Core {
     this.x.ph_pack(pn, n.length, pd, d.length, b ? 1 : 0);
     this.x.ph_free(pn, n.length);
     this.x.ph_free(pd, d.length);
+  }
+
+  private async stored(key: string): Promise<void> {
+    let b: Uint8Array | null = null;
+    try {
+      b = (await this.o.store?.get(key)) ?? null;
+    } catch (e) {
+      this.o.log?.(`store ${key}: ${e}\n`);
+    }
+    const k = new TextEncoder().encode(key);
+    const d = b ?? new Uint8Array();
+    const [pk, pd] = [this.put(k), this.put(d)];
+    this.x.ph_stored(pk, k.length, pd, d.length, b ? 1 : 0);
+    this.x.ph_free(pk, k.length);
+    this.x.ph_free(pd, d.length);
+  }
+
+  private async keep(key: string, bytes: Uint8Array): Promise<void> {
+    try {
+      await this.o.store?.put(key, bytes);
+    } catch (e) {
+      this.o.log?.(`store ${key}: ${e}\n`);
+    }
   }
 
   // (frames as core/src/shell.rs: a call `u32 n, command, files`; files
@@ -169,32 +249,56 @@ export class Core {
     this.x.ph_free(pd, d.length);
   }
 
-  /** Opens a document (core/src/main.rs's `ph_open`); its build's event comes later. */
-  open(req: { main: string; text: string; threads?: number; ini?: boolean }): void {
-    const b = new TextEncoder().encode(JSON.stringify(req));
-    const p = this.put(b);
-    const r = this.x.ph_open(p, b.length);
-    this.x.ph_free(p, b.length);
+  /** Listens to the core's events too. */
+  onEvent(f: (e: any) => void): void {
+    this.listeners.push(f);
+  }
+
+  /** Opens a document (the project's other files given before, `provide`); its build's events come later. A document open before is closed. */
+  open(req: Open): void {
+    const r = this.call((p, n) => this.x.ph_open(p, n), JSON.stringify(req));
+    if (r === 3) throw new Error(new TextDecoder().decode(this.output()));
     if (r !== 0) throw new Error(`ph_open: ${r}`);
   }
 
-  /** The last build's output (PDF or DVI), handed over once. */
-  takeOutput(): Uint8Array {
-    this.x.ph_take_output();
-    return this.output();
+  /** A viewer's request (`{id, op, ...}`, session.ts's CoreReq), answered at once from the document's state: its reply. */
+  request(req: object): any {
+    const r = this.call((p, n) => this.x.ph_request(p, n), JSON.stringify(req));
+    if (r !== 0) return { ...req, ok: false, error: r === 2 ? "no document open" : "not a request" };
+    return JSON.parse(new TextDecoder().decode(this.output()));
   }
 
-  /** The format's state the last build made (its event's `prelude`: its size), handed over once, for the host's store. */
-  takePrelude(): Uint8Array {
-    this.x.ph_take_prelude();
-    return this.output();
+  /** An editor's change, built at the core's next step. */
+  push(a: Push): void {
+    const r = this.call((p, n) => this.x.ph_push(p, n), JSON.stringify(a));
+    if (r !== 0) throw new Error(r === 2 ? "no document open" : `ph_push: ${r}`);
   }
 
-  /** The format's state from the host's store, for the next open (no format built). */
-  setPrelude(b: Uint8Array): void {
+  /** The last build's main output (null: none yet, or no pages). */
+  mainOutput(): { pdf: boolean; bytes: Uint8Array } | null {
+    const r = this.x.ph_main_output();
+    return r ? { pdf: r === 1, bytes: this.output() } : null;
+  }
+
+  /** The PDF the viewer is shown (null: none). */
+  pdf(): Uint8Array | null {
+    return this.x.ph_pdf() ? this.output() : null;
+  }
+
+  /** A file the build wrote (the log once the core is idle, `.aux`, ...); null: not written. */
+  file(name: string): Uint8Array | null {
+    return this.call((p, n) => this.x.ph_file(p, n), name) ? this.output() : null;
+  }
+
+  /** `f` called on `s`'s bytes in the core's memory. */
+  private call(f: (p: number, n: number) => number, s: string): number {
+    const b = new TextEncoder().encode(s);
     const p = this.put(b);
-    this.x.ph_set_prelude(p, b.length);
-    this.x.ph_free(p, b.length);
+    try {
+      return f(p, b.length);
+    } finally {
+      this.x.ph_free(p, b.length);
+    }
   }
 
   private output(): Uint8Array {
@@ -203,6 +307,7 @@ export class Core {
   }
 
   close(): void {
+    this.x.ph_close();
     for (const c of this.channels) c.close();
   }
 
@@ -210,6 +315,66 @@ export class Core {
     const p = this.x.ph_alloc(b.length);
     new Uint8Array(this.memory.buffer).set(b, p);
     return p;
+  }
+}
+
+/**
+ * The core as the viewer's transport (session.ts's CoreTransport), as
+ * `phitex watch`'s WebSocket is (the CLI's viewer, cli.ts's Socket): every
+ * request answered by the core's viewer, its events pushed. Beside its
+ * ops, `pdf` (the PDF the viewer is shown, the watch's doc.pdf), `png`
+ * answered as the old worker answered it (`render: {page, key}`, the PDF
+ * along when it changed since the last sent: the host's transport draws
+ * the page with MuPDF, as the CLI's page draws it from doc.pdf) and `open`
+ * (the project's files given, the document opened: the reply is the
+ * core's `open`, its build comes as events).
+ */
+export class CoreSession implements CoreTransport {
+  private next = 1;
+  private events: ((e: CoreEvent) => void)[] = [];
+  /** The builds settled, and the one whose PDF `png` last sent. */
+  private version = 0;
+  private sent = -1;
+  private core: Core;
+  /** What `open` opens with (the engine's threads, the shell, the ini). */
+  private opts: Partial<Omit<Open, "main" | "text">>;
+
+  constructor(core: Core, opts: Partial<Omit<Open, "main" | "text">> = {}) {
+    [this.core, this.opts] = [core, opts];
+    core.onEvent((e) => {
+      if (e?.event === "settled") this.version++;
+      if (typeof e?.event === "string") for (const f of this.events) f(e as CoreEvent);
+    });
+  }
+
+  async request(req: CoreReq | { op: string; [k: string]: unknown }): Promise<CoreRes> {
+    const id = this.next++;
+    if (req.op === "pdf") {
+      const pdf = this.core.pdf();
+      return pdf ? { ok: true, pdf } : { ok: false, error: "no PDF yet" };
+    }
+    if (req.op === "png") {
+      const v = this.version;
+      const pdf = v === this.sent ? undefined : this.core.pdf();
+      if (v !== this.sent && !pdf) return { ok: false, error: "no PDF yet" };
+      this.sent = v;
+      return { ok: true, render: { page: (req as { page: number }).page, key: `core:${v}` }, pdf } as CoreRes;
+    }
+    if (req.op === "open") {
+      const o = req as Extract<CoreReq, { op: "open" }>;
+      try {
+        for (const [name, text] of Object.entries(o.files)) if (name !== o.main) this.core.provide(name, { path: "./" + name, bytes: new TextEncoder().encode(text) });
+        this.core.open({ ...this.opts, main: o.main, text: o.files[o.main] ?? "", engine: o.engine ?? this.opts.engine });
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    }
+    const r = this.core.request({ ...req, id });
+    return r.ok ? { ok: true, json: r.json } : { ok: false, error: r.error ?? "refused" };
+  }
+
+  onEvent(cb: (e: CoreEvent) => void): void {
+    this.events.push(cb);
   }
 }
 
