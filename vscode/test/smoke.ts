@@ -5,7 +5,11 @@
 // as the editor pushes it settles again with a different PDF, and how long
 // each took.
 //
-//   scripts/build-vscode.sh && scripts/sandbox --net node vscode/dist/smoke.mjs FOLDER [MAIN]
+// With --high, the core's heap is first filled to 2 GiB (blocks never
+// touched: not committed), so the pointers the round trip passes are at or
+// above 2 GiB, where JS sees wasm's i32 as negative.
+//
+//   scripts/build-vscode.sh && scripts/sandbox --net node vscode/dist/smoke.mjs FOLDER [MAIN] [--high]
 
 import { readdirSync, readFileSync, statSync, mkdtempSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -16,7 +20,8 @@ import { findMain } from "../src/changes.ts";
 import { prefetch, startCore } from "../src/core.ts";
 import { nodePlatform } from "../src/platform.ts";
 
-const [folder, mainArg] = process.argv.slice(2);
+const high = process.argv.includes("--high");
+const [folder, mainArg] = process.argv.slice(2).filter((a) => a !== "--high");
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 setPlatform(nodePlatform(root, mkdtempSync(join(tmpdir(), "phitex-store-"))));
 
@@ -49,6 +54,17 @@ const next = (n: number) => new Promise<void>((ok, fail) => {
   wake = () => settled >= n && (clearTimeout(timer), ok());
 });
 
+if (high) {
+  // (the heap's top moved past 2 GiB by two 1.1 GB blocks (one Rust allocation
+  // is at most isize::MAX), then the free space below it used up in 4 KiB
+  // blocks: the allocator takes small ones from there first)
+  const x = (core as unknown as { x: { ph_alloc(n: number): number } }).x;
+  x.ph_alloc(1_100_000_000);
+  x.ph_alloc(1_100_000_000);
+  let probe = 0;
+  while ((probe = x.ph_alloc(64) >>> 0) < 2 ** 31) if (!x.ph_alloc(4096)) throw new Error("--high: the heap is full below 2 GiB");
+  console.log(`--high: a new allocation at ${(probe / 2 ** 30).toFixed(2)} GiB`);
+}
 prefetch(core, index, files, "pdflatex");
 const r = await session.request({ op: "open", main, files } as never);
 if (!r.ok) throw new Error(`open: ${r.error}`);

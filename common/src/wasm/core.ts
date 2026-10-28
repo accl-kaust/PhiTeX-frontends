@@ -327,9 +327,11 @@ export class Core {
     }
   }
 
+  // (a pointer or length the core returns as unsigned: JS sees wasm's i32 as
+  // signed, so one at or above 2 GiB would come negative; wasi.ts's `unsigned`)
   private output(): Uint8Array {
-    const p = this.x.ph_output_ptr();
-    return new Uint8Array(this.memory.buffer).slice(p, p + this.x.ph_output_len());
+    const p = this.x.ph_output_ptr() >>> 0;
+    return new Uint8Array(this.memory.buffer).slice(p, p + (this.x.ph_output_len() >>> 0));
   }
 
   close(): void {
@@ -338,7 +340,8 @@ export class Core {
   }
 
   private put(b: Uint8Array): number {
-    const p = this.x.ph_alloc(b.length);
+    const p = this.x.ph_alloc(b.length) >>> 0;
+    if (b.length && !p) throw new Error(`the core could not allocate ${b.length} bytes`);
     new Uint8Array(this.memory.buffer).set(b, p);
     return p;
   }

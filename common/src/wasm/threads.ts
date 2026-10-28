@@ -13,7 +13,7 @@
 // starts one usually waits for it inside the core: started there, the two
 // would wait for each other for ever.
 
-import { wasi } from "./wasi.ts";
+import { unsigned, wasi } from "./wasi.ts";
 
 /** What a thread's worker is started with (structured-cloneable). */
 export interface ThreadData {
@@ -72,13 +72,14 @@ export function imports(d: Omit<ThreadData, "tid" | "arg">, spawn: Spawn | null,
         return tid;
       },
     },
+    // (pointers and lengths as unsigned: wasi.ts's `unsigned`)
     phitex: {
-      want: (p: number, n: number) => post({ t: "want", name: text(p, n) }),
-      fetch: (p: number, n: number) => post({ t: "fetch", id: text(p, n) }),
-      shell: (id: number, p: number, n: number) => post({ t: "shell", id, frame: new Uint8Array(d.memory.buffer).slice(p, p + n) }),
-      store_get: (p: number, n: number) => post({ t: "store_get", key: text(p, n) }),
-      store_put: (p: number, n: number, b: number, m: number) => post({ t: "store_put", key: text(p, n), bytes: new Uint8Array(d.memory.buffer).slice(b, b + m) }),
-      event: (p: number, n: number) => post({ t: "event", json: text(p, n) }),
+      want: unsigned((p: number, n: number) => post({ t: "want", name: text(p, n) })),
+      fetch: unsigned((p: number, n: number) => post({ t: "fetch", id: text(p, n) })),
+      shell: unsigned((id: number, p: number, n: number) => post({ t: "shell", id, frame: new Uint8Array(d.memory.buffer).slice(p, p + n) })),
+      store_get: unsigned((p: number, n: number) => post({ t: "store_get", key: text(p, n) })),
+      store_put: unsigned((p: number, n: number, b: number, m: number) => post({ t: "store_put", key: text(p, n), bytes: new Uint8Array(d.memory.buffer).slice(b, b + m) })),
+      event: unsigned((p: number, n: number) => post({ t: "event", json: text(p, n) })),
     },
   };
 }

@@ -106,5 +106,16 @@ export function wasi(memory: WebAssembly.Memory, stderr: (s: string) => void, en
     fd_read: () => EBADF,
     fd_seek: () => EBADF,
   };
-  return new Proxy(calls, { get: (c, name: string) => c[name] ?? (() => ENOSYS) });
+  return new Proxy(calls, { get: (c, name: string) => (c[name] ? unsigned(c[name]) : () => ENOSYS) });
+}
+
+/**
+ * `f` with its number arguments as wasm's unsigned 32-bit values: JS sees
+ * an i32 as signed, so a pointer at or above 2 GiB comes as a negative
+ * number (a DataView offset that throws, a slice that counts from the
+ * end). Every preview1 integer is unsigned (pointers, sizes, fds, the exit
+ * code), and so are the core's own imports' (pointers and lengths).
+ */
+export function unsigned<F extends (...a: any[]) => any>(f: F): F {
+  return ((...a: unknown[]) => f(...a.map((x) => (typeof x === "number" ? x >>> 0 : x)))) as F;
 }
