@@ -156,8 +156,8 @@ pub extern "C" fn ph_provide(
     files().provide(&name, file);
 }
 
-/// The host's answer to `fetch`: Shelf's pack `id` as served (gzip), or
-/// `ok` 0 (it could not be had).
+/// The host's answer to `fetch`: Shelf's pack `id` gunzipped (natively, by
+/// the host, off this module), or `ok` 0 (it could not be had).
 #[unsafe(no_mangle)]
 pub extern "C" fn ph_pack(id: *const u8, id_len: usize, data: *const u8, data_len: usize, ok: i32) {
     let id = String::from_utf8_lossy(bytes(id, id_len)).into_owned();

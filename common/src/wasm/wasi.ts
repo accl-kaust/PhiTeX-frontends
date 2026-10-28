@@ -16,13 +16,8 @@ export class Exit extends Error {
   }
 }
 
-/**
- * The core's environment: every thread std starts gets an 8 MiB stack, as
- * the core's own (a thread the engine starts itself gets std's default
- * otherwise, and a stack has no guard page in wasm: an overflow writes
- * over the heap unseen).
- */
-const ENV = ["RUST_MIN_STACK=8388608"];
+/** The core's environment (none: every thread's stack is set where it is started). */
+const ENV: string[] = [];
 
 /** A sleep's wait (poll_oneoff): on a flag nobody sets. */
 const sleeper = new Int32Array(new SharedArrayBuffer(4));

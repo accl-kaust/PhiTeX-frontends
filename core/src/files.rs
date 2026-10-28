@@ -135,10 +135,10 @@ impl Files {
         self.answered.notify_all();
     }
 
-    /// The host's answer for pack `id`: as Shelf serves it (gzip), or none
-    /// (it could not be had: its files are absent).
-    pub fn pack(&self, id: &str, gz: Option<&[u8]>) {
-        let files = gz.and_then(shelf::unpack).unwrap_or_default();
+    /// The host's answer for pack `id`: gunzipped, or none (it could not be
+    /// had: its files are absent).
+    pub fn pack(&self, id: &str, raw: Option<&[u8]>) {
+        let files = raw.and_then(shelf::unpack).unwrap_or_default();
         let mut s = self.lock();
         for (path, bytes) in files {
             s.by_path.entry(path).or_insert_with(|| Arc::new(bytes));

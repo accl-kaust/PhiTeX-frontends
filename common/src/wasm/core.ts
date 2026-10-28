@@ -92,7 +92,9 @@ export class Core {
   private async fetch(id: string): Promise<void> {
     let b: Uint8Array | null = null;
     try {
-      b = (await this.o.fetch?.(id)) ?? null;
+      const gz = await this.o.fetch?.(id);
+      // (gunzipped here, natively and off the core's threads)
+      if (gz) b = new Uint8Array(await new Response(new Blob([gz as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
     } catch (e) {
       this.o.log?.(`fetch ${id}: ${e}\n`);
     }

@@ -152,11 +152,11 @@ impl Index {
     }
 }
 
-/// A pack's files: gzip of `u32 n, (u32 len, path, u32 len, bytes) x n`,
-/// little-endian; none if it is not one.
+/// A pack's files, from its bytes gunzipped (by the host, natively):
+/// `u32 n, (u32 len, path, u32 len, bytes) x n`, little-endian; none if it
+/// is not one.
 #[must_use]
-pub fn unpack(gz: &[u8]) -> Option<Vec<(String, Vec<u8>)>> {
-    let b = gunzip(gz)?;
+pub fn unpack(b: &[u8]) -> Option<Vec<(String, Vec<u8>)>> {
     let u32_at = |at: usize| -> Option<usize> {
         let w: [u8; 4] = b.get(at..at + 4)?.try_into().ok()?;
         usize::try_from(u32::from_le_bytes(w)).ok()
@@ -173,33 +173,6 @@ pub fn unpack(gz: &[u8]) -> Option<Vec<(String, Vec<u8>)>> {
         at += 4 + l;
     }
     Some(out)
-}
-
-/// A gzip member's data (RFC 1952), inflated by PhiTeX's own inflate.
-fn gunzip(gz: &[u8]) -> Option<Vec<u8>> {
-    const FHCRC: u8 = 2;
-    const FEXTRA: u8 = 4;
-    const FNAME: u8 = 8;
-    const FCOMMENT: u8 = 16;
-    if gz.get(..3)? != [0x1f, 0x8b, 8] {
-        return None;
-    }
-    let flags = gz[3];
-    let mut at = 10;
-    if flags & FEXTRA != 0 {
-        let n = usize::from(u16::from_le_bytes(gz.get(at..at + 2)?.try_into().ok()?));
-        at += 2 + n;
-    }
-    for f in [FNAME, FCOMMENT] {
-        if flags & f != 0 {
-            at += gz.get(at..)?.iter().position(|&c| c == 0)? + 1;
-        }
-    }
-    if flags & FHCRC != 0 {
-        at += 2;
-    }
-    let mut out = Vec::new();
-    phitex_codecs::inflate::inflate_raw(gz.get(at..)?, &mut out).then_some(out)
 }
 
 #[cfg(test)]
