@@ -287,14 +287,15 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
     void client.stop().catch(() => undefined);
   });
   // (what the watch says: the tab's text while it starts, and the viewer's
-  // address when it is up)
+  // address when it is up; once the viewer is shown, the log only)
+  let shown = false;
   let found: (u: string | null) => void = () => undefined;
   const url = new Promise<string | null>((done) => (found = done));
   subs.push(
     client.onNotification("window/logMessage", (p: { message: string }) => {
       log.appendLine(p.message);
       said.push(...p.message.split("\n").map((l) => l.trim()).filter(Boolean));
-      if (!closed) waiting();
+      if (!closed && !shown) waiting();
       const m = p.message.match(/http:\/\/127\.0\.0\.1:\d+\/[0-9a-f]+\//);
       if (m) found(m[0]);
     }),
@@ -313,6 +314,7 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
     void vscode.window.showErrorMessage(`PhiTeX: \`${cmd} watch --lsp\` did not start (see the PhiTeX output). Install phitex, or set phitex.path, or phitex.engine to "builtin".`, "Show output").then((a) => a && log.show());
     return;
   }
+  shown = true;
   const page = (await vscode.env.asExternalUri(vscode.Uri.parse(page0))).toString();
   const origin = new URL(page).origin;
   view.webview.html = `<!doctype html><html><head><meta charset="utf-8">
