@@ -15,7 +15,9 @@ vim.api.nvim_create_autocmd("FileType", {
     local id = vim.lsp.start({
       name = "phitex",
       cmd = { "phitex", "watch", "--lsp" },
-      root_dir = vim.fs.root(ev.buf, { "phitex.toml", ".git" }) or vim.fn.getcwd(),
+      -- (a project is phitex.toml's folder, else the file's own: a TeX
+      -- project often sits in a folder of a larger git repository)
+      root_dir = vim.fs.root(ev.buf, { "phitex.toml" }) or vim.fs.dirname(vim.api.nvim_buf_get_name(ev.buf)),
       -- init_options = { main = "paper.tex" },
     })
     local timer = vim.uv.new_timer()
