@@ -229,6 +229,8 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
  * viewer/src) and says where (window/logMessage); the webview shows it.
  */
 const watches = new Set<LanguageClient>();
+/** Watches still stopping: a new one starts after them (each registers the server's commands, phitex.openViewer, which one stopping still holds). */
+const stopping = new Set<Promise<void>>();
 /** A folder's preview by its watch: one a folder, shown again when asked again. */
 const watchViews = new Map<string, vscode.WebviewPanel | "starting">();
 async function previewWatch(folder: string, ed: vscode.TextEditor | undefined, log: vscode.OutputChannel): Promise<void> {
@@ -284,7 +286,9 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
     watchViews.delete(folder);
     subs.forEach((s) => s.dispose());
     watches.delete(client);
-    void client.stop().catch(() => undefined);
+    const s = client.stop().catch(() => undefined);
+    stopping.add(s);
+    void s.finally(() => stopping.delete(s));
   });
   // (what the watch says: the tab's text while it starts, and the viewer's
   // address when it is up; once the viewer is shown, the log only)
@@ -301,6 +305,7 @@ async function startWatch(folder: string, ed: vscode.TextEditor | undefined, log
     }),
   );
   try {
+    await Promise.all(stopping);
     await client.start();
   } catch (e) {
     log.appendLine(`phitex watch --lsp: ${e}`);

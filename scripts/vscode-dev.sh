@@ -11,6 +11,7 @@
 # target/vscode-dev/ (its settings: phitex.engine "phitex watch" and
 # phitex.path), so your own settings, extensions and the folder's
 # .vscode/ are left as they are. Then: open a .tex file, Ctrl+Alt+P.
+# PHITEX_CODE_FLAGS: more flags for code (e.g. --disable-gpu).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 repo=$PWD
@@ -43,5 +44,5 @@ EOF
 
 main=$(grep -l '\\documentclass' "$folder"/*.tex 2>/dev/null | head -1 || true)
 echo "VS Code on $folder, phitex: $phitex"
-code --new-window --user-data-dir "$profile/user" --extensions-dir "$profile/extensions" \
+code ${PHITEX_CODE_FLAGS:-} --new-window --user-data-dir "$profile/user" --extensions-dir "$profile/extensions" \
   --extensionDevelopmentPath "$repo/vscode" "$folder" ${main:+"$main"}
