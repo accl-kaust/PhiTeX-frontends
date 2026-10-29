@@ -132,10 +132,14 @@ panel.shown(true);
 document.body.append(chip);
 
 const host: EditorHost = { loadProject: async () => ({}), onOpen() {}, onChanges() {} };
-// (a double-click: the watch opens the source in the editor, window/showDocument)
+// (a double-click: the engine opens the source in the editor, window/showDocument;
+// text selected on the pages: its source selected there, the focus left here)
 const session = new PreviewSession(host, pages, panel, {
   checkEveryMs: 0,
-  remote: { source: (file, start, end) => void relay.request({ op: "source", file, start, end }) },
+  remote: {
+    source: (file, start, end) => void relay.request({ op: "source", file, start, end }),
+    select: (file, start, end) => void relay.request({ op: "select", file, start, end }),
+  },
 });
 
 up({ t: "hello" });
