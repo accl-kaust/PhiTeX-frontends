@@ -10,7 +10,7 @@
 
 import * as vscode from "vscode";
 import { readdir, readFile } from "node:fs/promises";
-import { CloseAction, ErrorAction, LanguageClient, State } from "vscode-languageclient/node";
+import { CloseAction, ErrorAction, ExecuteCommandRequest, LanguageClient, State } from "vscode-languageclient/node";
 import { join } from "node:path";
 import { availableParallelism } from "node:os";
 import { setPlatform } from "../../common/src/platform.ts";
@@ -88,6 +88,41 @@ let status: StatusItem;
 /** The preview last opened: what the menu's Stop, Restart and Save PDF act on. */
 let current: { folder: string; view: vscode.WebviewPanel; save(): void } | undefined;
 
+/** The language server of the preview open (the watch's), for the protocol's commands (docs/spec-editor-protocol.md). */
+let server: LanguageClient | undefined;
+const setServer = (c: LanguageClient | undefined) => {
+  server = c;
+  void vscode.commands.executeCommand("setContext", "phitex.lsp", !!c);
+};
+/** The server's command `command` with `arg`; its answer, or undefined (an error said). */
+async function exec<T>(command: string, arg?: unknown): Promise<T | undefined> {
+  if (!server) return void vscode.window.showWarningMessage("PhiTeX: open the preview first.");
+  try {
+    return (await server.sendRequest(ExecuteCommandRequest.type, { command, arguments: arg === undefined ? [] : [arg] })) as T;
+  } catch (e) {
+    void vscode.window.showErrorMessage(`PhiTeX: ${(e as Error).message ?? e}`);
+  }
+}
+const size = (b: number) => (b >= 1073741824 ? `${(b / 1073741824).toFixed(1)} GB` : b >= 1048576 ? `${Math.round(b / 1048576)} MB` : `${Math.round(b / 1024)} kB`);
+type Cache = { scope: "build" | "packages"; location: string; bytes: number; entries: number; last_used: string | null; hits: number; misses: number };
+const ago = (iso: string | null) => {
+  if (!iso) return "never used";
+  const s = (Date.now() - Date.parse(iso)) / 1000;
+  return s < 90 ? "used just now" : s < 5400 ? `used ${Math.round(s / 60)} min ago` : s < 129600 ? `used ${Math.round(s / 3600)} h ago` : `used ${Math.round(s / 86400)} days ago`;
+};
+
+/** The settings the engine takes (section "phitex": docs/spec-editor-protocol.md §3.5); threads 0, its default (a thread a core). */
+const settings = () => {
+  const c = vscode.workspace.getConfiguration("phitex");
+  const threads = c.get<number>("threads") || availableParallelism();
+  return { threads, main: c.get<string>("main") || undefined, follow: c.get<string>("follow") ?? "cursor" };
+};
+/** Whether the cursor's place is sent now (the setting phitex.follow): at rest; with a selection only; never (a double-click on a page instead). */
+const follows = (e: vscode.TextEditorSelectionChangeEvent) => {
+  const f = settings().follow;
+  return f === "cursor" || (f === "selection" && !e.selections[0].isEmpty);
+};
+
 /** Which engine builds: the setting phitex.engine. */
 const engineSetting = () => (vscode.workspace.getConfiguration("phitex").get<string>("engine") === "phitex watch" ? "phitex watch" : "builtin");
 
@@ -114,6 +149,30 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("phitex.restart", restart),
     vscode.commands.registerCommand("phitex.savePdf", () => (current ? current.save() : void vscode.window.showWarningMessage("PhiTeX: open the preview first."))),
     vscode.commands.registerCommand("phitex.showLog", () => log.show()),
+    vscode.commands.registerCommand("phitex.rebuild", () => exec("phitex.rebuild")),
+    vscode.commands.registerCommand("phitex.clearCache", async (scope?: string) => {
+      scope ??= (await vscode.window.showQuickPick(["build", "packages", "all"], { title: "PhiTeX: clear which cache?" })) ?? undefined;
+      if (!scope) return;
+      const r = await exec<{ freed_bytes: number }>("phitex.clearCache", { scope });
+      if (r) void vscode.window.showInformationMessage(`PhiTeX: the ${scope === "all" ? "" : scope + " "}cache${scope === "all" ? "s" : ""} cleared, ${size(r.freed_bytes)} freed.`);
+    }),
+    vscode.commands.registerCommand("phitex.caches", async () => {
+      const r = await exec<{ caches: Cache[] }>("phitex.cacheStats");
+      if (!r) return;
+      type Item = vscode.QuickPickItem & { scope?: string };
+      const name = { build: "Build cache", packages: "Package cache" };
+      const items: Item[] = r.caches.map((c) => ({
+        label: `$(database) ${name[c.scope] ?? c.scope}`,
+        description: `${size(c.bytes)} · ${c.entries} entries`,
+        detail: `${c.location} · ${ago(c.last_used)} · this session: ${c.hits} hits, ${c.misses} misses`,
+        scope: c.scope,
+      }));
+      items.push({ label: "$(trash) Clear all", scope: "all" });
+      const pick = await vscode.window.showQuickPick(items, { title: "PhiTeX: caches (pick one to clear it)" });
+      if (!pick?.scope) return;
+      const what = pick.scope === "all" ? "every cache" : `the ${pick.scope} cache`;
+      if ((await vscode.window.showWarningMessage(`PhiTeX: clear ${what}?`, { modal: true }, "Clear")) === "Clear") await vscode.commands.executeCommand("phitex.clearCache", pick.scope);
+    }),
     vscode.commands.registerCommand("phitex.switchEngine", async () => {
       const to = engineSetting() === "builtin" ? "phitex watch" : "builtin";
       // (where it is set: the folder's settings if they say it, else the user's)
@@ -132,6 +191,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
               { label: "$(eye) Show the preview", run: () => current?.view.reveal(vscode.ViewColumn.Beside, true) },
               { label: "$(file-pdf) Save the PDF…", run: () => current?.save() },
               { label: "$(debug-restart) Restart", run: restart },
+              ...(server ? [{ label: "$(refresh) Rebuild from scratch", run: () => exec("phitex.rebuild") }, { label: "$(database) Caches…", run: () => vscode.commands.executeCommand("phitex.caches") }] : []),
               { label: "$(debug-stop) Stop", description: "closes the preview", run: stop },
             ]
           : [{ label: "$(zap) Open the preview", description: "Ctrl+Alt+P", run: () => open() }]),
@@ -167,13 +227,13 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   builtinView?.dispose();
 
   const project = await loadProject(folder);
-  const main = findMain(project.files, ed ? (relPath(folder, ed.document.uri.fsPath) ?? undefined) : undefined);
+  const main = settings().main ?? findMain(project.files, ed ? (relPath(folder, ed.document.uri.fsPath) ?? undefined) : undefined);
   if (!main) return void vscode.window.showErrorMessage("PhiTeX: no .tex file with \\documentclass in this folder.");
   builtinFolder = folder;
   // (the engine's threads: this machine's cores, as in the browser: overleaf/src/worker.ts)
   if (!builtin) {
     status.set({ state: "starting", engine: "wasm" });
-    const started = (builtin = startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), availableParallelism(), undefined, (why) => {
+    const started = (builtin = startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), settings().threads, undefined, (why) => {
       // (a trap: this core is gone, the next preview starts another)
       if (builtin === started) builtin = undefined;
       const view = builtinView;
@@ -228,7 +288,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     // (the cursor, once it rests 150 ms: its words marked on the page)
     vscode.window.onDidChangeTextEditorSelection((e) => {
       const r = rel(e.textEditor.document);
-      if (!r) return;
+      if (!r || !follows(e)) return;
       clearTimeout(rest);
       rest = setTimeout(() => {
         const at = e.selections[0].active;
@@ -289,7 +349,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
     if (r && /\.tex$/i.test(r)) files[r] = await readFile(p, "utf8");
   }
   const active = ed ? (relPath(folder, ed.document.uri.fsPath) ?? undefined) : undefined;
-  const main = findMain(files, active);
+  const main = settings().main ?? findMain(files, active);
   if (!main) return void vscode.window.showErrorMessage("PhiTeX: no .tex file with \\documentclass in this folder.");
   const cmd = vscode.workspace.getConfiguration("phitex").get<string>("path") || "phitex";
   log.appendLine(`phitex watch: ${cmd} watch ${main} --lsp (in ${folder})`);
@@ -317,6 +377,9 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
       documentSelector: ["latex", "tex", "bibtex"].map((language) => ({ scheme: "file", language, pattern: `${folder}/**/*` })),
       workspaceFolder: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folder)),
       outputChannel: log,
+      // (the engine's settings: at the start, and each change (workspace/configuration))
+      initializationOptions: settings(),
+      synchronize: { configurationSection: "phitex" },
       // (never restarted behind the user's back: its viewer's address would change under the
       // preview; an exit is said, with Restart offered: crashed())
       errorHandler: { error: () => ({ action: ErrorAction.Continue }), closed: () => ({ action: CloseAction.DoNotRestart, handled: true }) },
@@ -329,6 +392,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   view.onDidDispose(() => {
     closed = true;
     if (current?.view === view) current = undefined;
+    if (server === client) setServer(undefined);
     if (status.state !== "crashed" && status.state !== "stopped") status.set({ state: "off" });
     watchViews.delete(folder);
     subs.forEach((s) => s.dispose());
@@ -374,6 +438,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   shown = true;
   const link = new WatchLink(page0);
   current = { folder, view, save: () => void savePdf(link, folder, main) };
+  setServer(client);
   // (the viewer's events too: its progress, until phitex/status says it all)
   link.onEvent((e) => status.event(e as never));
   if (status.state === "starting") status.set({ state: "ready" });
@@ -386,7 +451,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   let rest: ReturnType<typeof setTimeout> | undefined;
   subs.push(
     vscode.window.onDidChangeTextEditorSelection((e) => {
-      if (!relPath(folder, e.textEditor.document.uri.fsPath)) return;
+      if (!relPath(folder, e.textEditor.document.uri.fsPath) || !follows(e)) return;
       clearTimeout(rest);
       rest = setTimeout(() => {
         const at = e.selections[0].active;

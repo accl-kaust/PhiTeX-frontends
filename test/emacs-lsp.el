@@ -4,6 +4,7 @@
 ;;; (phitex on PATH, DOC in a folder of its own): eglot connects, an unsaved
 ;;; error is a flymake diagnostic, its fix clears it.
 (require 'flymake)
+(require 'eglot)
 (defun phitex-test--diags ()
   "What the server last pushed for this buffer: flymake's, else eglot's own."
   (or (flymake-diagnostics)

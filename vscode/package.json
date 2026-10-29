@@ -63,6 +63,24 @@
         "command": "phitex.menu",
         "title": "Menu",
         "category": "PhiTeX"
+      },
+      {
+        "command": "phitex.rebuild",
+        "title": "Rebuild from Scratch",
+        "category": "PhiTeX",
+        "enablement": "phitex.lsp"
+      },
+      {
+        "command": "phitex.caches",
+        "title": "Caches…",
+        "category": "PhiTeX",
+        "enablement": "phitex.lsp"
+      },
+      {
+        "command": "phitex.clearCache",
+        "title": "Clear Cache…",
+        "category": "PhiTeX",
+        "enablement": "phitex.lsp"
       }
     ],
     "menus": {
@@ -107,6 +125,32 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Write what the preview does (each request, page drawn and event, with its time) to the PhiTeX output: for a bug report."
+        },
+        "phitex.main": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The project's main `.tex` file, relative to its folder. Empty: the open file if it has `\\documentclass`, else the folder's file that has it."
+        },
+        "phitex.threads": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "markdownDescription": "The engine's threads. `0`: one per core of this machine."
+        },
+        "phitex.follow": {
+          "type": "string",
+          "enum": [
+            "cursor",
+            "selection",
+            "dblclick"
+          ],
+          "default": "cursor",
+          "markdownEnumDescriptions": [
+            "The words at the cursor are marked on the page, whenever it rests.",
+            "Only what you select is marked.",
+            "Nothing is marked as you move; a double-click on a page opens its source."
+          ],
+          "description": "What the pages mark of where you are in the source."
         }
       }
     }

@@ -14,6 +14,12 @@
 -- Commands: :PhiTeXViewer, :PhiTeXStop, :PhiTeXRestart, :PhiTeXRebuild,
 -- :PhiTeXSavePdf [path], :PhiTeXCaches, :PhiTeXClearCache [build|packages|all].
 --
+-- Settings (docs/spec-editor-protocol.md §3.5), in PhitexSettings before
+-- this file runs, e.g. PhitexSettings = { threads = 4, follow = "selection" }:
+-- threads (default: one per core), main ("paper.tex"), follow ("cursor": the
+-- words at the cursor marked on the page; "selection": only a selection's;
+-- "dblclick": nothing as you move).
+--
 -- Put this file in your config (e.g. ~/.config/nvim/plugin/phitex.lua);
 -- `phitex` must be on PATH. A project with several .tex files names its
 -- main one in phitex.toml (`main = "paper.tex"`) or in init_options.
@@ -56,8 +62,13 @@ local function size(b)
   return string.format("%.0f kB", b / 1024)
 end
 
+PhitexSettings = PhitexSettings or {}
+
 local function start(buf)
   local id = vim.lsp.start({
+    -- (the engine's settings: at the start, and when it asks)
+    init_options = PhitexSettings,
+    settings = { phitex = PhitexSettings },
     name = "phitex",
     cmd = { "phitex", "watch", "--lsp" },
     -- (a project is phitex.toml's folder, else the file's own: a TeX
@@ -92,7 +103,9 @@ vim.api.nvim_create_autocmd("FileType", {
         timer:stop()
         timer:start(150, 0, vim.schedule_wrap(function()
           local c = vim.lsp.get_clients({ bufnr = ev.buf, name = "phitex" })[1]
-          if c and vim.api.nvim_get_current_buf() == ev.buf then
+          local follow = PhitexSettings.follow or "cursor"
+          local selecting = vim.fn.mode():match("^[vV\22]") ~= nil
+          if c and vim.api.nvim_get_current_buf() == ev.buf and (follow == "cursor" or (follow == "selection" and selecting)) then
             c:notify("phitex/cursor", vim.lsp.util.make_position_params(0, "utf-16"))
           end
         end))
