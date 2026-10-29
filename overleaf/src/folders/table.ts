@@ -4,12 +4,15 @@
 // button by "New project"; under the table, the folder's own "Show more".
 // Skeleton rows stand in for what's not there yet: everything, until the
 // folders are known; then the folder's projects still being rendered, below
-// those that are (in a tbody after React's). Drawn by ui.ts.
+// those that are (in a tbody after React's). Searching (our search box, in
+// place of Overleaf's while browsing), the folders that match anywhere under
+// the open one, each with its place. Drawn by ui.ts.
 
 import { subtree, type Id } from "./folders.ts";
 import { ago, h, icon } from "./dom.ts";
 import { blankCell } from "./status.ts";
-import { PAGE, type View } from "./ui.ts";
+import { PAGE, pathChip, relPath, type View } from "./ui.ts";
+import type { Project } from "./overleaf.ts";
 
 export function renderTable(v: View) {
   const table = document.querySelector("#project-list-root table.project-dash-table");
@@ -26,7 +29,11 @@ export function renderTable(v: View) {
     return;
   }
   after.replaceChildren(...(v.page.loading ? widths.slice(0, Math.min(v.page.missing, widths.length)).map((w) => skeletonRow(w, v.status)) : []));
-  {
+  if (v.found) {
+    const rows = v.found.folders.map(({ id }) => folderRow(v, id, v.state.folders[id].name));
+    if (!rows.length && !v.found.projects.size) rows.push(h("tr", { class: "olf-empty" }, h("td", { colspan: "8" }, `Nothing ${v.current ? "in this folder " : ""}matches “${v.query.trim()}”.`)));
+    body.replaceChildren(...rows);
+  } else {
     const children = Object.entries(v.state.folders)
       .filter(([, f]) => f.parent === v.current)
       .sort(([, a], [, b]) => a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true }));
@@ -35,6 +42,7 @@ export function renderTable(v: View) {
       rows.push(h("tr", { class: "olf-empty", "data-drop": v.current }, h("td", { colspan: "8" }, "This folder is empty. Drag projects here.")));
     body.replaceChildren(...rows);
   }
+  searchBox(v);
   crumbs(v);
   newFolderButton(v);
   footer(v, table);
@@ -83,11 +91,14 @@ function folderRow(v: View, id: Id, name: string): HTMLElement {
   const under = subtree(v.state, id);
   let latest = "";
   let count = 0;
+  const owners = new Map<string, number>();
   for (const [p, f] of Object.entries(v.state.projects)) {
     const project = v.projects.get(p);
     if (!under.has(f) || !project) continue;
     count++;
     if (project.lastUpdated > latest) latest = project.lastUpdated;
+    const who = ownerName(project);
+    owners.set(who, (owners.get(who) ?? 0) + 1);
   }
   // (its icon where a project's checkbox is: the names in line; on a phone, no such column, before the name)
   const link = h("a", { href: `#folder=${id}`, class: "olf-folder-link", translate: "no" }, icon("folder", "d-md-none"), name);
@@ -98,10 +109,12 @@ function folderRow(v: View, id: Id, name: string): HTMLElement {
   const when = latest ? ago(latest) : "";
   const tr = h("tr", { class: "olf-folder-row", "data-folder": id, "data-drop": id, draggable: "true" },
     h("td", { class: "dash-cell-checkbox d-none d-md-table-cell olf-folder-icon" }, icon("folder")),
-    h("td", { class: "dash-cell-name" }, link, " ", h("span", { class: "olf-count", title: count === 1 ? "1 project" : `${count} projects` }, `(${count})`)),
+    h("td", { class: "dash-cell-name" }, link, " ", h("span", { class: "olf-count", title: count === 1 ? "1 project" : `${count} projects` }, `(${count})`),
+      // (a search's result: where it is under the open folder)
+      ...(v.found && v.state.folders[id].parent && v.state.folders[id].parent !== v.current ? [pathChip(v, v.state.folders[id].parent!, relPath(v, v.state.folders[id].parent!))] : [])),
     h("td", { class: "dash-cell-date-owner pb-0 d-md-none" }, when),
     ...(v.status ? [blankCell()] : []),
-    h("td", { class: "dash-cell-owner d-none d-md-table-cell" }),
+    ownerCell(owners),
     h("td", { class: "dash-cell-date d-none d-md-table-cell" }, when),
     h("td", { class: "dash-cell-tag pt-0 d-md-none" }),
     h("td", { class: "dash-cell-actions" }, h("div", {}, h("div", { class: "d-none d-lg-block" },
@@ -112,6 +125,50 @@ function folderRow(v: View, id: Id, name: string): HTMLElement {
     if (!(e.target as Element).closest("a, button")) v.open(id);
   };
   return tr;
+}
+
+/** Who owns a project, as the table says it: "You", else the owner's name. */
+function ownerName(p: Project): string {
+  if (p.accessLevel === "owner") return "You";
+  const o = p.owner;
+  return [o?.firstName, o?.lastName].filter(Boolean).join(" ").trim() || o?.email || "Someone";
+}
+
+/** The owners of a folder's projects: "You", "You, Mohamed Bouaziz", "You, Mohamed +3"; all of them, with counts, on hover. */
+function ownerCell(owners: Map<string, number>): HTMLElement {
+  // (you first, then by how many projects each owns)
+  const all = [...owners].sort(([a, m], [b, n]) => (a === "You" ? -1 : b === "You" ? 1 : n - m || a.localeCompare(b)));
+  // (more than two: the first two, first names only, and how many more)
+  const many = all.length > 2;
+  const text = all.slice(0, 2).map(([w]) => (many && w !== "You" ? w.split(" ")[0] : w)).join(", ") + (many ? ` +${all.length - 2}` : "");
+  const title = all.map(([w, n]) => `${w}: ${n} project${n === 1 ? "" : "s"}`).join("\n");
+  return h("td", { class: "dash-cell-owner d-none d-md-table-cell", ...(all.length ? { title } : {}) }, text);
+}
+
+/**
+ * Our search box, in place of Overleaf's while browsing (its own filters
+ * by exact substring; ours forgives, and finds folders): each of Overleaf's
+ * boxes (a wide layout's, a narrow one's) gets one of ours before it, in
+ * its markup, shown instead of it while browsing.
+ */
+function searchBox(v: View) {
+  const placeholder = v.current ? `Search in ${v.state.folders[v.current]?.name ?? "this folder"}…` : "Search in all projects…";
+  for (const theirs of document.querySelectorAll<HTMLElement>("#project-list-root .form-control-wrapper:has(> input.form-control:not(.olf-search-input))")) {
+    let ours = theirs.previousElementSibling as HTMLElement | null;
+    if (!ours?.classList.contains("olf-search")) {
+      const input = h("input", { type: "text", class: "form-control-offset-start form-control olf-search-input", "aria-label": placeholder, autocomplete: "off" });
+      input.addEventListener("input", () => v.search(input.value));
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") (input.value = ""), v.search("");
+      });
+      ours = h("div", { class: "form-control-wrapper olf-search" }, h("span", { class: "form-control-start-icon" }, icon("search")), input);
+      theirs.before(ours);
+    }
+    const input = ours.querySelector<HTMLInputElement>("input")!;
+    if (input.placeholder !== placeholder) (input.placeholder = placeholder), input.setAttribute("aria-label", placeholder);
+    // (the text ours: kept, unless cleared here, as opening a folder does)
+    if (input.value !== v.query && document.activeElement !== input) input.value = v.query;
+  }
 }
 
 /** An icon button as the table's own (Copy, Download, ...). */

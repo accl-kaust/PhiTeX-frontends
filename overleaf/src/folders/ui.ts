@@ -19,6 +19,7 @@
 // skeleton rows stand in.
 
 import { canMove, invalid, newId, pathOf, subtree, type Id, type Op, type State } from "./folders.ts";
+import { fuzzy, type Match } from "./fuzzy.ts";
 import { dialog, h, icon } from "./dom.ts";
 import { dashboard, listProjects, projectsOnPage, watch, type Dashboard, type Project } from "./overleaf.ts";
 import { isStorageName, projectStorage } from "./project.ts";
@@ -62,6 +63,11 @@ export type View = {
   stored: boolean;
   /** The Status column shown (MountOptions.status): the folders' rows have its cell. */
   status: boolean;
+  /** The search box's text (ours, in place of Overleaf's while browsing: forgiving, folders too). */
+  query: string;
+  /** While searching: what matches under the open folder, projects by id and folders, best first. */
+  found: { projects: Map<string, Match>; folders: { id: Id; match: Match }[] } | null;
+  search(q: string): void;
   /** Overleaf's "All projects", no tag, no search: the folders shown in the table. */
   browsing: boolean;
   /** The folder open; null: the top level. */
@@ -124,6 +130,14 @@ export function mount(opts: MountOptions = {}): () => void {
     ready: false,
     stored: false,
     status: !!opts.status,
+    query: "",
+    found: null,
+    search(q) {
+      v.query = q;
+      limit = PAGE;
+      steps = 0;
+      update();
+    },
     browsing: false,
     current: fromHash(),
     projects: new Map(),
@@ -136,6 +150,8 @@ export function mount(opts: MountOptions = {}): () => void {
       if (d && (d.filter !== "all" || d.selectedTagId)) d.selectFilter("all");
       else d?.setSelectedProjectIds(new Set());
       v.current = id;
+      // (a folder opened, from a search's results too: browsed, the search done)
+      v.query = "";
       limit = PAGE;
       steps = 0;
       history.pushState(null, "", id ? `/project#folder=${id}` : "/project");
@@ -204,18 +220,21 @@ export function mount(opts: MountOptions = {}): () => void {
       const id = tr.querySelector("[data-project-id]")?.getAttribute("data-project-id") ?? tr.querySelector<HTMLAnchorElement>("a[href^='/project/']")?.pathname.split("/")[2];
       return { tr, id, at: id && at.has(id) ? at.get(id)! : 1e9 + i };
     });
-    const cmp = sortCompare(v, d);
+    // (searching: the best matches first; else by status, if sorting; else Overleaf's order)
+    const found = v.found?.projects;
+    const cmp = found ? (a: string, b: string) => (found.get(b)?.score ?? 0) - (found.get(a)?.score ?? 0) : sortCompare(v, d);
     items.sort((a, b) => (cmp && a.id && b.id ? cmp(a.id, b.id) : 0) || a.at - b.at);
     // (moved only when out of order: moving them is a change too, seen here again)
     if (items.some((x, i) => x.tr !== rows[i])) for (const x of items) x.tr.parentElement!.append(x.tr);
     let n = 0;
     for (const { tr, id } of items) {
-      const as = opts.hideStorage && id === storageProject ? "hide" : !on ? null : id && inView.has(id) && n++ < limit ? "show" : "hide";
+      const as = opts.hideStorage && id === storageProject ? "hide" : !on ? null : id && inView.has(id) && n++ < (found ? Infinity : limit) ? "show" : "hide";
       if (as === null) tr.removeAttribute("data-olf");
       else if (tr.getAttribute("data-olf") !== as) tr.setAttribute("data-olf", as);
       if (id && v.ready && opts.status) statusCell(v, tr, id);
     }
     rendered = n;
+    searchMarks(v, items);
     root.classList.toggle("olf-sorted", !!v.sort);
     if (v.ready && opts.status) statusHeader(v);
   }
@@ -236,16 +255,22 @@ export function mount(opts: MountOptions = {}): () => void {
     // (nothing to show yet: on Overleaf's "All projects", its rows give way to skeleton ones)
     root.classList.toggle("olf-loading", !v.ready && !v.error && /^\/project\/?$/.test(location.pathname) && !d?.searchText);
     const s = v.state;
-    inView = new Set(v.current ? Object.keys(s.projects).filter((p) => s.projects[p] === v.current && v.projects.has(p)) : [...v.projects.keys()].filter((p) => !s.folders[s.projects[p]]));
+    v.found = v.browsing && v.query.trim() ? search(v, v.query) : null;
+    inView = v.found
+      ? new Set(v.found.projects.keys())
+      : new Set(v.current ? Object.keys(s.projects).filter((p) => s.projects[p] === v.current && v.projects.has(p)) : [...v.projects.keys()].filter((p) => !s.folders[s.projects[p]]));
     mark();
-    // (sorting by status: the whole folder rendered, its first page by status shown)
-    const want = v.sort ? inView.size : Math.min(limit, inView.size);
+    // (sorting by status, or searching: the whole folder rendered, every match shown, best first)
+    const want = v.sort || v.found ? inView.size : Math.min(limit, inView.size);
     // (more coming: Overleaf to render more of its list, or what it has, not drawn yet; or
     // its first render, before its list's made: "No projects")
     const loading = v.browsing && rendered < want && (d!.hiddenProjectsCount > 0 || drawn < d!.visibleProjects.length || !d!.visibleProjects.length);
-    v.page = { shown: Math.min(rendered, limit), total: inView.size, loading, missing: Math.max(0, Math.min(limit, inView.size) - rendered) };
-    // (sorting by status, out of a folder: all of Overleaf's list rendered, to be sorted)
-    if (v.sort && !v.browsing && d?.hiddenProjectsCount) d.showAllProjects();
+    v.page = v.found
+      ? { shown: rendered, total: inView.size, loading, missing: Math.max(0, inView.size - rendered) }
+      : { shown: Math.min(rendered, limit), total: inView.size, loading, missing: Math.max(0, Math.min(limit, inView.size) - rendered) };
+    // (sorting by status, out of a folder: all of Overleaf's list rendered, to be sorted; a
+    // search: its matches anywhere in the list, rendered at once)
+    if (d?.hiddenProjectsCount && ((v.sort && !v.browsing) || v.found)) d.showAllProjects();
     if (loading && d!.hiddenProjectsCount > 0) {
       // (Overleaf's list sorted, by date first: a folder in use near its top, 20 more at a
       // time finding it; one of old projects far down, then all at once)
@@ -295,6 +320,7 @@ export function mount(opts: MountOptions = {}): () => void {
     // (Overleaf's own filters and tags: the top level, or out of browsing)
     if (t.closest?.("#project-list-root .project-list-filters:not(.olf-folders) :is(button, a)")) {
       v.current = null;
+      v.query = "";
       limit = PAGE;
       steps = 0;
       update();
@@ -326,6 +352,100 @@ export function mount(opts: MountOptions = {}): () => void {
     root.classList.remove("olf-browsing", "olf-in-folder", "olf-loading", "olf-sorted");
     root.removeAttribute(MOUNTED);
   };
+}
+
+/**
+ * The search: what matches `q` under the open folder (everything, at the
+ * top level). A project's folder path is its context, so "thesis draft"
+ * finds a "Draft" in the "Thesis" folder; a folder's is its parent's path.
+ */
+function search(v: View, q: string): NonNullable<View["found"]> {
+  const s = v.state;
+  const under = v.current ? subtree(s, v.current) : null;
+  const projects = new Map<string, Match>();
+  for (const [id, p] of v.projects) {
+    const f = s.projects[id];
+    const inFolder = f !== undefined && !!s.folders[f];
+    if (under && !(inFolder && under.has(f))) continue;
+    const m = fuzzy(q, p.name, inFolder ? pathOf(s, f) : "");
+    if (m) projects.set(id, m);
+  }
+  const folders: { id: Id; match: Match }[] = [];
+  for (const [id, f] of Object.entries(s.folders)) {
+    if (id === v.current || (under && !under.has(id))) continue;
+    const m = fuzzy(q, f.name, f.parent ? pathOf(s, f.parent) : "");
+    if (m) folders.push({ id, match: m });
+  }
+  folders.sort((a, b) => b.match.score - a.match.score || s.folders[a.id].name.localeCompare(s.folders[b.id].name));
+  return { projects, folders };
+}
+
+/** The folders from the open one (not included) down to `id`, as "Research › CGRA"; "" if `id` is the open one. */
+export function relPath(v: View, id: Id): string {
+  const names: string[] = [];
+  for (let f: Id | null = id; f && f !== v.current && v.state.folders[f]; f = v.state.folders[f].parent) names.unshift(v.state.folders[f].name);
+  return names.join(" › ");
+}
+
+/**
+ * Searching: each project row shown says where it is under the open folder
+ * (a link to that folder), and the names' matched letters are highlighted
+ * (the CSS Custom Highlight API: ranges over the text React rendered, which
+ * is left as it is). Not searching: none of it.
+ */
+function searchMarks(v: View, items: { tr: HTMLElement; id: string | undefined }[]) {
+  const ranges: Range[] = [];
+  for (const { tr, id } of items) {
+    const want = v.found && id && tr.getAttribute("data-olf") === "show" ? v.state.projects[id] : undefined;
+    const where = want && v.state.folders[want] && want !== v.current ? relPath(v, want) : "";
+    let chip = tr.querySelector<HTMLElement>(":scope > td.dash-cell-name .olf-path");
+    if (!where) chip?.remove();
+    else if (!chip || chip.dataset.folder !== want || chip.dataset.path !== where) {
+      chip?.remove();
+      chip = pathChip(v, want!, where);
+      tr.querySelector(":scope > td.dash-cell-name")?.append(chip);
+    }
+    const m = v.found && id ? v.found.projects.get(id) : undefined;
+    const name = id ? v.projects.get(id)?.name : undefined;
+    if (m && name) ranges.push(...textRanges(tr.querySelector("td.dash-cell-name a"), name, m.spans));
+  }
+  for (const { id, match } of v.found?.folders ?? []) {
+    const link = document.querySelector(`.olf-rows tr[data-folder="${id}"] .olf-folder-link`);
+    ranges.push(...textRanges(link, v.state.folders[id]?.name ?? "", match.spans));
+  }
+  const css = (globalThis as { CSS?: { highlights?: Map<string, unknown> } }).CSS;
+  const H = (globalThis as { Highlight?: new (...r: Range[]) => unknown }).Highlight;
+  if (!css?.highlights || !H) return;
+  if (ranges.length) css.highlights.set("olf-match", new H(...ranges));
+  else css.highlights.delete("olf-match");
+}
+
+/** "in Research › CGRA", a link to that folder: a search result's place. */
+export function pathChip(v: View, folder: Id, where: string): HTMLElement {
+  const a = h("a", { href: `#folder=${folder}`, class: "olf-path", "data-folder": folder, "data-path": where, title: `Open ${where}` }, icon("folder"), where);
+  a.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    v.open(folder);
+  };
+  return a;
+}
+
+/** Ranges over `spans` of `name`, in the text node of `el` that holds it. */
+function textRanges(el: Element | null, name: string, spans: [number, number][]): Range[] {
+  if (!el) return [];
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+    const at = (t.textContent ?? "").indexOf(name);
+    if (at < 0) continue;
+    return spans.map(([a, b]) => {
+      const r = document.createRange();
+      r.setStart(t!, at + a);
+      r.setEnd(t!, at + b);
+      return r;
+    });
+  }
+  return [];
 }
 
 const fromHash = () => /^#folder=([\w-]+)$/.exec(location.hash)?.[1] ?? null;
@@ -424,6 +544,14 @@ function addStyle() {
   :is(.olf-browsing, .olf-loading) #project-list-root div.text-center:has(> p):not(.olf-footer) { display: none; }
   html:not(.olf-browsing) .olf-footer { display: none; }
   .olf-footer .spinner-border { width: 1rem; height: 1rem; border-width: 2px; margin-right: 6px; vertical-align: -2px; }
+  /* our search box, in place of Overleaf's while browsing; a result's place; the matched letters */
+  .olf-browsing #project-list-root .form-control-wrapper:has(> input.form-control:not(.olf-search-input)) { display: none !important; }
+  html:not(.olf-browsing) .olf-search { display: none !important; }
+  .olf-path { display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; padding: 0 6px; border-radius: 6px; font-size: 12px;
+    color: inherit; opacity: .7; text-decoration: none; background: color-mix(in srgb, currentColor 8%, transparent); white-space: nowrap; }
+  .olf-path:hover { opacity: 1; text-decoration: underline; }
+  .olf-path .material-symbols { font-size: 14px; }
+  ::highlight(olf-match) { background-color: rgb(255 199 0 / 45%); color: inherit; }
   /* the status column */
   #project-list-root .olf-status-col, #project-list-root .olf-status-cell { width: 9.5rem; white-space: nowrap; }
   .olf-status { display: inline-flex; align-items: center; gap: 6px; padding: 1px 10px 1px 8px; border: 0; border-radius: 999px;

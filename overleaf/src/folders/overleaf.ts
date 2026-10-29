@@ -4,7 +4,15 @@
 // Everything internal to Overleaf's dashboard lives here: when Overleaf
 // changes, this file does.
 
-export type Project = { id: string; name: string; accessLevel: string; lastUpdated: string; archived?: boolean; trashed?: boolean };
+export type Project = {
+  id: string;
+  name: string;
+  accessLevel: string;
+  lastUpdated: string;
+  archived?: boolean;
+  trashed?: boolean;
+  owner?: { id: string; firstName?: string; lastName?: string; email?: string };
+};
 
 /** The part of Overleaf's ProjectListContextValue used here. */
 export type Dashboard = {

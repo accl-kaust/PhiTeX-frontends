@@ -120,3 +120,28 @@ test("statuses: made, renamed, recoloured, reordered by the user; names unique",
   s = apply(s, { op: "moveStatus", id: "idea", to: 99 });
   assert.equal(s.statuses!.at(-1)!.id, "idea");
 });
+
+import { fuzzy } from "../overleaf/src/folders/fuzzy.ts";
+
+test("fuzzy: words, starts, parts, letters in order, slips; accents and case ignored", () => {
+  const hit = (q: string, name: string) => fuzzy(q, name);
+  assert.equal(hit("thesis", "MS Thesis")!.spans.length, 1);
+  assert.deepEqual(hit("thes", "MS Thesis")!.spans, [[3, 7]]);
+  assert.ok(hit("thss", "MS Thesis"), "letters in order");
+  assert.ok(hit("theisis", "MS Thesis"), "a slip");
+  assert.ok(hit("reserach", "Research notes"), "a swap");
+  assert.ok(hit("ecole", "École d'été"), "accents");
+  assert.ok(hit("CGRA map", "A Survey of CGRA Mapping"), "every word");
+  assert.equal(hit("cgra zebra", "A Survey of CGRA Mapping"), null, "a word nowhere");
+  assert.equal(hit("xq", "Thesis"), null);
+  // (better first: a whole word over a part, the name's start over elsewhere)
+  assert.ok(hit("map", "Map of CGRAs")!.score > hit("map", "Remapping")!.score);
+  assert.ok(hit("thesis", "Thesis")!.score > hit("thesis", "MS Thesis")!.score);
+  // (a word only in the context: found, less)
+  const inFolder = fuzzy("research survey", "A Survey of CGRA Mapping", "Research / Papers")!;
+  assert.ok(inFolder && inFolder.score < fuzzy("mapping survey", "A Survey of CGRA Mapping")!.score);
+  assert.deepEqual(inFolder.spans, [[2, 8]], "only the name's own words highlighted");
+  // (spans in the name's own characters, accents and all)
+  const e = hit("ete", "École d'été")!;
+  assert.equal("École d'été".slice(e.spans[0][0], e.spans[0][1]), "été");
+});
