@@ -90,6 +90,9 @@
     file = name;
     // (the whole text: changes made while the file was not known are in it)
     post({ type: "open", file: name, text: view.state.doc.toString() });
+    // (and its collaborators' cursors, told anew for this file)
+    lastOthers = "";
+    othersSoon();
   }
 
   /** `v` the editor from now on: patched once, taken again whenever it is the one found (identified anew). */
@@ -114,6 +117,8 @@
       if (edits.length && file !== null) post({ type: "changes", file, edits, len: this.state.doc.length, t: performance.now() });
       // (a selection that changed: its text highlighted on the ⚡ page)
       if (trs.some((tr: any) => tr.selection)) selectionSoon();
+      // (collaborators' cursors: moved by their own transactions, or by the text's)
+      othersSoon();
       return r;
     };
     const setState = v.setState;
@@ -176,6 +181,39 @@
     view.dispatch({ selection: { anchor: Math.min(from, n), head: Math.min(to, n) }, scrollIntoView: true });
     // (a selection made on the page keeps the page focused, and its own selection)
     if (focus) view.focus();
+  }
+
+  /**
+   * Collaborators' cursors in the open file: Overleaf's cursor highlights,
+   * a decoration each in one of the editor's fields, its `highlight`
+   * {label (their name), cursor, hue (their colour)}, at their place.
+   */
+  function othersOf(state: any): { label: string; hue: number; pos: number }[] {
+    for (const x of state.values) {
+      if (!x || typeof x.iter !== "function" || !Array.isArray(x.chunk)) continue;
+      const out: { label: string; hue: number; pos: number }[] = [];
+      for (const it = x.iter(); it.value; it.next()) {
+        const h = it.value.highlight;
+        if (h && typeof h.hue === "number") out.push({ label: String(h.label ?? ""), hue: h.hue, pos: it.from });
+      }
+      if (out.length) return out;
+    }
+    return [];
+  }
+
+  /** Collaborators' cursors posted when they change, at most every 50 ms (a timer: a background tab's frames stop). */
+  let othersTimer: ReturnType<typeof setTimeout> | undefined;
+  let lastOthers = "";
+  function othersSoon(): void {
+    othersTimer ??= setTimeout(() => {
+      othersTimer = undefined;
+      if (!view || file === null) return;
+      const others = othersOf(view.state);
+      const key = `${file}:${JSON.stringify(others)}`;
+      if (key === lastOthers) return;
+      lastOthers = key;
+      post({ type: "others", file, others });
+    }, 50);
   }
 
   /** The editor's selection, posted a moment after it settles (a drag makes many). */

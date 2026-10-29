@@ -1051,8 +1051,17 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   let highlightMode = "select";
   // (the default: the highlight follows where you type)
   void chrome.storage.local.get("follow").then(({ follow: f }) => (highlightMode = (f as string | undefined) ?? "cursor"));
+  // (collaborators' cursors on the pages, each in their colour, never moving
+  // the view: on unless the popup's switch turned them off)
+  let othersOn = true;
+  let others: { file: string; others: { label: string; hue: number; pos: number }[] } | null = null;
+  void chrome.storage.local.get("othersOff").then(({ othersOff }) => (othersOn = !othersOff));
   chrome.storage.onChanged.addListener((c) => {
     if (c.follow) highlightMode = (c.follow.newValue as string | undefined) ?? "cursor";
+    if (c.othersOff) {
+      othersOn = !c.othersOff.newValue;
+      if (others) session?.others(others.file, othersOn ? others.others : []);
+    }
   });
   // (a double-click in the editor or on the file outline: that place on the page)
   window.addEventListener("message", (e) => {
@@ -1065,6 +1074,11 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     }
     // (the editor's cursor as it moves: the word it is in, on the page)
     if (e.data.type === "cursor" && highlightMode === "cursor") session?.follow(e.data.file, e.data.pos);
+    // (collaborators' cursors in the open file: their words marked in their colours)
+    if (e.data.type === "others") {
+      others = { file: e.data.file, others: e.data.others };
+      if (othersOn) session?.others(e.data.file, e.data.others);
+    }
     // (the editor's selection: its text highlighted on the pages)
     if (e.data.type === "select" && (highlightMode !== "dblclick" || e.data.from === e.data.to)) void session?.selectSource(e.data.file, e.data.from, e.data.to);
   });
