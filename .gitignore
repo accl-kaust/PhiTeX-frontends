@@ -21,6 +21,7 @@ overleaf/formats/
 overleaf/fonts/
 overleaf/shims/
 overleaf/shelf-index.tsv.gzdata
+overleaf/shelf-packs.tsv.gzdata
 overleaf/shelf-release.json
 # (VS Code's: scripts/build-vscode.sh)
 vscode/dist/
@@ -31,5 +32,6 @@ vscode/shims/
 vscode/LICENSE.txt
 vscode/NOTICE.txt
 vscode/shelf-index.tsv.gzdata
+vscode/shelf-packs.tsv.gzdata
 vscode/shelf-release.json
 vscode/formats/

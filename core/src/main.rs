@@ -420,6 +420,12 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
     viewer.on_goto(Box::new(move |file, line, col, _place| {
         server.show(file, line, col);
     }));
+    // (text selected on the pages: its source selected in the editor, the
+    // focus left on the pages, window/showDocument with the range)
+    let server = lsp.clone();
+    viewer.on_select(Box::new(move |file, from, to| {
+        server.select(file, from, to);
+    }));
     let output = Arc::new(Output::default());
     let (w, o) = (wake.clone(), output.clone());
     // (the document runs here, as on a native main thread: its stack as

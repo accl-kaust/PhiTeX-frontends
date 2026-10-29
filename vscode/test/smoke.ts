@@ -163,11 +163,22 @@ const bytes = (n: number) => new TextEncoder().encode(now.slice(0, n)).length;
 const src = await session.request({ op: "source", file: main, start: bytes(word), end: bytes(word + 5) } as never);
 const doc = await shown;
 console.log(`double-click: source ${src.ok ? "ok" : "failed " + src.error}; showDocument ${doc ? `${doc.params.uri.split("/").pop()} line ${doc.params.selection?.start?.line}` : "NOT SENT"}`);
+// (text selected on the page, as the webview gives it (remote.select): its source
+// selected in the editor, a range, the focus left on the page)
+const selected = new Promise<any>((ok) => {
+  lsp.onMessage((m) => m.method === "window/showDocument" && m.params?.takeFocus === false && ok(m));
+  setTimeout(() => ok(null), 10_000);
+});
+const sel = await session.request({ op: "select", file: main, start: bytes(word), end: bytes(word + 16) } as never);
+const pick = await selected;
+const range = pick?.params.selection;
+const selectOk = !!range && (range.start.line !== range.end.line || range.start.character !== range.end.character);
+console.log(`select: ${sel.ok ? "ok" : "failed " + sel.error}; showDocument ${pick ? `${pick.params.uri.split("/").pop()} ${range?.start.line}:${range?.start.character}-${range?.end.line}:${range?.end.character} takeFocus ${pick.params.takeFocus}` : "NOT SENT"}`);
 // (the status the server told; the caches, this host's)
 const caches = await ask("workspace/executeCommand", { command: "phitex.cacheStats", arguments: [] });
 const said = caches.result?.caches?.map((c: any) => `${c.scope} ${c.entries} entries ${c.hits}/${c.misses}`).join(", ");
 console.log(`lsp: status ${[...new Set(states)].join(" ")}; caches: ${said ?? caches.error?.message}`);
-const statusOk = states.includes("ready") && !!caches.result && !!doc;
+const statusOk = states.includes("ready") && !!caches.result && !!doc && selectOk;
 await ask("shutdown", null);
 tell("exit", null);
 lsp.close();
