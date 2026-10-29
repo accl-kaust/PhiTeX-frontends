@@ -3,8 +3,8 @@
 // with its files, its cold build settled; the viewer's `pages`, `status`
 // and `origins` of page 0 asked, its `frame` and `strips`; an edit that makes an error, its
 // diagnostics told and its pages settled; the edit undone, the error gone;
-// the edits' deltas in an `origins` event; the cursor revealed (phitex/cursor,
-// the document's language server); the PDF.
+// the edits' deltas in an `origins` event; the cursor followed (phitex/cursor,
+// the document's language server: its word's bytes); the PDF.
 // Files and store as test/core-run.ts has them (Shelf's index, its packs
 // from target/shelf-cache/, the store in target/core-run-store/).
 //
@@ -17,6 +17,7 @@ import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import { resolve } from "node:path";
 import { Core, CoreSession, type Store } from "../common/src/wasm/core.ts";
+import { glyphs } from "../common/src/viewer/sync.ts";
 import { spawner } from "../vscode/src/thread.ts";
 
 const args = process.argv.slice(2);
@@ -99,7 +100,9 @@ check(pages.ok && pages.json.pages.length === build0.pages, "pages: one hash a p
 const status = await t.request({ op: "status" });
 check(status.ok && status.json.pages === build0.pages && status.json.engine === "phitex", "status: the pages, the engine", status);
 const o0 = await t.request({ op: "origins", page: 0 });
-check(o0.ok && o0.json.g.length > 0 && o0.json.files.includes(main) && o0.json.g.some((g: number[]) => g[2] >= 0 && g[4] > g[3]), `origins of page 0: ${o0.json?.g?.length} glyphs, files ${JSON.stringify(o0.json?.files)}`, o0);
+// (read as the viewer reads them: its columns decoded, sync.ts)
+const g0 = o0.ok ? glyphs(o0.json, (n) => n) : [];
+check(g0.length > 0 && o0.json.files.includes(main) && g0.some((g) => g.file === main && g.end > g.start), `origins of page 0: ${g0.length} glyphs, files ${JSON.stringify(o0.json?.files)}`, o0);
 const pdf0 = await t.request({ op: "pdf" });
 check(!!pdf0.pdf && new TextDecoder().decode(pdf0.pdf.subarray(0, 5)) === "%PDF-", `pdf: ${pdf0.pdf?.length} bytes`, pdf0.error);
 // (a page to draw: the PDF along the first time, its key the next)
@@ -141,17 +144,19 @@ check(deltas.some((x) => x.e.edits?.length), `origins events with the edits' del
 const pdf1 = await t.request({ op: "pdf" });
 check(!!pdf1.pdf && pdf1.pdf.length === pdf0.pdf?.length && pdf1.pdf.every((b, i) => b === pdf0.pdf![i]), "the PDF after the edit undone is the cold build's", [pdf0.pdf?.length, pdf1.pdf?.length]);
 
-// (the editor's cursor on the word "text": revealed)
+// (the editor's cursor on the word "text": followed, its word's and line's bytes told to the viewer)
 const line = text.slice(0, where).split("\n").length - 1;
 const col = where - (text.lastIndexOf("\n", where - 1) + 1) + 6;
-const rev = next((e) => e.event === "reveal", "reveal", 30_000);
+const rev = next((e) => e.event === "follow", "follow", 30_000);
 // (as the editor says it: its language server initialized, phitex/cursor at the file's URI)
 const root = "file://" + resolve(dir);
 core.lsp({ jsonrpc: "2.0", id: 1, method: "initialize", params: { processId: null, rootUri: root, capabilities: {} } });
 core.lsp({ jsonrpc: "2.0", method: "initialized", params: {} });
 core.lsp({ jsonrpc: "2.0", method: "phitex/cursor", params: { textDocument: { uri: `${root}/${main}` }, position: { line, character: col } } });
 const r = await rev.catch((e) => e);
-check(!(r instanceof Error) && Array.isArray(r.texts) && r.texts.length > 0, `cursor revealed: page ${r?.page}, ${JSON.stringify(r?.texts?.slice(0, 2))}`, String(r));
+const bytes = new TextEncoder().encode(text);
+const said = (a: number, b: number) => new TextDecoder().decode(bytes.subarray(a, b));
+check(!(r instanceof Error) && r.file === main && Array.isArray(r.word) && said(r.word[0], r.word[1]) === "text", `cursor followed: word ${JSON.stringify(r?.word && said(r.word[0], r.word[1]))}, line ${JSON.stringify(r?.line && said(r.line[0], r.line[1]))}`, String(r));
 
 const count: Record<string, number> = {};
 for (const x of seen) count[x.e.event] = (count[x.e.event] ?? 0) + 1;

@@ -436,7 +436,7 @@ export class CoreSession implements CoreTransport {
     }
     const r = this.core.request({ ...req, id });
     if (!r.ok) return { ok: false, error: r.error ?? "refused" };
-    return { ok: true, json: req.op === "origins" ? glyphRows(r.json) : r.json };
+    return { ok: true, json: r.json };
   }
 
   /** Listens to the core's events, until the returned function is called. */
@@ -454,23 +454,6 @@ export class CoreSession implements CoreTransport {
 function plainTeX(text: string): boolean {
   const body = text.replace(/(^|[^\\])%.*$/gm, "$1");
   return !/\\documentclass/.test(body) && /\\bye\b/.test(body);
-}
-
-/** phitex-live's `origins` answer (base64 columns) as sync.ts reads it: `{files, g}`. */
-function glyphRows(j: { files: string[]; n: number; file?: string; start?: string; end?: string; synth?: string; x?: string; y?: string }): { files: string[]; g: number[][] } {
-  if (!j?.n || !j.file) return { files: j?.files ?? [], g: [] };
-  const words = (b64: string) => {
-    const b = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    return new DataView(b.buffer);
-  };
-  const [file, start, end, synth, x, y] = [j.file, j.start!, j.end!, j.synth!, j.x!, j.y!].map(words);
-  const g: number[][] = [];
-  for (let i = 0; i < j.n; i++) {
-    const f = file.getUint32(4 * i, true);
-    const s = 4 * (i >> 5) < synth.byteLength ? (synth.getUint32(4 * (i >> 5), true) >>> (i & 31)) & 1 : 0;
-    g.push([x.getFloat32(4 * i, true), y.getFloat32(4 * i, true), f === 0xffffffff ? -1 : f, start.getUint32(4 * i, true), end.getUint32(4 * i, true), s]);
-  }
-  return { files: j.files, g };
 }
 
 const u32 = (n: number) => new Uint8Array(new Uint32Array([n]).buffer);
