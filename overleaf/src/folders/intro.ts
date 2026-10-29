@@ -135,7 +135,7 @@ function addStyle() {
   if (document.getElementById("phitex-folders-style")) return;
   const s = h("style", { id: "phitex-folders-style" });
   s.textContent = `
-  #${TIP} { position: fixed; z-index: 1060; width: 320px; max-width: calc(100vw - 16px); overflow: visible; color: #f4f5f6; background: #1b222c;
+  #${TIP} { position: fixed; z-index: 1060; width: 340px; max-width: calc(100vw - 16px); overflow: visible; color: #f4f5f6; background: #1b222c;
     border: 1.5px solid #53b57f; border-radius: 12px;
     box-shadow: 0 0 0 4px rgb(83 181 127 / 18%), 0 18px 48px rgb(0 0 0 / 45%), 0 0 32px rgb(83 181 127 / 35%);
     animation: phitex-folders-in .6s cubic-bezier(.18,1.5,.4,1), phitex-folders-glow 2.4s ease-in-out .6s infinite; }
@@ -155,8 +155,10 @@ function addStyle() {
   #${TIP} .phitex-folders-wiggle .material-symbols { font-size: 22px; font-variation-settings: "FILL" 1; }
   .phitex-folders-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 10px; }
   .phitex-folders-actions .btn .material-symbols { font-size: 16px; vertical-align: -3px; }
-  .phitex-folders-actions .btn { white-space: nowrap; }
-  #${TIP} .phitex-folders-never { margin-right: auto; padding-left: 0; color: #8d96a5; text-decoration: none; font-size: 12px; }
+  .phitex-folders-actions .btn { white-space: nowrap; flex: none; }
+  /* (the link takes what the buttons leave, its words wrapping there) */
+  #${TIP} .phitex-folders-actions .phitex-folders-never { flex: 1 1 0; min-width: 0; white-space: normal; text-align: left; padding: 0;
+    color: #8d96a5; text-decoration: none; font-size: 12px; }
   #${TIP} .phitex-folders-never:hover { color: #f4f5f6; text-decoration: underline; }
   .phitex-folders-pulse { position: relative; }
   .phitex-folders-pulse::after { content: ""; position: absolute; inset: -3px; border-radius: 9999px; pointer-events: none;

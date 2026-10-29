@@ -21,6 +21,12 @@ const FILE = "folders.json";
 /** The storage's ids remembered in this browser, per project name. */
 const CACHE = "phitex:storage:";
 
+/**
+ * The storage project's name, as Overleaf may have made it: a new project
+ * named as another, trashed ones too, is made "NAME (1)", "NAME (2)", ...
+ */
+export const isStorageName = (n: string, name = PROJECT_NAME) => n === name || (n.startsWith(name + " (") && /^ \(\d+\)$/.test(n.slice(name.length)));
+
 /** The file as stored: the state, and its folder's id. */
 type Stored = State & { dataFolder: string };
 
@@ -42,9 +48,10 @@ export function projectStorage(name = PROJECT_NAME): Storage & { find(): Promise
   /** The storage project's id: the user's own, not trashed, named `name`; null if none (`fresh`: asked for, not the page's list). */
   const find = async (fresh = false) => {
     if (known) return known;
-    const mine = (await (fresh ? fetchProjects() : listProjects())).filter((p) => p.name === name && p.accessLevel === "owner" && !p.trashed);
-    // (the one remembered, if still there, else the oldest: two made at once by two tabs, the first wins)
-    const p = mine.find((p) => p.id === cache.project) ?? mine.sort((a, b) => a.id.localeCompare(b.id))[0];
+    const mine = (await (fresh ? fetchProjects() : listProjects())).filter((p) => p.accessLevel === "owner" && !p.trashed);
+    // (the one remembered, if still there, whatever its name now; else the oldest so named:
+    // two made at once by two tabs, the first wins)
+    const p = mine.find((p) => p.id === cache.project) ?? mine.filter((p) => isStorageName(p.name, name)).sort((a, b) => a.id.localeCompare(b.id))[0];
     if (p) remember({ project: p.id });
     return (known = p?.id ?? null);
   };
@@ -61,6 +68,9 @@ export function projectStorage(name = PROJECT_NAME): Storage & { find(): Promise
       const r = await fetch("/project/new/upload", { method: "POST", headers: { "X-Csrf-Token": csrf(), Accept: "application/json" }, body });
       const out = await r.json().catch(() => ({}));
       if (!r.ok || !out.project_id) throw new Error(`Couldn't make the project "${name}" (${out.error ?? r.status})`);
+      // (made "NAME (1)" if a project, a trashed one too, has the name: named NAME again; a
+      // rename, unlike a new project, may share a name)
+      await call("POST", `/project/${out.project_id}/rename`, { newProjectName: name });
       remember({ project: out.project_id, file: undefined, folder: undefined });
       return (known = out.project_id as string);
     })().catch((e) => ((made = null), Promise.reject(e))));

@@ -21,7 +21,7 @@
 import { canMove, invalid, newId, pathOf, subtree, type Id, type Op, type State } from "./folders.ts";
 import { dialog, h, icon } from "./dom.ts";
 import { dashboard, listProjects, projectsOnPage, watch, type Dashboard, type Project } from "./overleaf.ts";
-import { PROJECT_NAME, projectStorage } from "./project.ts";
+import { isStorageName, projectStorage } from "./project.ts";
 import { renderSidebar } from "./sidebar.ts";
 import { loadSort, saveSort, sortCompare, statusCell, statusHeader, type Sort } from "./status.ts";
 import { Folders, type Storage } from "./sync.ts";
@@ -53,6 +53,8 @@ export type View = {
   folders: Folders;
   /** Makes a change (folders.do), once the user agrees to the storage project if there's none yet (MountOptions.ask); resolves once made, or not. */
   change(...ops: Op[]): Promise<void>;
+  /** The storage project there, or the user agreeing to it now (asked once: MountOptions.ask). */
+  agree(): Promise<boolean>;
   state: State;
   /** Folders and projects known: drawn (else skeleton rows). */
   ready: boolean;
@@ -105,12 +107,15 @@ export function mount(opts: MountOptions = {}): () => void {
 
   const v: View = {
     folders,
+    async agree() {
+      if (!opts.ask || storageProject || agreed) return true;
+      agreed = await (asking ??= opts.ask().finally(() => (asking = null)));
+      update();
+      return agreed;
+    },
     async change(...ops) {
       // (synchronous once agreed, or with the project there: a change shows at once)
-      if (opts.ask && !storageProject && !agreed) {
-        agreed = await (asking ??= opts.ask().finally(() => (asking = null)));
-        if (!agreed) return;
-      }
+      if (opts.ask && !storageProject && !agreed && !(await v.agree())) return;
       folders.do(...ops);
     },
     state: folders.state,
@@ -152,6 +157,8 @@ export function mount(opts: MountOptions = {}): () => void {
       update();
     },
     async create(parent) {
+      // (the terms first, then the folder's name)
+      if (!(await v.agree())) return;
       const name = await dialog({ title: parent ? `New folder in ${pathOf(v.state, parent)}` : "New folder", input: "", ok: "Create", validate: (s) => invalid(v.state, parent, s) });
       if (name !== null) await v.change({ op: "create", id: newId(), parent, name });
     },
@@ -174,7 +181,7 @@ export function mount(opts: MountOptions = {}): () => void {
 
   const setProjects = (projects: Project[]) => {
     // (the storage's own: the default one's found by name at once, before it's asked for)
-    if (!opts.storage) storageProject ??= projects.find((p) => p.name === PROJECT_NAME && p.accessLevel === "owner" && !p.trashed)?.id;
+    if (!opts.storage) storageProject ??= projects.find((p) => isStorageName(p.name) && p.accessLevel === "owner" && !p.trashed)?.id;
     v.projects = new Map(projects.filter((p) => !p.archived && !p.trashed && !(opts.hideStorage && p.id === storageProject)).map((p) => [p.id, p]));
   };
   const browsing = (d: Dashboard | null) => v.ready && !!d && d.filter === "all" && !d.selectedTagId && !d.searchText.trim();
