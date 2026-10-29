@@ -17,12 +17,19 @@
 //!   answered at once on thread 0 by the document's viewer, from its state
 //!   (each lock held for a copy, never across a build); what it asks of the
 //!   document (`set_file`, `edit`, `rebuild`) is queued and wakes the
-//!   session thread. The editor's other changes (a buffer closed, the
-//!   cursor) are pushed the same way (`ph_push`).
-//! - A file the build lacks is resolved by Shelf's index (`ph_set_index`)
-//!   and its pack asked of the host (`phitex.fetch`), or asked by name
-//!   (`phitex.want`), by the thread that needs it, which waits until
-//!   thread 0 answers (`ph_pack`, `ph_provide`): [`files`].
+//!   session thread.
+//! - The editor speaks to the document's language server
+//!   (phitex-live's `lsp::Server`, docs/spec-editor-protocol.md, as
+//!   `phitex watch --lsp`): a JSON-RPC message in (`ph_lsp`), the server's
+//!   out to the host (`phitex.lsp`): the buffers, the cursor, the
+//!   commands, the build's progress, problems and status, a source
+//!   place shown (`window/showDocument`). What the host runs itself (the
+//!   document stopped, the settings changed) is an event to it.
+//! - A file the build lacks is resolved by Shelf's index (`ph_set_index`,
+//!   phitex-shelf) and its pack asked of the host (`phitex.fetch`), or
+//!   asked by name (`phitex.want`), by the thread that needs it, which
+//!   waits until thread 0 answers (`ph_pack`, `ph_provide`): [`files`];
+//!   each fetch the build's progress.
 //! - What the session keeps between sessions (the format's evaluated
 //!   state, the records) is the host's store, asked the same way
 //!   (`phitex.store_get`, answered by `ph_stored`) and put without a wait
@@ -40,7 +47,6 @@
 
 mod files;
 mod live;
-mod shelf;
 mod shell;
 mod store;
 
@@ -48,8 +54,10 @@ use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 
 use phitex_live::document::Document;
+use phitex_live::lsp::Server;
 use phitex_live::session::{Job, Session, Status};
-use phitex_live::view::{Ask, Viewer};
+use phitex_live::view::Viewer;
+use phitex_shelf::{self as shelf, Fetch};
 use serde_json::{Value, json};
 
 use files::Files;
@@ -78,6 +86,9 @@ unsafe extern "C" {
     /// Tells the host of an event: JSON.
     #[link_name = "event"]
     fn host_event(json: *const u8, len: usize);
+    /// The language server's message to the editor: JSON-RPC, unframed.
+    #[link_name = "lsp"]
+    fn host_lsp(json: *const u8, len: usize);
 }
 
 /// The host, as the files ask it.
@@ -118,7 +129,11 @@ fn shell_hook() -> &'static Arc<shell::Hook> {
 
 fn files() -> &'static Arc<Files> {
     static FILES: OnceLock<Arc<Files>> = OnceLock::new();
-    FILES.get_or_init(Arc::default)
+    FILES.get_or_init(|| {
+        let f = Arc::<Files>::default();
+        f.set_host(&ASKS);
+        f
+    })
 }
 
 fn kept() -> &'static Arc<store::Kept> {
@@ -142,6 +157,7 @@ type Output = Mutex<Option<(&'static str, Arc<Vec<u8>>)>>;
 /// answered, asks queued), its outputs, and its session thread's wake.
 struct Open {
     viewer: Arc<Viewer>,
+    lsp: Arc<Server>,
     sink: Arc<live::Memory>,
     wake: Arc<Wake>,
     output: Arc<Output>,
@@ -309,7 +325,6 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
     let host = Arc::new(live::Shelf {
         files: files().clone(),
         engine: shelf::engine(engine.name),
-        asks: &ASKS,
         shell: shell.then(|| Arc::clone(shell_hook()) as Arc<dyn phitex_tex::ShellHook>),
     });
     let sink = Arc::new(live::Memory::default());
@@ -348,7 +363,38 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
     );
     // (as the watch's: no log laid out after each build)
     session.watching = true;
+    // (Shelf's fetches, the build's progress: the loading card's packages, $/progress, a
+    // pack that could not be had said)
+    let meter = session.status().meter().clone();
+    files().on_fetch(Some(Arc::new(move |f: &Fetch<'_>| match *f {
+        Fetch::Asked { name, pack } => meter.fetch(name, pack, false),
+        Fetch::Arrived { name, pack } => meter.fetch(name, pack, true),
+        Fetch::Failed { why, .. } => meter.unreachable(why),
+    })));
     let doc = Document::new(session, &main);
+    // (its language server: the editor's messages in by `ph_lsp`, the server's out to the
+    // host; what only the host does, an event to it)
+    let lsp = doc.lsp(
+        Box::new(|m: &Value| {
+            let s = m.to_string();
+            // SAFETY: the host reads `len` bytes before returning.
+            unsafe { host_lsp(s.as_ptr(), s.len()) }
+        }),
+        Some(Box::new(|command: &str, arg: &Value| match command {
+            // (stopped: the server has said so; the host closes the document)
+            "phitex.stop" => {
+                event(&json!({"event": "stop"}));
+                Some(Ok(Value::Null))
+            }
+            // (threads, main or files changed: the host opens the document again with them)
+            "phitex/configure" => {
+                event(&json!({"event": "configure", "settings": arg}));
+                Some(Ok(Value::Null))
+            }
+            // (the caches are the host's: it answers clearCache and cacheStats before they come here)
+            _ => None,
+        })),
+    );
     let viewer = doc.viewer().clone();
     // (the viewer's events to the host as they happen, not at the step's
     // end: `preparing` while the build runs)
@@ -357,8 +403,10 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
     let w = wake.clone();
     viewer.on_ask(Box::new(move || w.set(false)));
     viewer.on_read(Box::new(|name| files().read(name).map(|b| b.to_vec())));
-    viewer.on_goto(Box::new(|file, line, col, place| {
-        event(&json!({"event": "goto", "file": file, "line": line, "col": col, "place": place}));
+    // (a source place, a double-click's: shown in the editor, window/showDocument)
+    let server = lsp.clone();
+    viewer.on_goto(Box::new(move |file, line, col, _place| {
+        server.show(file, line, col);
     }));
     let output = Arc::new(Output::default());
     let (w, o) = (wake.clone(), output.clone());
@@ -373,6 +421,7 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
     }
     *lock(&OPEN) = Some(Open {
         viewer,
+        lsp,
         sink,
         wake,
         output,
@@ -428,43 +477,19 @@ pub extern "C" fn ph_request(p: *const u8, n: usize) -> i32 {
     0
 }
 
-/// An editor's change pushed (JSON): `{ask: "set_file", file, text}`,
-/// `{ask: "edit", file, start, end, text}` (UTF-16 offsets), `{ask:
-/// "closed", file}`, `{ask: "cursor", file, line, col}` (from 0, the
-/// column in UTF-16), `{ask: "rebuild"}`. 0: pushed; 1: not one; 2: no
-/// document open.
+/// A message from the editor to the document's language server (JSON-RPC,
+/// unframed): its answers and notifications go out by `phitex.lsp`. 0:
+/// taken; 1: not JSON; 2: no document open; 3: taken, and it was `exit`
+/// (the host closes the document).
 #[unsafe(no_mangle)]
-pub extern "C" fn ph_push(p: *const u8, n: usize) -> i32 {
-    let Ok(v) = serde_json::from_slice::<Value>(bytes(p, n)) else {
+pub extern "C" fn ph_lsp(p: *const u8, n: usize) -> i32 {
+    let Ok(m) = serde_json::from_slice::<Value>(bytes(p, n)) else {
         return 1;
     };
-    let s = |k: &str| v[k].as_str().unwrap_or("").to_owned();
-    let u = |k: &str| v[k].as_u64().and_then(|x| usize::try_from(x).ok()).unwrap_or(0);
-    let a = match v["ask"].as_str() {
-        Some("set_file") => Ask::SetFile {
-            file: s("file"),
-            text: s("text"),
-        },
-        Some("edit") => Ask::Edit {
-            file: s("file"),
-            start: u("start"),
-            end: u("end"),
-            text: s("text"),
-        },
-        Some("closed") => Ask::Closed { file: s("file") },
-        Some("cursor") => Ask::Cursor {
-            file: s("file"),
-            line: u("line"),
-            col: u("col"),
-        },
-        Some("rebuild") => Ask::Rebuild,
-        _ => return 1,
-    };
-    let Some(viewer) = lock(&OPEN).as_ref().map(|o| o.viewer.clone()) else {
+    let Some(server) = lock(&OPEN).as_ref().map(|o| o.lsp.clone()) else {
         return 2;
     };
-    viewer.push(a);
-    0
+    if server.handle(&m) { 0 } else { 3 }
 }
 
 /// The last build's main output in the answer's bytes: 1 a PDF, 2 a DVI,

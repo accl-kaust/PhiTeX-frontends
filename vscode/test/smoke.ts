@@ -1,9 +1,11 @@
 // The VS Code extension's builtin engine without VS Code: the core in this
 // thread, its threads Node worker threads (core.ts, dist/thread.js), a
 // project folder opened through CoreSession as the webview's requests open
-// it. Checks the first build settles with pages and a PDF, an edit pushed
-// as the editor pushes it settles again with a different PDF, and how long
-// each took.
+// it, and its language server spoken to as the editor speaks to it
+// (lspChannel). Checks the first build settles with pages and a PDF, an
+// edit sent as the editor sends it (didChange) settles again with a
+// different PDF, the server's status and the caches' commands answer, and
+// how long each took.
 //
 // With --high, the core's heap is first filled to 2 GiB (blocks never
 // touched: not committed), so the pointers the round trip passes are at or
@@ -19,6 +21,7 @@ import { setPlatform } from "../../common/src/platform.ts";
 import { findMain } from "../src/changes.ts";
 import { prefetch, startCore } from "../src/core.ts";
 import { nodePlatform } from "../src/platform.ts";
+import { lspChannel } from "../../common/src/wasm/host.ts";
 
 const high = process.argv.includes("--high");
 const [folder, mainArg] = process.argv.slice(2).filter((a) => a !== "--high");
@@ -45,10 +48,10 @@ console.log(`core started: ${ms()} ms`);
 
 let settled = 0;
 let wake = () => {};
-const fetched: string[] = [];
+const fetched = new Set<string>();
 session.onEvent((e: any) => {
   if (e.event === "settled") (settled++, wake());
-  if (e.event === "fetching" && !e.failed) fetched.push(e.pack);
+  if (e.event === "progress" && e.phase === "fetching" && e.pack) fetched.add(e.pack);
 });
 const next = (n: number) => new Promise<void>((ok, fail) => {
   const timer = setTimeout(() => fail(new Error(`no build settled in 120 s (${settled} settled)`)), 120_000);
@@ -69,15 +72,40 @@ if (high) {
 prefetch(core, index, files, "pdflatex");
 const r = await session.request({ op: "open", main, files } as never);
 if (!r.ok) throw new Error(`open: ${r.error}`);
+// (the editor's language client: initialized, the main file opened as its buffer)
+const lsp = lspChannel(core, "smoke");
+const answers = new Map<number, (m: any) => void>();
+const states: string[] = [];
+lsp.onMessage((m) => {
+  if (m.id !== undefined && !m.method) answers.get(m.id)?.(m);
+  if (m.method === "phitex/status") states.push(m.params.state);
+});
+let ids = 0;
+const ask = (method: string, params: unknown) => new Promise<any>((ok) => {
+  const id = ++ids;
+  answers.set(id, ok);
+  lsp.send({ jsonrpc: "2.0", id, method, params });
+});
+const tell = (method: string, params: unknown) => lsp.send({ jsonrpc: "2.0", method, params });
+const uri = "file://" + join(folder, main);
+const init = await ask("initialize", { processId: null, rootUri: "file://" + folder, capabilities: {}, initializationOptions: { threads } });
+tell("initialized", {});
+tell("textDocument/didOpen", { textDocument: { uri, languageId: "latex", version: 1, text: files[main] } });
+console.log(`lsp: ${(init.result?.capabilities?.executeCommandProvider?.commands ?? []).length} commands`);
 await next(1);
 const pages = await session.request({ op: "pages" } as never);
 const first = core.pdf();
-console.log(`first build: ${ms()} ms, ${pages.json?.pages?.length ?? "?"} pages, PDF ${first?.length ?? 0} bytes, packs fetched: ${fetched.length} (${fetched.join(" ")})`);
+console.log(`first build: ${ms()} ms, ${pages.json?.pages?.length ?? "?"} pages, PDF ${first?.length ?? 0} bytes, packs fetched: ${fetched.size} (${[...fetched].join(" ")})`);
 
-// (an edit as the editor pushes it: a word after the main file's \begin{document})
+// (an edit as the editor sends it: a word after the main file's \begin{document}, at its
+// line and UTF-16 column)
 const at = files[main].indexOf("\\begin{document}") + "\\begin{document}".length;
+const before = files[main].slice(0, at).split("\n");
+const pos = { line: before.length - 1, character: before[before.length - 1].length };
+let version = 1;
+const edit = (text: string) => tell("textDocument/didChange", { textDocument: { uri, version: ++version }, contentChanges: [{ range: { start: pos, end: pos }, text }] });
 const t1 = performance.now();
-core.push({ ask: "edit", file: main, start: at, end: at, text: "\nSmoke test words.\n" });
+edit("\nSmoke test words.\n");
 await next(2);
 const second = core.pdf();
 const changed = !!first && !!second && Buffer.compare(Buffer.from(first), Buffer.from(second)) !== 0;
@@ -96,7 +124,7 @@ const builds: number[] = [];
 for (let i = 0; i < +(process.env.PHITEX_KEYS ?? 5); i++) {
   const n = settled;
   const b = performance.now();
-  core.push({ ask: "edit", file: main, start: at, end: at, text: `w${i} ` });
+  edit(`w${i} `);
   await next(n + 1);
   builds.push(performance.now() - b);
   const a = performance.now();
@@ -116,5 +144,13 @@ for (let p = 0; p < mem.length / PAGE; p++) {
   for (let i = 0; i < PAGE; i++) if (mem[o + i]) { written++; top = p; break; }
 }
 console.log(`threads ${threads ?? "default"}: heap top ${((top + 1) * 65536 / 2 ** 20).toFixed(0)} MiB, ${(written * 65536 / 2 ** 20).toFixed(0)} MiB of pages written`);
-core.close();
-process.exit(first && changed && png.ok ? 0 : 1);
+// (the status the server told; the caches, this host's)
+const caches = await ask("workspace/executeCommand", { command: "phitex.cacheStats", arguments: [] });
+const said = caches.result?.caches?.map((c: any) => `${c.scope} ${c.entries} entries ${c.hits}/${c.misses}`).join(", ");
+console.log(`lsp: status ${[...new Set(states)].join(" ")}; caches: ${said ?? caches.error?.message}`);
+const statusOk = states.includes("ready") && !!caches.result;
+await ask("shutdown", null);
+tell("exit", null);
+lsp.close();
+core.end();
+process.exit(first && changed && png.ok && statusOk ? 0 : 1);

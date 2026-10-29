@@ -1,9 +1,10 @@
 // The core's viewer protocol (phitex-live's, `phitex watch`'s) through
 // CoreSession, the viewer's transport on the wasm core: a document opened
 // with its files, its cold build settled; the viewer's `pages`, `status`
-// and `origins` of page 0 asked; an edit that makes an error, its
+// and `origins` of page 0 asked, its `frame` and `strips`; an edit that makes an error, its
 // diagnostics told and its pages settled; the edit undone, the error gone;
-// the edits' deltas in an `origins` event; the cursor revealed; the PDF.
+// the edits' deltas in an `origins` event; the cursor revealed (phitex/cursor,
+// the document's language server); the PDF.
 // Files and store as test/core-run.ts has them (Shelf's index, its packs
 // from target/shelf-cache/, the store in target/core-run-store/).
 //
@@ -14,6 +15,7 @@
 
 import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
+import { resolve } from "node:path";
 import { Core, CoreSession, type Store } from "../common/src/wasm/core.ts";
 import { spawner } from "../vscode/src/thread.ts";
 
@@ -101,8 +103,11 @@ check(o0.ok && o0.json.g.length > 0 && o0.json.files.includes(main) && o0.json.g
 const pdf0 = await t.request({ op: "pdf" });
 check(!!pdf0.pdf && new TextDecoder().decode(pdf0.pdf.subarray(0, 5)) === "%PDF-", `pdf: ${pdf0.pdf?.length} bytes`, pdf0.error);
 // (a page to draw: the PDF along the first time, its key the next)
-const [png0, png1] = [(await t.request({ op: "png", page: 0, dpi: -1 })) as any, (await t.request({ op: "png", page: 0, dpi: -1 })) as any];
-check(png0.ok && png0.render?.page === 0 && png0.pdf?.length === pdf0.pdf?.length && png1.ok && !png1.pdf && png1.render?.key === png0.render?.key, `png: render ${JSON.stringify(png0.render)}, the PDF sent once`, [png0, png1]);
+// (the page as the viewer's Strips asks for it: its frame, then its bands' strips)
+const frame = (await t.request({ op: "frame", page: 0, scale: 2.67 } as never)) as any;
+const keys = frame.ok ? (frame.json?.bands ?? []).map((b: [string, number, number]) => b[0]) : [];
+const strips = (await t.request({ op: "strips", keys } as never)) as any;
+check(frame.ok && keys.length > 0 && strips.ok && strips.bytes?.length > 0, `frame: ${frame.json?.pw}x${frame.json?.ph}, ${keys.length} bands; strips: ${strips.bytes?.length ?? 0} bytes`, [frame.error, strips.error]);
 
 // (an edit that makes an error: an undefined control sequence)
 const where = text.indexOf("Some text");
@@ -140,7 +145,11 @@ check(!!pdf1.pdf && pdf1.pdf.length === pdf0.pdf?.length && pdf1.pdf.every((b, i
 const line = text.slice(0, where).split("\n").length - 1;
 const col = where - (text.lastIndexOf("\n", where - 1) + 1) + 6;
 const rev = next((e) => e.event === "reveal", "reveal", 30_000);
-core.push({ ask: "cursor", file: main, line, col });
+// (as the editor says it: its language server initialized, phitex/cursor at the file's URI)
+const root = "file://" + resolve(dir);
+core.lsp({ jsonrpc: "2.0", id: 1, method: "initialize", params: { processId: null, rootUri: root, capabilities: {} } });
+core.lsp({ jsonrpc: "2.0", method: "initialized", params: {} });
+core.lsp({ jsonrpc: "2.0", method: "phitex/cursor", params: { textDocument: { uri: `${root}/${main}` }, position: { line, character: col } } });
 const r = await rev.catch((e) => e);
 check(!(r instanceof Error) && Array.isArray(r.texts) && r.texts.length > 0, `cursor revealed: page ${r?.page}, ${JSON.stringify(r?.texts?.slice(0, 2))}`, String(r));
 
@@ -149,5 +158,5 @@ for (const x of seen) count[x.e.event] = (count[x.e.event] ?? 0) + 1;
 console.log(`events: ${Object.entries(count).map(([k, v]) => `${k} ${v}`).join(", ")}`);
 console.log(`order: ${seen.map((x) => x.e.event).join(" ")}`);
 console.log(failed ? `${failed} check(s) failed` : "all checks hold");
-core.close();
+core.end();
 process.exit(failed ? 1 : 0);

@@ -41,6 +41,7 @@ export type ThreadMsg =
   | { t: "store_get"; key: string }
   | { t: "store_put"; key: string; bytes: Uint8Array }
   | { t: "event"; json: string }
+  | { t: "lsp"; json: string }
   | { t: "log"; s: string }
   | { t: "trap"; tid: number; error: string };
 
@@ -80,6 +81,7 @@ export function imports(d: Omit<ThreadData, "tid" | "arg">, spawn: Spawn | null,
       store_get: unsigned((p: number, n: number) => post({ t: "store_get", key: text(p, n) })),
       store_put: unsigned((p: number, n: number, b: number, m: number) => post({ t: "store_put", key: text(p, n), bytes: new Uint8Array(d.memory.buffer).slice(b, b + m) })),
       event: unsigned((p: number, n: number) => post({ t: "event", json: text(p, n) })),
+      lsp: unsigned((p: number, n: number) => post({ t: "lsp", json: text(p, n) })),
     },
   };
 }

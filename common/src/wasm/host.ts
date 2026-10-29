@@ -1,15 +1,16 @@
 // What a host of the core answers it with, the same in the browser (overleaf/
 // src/worker.ts) and in VS Code's extension host (vscode/src/core.ts): the
 // session's store over the platform's keys and values, falling back to the
-// format the extension ships; Shelf's packs, the host told while one comes;
-// Shelf's index; and the packs a project will read, fetched all at once
-// when it opens.
+// format the extension ships; Shelf's packs; Shelf's index; the packs a
+// project will read, fetched all at once when it opens; and the document's
+// language server as the editor talks to it (`lspChannel`), the caches,
+// which are the host's, answered here.
 
 import { platform } from "../platform.ts";
 import type { Core, Store } from "./core.ts";
 import { indexBytes } from "../release.ts";
 import { packRaw, shipped } from "../shelf.ts";
-import { hasPack } from "../packstore.ts";
+import { allMeta, clearPacks } from "../packstore.ts";
 import { Index, formatOf, shelfEngine, type ReleaseMeta } from "../resolve.ts";
 import { referenced } from "../viewer/packages.ts";
 
@@ -50,31 +51,99 @@ export function coreStore(project: () => string, core: () => Promise<Core>): Sto
     async get(key) {
       if (/^format\/[^/]+$/.test(key)) void formatPacks(key, core());
       const kept = await platform().kv.get<Uint8Array>(KV, scoped(key)).catch(() => undefined);
+      used.build[kept ? "hits" : "misses"]++;
       if (kept) return kept;
       return key.startsWith("format/") ? shippedFormat(key) : null;
     },
-    put: (key, bytes) => platform().kv.write([[KV, scoped(key), bytes]]),
+    put: (key, bytes) => {
+      used.build.last = Date.now();
+      return platform().kv.write([[KV, scoped(key), bytes]]);
+    },
   };
 }
 
 /**
- * Pack `id`: one the extension ships (packs/), else kept on this machine,
- * else Shelf's, `tell` told while it comes (`fetching`, the session's
- * packages: one that could not be had, `failed`).
+ * Pack `id`, as Shelf serves it (gzip): one the extension ships (packs/),
+ * else kept on this machine, else Shelf's. (The session tells what it
+ * fetches: its progress, `{event: "progress", phase: "fetching"}`.)
  */
-export function packs(tell: (e: { event: "fetching"; pack: string; name: string; failed?: boolean }) => void): (id: string) => Promise<Uint8Array | null> {
-  return async (id) => {
-    if ((await shipped()).has(id)) return new Uint8Array(await (await platform().asset(`packs/${id}.pack`)).arrayBuffer());
-    const kept = await hasPack(id).catch(() => false);
-    // (by its name: the id less the content hash, `amsmath-0123456789ab`)
-    const name = id.replace(/-[0-9a-f]{12}$/, "");
-    if (!kept) tell({ event: "fetching", pack: name, name: id });
-    try {
-      return (await packRaw(id)).raw;
-    } catch (e) {
-      tell({ event: "fetching", pack: name, name: id, failed: true });
-      throw e;
-    }
+export async function pack(id: string): Promise<Uint8Array> {
+  if ((await shipped()).has(id)) return new Uint8Array(await (await platform().asset(`packs/${id}.pack`)).arrayBuffer());
+  const { raw, from } = await packRaw(id);
+  used.packages[from === "cache" ? "hits" : "misses"]++;
+  return raw;
+}
+
+/** This session's use of the caches (the build's: the store's states; the packages': the packs kept). */
+const used = { build: { hits: 0, misses: 0, last: 0 }, packages: { hits: 0, misses: 0 } };
+
+/** A cache as `phitex.cacheStats` says it (docs/spec-editor-protocol.md). */
+export interface CacheStat {
+  scope: "build" | "packages";
+  location: string;
+  bytes: number;
+  entries: number;
+  last_used: string | null;
+  hits: number;
+  misses: number;
+}
+
+/** The caches, kept where `location` says (the host's words: a folder, "this browser"). */
+export async function cacheStats(location: string): Promise<{ caches: CacheStat[] }> {
+  const states = await platform().kv.all<Uint8Array>(KV);
+  let bytes = 0;
+  for (const b of states.values()) bytes += b.byteLength;
+  const packs = await allMeta();
+  let packBytes = 0,
+    last = 0;
+  for (const m of packs.values()) [packBytes, last] = [packBytes + m.bytes, Math.max(last, m.used)];
+  const iso = (t: number) => (t ? new Date(t).toISOString() : null);
+  return {
+    caches: [
+      { scope: "build", location, bytes, entries: states.size, last_used: iso(used.build.last), hits: used.build.hits, misses: used.build.misses },
+      { scope: "packages", location, bytes: packBytes, entries: packs.size, last_used: iso(last), ...used.packages },
+    ],
+  };
+}
+
+/** The `scope` cache emptied ("build", "packages", "all"): the bytes it held. */
+export async function clearCache(scope: string, location: string): Promise<{ freed_bytes: number }> {
+  if (!["build", "packages", "all"].includes(scope)) throw new Error(`no cache ${JSON.stringify(scope)} (build, packages, all)`);
+  const before = (await cacheStats(location)).caches;
+  if (scope !== "packages") await platform().kv.clear([KV]);
+  if (scope !== "build") await clearPacks();
+  return { freed_bytes: before.filter((c) => scope === "all" || c.scope === scope).reduce((n, c) => n + c.bytes, 0) };
+}
+
+/** The document's language server as an editor talks to it: messages in (`send`), out (`onMessage`), until `close`. */
+export interface LspChannel {
+  send(m: any): void;
+  onMessage(f: (m: any) => void): void;
+  close(): void;
+}
+
+/**
+ * The open document's language server (the core's, `Core.lsp`), the
+ * caches' commands answered here: they are the host's (the server's own
+ * answer would be "no command": core/src/main.rs).
+ */
+export function lspChannel(core: Core, location: string): LspChannel {
+  const out: ((m: any) => void)[] = [];
+  const unheard = core.onLsp((m) => out.forEach((f) => f(m)));
+  const answer = (id: unknown, run: () => Promise<unknown>) =>
+    void run().then(
+      (result) => out.forEach((f) => f({ jsonrpc: "2.0", id, result })),
+      (e) => out.forEach((f) => f({ jsonrpc: "2.0", id, error: { code: -32603, message: String((e as Error).message ?? e) } })),
+    );
+  return {
+    send(m) {
+      const c = m.method === "workspace/executeCommand" ? m.params?.command : undefined;
+      if (c === "phitex.cacheStats") return answer(m.id, () => cacheStats(location));
+      if (c === "phitex.clearCache") return answer(m.id, () => clearCache(String(m.params?.arguments?.[0]?.scope ?? "all"), location));
+      core.lsp(m);
+    },
+    onMessage: (f) => void out.push(f),
+    close: unheard,
   };
 }
 

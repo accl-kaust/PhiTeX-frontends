@@ -57,6 +57,8 @@ export interface CoreOptions {
   store?: Store;
   /** The core's events (the viewer's, `{event: "build", ...}`); more listen with `onEvent`. */
   event?: (e: any) => void;
+  /** The document's language server's messages to the editor (JSON-RPC, docs/spec-editor-protocol.md); more listen with `onLsp`. */
+  lsp?: (m: any) => void;
   /** What the core writes to stderr (a panic's message). */
   log?: (s: string) => void;
   /** A thread trapped: the core is gone. */
@@ -71,7 +73,7 @@ interface Exports {
   ph_open(p: number, n: number): number;
   ph_close(): void;
   ph_request(p: number, n: number): number;
-  ph_push(p: number, n: number): number;
+  ph_lsp(p: number, n: number): number;
   ph_provide(name: number, nameLen: number, path: number, pathLen: number, data: number, dataLen: number, found: number): void;
   ph_pack(id: number, idLen: number, data: number, dataLen: number, ok: number): void;
   ph_stored(key: number, keyLen: number, data: number, dataLen: number, found: number): void;
@@ -85,14 +87,6 @@ interface Exports {
   ph_strips(p: number, n: number): number;
   ph_frame(p: number, n: number): number;
 }
-
-/** What the editor changes besides the viewer's requests (core/src/main.rs's `ph_push`); offsets in UTF-16. */
-export type Push =
-  | { ask: "set_file"; file: string; text: string }
-  | { ask: "edit"; file: string; start: number; end: number; text: string }
-  | { ask: "closed"; file: string }
-  | { ask: "cursor"; file: string; line: number; col: number }
-  | { ask: "rebuild" };
 
 /** A document to open (core/src/main.rs's `ph_open`). */
 export interface Open {
@@ -120,10 +114,12 @@ export class Core {
   private shared: Omit<ThreadData, "tid" | "arg">;
 
   private listeners: ((e: any) => void)[] = [];
+  private lspListeners: ((m: any) => void)[] = [];
 
   private constructor(shared: Omit<ThreadData, "tid" | "arg">, inst: WebAssembly.Instance, channels: [BroadcastChannel, BroadcastChannel], o: CoreOptions) {
     [this.shared, this.memory, this.channels, this.o] = [shared, shared.memory, channels, o];
     if (o.event) this.listeners.push(o.event);
+    if (o.lsp) this.lspListeners.push(o.lsp);
     this.x = inst.exports as unknown as Exports;
     this.x._initialize();
     channels[0].onmessage = (ev: MessageEvent<ThreadMsg>) => this.heard(ev.data);
@@ -151,6 +147,9 @@ export class Core {
     else if (m.t === "event") {
       const e = JSON.parse(m.json);
       for (const f of this.listeners) f(e);
+    } else if (m.t === "lsp") {
+      const v = JSON.parse(m.json);
+      for (const f of this.lspListeners) f(v);
     }
     else if (m.t === "log") this.o.log?.(m.s);
     else if (m.t === "trap") this.o.trap?.(m.tid, m.error);
@@ -181,9 +180,8 @@ export class Core {
     if (!p) {
       p = (async () => {
         try {
-          const gz = await this.o.fetch?.(id);
-          // (gunzipped here, natively and off the core's threads)
-          return gz ? new Uint8Array(await new Response(new Blob([gz as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer()) : null;
+          // (as Shelf serves it: the core checks it against the release's pack table and gunzips it, phitex-shelf)
+          return (await this.o.fetch?.(id)) ?? null;
         } catch (e) {
           this.o.log?.(`fetch ${id}: ${e}\n`);
           return null;
@@ -296,10 +294,17 @@ export class Core {
     return JSON.parse(new TextDecoder().decode(this.output()));
   }
 
-  /** An editor's change, built at the core's next step. */
-  push(a: Push): void {
-    const r = this.call((p, n) => this.x.ph_push(p, n), JSON.stringify(a));
-    if (r !== 0) throw new Error(r === 2 ? "no document open" : `ph_push: ${r}`);
+  /** Listens to the language server's messages too, until the returned function is called. */
+  onLsp(f: (m: any) => void): () => void {
+    this.lspListeners.push(f);
+    return () => void this.lspListeners.splice(this.lspListeners.indexOf(f) >>> 0, 1);
+  }
+
+  /** A message to the document's language server (JSON-RPC, unframed); false: it was `exit` (the document to close). */
+  lsp(m: object): boolean {
+    const r = this.call((p, n) => this.x.ph_lsp(p, n), JSON.stringify(m));
+    if (r === 1 || r === 2) throw new Error(r === 2 ? "no document open" : "ph_lsp: not JSON");
+    return r !== 3;
   }
 
   /** The last build's main output (null: none yet, or no pages). */
@@ -354,8 +359,14 @@ export class Core {
     return new Uint8Array(this.memory.buffer).slice(p, p + (this.x.ph_output_len() >>> 0));
   }
 
+  /** The open document closed (the core keeps running: another may open). */
   close(): void {
     this.x.ph_close();
+  }
+
+  /** The core ended: its document closed, its threads no longer heard. */
+  end(): void {
+    this.close();
     for (const c of this.channels) c.close();
   }
 
@@ -423,27 +434,15 @@ export class CoreSession implements CoreTransport {
         return { ok: false, error: String(e) };
       }
     }
-    if (req.op === "cursor") {
-      const c = req as unknown as { file: string; line: number; col: number };
-      try {
-        this.core.push({ ask: "cursor", file: c.file, line: c.line, col: c.col });
-        return { ok: true };
-      } catch (e) {
-        return { ok: false, error: String(e) };
-      }
-    }
     const r = this.core.request({ ...req, id });
     if (!r.ok) return { ok: false, error: r.error ?? "refused" };
     return { ok: true, json: req.op === "origins" ? glyphRows(r.json) : r.json };
   }
 
-  onEvent(cb: (e: CoreEvent) => void): void {
+  /** Listens to the core's events, until the returned function is called. */
+  onEvent(cb: (e: CoreEvent) => void): () => void {
     this.events.push(cb);
-  }
-
-  /** An event of the host's own (a pack it fetches), told as the core's are. */
-  tell(e: unknown): void {
-    for (const f of this.events) f(e as CoreEvent);
+    return () => void this.events.splice(this.events.indexOf(cb) >>> 0, 1);
   }
 
 }

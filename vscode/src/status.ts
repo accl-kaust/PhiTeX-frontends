@@ -45,8 +45,7 @@ export class StatusItem implements vscode.Disposable {
 
   /** The builtin engine's events (the viewer's, common/src/viewer/session.ts's CoreEvent), as phitex/status would say them. */
   event(e: { event: string; [k: string]: unknown }): void {
-    if (e.event === "fetching" && !e.failed) this.set({ state: "fetching", name: String(e.pack ?? "") });
-    else if (e.event === "progress") this.set(e.phase === "fetching" ? { state: "fetching", name: String(e.name ?? e.pack ?? "") } : { state: "typesetting", pages: Number(e.pages ?? 0) || undefined });
+    if (e.event === "progress") this.set(e.phase === "fetching" ? { state: "fetching", name: String(e.name ?? e.pack ?? "") } : { state: "typesetting", pages: Number(e.pages ?? 0) || undefined });
     else if (e.event === "preparing" && e.on) this.set({ state: "typesetting" });
     else if (e.event === "build" || e.event === "failed") {
       const errors = Array.isArray(e.errors) ? e.errors.length : e.event === "failed" ? 1 : 0;

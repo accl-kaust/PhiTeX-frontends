@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 phitex-tex = { path = "../phitex/crates/engines/tex" }
 phitex-live = { path = "../phitex/crates/editor/live" }
+phitex-shelf = { path = "../phitex/crates/tools/shelf" }
 serde_json = "1"
 # (only for `observe`: its checks switched on)
 phitex-defuse = { path = "../phitex/crates/core/defuse", optional = true }

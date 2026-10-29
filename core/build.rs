@@ -14,7 +14,7 @@ const EXPORTS: [&str; 18] = [
     "ph_open",
     "ph_close",
     "ph_request",
-    "ph_push",
+    "ph_lsp",
     "ph_provide",
     "ph_pack",
     "ph_stored",

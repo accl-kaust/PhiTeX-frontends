@@ -10,7 +10,7 @@
 
 import * as vscode from "vscode";
 import { readdir, readFile } from "node:fs/promises";
-import { CloseAction, ErrorAction, ExecuteCommandRequest, LanguageClient, State } from "vscode-languageclient/node";
+import { AbstractMessageReader, AbstractMessageWriter, CloseAction, ErrorAction, ExecuteCommandRequest, LanguageClient, State, type DataCallback, type LanguageClientOptions, type Message } from "vscode-languageclient/node";
 import { join } from "node:path";
 import { availableParallelism } from "node:os";
 import { setPlatform } from "../../common/src/platform.ts";
@@ -18,7 +18,7 @@ import type { CoreTransport } from "../../common/src/viewer/session.ts";
 import type { Core, CoreSession } from "../../common/src/wasm/core.ts";
 import { findMain, relPath } from "./changes.ts";
 import { prefetch, startCore } from "./core.ts";
-import type { CoreIndex } from "../../common/src/wasm/host.ts";
+import { lspChannel, type CoreIndex, type LspChannel } from "../../common/src/wasm/host.ts";
 import { nodePlatform } from "./platform.ts";
 import { relay, viewHtml, WatchLink } from "./relay.ts";
 import { StatusItem, type EngineStatus } from "./status.ts";
@@ -60,16 +60,6 @@ async function loadProject(folder: string): Promise<{ files: Record<string, stri
   return { files, binaries };
 }
 
-/** `file:line:col` (from 1, as the core's `source` answers) opened in the editor. */
-async function gotoPlace(folder: string, place: string): Promise<void> {
-  const m = place.match(/^(.*):(\d+):(\d+)$/);
-  if (!m) return;
-  const d = await vscode.workspace.openTextDocument(vscode.Uri.file(join(folder, m[1])));
-  const at = new vscode.Position(Math.max(0, +m[2] - 1), Math.max(0, +m[3] - 1));
-  const e = await vscode.window.showTextDocument(d, { viewColumn: vscode.ViewColumn.One, selection: new vscode.Range(at, at) });
-  e.revealRange(new vscode.Range(at, at), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-}
-
 /** The PDF `transport` gives, saved where the user says. */
 async function savePdf(transport: CoreTransport, folder: string, main: string): Promise<void> {
   const r = await transport.request({ op: "pdf" });
@@ -83,6 +73,8 @@ let builtin: ReturnType<typeof startCore> | undefined;
 let builtinFolder = "";
 let builtinView: vscode.WebviewPanel | undefined;
 
+/** Where this host keeps its store (the builtin's caches). */
+let storeDir = "";
 /** The status bar's item (status.ts). */
 let status: StatusItem;
 /** The preview last opened: what the menu's Stop, Restart and Save PDF act on. */
@@ -128,8 +120,8 @@ const engineSetting = () => (vscode.workspace.getConfiguration("phitex").get<str
 
 export function activate(ctx: vscode.ExtensionContext): void {
   const root = ctx.extensionPath;
-  const store = join(ctx.globalStorageUri.fsPath, "store");
-  setPlatform(nodePlatform(root, store));
+  storeDir = join(ctx.globalStorageUri.fsPath, "store");
+  setPlatform(nodePlatform(root, storeDir));
   const log = vscode.window.createOutputChannel("PhiTeX");
   status = new StatusItem();
   const open = (folder?: string) => preview(ctx, root, log, folder);
@@ -264,56 +256,115 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     status.set({ state: "off" });
     return void vscode.window.showErrorMessage(`PhiTeX: the engine did not start: ${e}`);
   }
-  // (a double-click's source: the core says where, the editor goes there)
-  const transport: CoreTransport = {
-    request: async (op) => {
-      const r = await session.request(op as never);
-      if ((op as { op: string }).op === "source" && r.ok && typeof r.json?.place === "string") void gotoPlace(folder, r.json.place);
-      return r;
-    },
-    onEvent: (cb) => session.onEvent(cb),
-  };
-  const rel = (d: vscode.TextDocument) => (d.uri.scheme === "file" ? relPath(folder, d.uri.fsPath) : null);
-  let rest: ReturnType<typeof setTimeout> | undefined;
-  const subs = [
-    relay(view, transport, () => void savePdf(transport, folder, main), (s) => log.appendLine(s)),
-    // (the editor's changes as they are typed: one change an edit, more the file's whole text)
-    vscode.workspace.onDidChangeTextDocument((e) => {
-      const r = rel(e.document);
-      if (!r || !TEXT.test(r) || !e.contentChanges.length) return;
-      const [c] = e.contentChanges;
-      if (e.contentChanges.length === 1) core.push({ ask: "edit", file: r, start: c.rangeOffset, end: c.rangeOffset + c.rangeLength, text: c.text });
-      else core.push({ ask: "set_file", file: r, text: e.document.getText() });
-    }),
-    // (the cursor, once it rests 150 ms: its words marked on the page)
-    vscode.window.onDidChangeTextEditorSelection((e) => {
-      const r = rel(e.textEditor.document);
-      if (!r || !follows(e)) return;
-      clearTimeout(rest);
-      rest = setTimeout(() => {
-        const at = e.selections[0].active;
-        core.push({ ask: "cursor", file: r, line: at.line, col: at.character });
-      }, 150);
-    }),
-  ];
-  current = { folder, view, save: () => void savePdf(transport, folder, main) };
+  // (the document's language server, in this process: the editor's buffers,
+  // diagnostics, a double-click's source (window/showDocument), the cursor,
+  // the commands, as with the watch's; the caches' commands answered here)
+  const channel = lspChannel(core, storeDir);
+  const client = new LanguageClient("phitex", "PhiTeX", async () => ({ reader: new ChannelReader(channel), writer: new ChannelWriter(channel) }), clientOptions(folder, log));
+  let closed = false;
+  const subs: vscode.Disposable[] = [relay(view, session, () => void savePdf(session, folder, main), (s) => log.appendLine(s))];
+  current = { folder, view, save: () => void savePdf(session, folder, main) };
   view.onDidDispose(() => {
+    closed = true;
     subs.forEach((s) => s.dispose());
     if (current?.view === view) current = undefined;
+    if (server === client) setServer(undefined);
     if (builtinView === view) builtinView = undefined;
-    // (the document closed: the core idle until the next preview; a core that trapped is gone already)
-    if (!builtinView && builtin) core.close();
-    if (status.state !== "crashed") status.set({ state: "off" });
+    // (the server told it ends, then the document closed: the core idle until the next
+    // preview, which waits for this; a core that trapped is gone already)
+    const s = client.stop(2000).catch(() => undefined).then(() => {
+      channel.close();
+      if (!builtinView && builtin) core.close();
+    });
+    stopping.add(s);
+    void s.finally(() => stopping.delete(s));
+    if (status.state !== "crashed" && status.state !== "stopped") status.set({ state: "off" });
   });
 
   // (the project's binary files first, then its text and the open)
+  await Promise.all(stopping);
   for (const [file, bytes] of Object.entries(project.binaries)) core.provide(file, { path: "./" + file, bytes });
   prefetch(core, index, project.files, "pdflatex");
   const r = await session.request({ op: "open", main, files: project.files } as never);
   if (!r.ok) {
     log.appendLine(`open: ${r.error}`);
     void vscode.window.showErrorMessage(`PhiTeX: ${r.error}`);
+    return view.dispose();
   }
+  if (closed) return;
+  const opened = settings();
+  subs.push(
+    client.onNotification("phitex/status", (s: EngineStatus) => status.set(s)),
+    followCursor(client, folder),
+    // (what only this host does, the core's events: stopped (phitex.stop), the preview
+    // closed; the engine's settings changed (threads, main), the preview opened again)
+    { dispose: session.onEvent((e) => {
+      const c = e as { event: string; settings?: { main?: string } };
+      if (c.event === "stop") view.dispose();
+      if (c.event === "configure" && (c.settings?.main ?? opened.main) !== opened.main) void vscode.commands.executeCommand("phitex.restart");
+    }) },
+  );
+  await client.start();
+  if (!closed) setServer(client);
+}
+
+/** What the language client says to either engine's server: the folder's TeX buffers, its settings, no restart behind the user's back. */
+function clientOptions(folder: string, log: vscode.OutputChannel): LanguageClientOptions {
+  return {
+    documentSelector: ["latex", "tex", "bibtex"].map((language) => ({ scheme: "file", language, pattern: `${folder}/**/*` })),
+    workspaceFolder: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folder)),
+    outputChannel: log,
+    // (the engine's settings: at the start, and each change (workspace/configuration))
+    initializationOptions: settings(),
+    synchronize: { configurationSection: "phitex" },
+    // (never restarted behind the user's back: the watch's viewer's address would change
+    // under the preview, the builtin's document is the preview's; an exit is said, with
+    // Restart offered: crashed())
+    errorHandler: { error: () => ({ action: ErrorAction.Continue }), closed: () => ({ action: CloseAction.DoNotRestart, handled: true }) },
+  };
+}
+
+/** The cursor's place sent once it rests 150 ms (phitex/cursor: its words marked on the page), as phitex.follow says. */
+function followCursor(client: LanguageClient, folder: string): vscode.Disposable {
+  let rest: ReturnType<typeof setTimeout> | undefined;
+  return vscode.window.onDidChangeTextEditorSelection((e) => {
+    if (!relPath(folder, e.textEditor.document.uri.fsPath) || !follows(e)) return;
+    clearTimeout(rest);
+    rest = setTimeout(() => {
+      const at = e.selections[0].active;
+      void client.sendNotification("phitex/cursor", { textDocument: { uri: e.textEditor.document.uri.toString() }, position: { line: at.line, character: at.character } });
+    }, 150);
+  });
+}
+
+/** The builtin's language server's messages, as the client reads them. */
+class ChannelReader extends AbstractMessageReader {
+  private channel: LspChannel;
+  constructor(channel: LspChannel) {
+    super();
+    this.channel = channel;
+  }
+  listen(cb: DataCallback): vscode.Disposable {
+    this.channel.onMessage((m) => cb(m));
+    return { dispose: () => undefined };
+  }
+}
+
+/** The client's messages to the builtin's language server. */
+class ChannelWriter extends AbstractMessageWriter {
+  private channel: LspChannel;
+  constructor(channel: LspChannel) {
+    super();
+    this.channel = channel;
+  }
+  async write(m: Message): Promise<void> {
+    try {
+      this.channel.send(m);
+    } catch (e) {
+      this.fireError(e as Error, m);
+    }
+  }
+  end(): void {}
 }
 
 /**
@@ -373,17 +424,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
     "phitex",
     "PhiTeX",
     { command: cmd, args: ["watch", main, "--lsp"], options: { cwd: folder, env: { ...process.env, CI: "" } } },
-    {
-      documentSelector: ["latex", "tex", "bibtex"].map((language) => ({ scheme: "file", language, pattern: `${folder}/**/*` })),
-      workspaceFolder: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folder)),
-      outputChannel: log,
-      // (the engine's settings: at the start, and each change (workspace/configuration))
-      initializationOptions: settings(),
-      synchronize: { configurationSection: "phitex" },
-      // (never restarted behind the user's back: its viewer's address would change under the
-      // preview; an exit is said, with Restart offered: crashed())
-      errorHandler: { error: () => ({ action: ErrorAction.Continue }), closed: () => ({ action: CloseAction.DoNotRestart, handled: true }) },
-    },
+    clientOptions(folder, log),
   );
   watches.add(client);
   // (the tab closed, even while the watch starts: the watch ends with it)
@@ -447,17 +488,8 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
     relay(view, link, () => void savePdf(link, folder, main), (s) => log.appendLine(s)),
     { dispose: () => link.close() },
   );
-  // (the cursor, once it rests 150 ms: its words marked on the page)
-  let rest: ReturnType<typeof setTimeout> | undefined;
   subs.push(
-    vscode.window.onDidChangeTextEditorSelection((e) => {
-      if (!relPath(folder, e.textEditor.document.uri.fsPath) || !follows(e)) return;
-      clearTimeout(rest);
-      rest = setTimeout(() => {
-        const at = e.selections[0].active;
-        void client.sendNotification("phitex/cursor", { textDocument: { uri: e.textEditor.document.uri.toString() }, position: { line: at.line, character: at.character } });
-      }, 150);
-    }),
+    followCursor(client, folder),
     client.onDidChangeState((s) => {
       if (s.newState !== State.Stopped) return;
       log.appendLine("phitex watch ended");
@@ -473,6 +505,6 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
 
 export function deactivate(): void {
   for (const c of watches) void c.stop().catch(() => undefined);
-  void builtin?.then(({ core }) => core.close()).catch(() => undefined);
+  void builtin?.then(({ core }) => core.end()).catch(() => undefined);
   builtin = undefined;
 }

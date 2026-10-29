@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use phitex_live::host::{Host, Sink};
 use phitex_live::session::Job;
 
-use crate::files::{self, Files};
+use crate::files::Files;
 
 /// The files the build reads: Shelf's packs and the host's files
 /// ([`Files`]), resolved for `engine` (Shelf's engine name); `\write18`'s
@@ -25,14 +25,12 @@ use crate::files::{self, Files};
 pub struct Shelf {
     pub files: Arc<Files>,
     pub engine: &'static str,
-    /// What the files ask the host for.
-    pub asks: &'static dyn files::Host,
     pub shell: Option<Arc<dyn phitex_tex::ShellHook>>,
 }
 
 impl Host for Shelf {
     fn locate(&self, name: &str) -> Option<PathBuf> {
-        self.files.locate(name, self.engine, self.asks).map(PathBuf::from)
+        self.files.locate(name, self.engine).map(PathBuf::from)
     }
 
     fn read(&self, path: &Path) -> Option<Vec<u8>> {
@@ -51,7 +49,7 @@ impl Host for Shelf {
     /// formats (the format's suffix added where the name has none): the
     /// project's, else Shelf's.
     fn tool_finder(&self) -> Option<phitex_tex::ToolFinder> {
-        let (f, e, asks) = (self.files.clone(), self.engine, self.asks);
+        let (f, e) = (self.files.clone(), self.engine);
         Some(Arc::new(move |search: phitex_tex::ToolSearch, name: &str| {
             let ext = match search {
                 phitex_tex::ToolSearch::BibStyle => ".bst",
@@ -59,7 +57,7 @@ impl Host for Shelf {
                 phitex_tex::ToolSearch::IndexStyle => ".ist",
             };
             let name = if name.ends_with(ext) { name.to_owned() } else { format!("{name}{ext}") };
-            let p = f.locate(&name, e, asks)?;
+            let p = f.locate(&name, e)?;
             let b = f.read(&p)?;
             Some((p, b.to_vec()))
         }))

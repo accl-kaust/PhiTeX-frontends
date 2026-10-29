@@ -644,6 +644,7 @@ version = "0.0.0"
 dependencies = [
  "phitex-pdf",
  "phitex-typeset",
+ "phitex-xdvipdfmx",
 ]
 
 [[package]]
@@ -652,6 +653,7 @@ version = "0.0.0"
 dependencies = [
  "phitex-defuse",
  "phitex-live",
+ "phitex-shelf",
  "phitex-tex",
  "serde_json",
 ]
@@ -707,6 +709,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "phitex-shelf"
+version = "0.0.0"
+dependencies = [
+ "phitex-codecs",
+ "serde_json",
+]
+
+[[package]]
 name = "phitex-source"
 version = "0.0.0"
 
@@ -728,6 +738,7 @@ dependencies = [
  "phitex-source",
  "phitex-tfm",
  "phitex-typeset",
+ "phitex-xdvipdfmx",
  "rayon",
 ]
 

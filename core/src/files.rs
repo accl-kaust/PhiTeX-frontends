@@ -4,11 +4,12 @@
 //! - **By name**, from the host: the project's own files (given before the
 //!   build asks), the extension's bundled texmf/ (the LaTeX kernel), and,
 //!   without Shelf's index, anything (the host resolves the name itself).
-//! - **Shelf's packs**: a name is resolved here, by Shelf's index and the
-//!   engine's search order ([`crate::shelf`]); a name the index lacks is
-//!   absent at once and never leaves the machine. The path's pack and the
-//!   packs its loading reads are asked of the host by id, and every file of
-//!   each is kept by path, so a package and what it loads cost one round.
+//! - **Shelf's packs**, through phitex-shelf ([`shelf::Files`], one an
+//!   engine): a name resolved by Shelf's index and the engine's search
+//!   order, its pack and the packs its loading reads fetched (each once,
+//!   checked against the release's pack table), a name the index lacks
+//!   absent at once. The packs' source is the host ([`HostPacks`]): every
+//!   pack a file needs asked of it at once, the thread waiting for them.
 //!
 //! Whatever is asked of the host (`phitex.want` a name, `phitex.fetch` a
 //! pack) is asked once, from the thread that needs it, which waits on a
@@ -22,9 +23,9 @@
 //! given), each file shared, copied only into the engine's hands.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
 
-use crate::shelf::{self, Index};
+use phitex_shelf::{self as shelf, Fetch, Index, PackSource};
 
 /// A file as the engine takes it: the path it reports, and the bytes.
 pub type Found = (String, Vec<u8>);
@@ -39,39 +40,41 @@ enum Entry {
     Given(Option<Kept>),
 }
 
-enum Pack {
-    Asked,
-    /// Its files are in `by_path` (or it could not be had).
-    Done,
+/// The host, as the files ask it.
+pub trait Host: Send + Sync {
+    /// A file by name (`phitex.want`): answered by `ph_provide`.
+    fn want(&self, name: &str);
+    /// Shelf's pack `id` (`phitex.fetch`): answered by `ph_pack`.
+    fn fetch(&self, pack: &str);
 }
+
+/// What a pack's fetch is told (the session's progress: `Meter::fetch`).
+pub type FetchHook = Arc<dyn Fn(&Fetch<'_>) + Send + Sync>;
 
 #[derive(Default)]
 struct State {
     by_name: HashMap<String, Entry>,
-    /// The host's files by the path it gave (without `./`).
+    /// The host's files by the path it gave (the project's, as `./name`).
     by_given_path: HashMap<String, Arc<Vec<u8>>>,
-    /// Shelf's files by texmf path, from the packs fetched.
-    by_path: HashMap<String, Arc<Vec<u8>>>,
-    packs: HashMap<String, Pack>,
     index: Option<Arc<Index>>,
-    /// The extension's bundled texmf/ (flat, by name): asked of the host by
-    /// name, ahead of Shelf, unless the engine's own tree has the name
-    /// first (tex/xelatex, ...).
+    /// The extension's bundled texmf/: these names the host's, not Shelf's.
     bundled: HashSet<String>,
-}
-
-/// What the files ask the host for.
-pub trait Host: Send + Sync {
-    /// A file by name: answered with [`Files::provide`].
-    fn want(&self, name: &str);
-    /// A Shelf pack by id: answered with [`Files::pack`].
-    fn fetch(&self, pack: &str);
+    /// Shelf's files, one an engine (made at its first use).
+    shelves: HashMap<&'static str, Arc<shelf::Files>>,
+    /// Packs asked of the host and not taken yet.
+    asked: HashSet<String>,
+    /// The host's answers, waiting to be taken: the bytes as served, or why not.
+    arrived: HashMap<String, Result<Vec<u8>, String>>,
 }
 
 #[derive(Default)]
 pub struct Files {
     state: Mutex<State>,
     answered: Condvar,
+    /// Where packs are asked for (`set_host`).
+    host: OnceLock<&'static dyn Host>,
+    /// Who hears of each pack (the open document's progress).
+    hook: Mutex<Option<FetchHook>>,
 }
 
 impl Files {
@@ -83,27 +86,60 @@ impl Files {
         self.answered.wait(g).unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Shelf's index from now on (none: names go to the host).
+    /// Where files and packs are asked for: once, before any build.
+    pub fn set_host(&self, host: &'static dyn Host) {
+        let _ = self.host.set(host);
+    }
+
+    /// Shelf's index (none: names go to the host), and the names the
+    /// extension bundles. The engines' Shelf files made anew on it.
     pub fn set_index(&self, index: Option<Index>, bundled: HashSet<String>) {
         let mut s = self.lock();
         s.index = index.map(Arc::new);
         s.bundled = bundled;
+        s.shelves.clear();
     }
 
-    /// Where the file `name` is for `engine` (Shelf's name): the path the
-    /// engine reports (`/usr/share/texmf-dist/...` for Shelf's, the host's
-    /// for its own), waiting for the host when it must.
-    pub fn locate(&self, name: &str, engine: &str, host: &dyn Host) -> Option<String> {
-        self.find(name, engine, host).map(|(p, _)| p)
+    /// Each pack's fetch told to `hook` from now on (the document opened).
+    pub fn on_fetch(&self, hook: Option<FetchHook>) {
+        *self.hook.lock().unwrap_or_else(PoisonError::into_inner) = hook;
     }
 
-    /// The bytes of the file at `path`, as [`Files::locate`] gave it (or a
-    /// name the host gave, the project's: `main.tex`); none: not here.
+    /// Shelf's files for `engine`, made at its first use; none without an index.
+    fn shelf(self: &Arc<Self>, engine: &'static str) -> Option<Arc<shelf::Files>> {
+        let mut s = self.lock();
+        let ix = s.index.clone()?;
+        Some(
+            s.shelves
+                .entry(engine)
+                .or_insert_with(|| {
+                    let f = shelf::Files::new(ix, Arc::new(HostPacks(self.clone())), engine);
+                    let me = Arc::downgrade(self);
+                    f.on_fetch(Box::new(move |e| {
+                        let hook = me.upgrade().and_then(|m| m.hook.lock().unwrap_or_else(PoisonError::into_inner).clone());
+                        if let Some(h) = hook {
+                            h(e);
+                        }
+                    }));
+                    Arc::new(f)
+                })
+                .clone(),
+        )
+    }
+
+    /// Where `name` is for `engine` (the path the engine reports), waiting
+    /// for the host if it must be asked; none: nowhere.
+    pub fn locate(self: &Arc<Self>, name: &str, engine: &'static str) -> Option<String> {
+        self.find(name, engine).map(|(p, _)| p)
+    }
+
+    /// The bytes at `path`, as [`Files::locate`] gave it (none: not given).
     pub fn read(&self, path: &str) -> Option<Arc<Vec<u8>>> {
-        let s = self.lock();
-        if let Some(rel) = path.strip_prefix(shelf::TL) {
-            return s.by_path.get(rel).cloned();
+        if path.starts_with(shelf::TL) {
+            let shelves: Vec<_> = self.lock().shelves.values().cloned().collect();
+            return shelves.iter().find_map(|f| f.read(path));
         }
+        let s = self.lock();
         let plain = path.strip_prefix("./").unwrap_or(path);
         if let Some(b) = s.by_given_path.get(plain) {
             return Some(b.clone());
@@ -114,63 +150,53 @@ impl Files {
         }
     }
 
-    /// The file `name` for `engine` (Shelf's name), waiting for the host
-    /// when it must.
-    fn find(&self, name: &str, engine: &str, host: &dyn Host) -> Option<Kept> {
-        let mut s = self.lock();
+    /// Whether `name` is the host's (given, or bundled outside an engine's
+    /// own tree), not Shelf's.
+    fn hosts(s: &State, ix: &Index, name: &str, engine: &str) -> bool {
+        if matches!(s.by_name.get(name), Some(Entry::Given(_))) {
+            return true;
+        }
+        let path = ix.resolve(name, shelf::format_of(name), engine);
+        // (an engine's own tree, xelatex's or lualatex's: Shelf's, over the bundled kernel's
+        // file of that name, which is pdfLaTeX's)
+        let engine_tree = path.is_some_and(|p| ["tex/xelatex/", "tex/xetex/", "tex/lualatex/", "tex/luatex/"].iter().any(|t| p.starts_with(t)));
+        !name.contains('/') && s.bundled.contains(name) && !engine_tree
+    }
+
+    fn find(self: &Arc<Self>, name: &str, engine: &'static str) -> Option<Kept> {
+        let s = self.lock();
         if let Some(Entry::Given(f)) = s.by_name.get(name) {
             return f.clone();
         }
         let Some(ix) = s.index.clone() else {
-            return self.by_name(s, name, host);
+            return self.by_name(s, name);
         };
-        let path = ix.resolve(name, shelf::format_of(name), engine);
-        let engine_tree = path.is_some_and(|p| ["tex/xelatex/", "tex/xetex/", "tex/lualatex/", "tex/luatex/"].iter().any(|t| p.starts_with(t)));
-        if !name.contains('/') && s.bundled.contains(name) && !engine_tree {
-            return self.by_name(s, name, host);
+        if Self::hosts(&s, &ix, name, engine) {
+            return self.by_name(s, name);
         }
-        let path = path?;
-        let packs = ix.packs(path, engine);
-        let own = (*packs.first()?).to_owned();
-        for id in packs {
-            if !s.packs.contains_key(id) {
-                s.packs.insert(id.to_owned(), Pack::Asked);
-                host.fetch(id);
-            }
-        }
-        loop {
-            if let Some(b) = s.by_path.get(path) {
-                return Some((format!("{}{path}", shelf::TL), b.clone()));
-            }
-            if matches!(s.packs.get(&own), Some(Pack::Done)) {
-                return None;
-            }
-            s = self.wait(s);
-        }
+        drop(s);
+        let (path, bytes) = self.shelf(engine)?.find(name)?;
+        Some((path, bytes))
     }
 
-    /// The path and content key of the file `name` would be for `engine`
-    /// (Options::content_key), from Shelf's index alone, nothing fetched: a
-    /// Shelf file's path as [`Files::get`] gives it, its key the id of its
-    /// pack (which names the pack's content) and its texmf path. None for
-    /// any other (the project's, the bundled texmf/'s), which the engine
-    /// finds and hashes.
-    pub fn key(&self, name: &str, engine: &str) -> Option<(String, Vec<u8>)> {
+    /// `name`'s content key without fetching it (Shelf's: its pack and
+    /// path), for a warm start's check; none: the host's.
+    pub fn key(self: &Arc<Self>, name: &str, engine: &'static str) -> Option<(String, Vec<u8>)> {
         let s = self.lock();
         let ix = s.index.clone()?;
-        let rel = ix.resolve(name, shelf::format_of(name), engine)?;
-        let engine_tree = ["tex/xelatex/", "tex/xetex/", "tex/lualatex/", "tex/luatex/"].iter().any(|t| rel.starts_with(t));
-        if matches!(s.by_name.get(name), Some(Entry::Given(_))) || (!name.contains('/') && s.bundled.contains(name) && !engine_tree) {
+        if Self::hosts(&s, &ix, name, engine) {
             return None;
         }
-        let pack = ix.pack_of(rel)?;
-        Some((format!("{}{rel}", shelf::TL), [pack.as_bytes(), b"\0", rel.as_bytes()].concat()))
+        drop(s);
+        self.shelf(engine)?.key(name)
     }
 
-    fn by_name(&self, mut s: MutexGuard<'_, State>, name: &str, host: &dyn Host) -> Option<Kept> {
+    fn by_name(&self, mut s: MutexGuard<'_, State>, name: &str) -> Option<Kept> {
         if !s.by_name.contains_key(name) {
             s.by_name.insert(name.to_owned(), Entry::Asked);
-            host.want(name);
+            if let Some(h) = self.host.get() {
+                h.want(name);
+            }
         }
         loop {
             if let Some(Entry::Given(f)) = s.by_name.get(name) {
@@ -180,8 +206,7 @@ impl Files {
         }
     }
 
-    /// The host's answer for `name` (none: it is nowhere), given before it
-    /// was asked for (the project's own files) or after.
+    /// The host's answer for `name` (none: nowhere).
     pub fn provide(&self, name: &str, file: Option<Found>) {
         let file = file.map(|(p, b)| (p, Arc::new(b)));
         let mut s = self.lock();
@@ -193,16 +218,45 @@ impl Files {
         self.answered.notify_all();
     }
 
-    /// The host's answer for pack `id`: gunzipped, or none (it could not be
-    /// had: its files are absent).
+    /// The host's answer for pack `id`: its bytes as Shelf serves them, or
+    /// none (it could not be had).
     pub fn pack(&self, id: &str, raw: Option<&[u8]>) {
-        let files = raw.and_then(shelf::unpack).unwrap_or_default();
         let mut s = self.lock();
-        for (path, bytes) in files {
-            s.by_path.entry(path).or_insert_with(|| Arc::new(bytes));
-        }
-        s.packs.insert(id.to_owned(), Pack::Done);
+        s.arrived.insert(id.to_owned(), raw.map(<[u8]>::to_vec).ok_or_else(|| format!("the pack {id} could not be had")));
         drop(s);
         self.answered.notify_all();
+    }
+}
+
+/// Shelf's packs from the host: every pack asked at once (`phitex.fetch`),
+/// then waited for (`ph_pack`), so a package and what it loads cost one
+/// round trip.
+struct HostPacks(Arc<Files>);
+
+impl PackSource for HostPacks {
+    fn pack(&self, id: &str) -> Result<Vec<u8>, String> {
+        self.packs(&[id]).pop().unwrap_or_else(|| Err(format!("the pack {id} could not be had")))
+    }
+
+    fn packs(&self, ids: &[&str]) -> Vec<Result<Vec<u8>, String>> {
+        let f = &self.0;
+        let mut s = f.lock();
+        for id in ids {
+            if !s.asked.contains(*id) && !s.arrived.contains_key(*id) {
+                s.asked.insert((*id).to_owned());
+                if let Some(h) = f.host.get() {
+                    h.fetch(id);
+                }
+            }
+        }
+        while !ids.iter().all(|id| s.arrived.contains_key(*id)) {
+            s = f.wait(s);
+        }
+        ids.iter()
+            .map(|id| {
+                s.asked.remove(*id);
+                s.arrived.remove(*id).unwrap_or_else(|| Err(format!("the pack {id} could not be had")))
+            })
+            .collect()
     }
 }

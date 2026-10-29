@@ -19,7 +19,7 @@ import "./platform.ts";
 import { platform } from "./common/platform.ts";
 import { Core, CoreSession } from "./common/wasm/core.ts";
 import { mintedShell } from "./common/wasm/minted.ts";
-import { coreIndex, coreStore, packs, prefetch } from "./common/wasm/host.ts";
+import { coreIndex, coreStore, pack, prefetch } from "./common/wasm/host.ts";
 import { spawnThread } from "./thread.ts";
 
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
@@ -56,7 +56,7 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
   const t0 = performance.now();
   const core = Core.start(await module, {
     spawn: (d) => void threads.push(spawnThread(d)),
-    fetch: packs(post),
+    fetch: pack,
     async resolve(name) {
       const r = await platform().asset("texmf/" + name).catch(() => null);
       return r?.ok ? { path: name, bytes: new Uint8Array(await r.arrayBuffer()) } : null;
