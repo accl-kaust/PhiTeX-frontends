@@ -11,6 +11,10 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # (news.json follows PhiTeX's CHANGELOG.md on its main: a release is
+  # seen within a day; run the workflow by hand to publish one at once)
+  schedule:
+    - cron: "17 3 * * *"
 
 jobs:
   deploy:
@@ -24,6 +28,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # (news.json from PhiTeX's CHANGELOG.md on main, served at /news.json)
+      - run: node scripts/news.mjs https://raw.githubusercontent.com/accl-kaust/PhiTeX/main/CHANGELOG.md public/news.json
       - run: npm run build
         env:
           VITE_REPO_URL: ${{ vars.VITE_REPO_URL }}

@@ -3,3 +3,4 @@ dist/
 .cache/
 test-results/
 public/core.wasm
+public/news.json
