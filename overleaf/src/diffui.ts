@@ -66,7 +66,7 @@ const TIP_CSS = `
 /**
  * The compare tip: Overleaf's popover (the first-run tip's look) pointing at
  * the Compare button, with a demo of a diff. Shown TIP_DELAY_MS after the
- * page settled, while Compare was never used; "Not now" brings it back
+ * document's first pages are drawn, while Compare was never used; "Not now" brings it back
  * SNOOZE_MS later, "Don't show again" (or using Compare) never. Never over
  * another of ours (terms, tip, news, tour).
  */
@@ -189,7 +189,13 @@ export function compareButton(host: HTMLElement, panel: Panel, base: () => strin
     if (v) void start(v);
   };
   document.addEventListener("click", close);
-  compareTip(btn);
+  // (the tip once the document has compiled, its first page drawn: not over a project still opening)
+  let tipped = false;
+  panel.onState((s) => {
+    if (tipped || s.pages <= 0) return;
+    tipped = true;
+    compareTip(btn);
+  });
 
   const controls = new DiffControls(panel, run);
   const start = async (v: Version) => {
