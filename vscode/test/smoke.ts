@@ -40,7 +40,7 @@ if (!main) throw new Error("no main .tex file");
 const t0 = performance.now();
 const ms = () => Math.round(performance.now() - t0);
 const threads = process.env.PHITEX_THREADS ? +process.env.PHITEX_THREADS : undefined;
-const { core, session, index } = await startCore(root, () => folder, (s) => process.stderr.write(s.endsWith("\n") ? s : s + "\n"), threads, process.env.PHITEX_TEX_TIME ? ["PHITEX_TEX_TIME=1"] : []);
+const { core, session, index } = await startCore(root, () => folder, (s) => process.stderr.write(s), threads, process.env.PHITEX_TEX_TIME ? ["PHITEX_TEX_TIME=1"] : []);
 console.log(`core started: ${ms()} ms`);
 
 let settled = 0;
