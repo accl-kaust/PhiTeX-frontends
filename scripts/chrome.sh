@@ -5,6 +5,11 @@
 # .chrome-profile-2, so two sessions don't close each other's tabs; the
 # scripts read PHITEX_CDP_PORT too)
 cd "$(dirname "$0")/.."
+# (the extension as built: scripts/build.sh --dev; a build under way has it
+# only once its engine and formats are made)
+for f in overleaf/manifest.json overleaf/dist/background.js overleaf/dist/core.wasm overleaf/dist/folders.js; do
+  [ -s "$f" ] || { echo "no $f: run scripts/build.sh --dev first (or wait for the one running)" >&2; exit 1; }
+done
 port="${PHITEX_CDP_PORT:-9222}"
 profile="$PWD/${PHITEX_PROFILE:-.chrome-profile}"
 pkill -f -- "--user-data-dir=$profile( |$)" && sleep 2

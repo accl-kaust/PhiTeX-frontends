@@ -26,7 +26,7 @@ function seg(id: string, value: string, onPick: (v: string) => void): void {
 }
 
 async function render(): Promise<void> {
-  const s = await chrome.storage.local.get(["enabled", "view", "panel", "tipOff", "newsOff", "speedOff", "accepted", "engine", "engines", "follow"]);
+  const s = await chrome.storage.local.get(["enabled", "view", "panel", "tipOff", "newsOff", "speedOff", "accepted", "engine", "engines", "follow", "folders", "statusColumn", "hideData", "foldersTipOff"]);
   const accepted = s.accepted === TERMS;
   $<HTMLElement>("version").textContent = chrome.runtime.getManifest().version;
   const enabled = $<HTMLInputElement>("enabled");
@@ -55,6 +55,19 @@ async function render(): Promise<void> {
   const tips = $<HTMLInputElement>("tips");
   tips.checked = !s.tipOff;
   tips.onchange = () => chrome.storage.local.set({ tipOff: !tips.checked });
+  const folders = $<HTMLInputElement>("folders"), status = $<HTMLInputElement>("status"), hideData = $<HTMLInputElement>("hidedata"), foldersTip = $<HTMLInputElement>("folderstip");
+  folders.checked = s.folders !== false;
+  status.checked = s.statusColumn === true;
+  hideData.checked = s.hideData === true;
+  status.disabled = hideData.disabled = !folders.checked;
+  folders.onchange = () => {
+    status.disabled = hideData.disabled = !folders.checked;
+    void chrome.storage.local.set({ folders: folders.checked });
+  };
+  status.onchange = () => chrome.storage.local.set({ statusColumn: status.checked });
+  hideData.onchange = () => chrome.storage.local.set({ hideData: hideData.checked });
+  foldersTip.checked = !s.foldersTipOff;
+  foldersTip.onchange = () => chrome.storage.local.set({ foldersTipOff: !foldersTip.checked });
   const speed = $<HTMLInputElement>("speed");
   speed.checked = !s.speedOff;
   speed.onchange = () => chrome.storage.local.set({ speedOff: !speed.checked });

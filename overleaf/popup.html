@@ -63,6 +63,16 @@
 </section>
 
 <section>
+  <h2>Project dashboard</h2>
+  <div class="row"><span>Folders<small>Nested folders for your projects, kept in your Overleaf project .phitex-data (made at your first folder, once you agree)</small></span>
+    <label class="switch"><input type="checkbox" id="folders"><i></i></label></div>
+  <div class="row"><span>Status column<small>Each project's status (idea, drafting, submitted, …), and sorting by status or tag</small></span>
+    <label class="switch"><input type="checkbox" id="status"><i></i></label></div>
+  <div class="row"><span>Hide .phitex-data<small>Leave the folders' own project out of your project list</small></span>
+    <label class="switch"><input type="checkbox" id="hidedata"><i></i></label></div>
+</section>
+
+<section>
   <h2>Package cache</h2>
   <div class="row"><span>TeX Live packages kept in this browser<small id="cachestats">Counting…</small></span>
     <button class="btn" id="cacheclear" disabled>Clear</button></div>
@@ -76,6 +86,8 @@
   <h2>Tips</h2>
   <div class="row"><span>Show the ⚡ Instant tip<small>On Overleaf's PDF, until turned off</small></span>
     <label class="switch"><input type="checkbox" id="tips"><i></i></label></div>
+  <div class="row"><span>Show the folders tip<small>On the project dashboard, until you have a folder</small></span>
+    <label class="switch"><input type="checkbox" id="folderstip"><i></i></label></div>
   <div class="row"><span>Show what's new after updates</span>
     <label class="switch"><input type="checkbox" id="news"><i></i></label></div>
   <div class="btns" style="margin-top:6px"><button class="btn" id="whatsnew">What's new</button><button class="btn" id="tour">Take the tour</button></div>

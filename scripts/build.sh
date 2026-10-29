@@ -16,11 +16,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-rm -rf overleaf/dist && mkdir -p overleaf/dist
-rm -rf overleaf/formats && mkdir -p overleaf/formats
+# (the slow part first, the engine and its formats, into target/: an
+# extension loaded from overleaf/ keeps working until they're copied in)
 if [ -n "${PHITEX_WASM_DIR:-}" ]; then
-  cp "$PHITEX_WASM_DIR/core.wasm" "$PHITEX_WASM_DIR/diff.wasm" overleaf/dist/
-  cp "$PHITEX_WASM_DIR"/formats/* overleaf/formats/
+  core="$PHITEX_WASM_DIR/core.wasm" diff="$PHITEX_WASM_DIR/diff.wasm" formats="$PHITEX_WASM_DIR/formats"
 else
   # (a reactor binary: its `_initialize` run once by thread 0; the memory,
   # stack and exports are core/build.rs's. SIMD on: hayro, vello_cpu and
@@ -28,15 +27,19 @@ else
   # runs in, and Node, has wasm SIMD)
   (cd core && CARGO_TARGET_DIR="$PWD/../target/core" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_THREADS_RUSTFLAGS="-Zwasi-exec-model=reactor -C target-feature=+simd128" \
     cargo build --release --target wasm32-wasip1-threads)
-  cp target/core/wasm32-wasip1-threads/release/core.wasm overleaf/dist/core.wasm
+  core=target/core/wasm32-wasip1-threads/release/core.wasm
   # (its formats, made by it: a first open reads pdfLaTeX's instead of building it)
-  scripts/sandbox --net scripts/make-formats.sh overleaf/dist/core.wasm target/formats
-  cp target/formats/* overleaf/formats/
+  scripts/sandbox --net scripts/make-formats.sh "$core" target/formats
+  formats=target/formats
   # PhiTeX's latexdiff (phitex-diff) as its own small wasm module, for the
   # compare: diff-wasm/, on phitex/'s phitex-diff
   (cd diff-wasm && CARGO_TARGET_DIR="$PWD/target" ../scripts/sandbox cargo build --release --target wasm32-unknown-unknown)
-  cp diff-wasm/target/wasm32-unknown-unknown/release/phitex_diff_wasm.wasm overleaf/dist/diff.wasm
+  diff=diff-wasm/target/wasm32-unknown-unknown/release/phitex_diff_wasm.wasm
 fi
+rm -rf overleaf/dist overleaf/formats && mkdir -p overleaf/dist overleaf/formats
+cp "$core" overleaf/dist/core.wasm
+cp "$diff" overleaf/dist/diff.wasm
+cp "$formats"/* overleaf/formats/
 # (the full license, shipped in the extension, where its links point)
 # (packs/: the list fetched ahead, and any Shelf packs shipped: data/bundled-packs.txt, none now)
 scripts/bundle-packs.sh
@@ -54,6 +57,10 @@ cp "${SHELF_RELEASE:-shelf-release.json}" overleaf/shelf-release.json
 # The extension's TypeScript, as the modules it loads (dist/: the content
 # script's, the offscreen document's, the core's worker and its threads')
 scripts/sandbox npx tsc -p overleaf
+# The dashboard's folders (overleaf/src/folders/): a page-world content script
+# is a classic script, so one bundle, not the modules tsc made of them
+scripts/sandbox node_modules/.bin/esbuild overleaf/src/folders/main.ts --bundle --log-level=warning --format=iife --target=chrome116 --outfile=overleaf/dist/folders.js
+rm -rf overleaf/dist/folders
 # Latin Modern (GUST Font License), the fonts the pages are drawn in (page2.ts):
 # common/fonts (kept up to date from TeX Live here), and the XeLaTeX stand-ins
 # (common/shims, engines.ts), each frontend's copy

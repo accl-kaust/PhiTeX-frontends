@@ -3,7 +3,7 @@
   "name": "PhiTeX Instant for Overleaf (unofficial)",
   "short_name": "PhiTeX Instant",
   "version": "0.5.2",
-  "description": "Unofficial, experimental: an instant, incremental PhiTeX preview beside Overleaf's PDF. Not affiliated with Overleaf. Runs locally.",
+  "description": "Unofficial, experimental: an instant PhiTeX preview beside Overleaf's PDF, and folders for projects. Not affiliated with Overleaf.",
   "minimum_chrome_version": "116",
   "permissions": [
     "offscreen",
@@ -35,6 +35,25 @@
         "dist/content.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.overleaf.com/project*"
+      ],
+      "js": [
+        "dist/dashboard.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.overleaf.com/project*"
+      ],
+      "js": [
+        "dist/folders.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
