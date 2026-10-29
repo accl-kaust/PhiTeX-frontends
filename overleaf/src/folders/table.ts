@@ -12,8 +12,8 @@ import { subtree, type Id } from "./folders.ts";
 import { ago, h, icon } from "../dom.ts";
 import { blankCell } from "./status.ts";
 import { PAGE, pathChip, relPath, vocabulary, type View } from "./ui.ts";
-import { suggest, type Suggestion } from "./query.ts";
-import { ownerName } from "./overleaf.ts";
+import { marks, suggest, type Suggestion } from "./query.ts";
+import { dashboard, ownerName } from "./overleaf.ts";
 
 export function renderTable(v: View) {
   const table = document.querySelector("#project-list-root table.project-dash-table");
@@ -148,36 +148,125 @@ function ownerCell(owners: Map<string, number>): HTMLElement {
  * it (filters, then their values); ↑ ↓ choose, Tab or Enter takes one.
  */
 function searchBox(v: View) {
-  // (the language in a word: @owner, #tag, in:folder, after:7d; their suggestions as one is typed)
-  const placeholder = `${v.current ? `Search in ${v.state.folders[v.current]?.name ?? "this folder"}` : "Search in all projects"}… (@owner #tag in: after:)`;
+  const placeholder = placeholderOf(v);
   for (const theirs of document.querySelectorAll<HTMLElement>("#project-list-root .form-control-wrapper:has(> input.form-control:not(.olf-search-input))")) {
     let ours = theirs.previousElementSibling as HTMLElement | null;
     if (!ours?.classList.contains("olf-search")) {
       const input = h("input", { type: "text", class: "form-control-offset-start form-control olf-search-input", "aria-label": placeholder, autocomplete: "off", spellcheck: "false" });
-      ours = h("div", { class: "form-control-wrapper olf-search" }, h("span", { class: "form-control-start-icon" }, icon("search")), input);
-      suggestions(v, ours, input);
+      const mirror = h("div", { class: "olf-search-mirror", "aria-hidden": "true" });
+      const help = h("button", { type: "button", class: "olf-search-help-btn", title: "Search syntax", "aria-label": "Search syntax" }, icon("help"));
+      ours = h("div", { class: "form-control-wrapper olf-search" }, h("span", { class: "form-control-start-icon" }, icon("search")), input, mirror, help);
+      suggestions(v, ours, input, mirror, help);
       theirs.before(ours);
     }
     const input = ours.querySelector<HTMLInputElement>("input")!;
     if (input.placeholder !== placeholder) (input.placeholder = placeholder), input.setAttribute("aria-label", placeholder);
     // (the text ours: kept, unless cleared here, as opening a folder does)
-    if (input.value !== v.query && document.activeElement !== input) input.value = v.query;
+    if (input.value !== v.query && document.activeElement !== input) (input.value = v.query), input.dispatchEvent(new Event("olf-paint"));
   }
 }
 
+/** The box's line: where it searches, and the language by examples of the user's own (a tag, a folder of theirs). */
+function placeholderOf(v: View): string {
+  // (names of one word: a quoted one reads as code, not as an example)
+  const word = (n?: string) => !!n && /^[\p{L}\p{N}_.-]+$/u.test(n);
+  const tag = dashboard()?.tags?.map((t) => t.name).find(word);
+  const folder = Object.values(v.state.folders).find((f) => f.parent === v.current && word(f.name))?.name;
+  const tries = ["@me", `#${tag ?? "tag"}`, ...(folder ? [`in:${folder}`] : []), "after:2w"];
+  const where = v.current ? `Search ${v.state.folders[v.current]?.name ?? "this folder"}` : "Find anything";
+  return `${where}… try ${tries.join("  ")}`;
+}
+
+/** The language, each part with examples (taken into the box at a click), the search's help. */
+const SYNTAX: [string, string, string[]][] = [
+  ["words", "names, forgiving: a slip, letters skipped, a folder's name", ["reserch", "splt lerning"]],
+  ["@name\nowner:", "who owns it; @me, your own", ["@me", "owner:me"]],
+  ["#tag\ntag:", "an Overleaf tag", ["#thesis"]],
+  ["in:", "under a folder (any depth); quotes keep spaces", ["in:Research", 'in:"Split Learning"']],
+  ["status:", "the project's status", ["status:draft"]],
+  ["after:\nbefore:", "last modified: a date, a month, a year, today, yesterday, or how long ago (7d 2w 6m 1y)", ["after:7d", "before:2026-09", "after:yesterday"]],
+  ["is:", "yours, or shared with you", ["is:mine", "is:shared"]],
+  ["-", "not this", ["-@me", "-#archive"]],
+  ["a,b", "either one", ["#thesis,paper"]],
+];
+
 /** The search box's suggestions under it (query.ts's suggest), and its keys. */
-function suggestions(v: View, box: HTMLElement, input: HTMLInputElement) {
+function suggestions(v: View, box: HTMLElement, input: HTMLInputElement, mirror: HTMLElement, helpButton: HTMLElement) {
   let list: { start: number; end: number; items: Suggestion[] } = { start: 0, end: 0, items: [] };
   let active = -1;
   const menu = h("ul", { class: "dropdown-menu show olf-suggest", role: "listbox" });
+  /** The list opened by ↓ (else only a filter's values open it: a word's suggestions are its ghost). */
+  let forced = false;
   const close = () => {
     list.items = [];
+    forced = false;
     menu.remove();
+    paint();
+  };
+  /** The list's place: only for a filter being typed (the results are a word's suggestions), and not once the value is whole. */
+  const listed = () => {
+    const q = input.value;
+    const typed = q.slice(list.start, list.end);
+    // (nothing to choose: the value whole, or the one choice the ghost already shows)
+    if (!list.items.length || (list.items.length === 1 && (list.items[0].insert === typed || (!forced && ghost())))) return false;
+    return forced || marks(q).some((m) => m.start >= list.start && m.start < list.end);
+  };
+  /** The best suggestion's rest, after the caret at the end, grey (fish's way): Tab or → takes it. */
+  const ghost = () => {
+    const q = input.value;
+    const top = list.items[Math.max(active, 0)];
+    if (!top || input.selectionStart !== q.length || input.selectionEnd !== q.length || list.end !== q.length) return "";
+    // (a quoted name's rest as typed, unquoted: taking it quotes it)
+    const typed = q.slice(list.start, list.end).replace(/"/g, "");
+    const plain = top.insert.replace(/"/g, "");
+    return plain.length > typed.length && plain.toLowerCase().startsWith(typed.toLowerCase()) ? plain.slice(typed.length) : "";
+  };
+  // (the help: the language's parts, their examples; a click on one adds it to the query)
+  const help = h("div", { class: "dropdown-menu show olf-search-help", role: "dialog", "aria-label": "Search syntax" },
+    h("div", { class: "olf-search-help-head" }, "Search syntax", h("small", {}, "click an example to add it")),
+    ...SYNTAX.map(([key, what, examples]) => h("div", { class: "olf-search-help-row" },
+      h("code", { class: "olf-search-help-key" }, key),
+      h("span", { class: "olf-search-help-what" }, what),
+      h("span", { class: "olf-search-help-examples" }, ...examples.map((x) => {
+        const b = h("button", { type: "button", class: "olf-search-help-example", tabindex: "-1" }, x);
+        b.onmousedown = (e) => {
+          e.preventDefault();
+          const q = input.value.trimEnd();
+          input.value = (q ? q + " " : "") + x + " ";
+          input.setSelectionRange(input.value.length, input.value.length);
+          input.focus();
+          hideHelp();
+          search(true);
+          paint();
+          refresh();
+        };
+        return b;
+      })))),
+    h("div", { class: "olf-search-help-foot" }, h("kbd", {}, "↑"), h("kbd", {}, "↓"), " choose a suggestion · ", h("kbd", {}, "Tab"), " take it · ", h("kbd", {}, "Esc"), " close, then clear"));
+  const showHelp = () => {
+    close();
+    box.append(help);
+    helpButton.classList.add("active");
+  };
+  const hideHelp = () => {
+    help.remove();
+    helpButton.classList.remove("active");
+  };
+  helpButton.onmousedown = (e) => {
+    e.preventDefault();
+    if (help.isConnected) hideHelp();
+    else (input.focus(), showHelp());
   };
   const draw = () => {
-    if (!list.items.length || document.activeElement !== input) return close();
+    if (!listed() || document.activeElement !== input) return void menu.remove();
+    hideHelp();
+    const hint = h("button", { type: "button", class: "olf-suggest-hint", tabindex: "-1" }, h("span", {}, "↑↓ choose · Tab take"), h("span", { class: "olf-suggest-more" }, icon("help"), "Syntax"));
+    hint.onmousedown = (e) => {
+      e.preventDefault();
+      showHelp();
+    };
     menu.replaceChildren(
-      ...list.items.map((s, i) => {
+      ...list.items.slice(0, 6).map((s, i) => {
         const b = h("button", { type: "button", class: `dropdown-item${i === active ? " active" : ""}`, role: "option", tabindex: "-1" }, h("span", {}, s.label), ...(s.detail ? [h("small", {}, s.detail)] : []));
         // (taken on press: the box keeps the focus)
         b.onmousedown = (e) => {
@@ -186,14 +275,45 @@ function suggestions(v: View, box: HTMLElement, input: HTMLInputElement) {
         };
         return h("li", {}, b);
       }),
+      h("li", {}, hint),
     );
     if (!menu.isConnected) box.append(menu);
   };
+  // (the filters coloured as they are typed: the text drawn again under the box, the box's own
+  // transparent over it, its caret and selection its own; scrolled as the box is)
+  let painted = "";
+  function paint() {
+    const q = input.value;
+    const rest = document.activeElement === input ? ghost() : "";
+    if (q + "\0" + rest === painted) return void (mirror.scrollLeft = input.scrollLeft);
+    painted = q + "\0" + rest;
+    const ms = marks(q);
+    box.classList.toggle("olf-marked", ms.length > 0 || !!rest);
+    if (!ms.length && !rest) return mirror.replaceChildren();
+    const parts: Node[] = [];
+    let at = 0;
+    for (const m of ms) {
+      if (m.start > at) parts.push(document.createTextNode(q.slice(at, m.start)));
+      parts.push(h("span", { class: `olf-q-${m.kind}` }, q.slice(m.start, m.end)));
+      at = m.end;
+    }
+    parts.push(document.createTextNode(q.slice(at)), ...(rest ? [h("span", { class: "olf-q-ghost" }, rest)] : []), document.createTextNode("\u200b"));
+    mirror.replaceChildren(...parts);
+    mirror.scrollLeft = input.scrollLeft;
+  }
+  // (its metrics the box's, read once it is in the page)
+  requestAnimationFrame(() => {
+    const cs = getComputedStyle(input);
+    for (const k of ["paddingLeft", "paddingRight", "paddingTop", "paddingBottom", "borderLeftWidth", "borderRightWidth", "borderTopWidth", "borderBottomWidth", "font", "letterSpacing", "lineHeight"] as const) mirror.style[k] = cs[k];
+  });
+  input.addEventListener("olf-paint", paint);
+  input.addEventListener("scroll", () => (mirror.scrollLeft = input.scrollLeft));
   const refresh = () => {
     // (nothing typed: no list over the projects; the placeholder says the language)
     list = input.value.trim() ? suggest(input.value, input.selectionStart ?? input.value.length, vocabulary(v)) : { start: 0, end: 0, items: [] };
     active = list.items.length ? 0 : -1;
     draw();
+    paint();
   };
   // (the search once typing pauses: a key held or typed fast is one search, not one a key)
   let pending: ReturnType<typeof setTimeout> | undefined;
@@ -211,29 +331,46 @@ function suggestions(v: View, box: HTMLElement, input: HTMLInputElement) {
     const at = list.start + s.insert.length + more.length;
     input.setSelectionRange(at, at);
     search(true);
+    paint();
     refresh();
   };
   input.addEventListener("input", () => {
+    forced = false;
     search();
     refresh();
   });
   input.addEventListener("focus", refresh);
   input.addEventListener("click", refresh);
-  input.addEventListener("blur", () => setTimeout(close, 100));
+  input.addEventListener("blur", () => setTimeout(() => (close(), hideHelp()), 100));
   input.addEventListener("keydown", (e) => {
     const open = list.items.length > 0 && menu.isConnected;
+    const shown = Math.min(list.items.length, 6);
     if (open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
       e.preventDefault();
-      active = (active + (e.key === "ArrowDown" ? 1 : -1) + list.items.length) % list.items.length;
+      active = (active + (e.key === "ArrowDown" ? 1 : -1) + shown) % shown;
+      draw();
+      paint();
+    } else if (!open && e.key === "ArrowDown" && list.items.length) {
+      // (↓: the list, for a word's suggestions too)
+      e.preventDefault();
+      forced = true;
       draw();
     } else if (open && active >= 0 && (e.key === "Tab" || e.key === "Enter")) {
       e.preventDefault();
       take(list.items[active]);
+    } else if ((e.key === "Tab" || e.key === "ArrowRight") && ghost()) {
+      e.preventDefault();
+      take(list.items[Math.max(active, 0)]);
     } else if (e.key === "Escape") {
-      // (the suggestions first; then the search)
+      // (the suggestions or the help first; then the search)
       if (open) close();
-      else (input.value = ""), search(true);
-    } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") setTimeout(refresh);
+      else if (help.isConnected) hideHelp();
+      else (input.value = ""), search(true), paint();
+    } else if (e.key === "?" && !input.value.trim()) {
+      // (a "?" in an empty box: the help)
+      e.preventDefault();
+      showHelp();
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") setTimeout(() => (refresh(), paint()));
   });
 }
 

@@ -1,0 +1,15 @@
+{
+ "version": 1,
+ "rev": 7,
+ "folders": {
+  "a1b2c3d4": { "name": "Research", "parent": null },
+  "e5f6a7b8": { "name": "Split Learning", "parent": "a1b2c3d4" }
+ },
+ "projects": { "6ae32038fe532c8ac4e99a01": "e5f6a7b8" },
+ "statuses": [
+  { "id": "idea", "name": "idea", "color": "#8d96a5" },
+  { "id": "drafting", "name": "drafting", "color": "#3d7fe0" }
+ ],
+ "status": { "6ae32038fe532c8ac4e99a01": "drafting" },
+ "dataFolder": "6ae32038fe532c8ac4e99a02"
+}

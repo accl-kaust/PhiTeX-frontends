@@ -10,6 +10,7 @@
 
 import { folderConsent, folderTip, searchTip } from "./intro.ts";
 import { mount } from "./ui.ts";
+import { readLocal } from "../common/format.ts";
 
 /** As dashboard.ts writes it. */
 type Settings = { on: boolean; status: boolean; hide: boolean; tip: boolean; searchTip: boolean; accepted: boolean; license: string };
@@ -19,12 +20,8 @@ const KEY = "phitex:dashboard";
 const DEFAULTS: Settings = { on: true, status: false, hide: false, tip: true, searchTip: true, accepted: false, license: "" };
 
 function stored(): Settings {
-  // (a copy from an older version lacks the newer settings: theirs the defaults)
-  try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
-  } catch {
-    return DEFAULTS;
-  }
+  // (the bridge's copy, format 1 (dashboard.ts); one lacking a newer setting: its default)
+  return { ...DEFAULTS, ...readLocal<Partial<Settings>>(KEY, 1) };
 }
 
 if (!/^\/project\/([0-9a-f]{24}|mock)/.test(location.pathname)) {
@@ -37,7 +34,8 @@ if (!/^\/project\/([0-9a-f]{24}|mock)/.test(location.pathname)) {
     unmount = now.on
       ? mount({
           // (the extension's terms, one acceptance with ⚡ Instant's: accepted here, saved by the bridge)
-          ask: () => folderConsent({ accepted: now.accepted, license: now.license, accept: () => tell({ accept: true }) }),
+          ask: (exists) => folderConsent({ accepted: now.accepted, license: now.license, accept: () => tell({ accept: true }) }, exists),
+          accepted: () => now.accepted,
           status: now.status,
           hideStorage: now.hide,
           drawn: (v) => {

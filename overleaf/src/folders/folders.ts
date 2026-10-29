@@ -6,10 +6,18 @@
 // one (sync.ts); applying one never throws, an Op that no longer fits (its
 // folder deleted meanwhile) changes nothing.
 
+import { upgrade, type Steps } from "../common/format.ts";
+
 export type Id = string;
 
+/** The stored folders' format (common/src/format.ts): written with every save, checked at every read. */
+export const FORMAT = 1;
+/** From each older format to the next (none yet: 1 is the first). A change of shape is a new format and a step here. */
+export const STEPS: Steps = {};
+
 export type State = {
-  version: 1;
+  /** Its format (FORMAT, once read). */
+  version: number;
   /** Bumped on every save: a copy older than the stored one is stale. */
   rev: number;
   folders: Record<Id, { name: string; parent: Id | null }>;
@@ -66,7 +74,10 @@ export type Folder = { id: Id; name: string; children: Folder[]; projects: strin
 
 export const MAX_NAME = 100;
 
-export const empty = (): State => ({ version: 1, rev: 0, folders: {}, projects: {} });
+export const empty = (): State => ({ version: FORMAT, rev: 0, folders: {}, projects: {} });
+
+/** Stored folders as this extension reads them: an older format's upgraded; a newer one's refused (NewerFormat). */
+export const readState = (stored: unknown, steps = STEPS, format = FORMAT): State => upgrade<State>("Your folders", stored, format, steps);
 
 export const newId = () => crypto.randomUUID().slice(0, 8);
 

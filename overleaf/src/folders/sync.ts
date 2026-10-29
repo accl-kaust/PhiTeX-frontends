@@ -2,9 +2,11 @@
 // Overleaf project, project.ts; memory, in tests). A change shows at once,
 // and is saved shortly after with the others made meanwhile; if the stored
 // copy changed since it was read (another tab, another device), the changes
-// are replayed onto that copy instead of overwriting it.
+// are replayed onto that copy instead of overwriting it. Folders stored in a
+// newer format (a newer extension's) are neither shown nor changed.
 
-import { apply, empty, type Op, type State } from "./folders.ts";
+import { apply, empty, FORMAT, type Op, type State } from "./folders.ts";
+import { NewerFormat } from "../common/format.ts";
 
 export type Backend = {
   /** The stored state, null if none yet. */
@@ -31,8 +33,17 @@ export class Folders {
     if (initial) this.state = this.stored = initial;
   }
 
+  /** Why no change can be made: the stored folders are a newer extension's (load()). */
+  blocked: Error | null = null;
+
   async load(): Promise<void> {
-    this.stored = (await this.backend.read()) ?? empty();
+    try {
+      this.stored = (await this.backend.read()) ?? empty();
+    } catch (e) {
+      // (a newer format's: nothing of an older copy shown as current, nothing written over it)
+      if (e instanceof NewerFormat) (this.blocked = e), (this.stored = empty()), (this.pending = []), this.show();
+      throw e;
+    }
     this.show();
   }
 
@@ -41,6 +52,7 @@ export class Folders {
 
   /** Makes a change: shown now, saved soon. */
   do(...ops: Op[]): void {
+    if (this.blocked) return this.onError(this.blocked);
     this.pending.push(...ops);
     this.show();
     clearTimeout(this.timer);
@@ -56,7 +68,7 @@ export class Folders {
           const ops = this.pending.slice();
           const remote = (await this.backend.read()) ?? empty();
           if (remote.rev !== this.stored.rev) this.stored = remote;
-          const next = { ...ops.reduce(apply, this.stored), rev: this.stored.rev + 1 };
+          const next = { ...ops.reduce(apply, this.stored), version: FORMAT, rev: this.stored.rev + 1 };
           await this.backend.write(next);
           this.stored = next;
           this.pending.splice(0, ops.length);

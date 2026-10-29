@@ -118,15 +118,16 @@ export type Terms = { accepted: boolean; license: string; accept(): void };
 /**
  * Before the storage project is made: what it is, and the extension's
  * terms if not accepted yet (for ⚡ Instant too, then). True: the user
- * agreed (the first change then makes the project).
+ * agreed (the first change then makes the project). With the project
+ * there (`exists`: the terms withdrawn since), the terms alone.
  */
-export function folderConsent(terms: Terms): Promise<boolean> {
+export function folderConsent(terms: Terms, exists = false): Promise<boolean> {
   for (const id of [TIP, SEARCH_TIP]) document.getElementById(id)?.remove();
   document.querySelector(".phitex-pulse")?.classList.remove("phitex-pulse");
   addStyle();
   return new Promise((done) => {
     const check = h("input", { class: "form-check-input", type: "checkbox", id: `${CONSENT}-check` });
-    const ok = h("button", { type: "button", class: "btn btn-primary" }, "Create ", h("code", {}, PROJECT_NAME));
+    const ok = h("button", { type: "button", class: "btn btn-primary" }, ...(exists ? ["Accept"] : ["Create ", h("code", {}, PROJECT_NAME)]));
     if (!terms.accepted) ok.setAttribute("disabled", "");
     const cancel = h("button", { type: "button", class: "btn btn-secondary" }, "Cancel");
     const file = (s: string) => h("code", {}, s);
@@ -134,8 +135,14 @@ export function folderConsent(terms: Terms): Promise<boolean> {
     license.innerHTML = asIs(terms.license);
     const modal = h("div", { class: "modal fade show d-block project-list-modal", role: "dialog", "aria-modal": "true", "aria-labelledby": `${CONSENT}-title`, tabindex: "-1" },
       h("div", { class: "modal-dialog modal-dialog-centered modal-lg" }, h("div", { class: "modal-content" },
-        h("div", { class: "modal-header phitex-folders-head" }, h("h4", { class: "modal-title", id: `${CONSENT}-title` }, icon("folder"), " Folders: kept in a project of your own")),
-        h("div", { class: "modal-body" },
+        h("div", { class: "modal-header phitex-folders-head" }, h("h4", { class: "modal-title", id: `${CONSENT}-title` }, icon("folder"), exists ? " Folders: the terms, again" : " Folders: kept in a project of your own")),
+        exists
+          ? h("div", { class: "modal-body" },
+              h("p", {}, "You withdrew your acceptance of ", h("b", {}, "PhiTeX Instant"), "'s terms. Your folders are still there, in ", file(PROJECT_NAME), "; to change them, accept the terms again."),
+              h("p", { class: "small text-muted" }, "Folders are part of ", h("b", {}, "PhiTeX Instant"), ", an unofficial, experimental browser extension, not made, endorsed or supported by Overleaf."),
+              license,
+              h("div", { class: "form-check" }, check, h("label", { class: "form-check-label", for: `${CONSENT}-check` }, AGREE)))
+          : h("div", { class: "modal-body" },
           stage(),
           h("p", {}, "To keep your folders, ", h("b", {}, "one project is created in your Overleaf account: "), file(PROJECT_NAME), ". It holds ",
             file("data/folders.json"), ": your folders' names, how they nest, which project is in which, and their statuses. ",

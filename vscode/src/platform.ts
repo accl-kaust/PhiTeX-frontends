@@ -8,7 +8,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promise
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { deserialize, serialize } from "node:v8";
-import { bytesResponse, type KeyValue, type Platform } from "../../common/src/platform.ts";
+import { bytesResponse, DATABASES, type KeyValue, type Platform } from "../../common/src/platform.ts";
 
 const TYPES: Record<string, string> = { wasm: "application/wasm", json: "application/json", txt: "text/plain; charset=utf-8" };
 
@@ -19,6 +19,26 @@ const unfile = (name: string) => decodeURIComponent(name.slice(1));
 /** The store in `dir`: a folder a store ("shelf.packs"), a file a key, its value as structured clone writes it (v8.serialize). */
 export function fsKeyValue(dir: string): KeyValue {
   let seq = 0;
+  // (a database's format (DATABASES) in "DB.format" beside its stores' folders: in any other,
+  // its stores are emptied, once a process, before it is first used)
+  const checked = new Map<string, Promise<void>>();
+  const check = (db: string) => {
+    let c = checked.get(db);
+    if (!c) {
+      const d = DATABASES[db];
+      if (!d) return Promise.reject(new Error(`no database "${db}"`));
+      const mark = join(dir, `${db}.format`);
+      c = readFile(mark, "utf8").catch(() => "").then(async (found) => {
+        if (found.trim() === String(d.format)) return;
+        for (const s of d.stores) await rm(join(dir, `${db}.${s}`), { recursive: true, force: true });
+        await mkdir(dir, { recursive: true });
+        await writeFile(mark, `${d.format}\n`);
+      });
+      checked.set(db, c);
+    }
+    return c;
+  };
+  const ready = (store: string) => check(store.slice(0, store.indexOf(".")));
   const at = (store: string) => join(dir, store.replace(/[^\w.-]/g, "_"));
   const read = async <T>(p: string): Promise<T | undefined> => {
     try {
@@ -29,8 +49,9 @@ export function fsKeyValue(dir: string): KeyValue {
     }
   };
   return {
-    get: <T>(store: string, key: string) => read<T>(join(at(store), file(key))),
+    get: async <T>(store: string, key: string) => (await ready(store), read<T>(join(at(store), file(key)))),
     async all<T>(store: string) {
+      await ready(store);
       const out = new Map<string, T>();
       const names = await readdir(at(store)).catch(() => [] as string[]);
       for (const n of names) {
@@ -41,22 +62,24 @@ export function fsKeyValue(dir: string): KeyValue {
       return out;
     },
     async write(ops) {
+      for (const [store] of ops) await ready(store);
       // (every value written aside first, then each renamed in: a failed write leaves none half-written)
-      const ready: [string, string | null][] = [];
+      const written: [string, string | null][] = [];
       for (const [store, key, v] of ops) {
         const p = join(at(store), file(key));
         if (v === undefined) {
-          ready.push([p, null]);
+          written.push([p, null]);
           continue;
         }
         await mkdir(at(store), { recursive: true });
         const tmp = join(at(store), `.${process.pid}.${seq++}.tmp`);
         await writeFile(tmp, serialize(v));
-        ready.push([p, tmp]);
+        written.push([p, tmp]);
       }
-      for (const [p, tmp] of ready) await (tmp ? rename(tmp, p) : rm(p, { force: true }));
+      for (const [p, tmp] of written) await (tmp ? rename(tmp, p) : rm(p, { force: true }));
     },
     async clear(stores) {
+      for (const s of stores) await ready(s);
       for (const s of stores) await rm(at(s), { recursive: true, force: true });
     },
   };

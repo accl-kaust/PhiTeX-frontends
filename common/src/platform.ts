@@ -6,9 +6,26 @@
 // anything asks; the shared code never names chrome.* or node:*.
 
 /**
+ * The databases of the store, each with its stores and its format
+ * (common/src/format.ts): all caches, so a database found in another
+ * format, older or newer, is emptied (IndexedDB's version in a browser,
+ * a file beside the stores in VS Code). A change of what one keeps is a
+ * new format here.
+ */
+export const DATABASES: Record<string, { format: number; stores: string[] }> = {
+  /** Shelf's packs kept (3: packs whole, by id, with use times; 2 kept every file apart, 1 Shelf's flat text files), and their settings. */
+  shelf: { format: 3, stores: ["packs", "meta", "kv"] },
+  /** The newest Shelf release seen, its index. */
+  release: { format: 1, stores: ["kv"] },
+  /** The core's session store (common/src/wasm/core.ts's Store): the formats' state and records, the documents' keys. */
+  core: { format: 1, stores: ["kv"] },
+};
+
+/**
  * Stores of keys and values (a value: what structured clone keeps, bytes
- * included). Store names are `db.store`: "shelf.packs", "shelf.meta",
- * "shelf.kv", "release.kv"; one `write` touches one db's stores, at once.
+ * included). Store names are `db.store` (DATABASES): "shelf.packs",
+ * "shelf.meta", "shelf.kv", "release.kv", "core.kv"; one `write` touches
+ * one db's stores, at once.
  */
 export interface KeyValue {
   get<T>(store: string, key: string): Promise<T | undefined>;

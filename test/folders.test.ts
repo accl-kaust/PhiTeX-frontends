@@ -146,7 +146,7 @@ test("fuzzy: words, starts, parts, letters in order, slips; accents and case ign
   assert.equal("École d'été".slice(e.spans[0][0], e.spans[0][1]), "été");
 });
 
-import { dateSpan, matches, parse, suggest, type Item } from "../overleaf/src/folders/query.ts";
+import { dateSpan, marks, matches, parse, suggest, type Item } from "../overleaf/src/folders/query.ts";
 
 const NOW = new Date(2026, 9, 29, 12).getTime();
 const item = (o: Partial<Item>): Item => ({ name: "Paper", path: "", folders: [], owner: "You", mine: true, tags: [], updated: NOW, ...o });
@@ -201,4 +201,10 @@ test("query: suggestions as you type", () => {
   assert.deepEqual(s("-tag:sh").items.map((i) => i.insert), ["-tag:SHARED"]);
   assert.ok(s("after:").items.some((i) => i.insert === "after:7d"));
   assert.deepEqual(s("tag:accl,sh").items.map((i) => i.insert), ["tag:accl,SHARED"]);
+});
+
+test("query: the filters' parts, to colour; words left alone", () => {
+  const q = 'thesis -@mo #a,b in:"Split L" owner: nope';
+  const got = marks(q).map((m) => [m.kind, q.slice(m.start, m.end)]);
+  assert.deepEqual(got, [["not", "-"], ["key", "@"], ["value", "mo"], ["key", "#"], ["value", "a,b"], ["key", "in:"], ["value", '"Split L"'], ["key", "owner:"]]);
 });

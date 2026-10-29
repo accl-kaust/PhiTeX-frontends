@@ -5,7 +5,10 @@
 import { pathOf, tree, type Folder } from "./folders.ts";
 import { h, icon, menu } from "../dom.ts";
 import type { View } from "./ui.ts";
+import { readLocal, writeLocal } from "../common/format.ts";
+import { PROJECT_NAME } from "./project.ts";
 
+/** The folders collapsed here (format 1: their ids). */
 const COLLAPSED = "phitex:folders:collapsed";
 
 export function renderSidebar(v: View) {
@@ -13,7 +16,20 @@ export function renderSidebar(v: View) {
   if (!native) return;
   const ul = document.querySelector<HTMLElement>(".olf-folders") ?? h("ul", { class: "list-unstyled project-list-filters olf-folders" });
   if (native.nextElementSibling !== ul) native.after(ul);
-  const header = h("li", { class: "dropdown-header", "data-drop": "" }, "Folders");
+  const header = h("li", { class: "dropdown-header olf-folders-head", "data-drop": "" }, "Folders");
+  if (v.storage) {
+    // (where they're kept: open it (its History), or delete it)
+    const more = h("button", { type: "button", class: "olf-folders-more", "aria-label": "Folders menu", title: `Kept in ${PROJECT_NAME}` }, icon("more_horiz"));
+    more.onclick = (e) => {
+      e.stopPropagation();
+      menu(more, [
+        [`Open ${PROJECT_NAME}`, () => window.open(`/project/${v.storage}`, "_blank")],
+        "-",
+        [`Delete ${PROJECT_NAME}…`, () => v.deleteStorage()],
+      ]);
+    };
+    header.append(more);
+  }
   if (v.error) return ul.replaceChildren(header, h("li", { class: "olf-note" }, v.error));
   const collapsed = loadCollapsed();
   // (the open folder's ancestors: open)
@@ -62,14 +78,8 @@ function folderRow(v: View, f: Folder, depth: number, collapsed: Set<string>): H
 }
 
 function loadCollapsed(): Set<string> {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(COLLAPSED) ?? "[]"));
-  } catch {
-    return new Set();
-  }
+  return new Set(readLocal<string[]>(COLLAPSED, 1) ?? []);
 }
 function saveCollapsed(s: Set<string>) {
-  try {
-    localStorage.setItem(COLLAPSED, JSON.stringify([...s]));
-  } catch {}
+  writeLocal(COLLAPSED, 1, [...s]);
 }

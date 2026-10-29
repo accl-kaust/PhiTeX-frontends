@@ -7,29 +7,25 @@
 // before a shared module asks; the content script never opens the store
 // (its IndexedDB would be Overleaf's).
 
-import { setPlatform, type KeyValue } from "./common/platform.ts";
+import { DATABASES, setPlatform, type KeyValue } from "./common/platform.ts";
 
 const root = new URL("../", import.meta.url);
 const url = (p: string) => new URL(p, root).href;
 
-/** The databases, as they have always been named: a version change starts one empty. */
-const DBS: Record<string, { name: string; version: number; stores: string[] }> = {
-  /** (3: packs whole, by id, with use times; 2 kept every file apart, 1 Shelf's flat text files) */
-  shelf: { name: "phitex-shelf", version: 3, stores: ["packs", "meta", "kv"] },
-  release: { name: "phitex-release", version: 1, stores: ["kv"] },
-  /** The core's session store (common/src/wasm/core.ts's Store): the formats' state and records, the documents' keys. */
-  core: { name: "phitex-core", version: 1, stores: ["kv"] },
-};
+/** A database's name, as it has always been: "phitex-shelf", ... */
+const nameOf = (key: string) => `phitex-${key}`;
 
 const opened = new Map<string, Promise<IDBDatabase>>();
 
 function db(key: string): Promise<IDBDatabase> {
   let p = opened.get(key);
   if (p) return p;
-  const d = DBS[key];
+  const d = DATABASES[key];
   if (!d) return Promise.reject(new Error(`no database "${key}"`));
-  p = new Promise<IDBDatabase>((res, rej) => {
-    const o = indexedDB.open(d.name, d.version);
+  // (its format, IndexedDB's version: an older one emptied by the upgrade; a newer one, a newer
+  // extension's (a downgrade), refused by IndexedDB, so deleted and made anew: a cache)
+  const open = (again: boolean) => new Promise<IDBDatabase>((res, rej) => {
+    const o = indexedDB.open(nameOf(key), d.format);
     o.onupgradeneeded = () => {
       for (const s of [...o.result.objectStoreNames]) o.result.deleteObjectStore(s);
       for (const s of d.stores) o.result.createObjectStore(s);
@@ -42,8 +38,14 @@ function db(key: string): Promise<IDBDatabase> {
       };
       res(o.result);
     };
-    o.onerror = () => rej(o.error);
-  }).catch((e) => (opened.delete(key), Promise.reject(e)));
+    o.onerror = () => {
+      if (o.error?.name !== "VersionError" || again) return rej(o.error);
+      const del = indexedDB.deleteDatabase(nameOf(key));
+      del.onsuccess = () => open(true).then(res, rej);
+      del.onerror = () => rej(del.error);
+    };
+  });
+  p = open(false).catch((e) => (opened.delete(key), Promise.reject(e)));
   opened.set(key, p);
   return p;
 }

@@ -1,0 +1,31 @@
+# Each push and pull request: both extensions' TypeScript checked, and the
+# unit tests (test/*.test.ts), the format lock among them
+# (test/formats.test.ts: a stored shape changed without a new format fails).
+# The engine (wasm) is built elsewhere: scripts/build.sh, on a build machine.
+#
+# The PhiTeX submodule is private: its read-only deploy key is the secret
+# PHITEX_DEPLOY_KEY.
+name: ci
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PhiTeX (the submodule; the viewer's sources are its)
+        env:
+          KEY: ${{ secrets.PHITEX_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh && echo "$KEY" > ~/.ssh/phitex && chmod 600 ~/.ssh/phitex
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/phitex -o StrictHostKeyChecking=accept-new" git submodule update --init --depth 1 phitex
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm ci --prefix vscode
+      - name: TypeScript
+        run: |
+          npx tsc --noEmit -p overleaf
+          npx tsc --noEmit -p vscode
+      - name: Unit tests
+        run: node --test test/*.test.ts

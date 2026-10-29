@@ -18,12 +18,13 @@
 // from the page's start, while the stored ones are read; with none kept yet,
 // skeleton rows stand in.
 
-import { canMove, invalid, newId, pathOf, statusesOf, subtree, type Id, type Op, type State } from "./folders.ts";
+import { canMove, empty, FORMAT, invalid, newId, pathOf, statusesOf, subtree, type Id, type Op, type State } from "./folders.ts";
+import { NewerFormat, readLocal, writeLocal } from "../common/format.ts";
 import { fuzzy, occurrences, type Match } from "./fuzzy.ts";
 import { matches, parse, type Item, type Query, type Vocabulary } from "./query.ts";
 import { dialog, h, icon } from "../dom.ts";
 import { dashboard, listProjects, ownerName, projectsOnPage, watch, type Dashboard, type Project } from "./overleaf.ts";
-import { isStorageName, projectBackend } from "./project.ts";
+import { isStorageName, projectBackend, PROJECT_NAME } from "./project.ts";
 import { renderSidebar } from "./sidebar.ts";
 import { loadSort, saveSort, sortCompare, statusCell, statusHeader, type Sort } from "./status.ts";
 import { Folders, type Backend } from "./sync.ts";
@@ -39,9 +40,11 @@ let drawn = 0;
 
 export type MountOptions = {
   /** Where the folders are kept: by default the user's ".phitex-data" project (project.ts), made at the first change. */
-  backend?: Backend & { find?(): Promise<string | null> };
-  /** Asked before the first change while the storage has no project: true, the user agrees to its being made. */
-  ask?: () => Promise<boolean>;
+  backend?: Backend & { find?(): Promise<string | null>; trash?(): Promise<void> };
+  /** Asked before a change while the storage has no project (`exists` false: true, the user agrees to its being made), or the extension's terms are not accepted (withdrawn in the popup): true, they are. */
+  ask?: (exists: boolean) => Promise<boolean>;
+  /** The extension's terms accepted now (the settings bridge's). */
+  accepted?: () => boolean;
   /** The Status column (status.ts): shown, and the table sortable by status or tag. */
   status?: boolean;
   /** The storage project left out of the project list (else listed as any project). */
@@ -80,6 +83,10 @@ export type View = {
   /** The open folder's projects: how many shown, of how many; how many more of its page being rendered. */
   page: { shown: number; total: number; loading: boolean; missing: number };
   error: string;
+  /** The storage project's id, if there is one. */
+  storage: string | undefined;
+  /** The storage project moved to Overleaf's trash, once the user confirms: the folders and statuses with it. */
+  deleteStorage(): void;
   open(id: Id | null): void;
   more(): void;
   all(): void;
@@ -114,18 +121,39 @@ export function mount(opts: MountOptions = {}): () => void {
   let agreed = false;
   let asking: Promise<boolean> | null = null;
 
+  /** A change made without asking: the project there or agreed to, and the terms accepted (a withdrawal asks again). */
+  const settled = () => !opts.ask || ((!!storageProject || agreed) && (opts.accepted?.() ?? true));
   const v: View = {
     folders,
     async agree() {
-      if (!opts.ask || storageProject || agreed) return true;
-      agreed = await (asking ??= opts.ask().finally(() => (asking = null)));
+      if (settled()) return true;
+      agreed = await (asking ??= opts.ask!(!!storageProject).finally(() => (asking = null)));
       update();
       return agreed;
     },
     async change(...ops) {
       // (synchronous once agreed, or with the project there: a change shows at once)
-      if (opts.ask && !storageProject && !agreed && !(await v.agree())) return;
+      if (!settled() && !(await v.agree())) return;
       folders.do(...ops);
+    },
+    storage: undefined,
+    async deleteStorage() {
+      const n = Object.keys(folders.state.folders).length;
+      const yes = await dialog({
+        title: `Delete ${PROJECT_NAME}?`,
+        text: `Your folders (${n}) and the projects' statuses go with it: the project ${PROJECT_NAME} is moved to Overleaf's trash, where you can restore it to have them back, or delete it for good. Your projects themselves are not touched.`,
+        ok: "Move to trash",
+        danger: true,
+      });
+      if (yes === null || !storage.trash) return;
+      try {
+        await storage.trash();
+      } catch (e) {
+        return void dialog({ title: `Couldn't delete ${PROJECT_NAME}`, text: `${(e as Error).message ?? e}.`, ok: "OK", cancel: false });
+      }
+      // (the dashboard read again, without it: the next change asks before making one anew)
+      writeCache(empty());
+      location.reload();
     },
     state: folders.state,
     ready: false,
@@ -248,6 +276,7 @@ export function mount(opts: MountOptions = {}): () => void {
     }
     v.ready = (loaded || !!cached) && v.projects.size > 0;
     v.stored = !!storageProject || agreed;
+    v.storage = storageProject;
     v.state = folders.state;
     if (loaded && v.current && !v.state.folders[v.current]) v.current = null;
     v.browsing = browsing(d);
@@ -283,7 +312,10 @@ export function mount(opts: MountOptions = {}): () => void {
     opts.drawn?.(v);
   }
 
-  folders.onError = (e) => dialog({ title: "Couldn't save the folders", text: `${e.message}. Your changes stay here, and are saved with the next one.`, ok: "OK", cancel: false });
+  folders.onError = (e) =>
+    dialog(e instanceof NewerFormat
+      ? { title: "Update PhiTeX Instant", text: `${e.message} to change them.`, ok: "OK", cancel: false }
+      : { title: "Couldn't save the folders", text: `${e.message}. Your changes stay here, and are saved with the next one.`, ok: "OK", cancel: false });
   const unsubscribe = folders.subscribe((s) => {
     if (loaded) writeCache(s);
     update();
@@ -299,7 +331,7 @@ export function mount(opts: MountOptions = {}): () => void {
         update();
       })
       .catch((e) => {
-        v.error = `Couldn't load the folders: ${e?.message ?? e}`;
+        v.error = e instanceof NewerFormat ? `${e.message}.` : `Couldn't load the folders: ${e?.message ?? e}`;
         update();
       });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", load, { once: true });
@@ -516,17 +548,12 @@ function textRanges(el: Element | null, name: string, spans: [number, number][])
 
 const fromHash = () => /^#folder=([\w-]+)$/.exec(location.hash)?.[1] ?? null;
 
+/** The last folders seen here, shown until the stored ones are read: a copy in the folders' own format, any other dropped. */
 function readCache(): State | null {
-  try {
-    return JSON.parse(localStorage.getItem(CACHE) ?? "null");
-  } catch {
-    return null;
-  }
+  return readLocal<State>(CACHE, FORMAT);
 }
 function writeCache(s: State) {
-  try {
-    localStorage.setItem(CACHE, JSON.stringify(s));
-  } catch {}
+  writeLocal(CACHE, FORMAT, s);
 }
 
 function dragAndDrop(v: View): () => void {
@@ -612,12 +639,48 @@ function addStyle() {
   .olf-footer .spinner-border { width: 1rem; height: 1rem; border-width: 2px; margin-right: 6px; vertical-align: -2px; }
   /* the search box's suggestions (query.ts), under it */
   .olf-search { position: relative; }
-  .olf-suggest { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 1060; max-height: 320px; overflow-y: auto; margin: 0; }
+  .olf-suggest { position: absolute; top: calc(100% + 4px); left: 0; z-index: 1060; width: min(420px, 100%); max-height: 300px; overflow-y: auto; margin: 0; }
   .olf-suggest .dropdown-item { display: flex; justify-content: space-between; gap: 12px; }
   .olf-suggest .dropdown-item small { opacity: .65; white-space: nowrap; }
   #project-list-root .olf-suggest .dropdown-item.active, .olf-suggest .dropdown-item.active { background: rgb(50 101 178 / 30%) !important; color: var(--content-primary-themed, inherit) !important; }
   .olf-suggest .dropdown-item { color: var(--content-primary-themed, inherit); }
-  .olf-suggest .olf-suggest-hint { padding: 4px 16px 2px; font-size: 12px; opacity: .65; }
+  /* (at the list's foot, kept there as it scrolls) */
+  .olf-suggest:has(.olf-suggest-hint) { padding-bottom: 0; }
+  .olf-suggest li:has(> .olf-suggest-hint) { position: sticky; bottom: 0; padding-bottom: 6px; background: var(--bg-primary-themed, var(--bs-dropdown-bg, #fff)); }
+  .olf-suggest .olf-suggest-hint { display: flex; justify-content: space-between; width: 100%; margin-top: 4px; padding: 6px 16px 0; border: 0; border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+    font-size: 12px; color: var(--content-primary-themed, inherit); background: none; opacity: .7; }
+  .olf-suggest .olf-suggest-hint:hover { opacity: 1; }
+  .olf-suggest-more { display: inline-flex; align-items: center; gap: 3px; }
+  .olf-suggest-more .material-symbols, .olf-search-help-btn .material-symbols { font-size: 16px; }
+  /* the filters coloured as typed: the box's text drawn again under it (the same metrics: colours only) */
+  .olf-search-mirror { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; white-space: pre; border-color: transparent; border-style: solid;
+    color: var(--content-primary-themed, inherit); display: none; }
+  .olf-search.olf-marked .olf-search-mirror { display: block; }
+  .olf-search.olf-marked .olf-search-input { color: transparent; caret-color: var(--content-primary-themed, currentColor); }
+  .olf-search .olf-search-input { padding-right: 34px; }
+  .olf-q-key, .olf-q-value, .olf-q-not { border-radius: 3px; }
+  /* (each a hue mixed with the text's own colour: lighter on a dark page, darker on a light one) */
+  .olf-q-key { color: color-mix(in srgb, #2fb36b 70%, currentColor); background: rgb(47 179 107 / 16%); box-shadow: -2px 0 0 rgb(47 179 107 / 16%); }
+  .olf-q-value { color: color-mix(in srgb, #4a8ae8 70%, currentColor); background: rgb(74 138 232 / 16%); box-shadow: 2px 0 0 rgb(74 138 232 / 16%); }
+  .olf-q-ghost { opacity: .45; }
+  .olf-q-not { color: color-mix(in srgb, #e5484d 75%, currentColor); background: rgb(229 72 77 / 18%); box-shadow: -2px 0 0 rgb(229 72 77 / 18%); }
+  /* the search's help: a "?" in the box, and its card */
+  .olf-search-help-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); z-index: 3; display: inline-flex; padding: 3px; border: 0; border-radius: 6px;
+    color: inherit; background: none; opacity: .5; cursor: pointer; }
+  .olf-search-help-btn:hover, .olf-search-help-btn.active { opacity: 1; background: color-mix(in srgb, currentColor 10%, transparent); }
+  #project-list-root .olf-search-help, .olf-search-help { position: absolute; top: calc(100% + 4px); left: 0; z-index: 1060; margin: 0; padding: 10px 14px; width: min(600px, 100%); min-width: 340px; font-size: 13px;
+    color: var(--content-primary-themed, inherit); }
+  .olf-search-help-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-weight: 600; }
+  .olf-search-help-head small { font-weight: 400; opacity: .6; }
+  .olf-search-help-row { display: grid; grid-template-columns: 7rem 1fr; gap: 2px 10px; padding: 4px 0; border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent); }
+  .olf-search-help-key { grid-row: span 2; color: color-mix(in srgb, #2fb36b 70%, currentColor); background: none; padding: 0; font-size: 12px; line-height: 19px; white-space: pre-wrap; }
+  .olf-search-help-what { opacity: .85; }
+  .olf-search-help-examples { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px; }
+  .olf-search-help-example { padding: 0 6px; border: 0; border-radius: 5px; font: 12px "DM Mono", ui-monospace, monospace; color: inherit;
+    background: color-mix(in srgb, currentColor 9%, transparent); cursor: pointer; }
+  .olf-search-help-example:hover { background: rgb(9 136 66 / 22%); }
+  .olf-search-help-foot { margin-top: 6px; padding-top: 6px; border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent); font-size: 12px; opacity: .65; }
+  .olf-search-help-foot kbd { font-size: 11px; padding: 0 4px; margin-right: 2px; }
   /* (the search and the buttons on one row: the search takes what "New folder" and "New project" leave) */
   @media (min-width: 768px) {
     #project-list-root .row:has(> .col-auto .olf-new-folder) > :has(> .project-search) { flex: 1 1 0; width: auto; max-width: none; min-width: 0; }
@@ -693,6 +756,11 @@ function addStyle() {
   /* the sidebar's tree */
   /* (as Overleaf's tags: a 16px icon at its 48px padding, then the name; the expand arrow
      in the padding before the icon, a level deeper one arrow's width further in) */
+  .olf-folders .olf-folders-head { display: flex; align-items: center; justify-content: space-between; }
+  .olf-folders-more { display: inline-flex; padding: 0 2px; border: 0; border-radius: 4px; color: inherit; background: none; opacity: 0; cursor: pointer; }
+  .olf-folders:hover .olf-folders-more, .olf-folders-more:focus-visible { opacity: .7; }
+  .olf-folders-more:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+  .olf-folders-more .material-symbols { font-size: 18px; }
   .olf-folders .olf-twisty { display: inline-flex; flex: none; width: 16px; justify-content: center; margin-left: calc(var(--olf-depth, 0) * 16px - 16px); }
   .olf-folders .olf-twisty .material-symbols { font-size: 16px; }
   .olf-folders .olf-icon { flex: none; width: 16px; font-size: 16px; overflow: hidden; }

@@ -1,0 +1,39 @@
+{
+ "folders": {
+  "format": 1,
+  "shape": "3683020385d32b35"
+ },
+ "settings": {
+  "format": 1,
+  "keys": [
+   "accepted",
+   "ahead",
+   "cmpTipNext",
+   "cmpTipOff",
+   "cmpUsed",
+   "diffLook",
+   "dlExplained",
+   "enabled",
+   "engine",
+   "engines",
+   "folders",
+   "foldersTipOff",
+   "follow",
+   "hideData",
+   "newsOff",
+   "newsSeen",
+   "panel",
+   "searchTipSeen",
+   "speedOff",
+   "statusColumn",
+   "tipOff",
+   "toured",
+   "view"
+  ]
+ },
+ "databases": {
+  "shelf": 3,
+  "release": 1,
+  "core": 1
+ }
+}

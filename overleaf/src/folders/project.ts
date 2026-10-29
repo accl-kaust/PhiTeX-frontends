@@ -11,14 +11,15 @@
 //   at the first write, never by reading: until the user makes a folder or
 //   gives a status (and agrees to the project, main.ts), nothing is made.
 
-import type { State } from "./folders.ts";
+import { readState, type State } from "./folders.ts";
 import { call, csrf, fetchProjects, listProjects } from "./overleaf.ts";
 import { README_TEX } from "./readme.ts";
+import { readLocal, writeLocal } from "../common/format.ts";
 import type { Backend } from "./sync.ts";
 
 export const PROJECT_NAME = ".phitex-data";
 const FILE = "folders.json";
-/** The storage's ids remembered in this browser, per project name. */
+/** The storage's ids remembered in this browser, per project name (format 1: {project, file, folder}). */
 const CACHE = "phitex:storage:";
 
 /**
@@ -30,17 +31,12 @@ export const isStorageName = (n: string, name = PROJECT_NAME) => n === name || (
 /** The file as stored: the state, and its folder's id. */
 type Stored = State & { dataFolder: string };
 
-export function projectBackend(name = PROJECT_NAME): Backend & { find(): Promise<string | null>; projectId(): Promise<string> } {
+export function projectBackend(name = PROJECT_NAME): Backend & { find(): Promise<string | null>; projectId(): Promise<string>; trash(): Promise<void> } {
   // (remembered per browser: which project, the file's current id, its folder's)
-  let cache: { project?: string; file?: string; folder?: string } = {};
-  try {
-    cache = JSON.parse(localStorage.getItem(CACHE + name) ?? "{}");
-  } catch {}
+  let cache: { project?: string; file?: string; folder?: string } = readLocal(CACHE + name, 1) ?? {};
   const remember = (c: typeof cache) => {
     cache = { ...cache, ...c };
-    try {
-      localStorage.setItem(CACHE + name, JSON.stringify(cache));
-    } catch {}
+    writeLocal(CACHE + name, 1, cache);
   };
 
   /** The project found or made here: the page's list, from its load, doesn't have one made since. */
@@ -78,12 +74,21 @@ export function projectBackend(name = PROJECT_NAME): Backend & { find(): Promise
   const parse = (text: string): State => {
     const { dataFolder, ...s } = JSON.parse(text) as Stored;
     remember({ folder: dataFolder });
-    return s;
+    return readState(s);
   };
 
   return {
     find,
     projectId,
+    /** The project moved to Overleaf's trash (restorable there) and forgotten here: the next change makes one anew, asking first. */
+    async trash() {
+      const project = await find(true);
+      if (project) await call("POST", `/project/${project}/trash`);
+      known = null;
+      made = null;
+      cache = {};
+      writeLocal(CACHE + name, 1, cache);
+    },
     async read() {
       // (none yet: no folders, and nothing made by reading)
       const project = await find();

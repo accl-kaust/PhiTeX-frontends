@@ -21,7 +21,8 @@
   .row.stack { flex-direction: column; align-items: stretch; gap: 5px; }
   .row.stack .seg { align-self: flex-start; }
   .seg { display: inline-flex; background: var(--bg2); border-radius: 9999px; padding: 2px; }
-  .seg button { all: unset; cursor: pointer; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; color: var(--fg2); }
+  .seg { flex: none; }
+  .seg button { all: unset; cursor: pointer; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; color: var(--fg2); white-space: nowrap; }
   .seg button[aria-pressed=true] { background: var(--accent); color: #fff; }
   .switch { position: relative; width: 34px; height: 20px; flex: none; }
   .switch input { opacity: 0; width: 0; height: 0; }

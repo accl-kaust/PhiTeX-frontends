@@ -4,6 +4,7 @@
 
 import "./platform.ts";
 import { prefetch } from "./common/prefetch.ts";
+import { settled } from "./settings.ts";
 
 let creating: Promise<void> | null = null;
 
@@ -38,6 +39,8 @@ chrome.runtime.onMessage.addListener((m, _sender, reply) => {
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   const version = chrome.runtime.getManifest().version;
   if (reason === "install") void chrome.storage.local.set({ newsSeen: version });
+  // (the settings in this version's format: an update's older ones upgraded)
+  void settled().catch((e) => console.error("[phitex] settings:", e));
 });
 
 // Packs fetched ahead (prefetch.ts): after an install or update, at each

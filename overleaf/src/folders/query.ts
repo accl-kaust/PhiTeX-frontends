@@ -83,6 +83,23 @@ function asFilter(t: string): Filter | null {
   return { key, values: value.split(",").map((v) => v.trim()).filter(Boolean), not };
 }
 
+/** A part of the query to colour: a filter's "-", its key (`owner:`, `@`, `#`), its value; a key with no value yet is still a key. */
+export type Mark = { start: number; end: number; kind: "not" | "key" | "value" };
+
+/** The query's filters, in parts, to colour as it is typed (words are left as they are). */
+export function marks(q: string): Mark[] {
+  const out: Mark[] = [];
+  for (const t of tokens(q)) {
+    if (!asFilter(t.text)) continue;
+    let at = t.start;
+    if (q[at] === "-") out.push({ start: at, end: ++at, kind: "not" });
+    const key = /^[@#]/.test(q[at]) ? 1 : q.slice(at, t.end).indexOf(":") + 1;
+    out.push({ start: at, end: at + key, kind: "key" });
+    if (at + key < t.end) out.push({ start: at + key, end: t.end, kind: "value" });
+  }
+  return out;
+}
+
 export function parse(q: string): Query {
   const words: string[] = [];
   const filters: Filter[] = [];

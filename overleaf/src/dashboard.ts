@@ -7,6 +7,7 @@
 // terms accepted (terms.ts: one acceptance with ⚡ Instant's).
 
 import { TERMS } from "./terms.ts";
+import { writeLocal } from "./common/format.ts";
 
 if (!/^\/project\/([0-9a-f]{24}|mock)/.test(location.pathname)) {
   const send = async () => {
@@ -20,9 +21,8 @@ if (!/^\/project\/([0-9a-f]{24}|mock)/.test(location.pathname)) {
       accepted: s.accepted === TERMS,
       license: chrome.runtime.getURL("LICENSE.txt"),
     };
-    try {
-      localStorage.setItem("phitex:dashboard", JSON.stringify(settings));
-    } catch {}
+    // (format 1: folders/main.ts reads it)
+    writeLocal("phitex:dashboard", 1, settings);
     window.postMessage({ src: "phitex-dashboard", settings }, location.origin);
   };
   void send();

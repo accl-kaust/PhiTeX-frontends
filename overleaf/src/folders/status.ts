@@ -7,6 +7,7 @@
 // order: React's rows put in that order, and back in its own when not.
 // Drawn by ui.ts, as React adds rows.
 
+import { readLocal, writeLocal } from "../common/format.ts";
 import { invalidStatus, newId, statusesOf, type Status } from "./folders.ts";
 import { colourPicker, COLOURS, dialog, h, icon, menu } from "../dom.ts";
 import { dashboard, type Dashboard } from "./overleaf.ts";
@@ -16,18 +17,13 @@ const SORT = "phitex:folders:sort";
 /** Sorting the table by status (idea first) or by tag (A to Z), or reversed; null: Overleaf's own order. */
 export type Sort = { by: "status" | "tag"; desc: boolean } | null;
 
+/** (format 1: the sort, or null) */
 export function loadSort(): Sort {
-  try {
-    const s = JSON.parse(localStorage.getItem(SORT) ?? "null");
-    return s?.by === "status" || s?.by === "tag" ? { by: s.by, desc: !!s.desc } : null;
-  } catch {
-    return null;
-  }
+  const s = readLocal<Sort>(SORT, 1);
+  return s?.by === "status" || s?.by === "tag" ? { by: s.by, desc: !!s.desc } : null;
 }
 export function saveSort(s: Sort) {
-  try {
-    localStorage.setItem(SORT, JSON.stringify(s));
-  } catch {}
+  writeLocal(SORT, 1, s);
 }
 
 /** Compares two projects by the sort (those with no status, or no tag, last either way); null when not sorting. */
