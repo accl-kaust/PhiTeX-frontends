@@ -83,6 +83,7 @@ interface Exports {
   ph_pdf(): number;
   ph_file(p: number, n: number): number;
   ph_strips(p: number, n: number): number;
+  ph_frame(p: number, n: number): number;
 }
 
 /** What the editor changes besides the viewer's requests (core/src/main.rs's `ph_push`); offsets in UTF-16. */
@@ -321,6 +322,15 @@ export class Core {
     return this.call((p, n) => this.x.ph_strips(p, n), keys.join(",")) ? this.output() : null;
   }
 
+  /**
+   * Page `k`'s frame at `scale` with the strips of its bands not in `have`
+   * (phitex-live's Viewer::frame_with): the frame JSON's length (LE u32),
+   * the JSON, the strips; null: no such page.
+   */
+  frame(k: number, scale: number, have: string[]): Uint8Array | null {
+    return this.call((p, n) => this.x.ph_frame(p, n), JSON.stringify({ page: k, scale, have: have.join(",") })) ? this.output() : null;
+  }
+
   /** A file the build wrote (the log once the core is idle, `.aux`, ...); null: not written. */
   file(name: string): Uint8Array | null {
     return this.call((p, n) => this.x.ph_file(p, n), name) ? this.output() : null;
@@ -362,8 +372,9 @@ export class Core {
  * `phitex watch`'s WebSocket is (the CLI's viewer, cli.ts's Socket): every
  * request answered by the core's viewer, its events pushed. Beside its
  * ops (`frame`, `text`, `outline` among them: the pages as strips), `pdf`
- * (the PDF the viewer is shown, the watch's doc.pdf), `strips` (their
- * pixels, `bytes`: the viewer's Strips asks for those it hasn't), `open` (the
+ * (the PDF the viewer is shown, the watch's doc.pdf), `frame_with` (a
+ * page's frame and the strips the viewer lacks, in one: `bytes`), `strips`
+ * (their pixels, `bytes`), `open` (the
  * project's files given, the document opened: the reply is the core's
  * `open`, its build comes as events) and `cursor` (the editor's, pushed:
  * a `reveal` event). `origins` is answered as the viewer reads it
@@ -393,6 +404,11 @@ export class CoreSession implements CoreTransport {
     }
     // (the pages are the viewer's Strips' (viewer/src/strips.ts): a page's
     // `frame` is the core's own op, its strips' pixels these bytes)
+    if (req.op === "frame_with") {
+      const f = req as unknown as { page?: number; scale: number; have: string[] };
+      const bytes = this.core.frame(f.page ?? 0, f.scale, f.have ?? []);
+      return bytes ? ({ ok: true, bytes } as CoreRes) : { ok: false, error: "no such page" };
+    }
     if (req.op === "strips") {
       const bytes = this.core.strips((req as unknown as { keys: string[] }).keys);
       return bytes ? ({ ok: true, bytes } as CoreRes) : { ok: false, error: "no document open" };

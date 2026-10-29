@@ -33,11 +33,14 @@ export class StripPages implements CoreTransport {
         const r = await t.request({ op: "frame", page: k, scale } as never);
         return r.ok ? (r.json as Frame) : null;
       },
+      // (one round trip: the frame with the strips this viewer lacks)
+      frameWith: async (k, scale, have) => {
+        const r = (await t.request({ op: "frame_with", page: k, scale, have } as never)) as CoreRes & { bytes?: Uint8Array };
+        return r.ok && r.bytes ? buffer(r.bytes) : null;
+      },
       strips: async (keys) => {
         const r = (await t.request({ op: "strips", keys } as never)) as CoreRes & { bytes?: Uint8Array };
-        if (!r.ok || !r.bytes) return null;
-        const b = r.bytes;
-        return b.byteOffset === 0 && b.byteLength === b.buffer.byteLength ? (b.buffer as ArrayBuffer) : (b.slice().buffer as ArrayBuffer);
+        return r.ok && r.bytes ? buffer(r.bytes) : null;
       },
     };
     this.strips = new Strips(src, chip);
@@ -88,4 +91,9 @@ export class StripPages implements CoreTransport {
   close(): void {
     (this.t as { close?(): void }).close?.();
   }
+}
+
+/** `b`'s own ArrayBuffer (copied when `b` is a view of part of one). */
+function buffer(b: Uint8Array): ArrayBuffer {
+  return b.byteOffset === 0 && b.byteLength === b.buffer.byteLength ? (b.buffer as ArrayBuffer) : (b.slice().buffer as ArrayBuffer);
 }

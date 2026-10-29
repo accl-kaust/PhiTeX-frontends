@@ -39,7 +39,8 @@ if (!main) throw new Error("no main .tex file");
 
 const t0 = performance.now();
 const ms = () => Math.round(performance.now() - t0);
-const { core, session, index } = await startCore(root, () => folder, (s) => process.stderr.write(s.endsWith("\n") ? s : s + "\n"));
+const threads = process.env.PHITEX_THREADS ? +process.env.PHITEX_THREADS : undefined;
+const { core, session, index } = await startCore(root, () => folder, (s) => process.stderr.write(s.endsWith("\n") ? s : s + "\n"), threads, process.env.PHITEX_TEX_TIME ? ["PHITEX_TEX_TIME=1"] : []);
 console.log(`core started: ${ms()} ms`);
 
 let settled = 0;
@@ -90,16 +91,29 @@ const strips = (await session.request({ op: "strips", keys } as never)) as { ok:
 const t4 = performance.now();
 // (a keystroke's frame: one word typed, the page asked again; only its changed bands drawn)
 const times: string[] = [];
+const builds: number[] = [];
 for (let i = 0; i < 5; i++) {
   const n = settled;
+  const b = performance.now();
   core.push({ ask: "edit", file: main, start: at, end: at, text: `w${i} ` });
   await next(n + 1);
+  builds.push(performance.now() - b);
   const a = performance.now();
   const f = await session.request({ op: "frame", page: 0, scale: 2.67 } as never);
   times.push(f.ok ? `${(performance.now() - a).toFixed(1)} ms (${f.json.drawn} drawn, ${f.json.kept} kept)` : "FAILED");
 }
+console.log(`keystroke builds (edit to settled): ${builds.map((x) => x.toFixed(0)).join(" ")} ms`);
 console.log(`keystroke frames: ${times.join(", ")}`);
 const png = { ok: frame.ok && !!strips.bytes?.length };
 console.log(frame.ok ? `frame: ${frame.json.pw}x${frame.json.ph}, ${keys.length} bands (${frame.json.drawn} drawn, ${frame.json.kept} kept), ${frame.json.text.length} text lines, ${(t3 - t2).toFixed(1)} ms; strips: ${strips.bytes?.length ?? 0} bytes, ${(t4 - t3).toFixed(1)} ms` : `frame FAILED ${frame.error}`);
+// (the heap: the last 64 KiB page with a byte set, from the top, and how many pages were written)
+const mem = new Uint32Array((core as unknown as { memory: WebAssembly.Memory }).memory.buffer);
+const PAGE = 65536 / 4;
+let top = 0, written = 0;
+for (let p = 0; p < mem.length / PAGE; p++) {
+  const o = p * PAGE;
+  for (let i = 0; i < PAGE; i++) if (mem[o + i]) { written++; top = p; break; }
+}
+console.log(`threads ${threads ?? "default"}: heap top ${((top + 1) * 65536 / 2 ** 20).toFixed(0)} MiB, ${(written * 65536 / 2 ** 20).toFixed(0)} MiB of pages written`);
 core.close();
 process.exit(first && changed && png.ok ? 0 : 1);

@@ -103,6 +103,23 @@ export class WatchLink implements CoreTransport {
       const r = await fetch(new URL(`frame/${page ?? 0}/${Math.round(scale * 1000)}`, this.base), { cache: "no-store" });
       return r.ok ? { ok: true, json: await r.json() } : { ok: false, error: `frame: ${r.status}` };
     }
+    // (frame_with, as the core answers it: the frame, then the strips the viewer lacks, in one buffer)
+    if (o.op === "frame_with") {
+      const { page, scale, have } = req as { page?: number; scale: number; have: string[] };
+      const r = await fetch(new URL(`frame/${page ?? 0}/${Math.round(scale * 1000)}`, this.base), { cache: "no-store" });
+      if (!r.ok) return { ok: false, error: `frame: ${r.status}` };
+      const f = (await r.json()) as { bands: [string, number, number][]; sent?: string[] };
+      const held = new Set(have);
+      f.sent = [...new Set(f.bands.map((b) => b[0]).filter((k) => !held.has(k)))];
+      const s = f.sent.length ? await fetch(new URL(`strips/${f.sent.join(",")}`, this.base), { cache: "no-store" }) : null;
+      const strips = s?.ok ? new Uint8Array(await s.arrayBuffer()) : new Uint8Array(0);
+      const json = new TextEncoder().encode(JSON.stringify(f));
+      const out = new Uint8Array(4 + json.length + strips.length);
+      new DataView(out.buffer).setUint32(0, json.length, true);
+      out.set(json, 4);
+      out.set(strips, 4 + json.length);
+      return { ok: true, bytes: out } as CoreRes;
+    }
     if (o.op === "strips") {
       const r = await fetch(new URL(`strips/${(req as { keys: string[] }).keys.join(",")}`, this.base), { cache: "no-store" });
       return r.ok ? ({ ok: true, bytes: new Uint8Array(await r.arrayBuffer()) } as CoreRes) : { ok: false, error: `strips: ${r.status}` };

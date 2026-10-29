@@ -12,6 +12,7 @@ import * as vscode from "vscode";
 import { readdir, readFile } from "node:fs/promises";
 import { LanguageClient, State } from "vscode-languageclient/node";
 import { join } from "node:path";
+import { availableParallelism } from "node:os";
 import { setPlatform } from "../../common/src/platform.ts";
 import type { CoreTransport } from "../../common/src/viewer/session.ts";
 import type { Core, CoreSession } from "../../common/src/wasm/core.ts";
@@ -106,7 +107,8 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   const main = findMain(project.files, ed ? (relPath(folder, ed.document.uri.fsPath) ?? undefined) : undefined);
   if (!main) return void vscode.window.showErrorMessage("PhiTeX: no .tex file with \\documentclass in this folder.");
   builtinFolder = folder;
-  builtin ??= startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"));
+  // (the engine's threads: this machine's cores, at most 4, as in the browser: overleaf/src/worker.ts)
+  builtin ??= startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), Math.min(availableParallelism(), 4));
 
   const view = vscode.window.createWebviewPanel("phitex.preview", "⚡ PhiTeX", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {
     enableScripts: true,

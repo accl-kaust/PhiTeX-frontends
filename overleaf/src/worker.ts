@@ -78,7 +78,11 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
   for (const [f, b] of binaries) core.provide(f, { path: "./" + f, bytes: b });
   console.info(`[phitex core] started in ${Math.round(performance.now() - t0)} ms`);
   // (every project may use minted: the runner loads only at its first call)
-  return { core, session: new CoreSession(core, { shell: true }) };
+  // (the engine's threads: this machine's cores, at most 4. wasm has no
+  // available_parallelism, so the engine would take 1; measured on Node on
+  // an article: a first build 3.7 s at 1 thread, 2.5 s at 4, a keystroke's
+  // ~55 ms at 1 to 4 and slower at 8; each thread ~15-60 MiB more heap)
+  return { core, session: new CoreSession(core, { shell: true, threads: Math.min(navigator.hardwareConcurrency || 1, 4) }) };
 }
 
 let started = start();

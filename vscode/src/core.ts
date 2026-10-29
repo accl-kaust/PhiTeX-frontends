@@ -19,7 +19,7 @@ import { coreIndex, coreStore, packs, prefetch, type CoreIndex } from "../../com
 import { spawner } from "./thread.ts";
 
 /** The core for the extension at `root`; `folder()`: the project shown, whose document keys are its own. */
-export async function startCore(root: string, folder: () => string, log: (s: string) => void): Promise<{ core: Core; session: CoreSession; index: CoreIndex }> {
+export async function startCore(root: string, folder: () => string, log: (s: string) => void, threads?: number, env?: string[]): Promise<{ core: Core; session: CoreSession; index: CoreIndex }> {
   const t0 = performance.now();
   // (the core's events and the fetches' reports go to the session's listeners: CoreSession hears the core's)
   let tell: (e: unknown) => void = () => {};
@@ -31,10 +31,12 @@ export async function startCore(root: string, folder: () => string, log: (s: str
       return r?.ok ? { path: name, bytes: new Uint8Array(await r.arrayBuffer()) } : null;
     },
     store: coreStore(folder, async () => core),
+    env,
     log,
     trap: (tid, error) => log(`core trapped (thread ${tid}): ${error.split("\n")[0]}`),
   });
-  const session = new CoreSession(core);
+  // (the engine's threads: the host's to say, wasm has no available_parallelism)
+  const session = new CoreSession(core, threads ? { threads } : {});
   tell = (e) => session.tell(e);
   const index = await coreIndex();
   core.setIndex(index.tsv, index.release, index.names);

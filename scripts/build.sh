@@ -23,8 +23,10 @@ if [ -n "${PHITEX_WASM_DIR:-}" ]; then
   cp "$PHITEX_WASM_DIR"/formats/* overleaf/formats/
 else
   # (a reactor binary: its `_initialize` run once by thread 0; the memory,
-  # stack and exports are core/build.rs's)
-  (cd core && CARGO_TARGET_DIR="$PWD/../target/core" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_THREADS_RUSTFLAGS="-Zwasi-exec-model=reactor" \
+  # stack and exports are core/build.rs's. SIMD on: hayro, vello_cpu and
+  # zlib take their scalar paths without it; every browser the extension
+  # runs in, and Node, has wasm SIMD)
+  (cd core && CARGO_TARGET_DIR="$PWD/../target/core" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_THREADS_RUSTFLAGS="-Zwasi-exec-model=reactor -C target-feature=+simd128" \
     cargo build --release --target wasm32-wasip1-threads)
   cp target/core/wasm32-wasip1-threads/release/core.wasm overleaf/dist/core.wasm
   # (its formats, made by it: a first open reads pdfLaTeX's instead of building it)
