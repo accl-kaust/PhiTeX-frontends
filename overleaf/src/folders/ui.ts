@@ -21,12 +21,12 @@
 import { canMove, invalid, newId, pathOf, statusesOf, subtree, type Id, type Op, type State } from "./folders.ts";
 import { fuzzy, occurrences, type Match } from "./fuzzy.ts";
 import { matches, parse, type Item, type Query, type Vocabulary } from "./query.ts";
-import { dialog, h, icon } from "./dom.ts";
+import { dialog, h, icon } from "../dom.ts";
 import { dashboard, listProjects, ownerName, projectsOnPage, watch, type Dashboard, type Project } from "./overleaf.ts";
-import { isStorageName, projectStorage } from "./project.ts";
+import { isStorageName, projectBackend } from "./project.ts";
 import { renderSidebar } from "./sidebar.ts";
 import { loadSort, saveSort, sortCompare, statusCell, statusHeader, type Sort } from "./status.ts";
-import { Folders, type Storage } from "./sync.ts";
+import { Folders, type Backend } from "./sync.ts";
 import { renderTable } from "./table.ts";
 
 const MOUNTED = "data-olf-mounted";
@@ -39,7 +39,7 @@ let drawn = 0;
 
 export type MountOptions = {
   /** Where the folders are kept: by default the user's ".phitex-data" project (project.ts), made at the first change. */
-  storage?: Storage & { find?(): Promise<string | null> };
+  backend?: Backend & { find?(): Promise<string | null> };
   /** Asked before the first change while the storage has no project: true, the user agrees to its being made. */
   ask?: () => Promise<boolean>;
   /** The Status column (status.ts): shown, and the table sortable by status or tag. */
@@ -97,7 +97,7 @@ export function mount(opts: MountOptions = {}): () => void {
   // (one per page: the standalone extension and one embedding this, both installed)
   if (root.hasAttribute(MOUNTED)) return () => {};
   root.setAttribute(MOUNTED, "");
-  const storage = opts.storage ?? projectStorage();
+  const storage = opts.backend ?? projectBackend();
   const cached = readCache();
   const folders = new Folders(storage, 400, cached);
   addStyle();
@@ -201,7 +201,7 @@ export function mount(opts: MountOptions = {}): () => void {
 
   const setProjects = (projects: Project[]) => {
     // (the storage's own: the default one's found by name at once, before it's asked for)
-    if (!opts.storage) storageProject ??= projects.find((p) => isStorageName(p.name) && p.accessLevel === "owner" && !p.trashed)?.id;
+    if (!opts.backend) storageProject ??= projects.find((p) => isStorageName(p.name) && p.accessLevel === "owner" && !p.trashed)?.id;
     v.projects = new Map(projects.filter((p) => !p.archived && !p.trashed && !(opts.hideStorage && p.id === storageProject)).map((p) => [p.id, p]));
   };
   const browsing = (d: Dashboard | null) => v.ready && !!d && d.filter === "all" && !d.selectedTagId && !d.searchText.trim();

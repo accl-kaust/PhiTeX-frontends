@@ -12,11 +12,11 @@ import { folderConsent, folderTip, searchTip } from "./intro.ts";
 import { mount } from "./ui.ts";
 
 /** As dashboard.ts writes it. */
-type Settings = { on: boolean; status: boolean; hide: boolean; tip: boolean; searchTip: boolean };
+type Settings = { on: boolean; status: boolean; hide: boolean; tip: boolean; searchTip: boolean; accepted: boolean; license: string };
 const KEY = "phitex:dashboard";
 
 /** The defaults, as the popup's. */
-const DEFAULTS: Settings = { on: true, status: false, hide: false, tip: true, searchTip: true };
+const DEFAULTS: Settings = { on: true, status: false, hide: false, tip: true, searchTip: true, accepted: false, license: "" };
 
 function stored(): Settings {
   // (a copy from an older version lacks the newer settings: theirs the defaults)
@@ -29,17 +29,20 @@ function stored(): Settings {
 
 if (!/^\/project\/([0-9a-f]{24}|mock)/.test(location.pathname)) {
   let now = stored();
+  /** What the bridge saves for the page (dashboard.ts). */
+  const tell = (m: object) => window.postMessage({ src: "phitex-folders", ...m }, location.origin);
   let unmount: (() => void) | null = null;
   const start = () => {
     unmount?.();
     unmount = now.on
       ? mount({
-          ask: folderConsent,
+          // (the extension's terms, one acceptance with ⚡ Instant's: accepted here, saved by the bridge)
+          ask: () => folderConsent({ accepted: now.accepted, license: now.license, accept: () => tell({ accept: true }) }),
           status: now.status,
           hideStorage: now.hide,
           drawn: (v) => {
-            if (now.tip) folderTip(v, () => window.postMessage({ src: "phitex-folders", tipOff: true }, location.origin));
-            if (now.searchTip) searchTip(v, () => window.postMessage({ src: "phitex-folders", searchTipSeen: true }, location.origin));
+            if (now.tip) folderTip(v, () => tell({ tipOff: true }));
+            if (now.searchTip) searchTip(v, () => tell({ searchTipSeen: true }));
           },
         })
       : null;

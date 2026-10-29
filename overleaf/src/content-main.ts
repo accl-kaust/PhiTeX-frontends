@@ -15,6 +15,9 @@ import { PreviewSession, guessMain, type CoreReq, type CoreRes, type CoreTranspo
 import { charOffset } from "./common/viewer/edits.ts";
 import { readZip } from "./common/zip.ts";
 import { type DiffRunner, compareButton } from "./diffui.ts";
+import { AGREE, TERMS, asIs } from "./terms.ts";
+import { callout, calloutStyle, type Callout } from "./callout.ts";
+import { h } from "./dom.ts";
 import { filesAt, type Version } from "./history.ts";
 import { Compare, gate, LATEXDIFF_LOOK } from "./common/viewer/compare.ts";
 import { SUPPORT, unseen, type News } from "./news.ts";
@@ -314,42 +317,20 @@ const DOCK_CSS = `
   #phitex-dlgroup .phitex-caret { width: 16px; min-width: 16px; margin-left: -4px; padding: 0; }
   #phitex-dlgroup .phitex-caret .material-symbols { font-size: 16px; }
   #phitex-dlmenu .dropdown-item { display: flex; justify-content: space-between; gap: 12px; }
-  .phitex-toast { animation: phitex-tip-in .35s cubic-bezier(.2,1.2,.4,1); cursor: pointer; }
+  .phitex-toast { animation: phitex-callout-in .35s cubic-bezier(.2,1.2,.4,1); cursor: pointer; }
   .phitex-badge { position: absolute; top: -2px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 9999px;
     font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; color: #fff; background: var(--bg-info-01, #366cbf); }
   .phitex-badge.warning { background: var(--bg-warning-01, #8f5514); } .phitex-badge.error { background: var(--bg-danger-01, #b83a33); }
   #phitex-zoom-menu { min-width: 120px; }
   #phitex-consent .modal { z-index: 1070; } #phitex-consent .modal-backdrop { z-index: 1065; }
   #phitex-consent .form-check { margin-top: 12px; }
-  #phitex-news { position: fixed; z-index: 1060; width: 340px; max-width: calc(100vw - 16px); overflow: visible;
-    border: 1.5px solid var(--green-40, #53b57f); border-radius: 12px; box-shadow: 0 0 0 4px rgb(83 181 127 / 18%), 0 18px 48px rgb(0 0 0 / 45%);
-    animation: phitex-tip-in .45s cubic-bezier(.2,1.3,.4,1); }
-  #phitex-news::before { content: ""; position: absolute; top: -8px; left: var(--arrow, 50%); width: 14px; height: 14px; transform: translateX(-50%) rotate(45deg);
-    background: var(--green-50, #098842); border-left: 1.5px solid var(--green-40, #53b57f); border-top: 1.5px solid var(--green-40, #53b57f); }
-  #phitex-news .popover-header { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #fff; border: 0;
-    background: linear-gradient(135deg, var(--green-50, #098842), var(--green-60, #1e6b41)); padding: 10px 14px; }
-  #phitex-news .phitex-tip-clip { overflow: hidden; border-radius: 11px; }
   #phitex-news .popover-body { max-height: 50vh; overflow: auto; }
   #phitex-news .phitex-news-title { font-weight: 700; margin-bottom: 4px; }
   #phitex-news ul { padding-left: 18px; margin: 0 0 10px; }
   #phitex-news li { margin-bottom: 4px; }
-  #phitex-news .phitex-tip-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
   label.phitex-dot-new { position: relative; }
   label.phitex-dot-new::before { content: ""; position: absolute; top: 2px; right: 4px; width: 7px; height: 7px; border-radius: 50%;
     background: var(--green-40, #53b57f); box-shadow: 0 0 0 2px var(--bg-dark-primary, #1b222c); }
-  #phitex-tour { position: fixed; z-index: 1060; width: 320px; max-width: calc(100vw - 16px); overflow: visible;
-    border: 1.5px solid var(--green-40, #53b57f); border-radius: 12px; box-shadow: 0 0 0 4px rgb(83 181 127 / 18%), 0 18px 48px rgb(0 0 0 / 45%);
-    animation: phitex-tip-in .35s cubic-bezier(.2,1.3,.4,1); }
-  #phitex-tour::before { content: ""; position: absolute; top: -8px; left: var(--arrow, 50%); width: 14px; height: 14px; transform: translateX(-50%) rotate(45deg);
-    background: var(--green-50, #098842); border-left: 1.5px solid var(--green-40, #53b57f); border-top: 1.5px solid var(--green-40, #53b57f); }
-  #phitex-tour .popover-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #fff; border: 0;
-    background: linear-gradient(135deg, var(--green-50, #098842), var(--green-60, #1e6b41)); padding: 10px 14px; }
-  #phitex-tour.no-arrow::before { display: none; }
-  #phitex-tour .phitex-step { font-size: 11px; font-weight: 600; opacity: .8; white-space: nowrap; }
-  #phitex-tour .phitex-tip-clip { overflow: hidden; border-radius: 11px; }
-  #phitex-tour .phitex-tip-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 10px; }
-  #phitex-tour [data-t="skip"] { margin-right: auto; padding-left: 0; color: var(--content-placeholder-dark, #8d96a5); text-decoration: none; }
-  #phitex-tour kbd { font-size: 11px; padding: 1px 4px; }
   #phitex-tour .phitex-hl-demo { margin: 10px 0; padding: 8px; border-radius: 8px; background: rgb(0 0 0 / 22%); display: grid; gap: 8px; font-size: 12px; }
   #phitex-tour .phitex-hl-ed { position: relative; font-family: "DM Mono", monospace; color: var(--green-30, #86caa5); }
   #phitex-tour .phitex-hl-caret { position: absolute; top: 1px; left: 7ch; width: 2px; height: 1.2em; background: currentColor;
@@ -370,19 +351,6 @@ const DOCK_CSS = `
     animation: phitex-ringo 1.3s ease-out infinite; }
   phitex-preview.phitex-ring { outline-offset: -4px; }
   @keyframes phitex-ringo { 50% { outline-color: rgb(83 181 127 / 30%); } }
-  #phitex-tip { position: fixed; z-index: 1060; width: 320px; max-width: calc(100vw - 16px); overflow: visible;
-    border: 1.5px solid var(--green-40, #53b57f); border-radius: 12px;
-    box-shadow: 0 0 0 4px rgb(83 181 127 / 18%), 0 18px 48px rgb(0 0 0 / 45%), 0 0 32px rgb(83 181 127 / 35%);
-    animation: phitex-tip-in .6s cubic-bezier(.18,1.5,.4,1), phitex-glow 2.4s ease-in-out .6s infinite; }
-  #phitex-tip::before { content: ""; position: absolute; top: -8px; left: var(--arrow, 50%); width: 14px; height: 14px; transform: translateX(-50%) rotate(45deg);
-    background: var(--green-50, #098842); border-left: 1.5px solid var(--green-40, #53b57f); border-top: 1.5px solid var(--green-40, #53b57f); }
-  #phitex-tip .phitex-tip-clip { position: relative; overflow: hidden; border-radius: 11px; }
-  #phitex-tip .phitex-tip-clip::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 22%) 50%, transparent 65%); transform: translateX(-120%);
-    animation: phitex-shimmer 2.8s ease-in-out 1s infinite; }
-  #phitex-tip .popover-header { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: #fff; border: 0;
-    background: linear-gradient(135deg, var(--green-50, #098842), var(--green-60, #1e6b41)); padding: 10px 14px; }
-  #phitex-tip .phitex-bolt { font-size: 20px; }
   #phitex-tip .phitex-demo { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin: 10px 0 4px; padding: 8px;
     border-radius: 8px; background: rgb(0 0 0 / 22%); font-size: 12px; }
   #phitex-tip .phitex-demo code { color: var(--green-30, #86caa5); white-space: nowrap; overflow: hidden; border-right: 2px solid currentColor;
@@ -393,21 +361,10 @@ const DOCK_CSS = `
   @keyframes phitex-type { 0% { width: 0; } 55%, 100% { width: 9ch; } }
   @keyframes phitex-zip { 0%, 55% { transform: translateX(-4px); opacity: .3; } 62% { transform: translateX(6px); opacity: 1; } 100% { opacity: .3; } }
   @keyframes phitex-paint { 0%, 60% { opacity: .25; } 61%, 100% { opacity: 1; } }
-  @keyframes phitex-shimmer { 0% { transform: translateX(-120%); } 45%, 100% { transform: translateX(120%); } }
-  @keyframes phitex-glow { 50% { box-shadow: 0 0 0 6px rgb(83 181 127 / 10%), 0 18px 48px rgb(0 0 0 / 45%), 0 0 44px rgb(83 181 127 / 55%); } }
-  #phitex-tip .phitex-bolt { display: inline-block; animation: phitex-shake 1.6s ease-in-out .5s 2; transform-origin: 50% 70%; }
-  #phitex-tip .phitex-tip-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 10px; }
-  #phitex-tip #phitex-tip-never { margin-right: auto; padding-left: 0; color: var(--content-placeholder-dark, #8d96a5); text-decoration: none; font-size: 12px; }
-  #phitex-tip #phitex-tip-never:hover { color: var(--content-primary-dark, #f4f5f6); text-decoration: underline; }
-  @keyframes phitex-tip-in { 0% { opacity: 0; transform: translateY(18px) scale(.85); } 60% { opacity: 1; } }
-  @keyframes phitex-shake { 0%, 100% { transform: rotate(0); } 10%, 30%, 50% { transform: rotate(-14deg) scale(1.15); } 20%, 40% { transform: rotate(14deg) scale(1.15); } 60% { transform: rotate(0); } }
-  .phitex-pulse { position: relative; border-radius: 9999px; }
-  .phitex-pulse::after { content: ""; position: absolute; inset: -3px; border-radius: 9999px; pointer-events: none;
-    box-shadow: 0 0 0 0 rgb(83 181 127 / 90%); animation: phitex-ring 1.3s ease-out infinite; }
-  .phitex-pulse { background: rgb(83 181 127 / 25%); color: #fff !important; }
-  @keyframes phitex-ring { 70% { box-shadow: 0 0 0 14px rgb(83 181 127 / 0%); } 100% { box-shadow: 0 0 0 0 rgb(83 181 127 / 0%); } }
+  /* (the switch's ⚡ label, ringed by the tip (callout.ts's .phitex-pulse): lit, round) */
+  label.phitex-pulse { border-radius: 9999px; background: rgb(83 181 127 / 25%); color: #fff !important; }
   @media (prefers-reduced-motion: reduce) {
-    #phitex-tip, #phitex-tip *, #phitex-tour, #phitex-tour *, #phitex-news, .phitex-ring, #phitex-tip .phitex-tip-clip::after, .phitex-pulse::after { animation: none !important; }
+    .phitex-ring, #phitex-tip .phitex-demo *, #phitex-tour .phitex-hl-demo * { animation: none !important; }
     #phitex-tip .phitex-demo code { width: 9ch; } #phitex-tip .phitex-demo .phitex-mini { opacity: 1; }
     #phitex-tour .phitex-hl-page .w1 { background: rgb(255 214 0 / 70%); }
   }`;
@@ -433,6 +390,8 @@ function dockInOverleaf(panel: Panel): Dock {
   const style = document.createElement("style");
   style.textContent = DOCK_CSS;
   document.head.append(style);
+  // (the popovers' styles, their animations the toast's too)
+  calloutStyle();
   let mode: "pdf" | "phitex" = "pdf";
   /** (read after an await: `set` may have changed it, or refused) */
   const viewNow = () => mode;
@@ -450,8 +409,6 @@ function dockInOverleaf(panel: Panel): Dock {
     const { newsSeen, newsOff } = await chrome.storage.local.get(["newsSeen", "newsOff"]);
     newsPending = !newsOff && unseen(newsSeen as string | undefined, chrome.runtime.getManifest().version).length > 0;
   });
-  /** The version of the terms the user accepted (bump it to ask again). */
-  const TERMS = 1;
   let accepted = false;
   chrome.storage.local.get("accepted").then(({ accepted: a }) => (accepted = a === TERMS));
 
@@ -472,12 +429,9 @@ function dockInOverleaf(panel: Panel): Dock {
               <b>unofficial, experimental</b> browser extension that typesets LaTeX in your browser.</p>
               <p>It runs locally: your documents are not sent anywhere (TeX packages it doesn't bundle are downloaded by name from TeX Live's files). Its preview and PDF can differ from, or be missing what,
               Overleaf's compiler makes. For anything that matters, use Overleaf's <b>PDF</b>.</p>
-              <p class="small text-muted">Free software under the GNU AGPL, version 3 only
-              (<a href="${chrome.runtime.getURL("LICENSE.txt")}" target="_blank" rel="noopener">full license</a>), provided as is,
-              without any warranty (its sections 15 and 16). The authors bear no responsibility for its use.</p>
+              <p class="small text-muted">${asIs(chrome.runtime.getURL("LICENSE.txt"))}</p>
               <div class="form-check"><input class="form-check-input" type="checkbox" id="phitex-consent-check">
-                <label class="form-check-label" for="phitex-consent-check">I understand this is an unofficial, experimental extension,
-                provided as is, without any warranty, and I use it at my own risk.</label></div>
+                <label class="form-check-label" for="phitex-consent-check">${AGREE}</label></div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-c="no">Cancel</button>
@@ -701,44 +655,37 @@ function dockInOverleaf(panel: Panel): Dock {
     }
   });
 
-  /** The first-run tip: Overleaf's own popover, pointing at the switch. */
+  /** The first-run tip, pointing at the switch (callout.ts). */
+  let tipBox: Callout | undefined;
   function tip(): void {
     const sw = document.getElementById("phitex-switch");
-    if (tipOff || mode !== "pdf" || !sw || document.getElementById("phitex-tip")) return;
+    if (tipOff || mode !== "pdf" || !sw || tipBox) return;
     const label = sw.querySelector('label[for="phitex-v-phitex"]') as HTMLElement;
-    label.classList.add("phitex-pulse");
-    const t = document.createElement("div");
-    t.id = "phitex-tip";
-    t.className = "popover bs-popover-bottom show";
-    t.setAttribute("role", "dialog");
-    t.setAttribute("aria-label", "Try the PhiTeX preview");
-    t.innerHTML = `<div class="phitex-tip-clip">
-      <div class="popover-header"><span class="phitex-bolt" aria-hidden="true">⚡</span> New: the unofficial PhiTeX extension</div>
-      <div class="popover-body">No more Recompile: PhiTeX repaints this page <b>as you type</b>, incrementally, in milliseconds, right in your browser. Nothing leaves it.
+    const never = h("button", { type: "button", class: "btn btn-link btn-sm phitex-callout-never" }, "Don't show again");
+    const no = h("button", { type: "button", class: "btn btn-secondary btn-sm" }, "Not now");
+    const yes = h("button", { type: "button", class: "btn btn-primary btn-sm" }, "⚡ Try it");
+    tipBox = callout({
+      id: "phitex-tip",
+      label: "Try the PhiTeX preview",
+      anchor: label,
+      shiny: true,
+      header: [h("span", { class: "phitex-callout-icon", "aria-hidden": "true" }, "⚡"), "New: the unofficial PhiTeX extension"],
+      body: {
+        html: `No more Recompile: PhiTeX repaints this page <b>as you type</b>, incrementally, in milliseconds, right in your browser. Nothing leaves it.
         <div class="phitex-demo" aria-hidden="true"><code>Hello TeX</code><span class="phitex-arrow">⚡→</span><span class="phitex-mini">Hello TeX</span></div>
-        <div class="small text-muted" style="margin-top:6px">An unofficial browser extension, not an Overleaf feature. Experimental. Overleaf's PDF is one click away.</div>
-        <div class="phitex-tip-actions"><button type="button" class="btn btn-link btn-sm" id="phitex-tip-never">Don't show again</button>
-        <button type="button" class="btn btn-secondary btn-sm" id="phitex-tip-no">Not now</button>
-        <button type="button" class="btn btn-primary btn-sm" id="phitex-tip-yes">⚡ Try it</button></div></div></div>`;
-    document.body.append(t);
-    const place = () => {
-      const r = label.getBoundingClientRect();
-      const w = t.offsetWidth;
-      const left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8));
-      t.style.left = `${left}px`;
-      t.style.top = `${r.bottom + 10}px`;
-      t.style.setProperty("--arrow", `${r.left + r.width / 2 - left}px`);
-    };
-    place();
-    addEventListener("resize", place);
-    t.querySelector<HTMLElement>("#phitex-tip-yes")!.onclick = async () => {
+        <div class="small text-muted" style="margin-top:6px">An unofficial browser extension, not an Overleaf feature. Experimental. Overleaf's PDF is one click away.</div>`,
+      },
+      actions: [never, no, yes],
+      onHide: () => (tipBox = undefined),
+    });
+    yes.onclick = async () => {
       await set("phitex");
       if (viewNow() !== "phitex") return;
       const { toured } = await chrome.storage.local.get("toured");
       if (!toured) setTimeout(() => void tour(0), 700);
     };
-    t.querySelector<HTMLElement>("#phitex-tip-no")!.onclick = hideTip;
-    t.querySelector<HTMLElement>("#phitex-tip-never")!.onclick = () => {
+    no.onclick = hideTip;
+    never.onclick = () => {
       tipOff = true;
       void chrome.storage.local.set({ tipOff: true });
       hideTip();
@@ -747,8 +694,7 @@ function dockInOverleaf(panel: Panel): Dock {
 
   /** Until the next load. */
   function hideTip(): void {
-    document.getElementById("phitex-tip")?.remove();
-    document.querySelector(".phitex-pulse")?.classList.remove("phitex-pulse");
+    tipBox?.hide();
   }
 
   /** What's new: once after an update (or from settings), in the tip's style. */
@@ -759,32 +705,26 @@ function dockInOverleaf(panel: Panel): Dock {
     const sw = document.getElementById("phitex-switch");
     if (!items.length || !sw || document.getElementById("phitex-news") || document.getElementById("phitex-tip")) return;
     const label = sw.querySelector('label[for="phitex-v-phitex"]') as HTMLElement;
-    const t = document.createElement("div");
-    t.id = "phitex-news";
-    t.className = "popover bs-popover-bottom show";
-    t.setAttribute("role", "dialog");
-    t.setAttribute("aria-label", "What's new in the PhiTeX extension");
-    t.innerHTML = `<div class="phitex-tip-clip"><div class="popover-header"><span aria-hidden="true">✨</span> What's new in PhiTeX ${items[0].version}</div>
-      <div class="popover-body">${items
-        .map((n) => `<div class="phitex-news-entry"><div class="phitex-news-title">${n.title} <span class="text-muted small">${n.version} · ${n.date}</span></div><ul>${n.items.map((i) => `<li>${i}</li>`).join("")}</ul></div>`)
-        .join("")}
-        <div class="small text-muted">From the unofficial PhiTeX extension, not Overleaf.</div>
-        <div class="phitex-tip-actions">${[items[0].link, SUPPORT]
-          .filter((l): l is { label: string; href: string } => !!l)
-          .map((l) => `<a class="btn btn-secondary btn-sm" target="_blank" rel="noopener" href="${escapeHtml(l.href)}" style="margin-right:8px">${escapeHtml(l.label)}</a>`)
-          .join("")}<button type="button" class="btn btn-primary btn-sm" id="phitex-news-ok">Got it</button></div></div></div>`;
-    document.body.append(t);
-    const place = () => {
-      if (!t.isConnected) return removeEventListener("resize", place);
-      const r = label.getBoundingClientRect(), w = t.offsetWidth;
-      const left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8));
-      Object.assign(t.style, { left: `${left}px`, top: `${r.bottom + 10}px` });
-      t.style.setProperty("--arrow", `${r.left + r.width / 2 - left}px`);
-    };
-    place();
-    addEventListener("resize", place);
-    t.querySelector<HTMLElement>("#phitex-news-ok")!.onclick = () => {
-      t.remove();
+    const links = [items[0].link, SUPPORT]
+      .filter((l): l is { label: string; href: string } => !!l)
+      .map((l) => h("a", { class: "btn btn-secondary btn-sm", target: "_blank", rel: "noopener", href: l.href }, l.label));
+    const ok = h("button", { type: "button", class: "btn btn-primary btn-sm" }, "Got it");
+    const c = callout({
+      id: "phitex-news",
+      label: "What's new in the PhiTeX extension",
+      anchor: label,
+      width: 340,
+      header: [h("span", { "aria-hidden": "true" }, "✨"), `What's new in PhiTeX ${items[0].version}`],
+      body: {
+        html:
+          items
+            .map((n) => `<div class="phitex-news-entry"><div class="phitex-news-title">${n.title} <span class="text-muted small">${n.version} · ${n.date}</span></div><ul>${n.items.map((i) => `<li>${i}</li>`).join("")}</ul></div>`)
+            .join("") + `<div class="small text-muted">From the unofficial PhiTeX extension, not Overleaf.</div>`,
+      },
+      actions: [...links, ok],
+    });
+    ok.onclick = () => {
+      c.hide();
       label.classList.remove("phitex-dot-new");
       void chrome.storage.local.set({ newsSeen: current });
     };
@@ -816,30 +756,24 @@ function dockInOverleaf(panel: Panel): Dock {
     const target = step?.at();
     if (!step || !target) return endTour(true);
     target.classList.add("phitex-ring");
-    const t = document.createElement("div");
-    t.id = "phitex-tour";
-    t.className = `popover bs-popover-bottom show${step.inside ? " no-arrow" : ""}`;
-    t.setAttribute("role", "dialog");
-    t.setAttribute("aria-label", `Tour, step ${k + 1} of ${STEPS.length}`);
-    t.innerHTML = `<div class="phitex-tip-clip"><div class="popover-header"><span>${step.title}</span><span class="phitex-step">${k + 1} of ${STEPS.length}</span></div>
-      <div class="popover-body">${step.body}
+    const button = (t: string, cls: string, label: string) => h("button", { type: "button", class: `btn ${cls} btn-sm`, "data-t": t }, label);
+    const { el: t } = callout({
+      id: "phitex-tour",
+      label: `Tour, step ${k + 1} of ${STEPS.length}`,
+      anchor: target,
+      inside: step.inside,
+      header: [h("span", {}, step.title), h("span", { class: "phitex-callout-step" }, `${k + 1} of ${STEPS.length}`)],
+      body: {
+        html: `${step.body}
         <div class="phitex-dots">${STEPS.map((_, i) => `<span class="${i === k ? "on" : ""}"></span>`).join("")}</div>
-        ${step.choice ? `<div class="phitex-choice">${FOLLOW.map(([v, l], i) => `<button type="button" class="btn ${i ? "btn-secondary" : "btn-primary"} btn-sm" data-f="${v}">${l}${i ? "" : " <small>(recommended)</small>"}</button>`).join("")}</div>` : ""}
-        <div class="phitex-tip-actions"><button type="button" class="btn btn-link btn-sm" data-t="skip">Skip</button>
-          ${k ? `<button type="button" class="btn btn-secondary btn-sm" data-t="back">Back</button>` : ""}
-          ${step.choice ? "" : `<button type="button" class="btn btn-primary btn-sm" data-t="next">${k === STEPS.length - 1 ? "Done" : "Next"}</button>`}</div></div></div>`;
-    document.body.append(t);
-    // (placed again when the window resizes: it points at its target, wherever that went)
-    const place = () => {
-      if (!t.isConnected) return removeEventListener("resize", place);
-      const r = target.getBoundingClientRect(), w = t.offsetWidth;
-      const left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8));
-      t.style.left = `${left}px`;
-      t.style.top = `${step.inside ? r.top + 24 : r.bottom + 10}px`;
-      t.style.setProperty("--arrow", step.inside ? "-100px" : `${r.left + r.width / 2 - left}px`);
-    };
-    place();
-    addEventListener("resize", place);
+        ${step.choice ? `<div class="phitex-choice">${FOLLOW.map(([v, l], i) => `<button type="button" class="btn ${i ? "btn-secondary" : "btn-primary"} btn-sm" data-f="${v}">${l}${i ? "" : " <small>(recommended)</small>"}</button>`).join("")}</div>` : ""}`,
+      },
+      actions: [
+        button("skip", "btn-link phitex-callout-never", "Skip"),
+        ...(k ? [button("back", "btn-secondary", "Back")] : []),
+        ...(step.choice ? [] : [button("next", "btn-primary", k === STEPS.length - 1 ? "Done" : "Next")]),
+      ],
+    });
     t.onclick = (e) => {
       // (the highlight step: the choice saved, then on)
       const f = (e.target as HTMLElement).closest<HTMLElement>("[data-f]")?.dataset.f;

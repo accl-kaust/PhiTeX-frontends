@@ -9,16 +9,10 @@
 import type { Panel } from "./common/viewer/panel.ts";
 import { DiffControls, type DiffRunner as Runner } from "./common/viewer/compare.ts";
 import { type Version, versions } from "./history.ts";
+import { ago, h } from "./dom.ts";
+import { callout } from "./callout.ts";
 
 export type DiffRunner = Runner<Version>;
-
-const ago = (t: number) => {
-  const s = (Date.now() - t) / 1000;
-  if (s < 90) return "just now";
-  if (s < 5400) return `${Math.round(s / 60)} min ago`;
-  if (s < 36 * 3600) return `${Math.round(s / 3600)} h ago`;
-  return new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
-};
 
 /** "Not now": the tip again this much later. */
 const SNOOZE_MS = 3 * 24 * 3600 * 1000;
@@ -26,20 +20,7 @@ const SNOOZE_MS = 3 * 24 * 3600 * 1000;
 const TIP_DELAY_MS = 20_000;
 
 const TIP_CSS = `
-  #phitex-cmptip { position: fixed; z-index: 1060; width: 330px; max-width: calc(100vw - 16px); overflow: visible;
-    border: 1.5px solid var(--green-40, #53b57f); border-radius: 12px;
-    box-shadow: 0 0 0 4px rgb(83 181 127 / 18%), 0 18px 48px rgb(0 0 0 / 45%), 0 0 32px rgb(83 181 127 / 35%);
-    animation: phitex-tip-in .6s cubic-bezier(.18,1.5,.4,1); }
-  #phitex-cmptip::before { content: ""; position: absolute; top: -8px; left: var(--arrow, 50%); width: 14px; height: 14px; transform: translateX(-50%) rotate(45deg);
-    background: var(--green-50, #098842); border-left: 1.5px solid var(--green-40, #53b57f); border-top: 1.5px solid var(--green-40, #53b57f); }
-  #phitex-cmptip .phitex-tip-clip { position: relative; overflow: hidden; border-radius: 11px; }
-  #phitex-cmptip .popover-header { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: #fff; border: 0;
-    background: linear-gradient(135deg, var(--green-50, #098842), var(--green-60, #1e6b41)); padding: 10px 14px; }
-  #phitex-cmptip .phitex-tip-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 10px; }
-  #phitex-cmptip #phitex-cmptip-never { margin-right: auto; padding-left: 0; color: var(--content-placeholder-dark, #8d96a5); text-decoration: none; font-size: 12px; }
-  #phitex-cmptip #phitex-cmptip-never:hover { color: var(--content-primary-dark, #f4f5f6); text-decoration: underline; }
   /* the demo: a page whose sentence changes, then the change marked as latexdiff marks it, then the navigator */
-  #phitex-cmptip .popover-body code { color: var(--green-30, #86caa5); background: rgb(0 0 0 / 22%); padding: 0 4px; border-radius: 4px; }
   #phitex-cmptip .cmp-demo { position: relative; margin: 10px 0 4px; padding: 10px 12px 30px; border-radius: 8px; background: #fff; color: #1b222c;
     font: 13px/1.5 "Noto Serif", serif; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%); }
   #phitex-cmptip .cmp-demo .del { position: relative; color: #1b222c; animation: cmp-del 6s ease-in-out infinite; }
@@ -64,7 +45,7 @@ const TIP_CSS = `
   }`;
 
 /**
- * The compare tip: Overleaf's popover (the first-run tip's look) pointing at
+ * The compare tip: a shiny callout (callout.ts, the first-run tip's look) pointing at
  * the Compare button, with a demo of a diff. Shown TIP_DELAY_MS after the
  * document's first pages are drawn, while Compare was never used; "Not now" brings it back
  * SNOOZE_MS later, "Don't show again" (or using Compare) never. Never over
@@ -83,47 +64,34 @@ function compareTip(btn: HTMLButtonElement): void {
       css.textContent = TIP_CSS;
       document.head.append(css);
     }
-    const t = document.createElement("div");
-    t.id = "phitex-cmptip";
-    t.className = "popover bs-popover-bottom show";
-    t.setAttribute("role", "dialog");
-    t.setAttribute("aria-label", "Compare with a past version");
-    t.innerHTML = `<div class="phitex-tip-clip">
-      <div class="popover-header"><span aria-hidden="true">⇄</span> New: see what changed</div>
-      <div class="popover-body">Compare this document with <b>any past version</b>: changes marked in the page, as <code>latexdiff</code> marks them, updated <b>as you type</b>.
+    const never = h("button", { type: "button", class: "btn btn-link btn-sm phitex-callout-never" }, "Don't show again");
+    const no = h("button", { type: "button", class: "btn btn-secondary btn-sm" }, "Not now");
+    const yes = h("button", { type: "button", class: "btn btn-primary btn-sm" }, "⇄ Try it");
+    const c = callout({
+      id: "phitex-cmptip",
+      label: "Compare with a past version",
+      anchor: btn,
+      shiny: true,
+      width: 330,
+      header: [h("span", { class: "phitex-callout-icon", "aria-hidden": "true" }, "⇄"), "New: see what changed"],
+      body: {
+        html: `Compare this document with <b>any past version</b>: changes marked in the page, as <code>latexdiff</code> marks them, updated <b>as you type</b>.
         <div class="cmp-demo" aria-hidden="true">The results are <span class="del">good</span><span class="add">&nbsp;excellent</span>.<span class="ver"><i class="v0">Submitted v1</i><i class="v1">Now vs Submitted v1</i></span><span class="tag">‹ 1 / 1 ›</span></div>
-        <div class="small text-muted" style="margin-top:6px">Pick a label or any point in the history. Download the diff PDF for your reviewers.</div>
-        <div class="phitex-tip-actions"><button type="button" class="btn btn-link btn-sm" id="phitex-cmptip-never">Don't show again</button>
-        <button type="button" class="btn btn-secondary btn-sm" id="phitex-cmptip-no">Not now</button>
-        <button type="button" class="btn btn-primary btn-sm" id="phitex-cmptip-yes">⇄ Try it</button></div></div></div>`;
-    document.body.append(t);
-    btn.classList.add("phitex-pulse");
-    const place = () => {
-      const r = btn.getBoundingClientRect();
-      const w = t.offsetWidth;
-      const left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8));
-      t.style.left = `${left}px`;
-      t.style.top = `${r.bottom + 10}px`;
-      t.style.setProperty("--arrow", `${r.left + r.width / 2 - left}px`);
-    };
-    place();
-    addEventListener("resize", place);
-    const hide = () => {
-      removeEventListener("resize", place);
-      t.remove();
-      btn.classList.remove("phitex-pulse");
-    };
-    t.querySelector<HTMLElement>("#phitex-cmptip-yes")!.onclick = (e) => {
+        <div class="small text-muted" style="margin-top:6px">Pick a label or any point in the history. Download the diff PDF for your reviewers.</div>`,
+      },
+      actions: [never, no, yes],
+    });
+    yes.onclick = (e) => {
       e.stopPropagation();
-      hide();
+      c.hide();
       btn.click();
     };
-    t.querySelector<HTMLElement>("#phitex-cmptip-no")!.onclick = () => {
-      hide();
+    no.onclick = () => {
+      c.hide();
       void chrome.storage.local.set({ cmpTipNext: Date.now() + SNOOZE_MS });
     };
-    t.querySelector<HTMLElement>("#phitex-cmptip-never")!.onclick = () => {
-      hide();
+    never.onclick = () => {
+      c.hide();
       void chrome.storage.local.set({ cmpTipOff: true });
     };
   }, TIP_DELAY_MS);

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { apply, canMove, empty, invalid, invalidStatus, pathOf, STATUSES, tree, type Op, type State } from "../overleaf/src/folders/folders.ts";
-import { Folders, memoryStorage } from "../overleaf/src/folders/sync.ts";
+import { Folders, memoryBackend } from "../overleaf/src/folders/sync.ts";
 
 const run = (...ops: Op[]) => ops.reduce(apply, empty());
 const base = () =>
@@ -55,7 +55,7 @@ test("an op on a folder gone meanwhile changes nothing", () => {
 });
 
 test("sync: saves batched, and replayed onto a copy another device saved meanwhile", async () => {
-  const storage = memoryStorage();
+  const storage = memoryBackend();
   const a = new Folders(storage, 0);
   await a.load();
   a.do({ op: "create", id: "a", parent: null, name: "A" });
@@ -78,7 +78,7 @@ test("sync: saves batched, and replayed onto a copy another device saved meanwhi
 });
 
 test("sync: a failed save keeps its changes, for the next", async () => {
-  const storage = memoryStorage();
+  const storage = memoryBackend();
   const f = new Folders(storage, 0);
   await f.load();
   const write = storage.write;

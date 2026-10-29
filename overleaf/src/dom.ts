@@ -1,6 +1,8 @@
 // Small DOM pieces, in Overleaf's own classes so its theme styles them: an
 // element builder, an icon (Overleaf's Material Symbols font), a dropdown
-// menu, a modal.
+// menu, a modal, a colour picker, how long ago. The extension's every part
+// builds with them: the editor's content script, the dashboard's folders
+// (callout.ts, the popovers, too).
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...kids: (Node | string)[]): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
@@ -129,9 +131,9 @@ export function colourPicker(initial: string): HTMLElement & { value: string } {
 }
 
 const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
-/** "3 days ago", as the table's dates. */
-export function ago(iso: string): string {
-  const s = (Date.parse(iso) - Date.now()) / 1000;
+/** "3 days ago", as Overleaf's own dates say it (`at`: ISO, or ms since the epoch). */
+export function ago(at: string | number): string {
+  const s = ((typeof at === "number" ? at : Date.parse(at)) - Date.now()) / 1000;
   for (const [unit, n] of [["year", 31536000], ["month", 2592000], ["day", 86400], ["hour", 3600], ["minute", 60]] as const)
     if (Math.abs(s) >= n) return rtf.format(Math.round(s / n), unit);
   return rtf.format(0, "second");

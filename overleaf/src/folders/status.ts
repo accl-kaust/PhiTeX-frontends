@@ -8,7 +8,7 @@
 // Drawn by ui.ts, as React adds rows.
 
 import { invalidStatus, newId, statusesOf, type Status } from "./folders.ts";
-import { colourPicker, COLOURS, dialog, h, icon, menu } from "./dom.ts";
+import { colourPicker, COLOURS, dialog, h, icon, menu } from "../dom.ts";
 import { dashboard, type Dashboard } from "./overleaf.ts";
 import type { View } from "./ui.ts";
 

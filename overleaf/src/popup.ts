@@ -4,9 +4,9 @@
 import "./platform.ts";
 import { type PackMeta, DEFAULT_CAP_MB, allMeta, capBytes, clearPacks, evict, kvGet, kvSet } from "./common/packstore.ts";
 import { type Ahead, setAheadOff } from "./common/prefetch.ts";
+import { TERMS } from "./terms.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const TERMS = 1;
 
 async function activeOverleafTab(): Promise<chrome.tabs.Tab | undefined> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

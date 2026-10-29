@@ -9,7 +9,7 @@
 // the open one, each with its place. Drawn by ui.ts.
 
 import { subtree, type Id } from "./folders.ts";
-import { ago, h, icon } from "./dom.ts";
+import { ago, h, icon } from "../dom.ts";
 import { blankCell } from "./status.ts";
 import { PAGE, pathChip, relPath, vocabulary, type View } from "./ui.ts";
 import { suggest, type Suggestion } from "./query.ts";

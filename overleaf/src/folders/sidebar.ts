@@ -3,7 +3,7 @@
 // all. Drawn by ui.ts.
 
 import { pathOf, tree, type Folder } from "./folders.ts";
-import { h, icon, menu } from "./dom.ts";
+import { h, icon, menu } from "../dom.ts";
 import type { View } from "./ui.ts";
 
 const COLLAPSED = "phitex:folders:collapsed";

@@ -57,9 +57,11 @@ cp "${SHELF_RELEASE:-shelf-release.json}" overleaf/shelf-release.json
 # The extension's TypeScript, as the modules it loads (dist/: the content
 # script's, the offscreen document's, the core's worker and its threads')
 scripts/sandbox npx tsc -p overleaf
-# The dashboard's folders (overleaf/src/folders/): a page-world content script
-# is a classic script, so one bundle, not the modules tsc made of them
+# The dashboard's content scripts, the folders (overleaf/src/folders/, in the
+# page's world) and their settings bridge (dashboard.ts): a content script
+# is a classic script, so each one bundle, not the modules tsc made of them
 scripts/sandbox node_modules/.bin/esbuild overleaf/src/folders/main.ts --bundle --log-level=warning --format=iife --target=chrome116 --outfile=overleaf/dist/folders.js
+scripts/sandbox node_modules/.bin/esbuild overleaf/src/dashboard.ts --bundle --log-level=warning --format=iife --target=chrome116 --outfile=overleaf/dist/dashboard.js --allow-overwrite
 rm -rf overleaf/dist/folders
 # Latin Modern (GUST Font License), the fonts the pages are drawn in (page2.ts):
 # common/fonts (kept up to date from TeX Live here), and the XeLaTeX stand-ins

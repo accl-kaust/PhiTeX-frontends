@@ -1,4 +1,4 @@
-// The folders kept in sync with where they are stored (any Storage: an
+// The folders kept in sync with where they are kept (any Backend: an
 // Overleaf project, project.ts; memory, in tests). A change shows at once,
 // and is saved shortly after with the others made meanwhile; if the stored
 // copy changed since it was read (another tab, another device), the changes
@@ -6,7 +6,7 @@
 
 import { apply, empty, type Op, type State } from "./folders.ts";
 
-export type Storage = {
+export type Backend = {
   /** The stored state, null if none yet. */
   read(): Promise<State | null>;
   write(s: State): Promise<void>;
@@ -21,18 +21,18 @@ export class Folders {
   private saving: Promise<void> | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
-  private storage: Storage;
+  private backend: Backend;
   private delay: number;
 
   /** `initial`: a copy to show until load() has read the stored one (say, the last one seen here). */
-  constructor(storage: Storage, delay = 400, initial: State | null = null) {
-    this.storage = storage;
+  constructor(backend: Backend, delay = 400, initial: State | null = null) {
+    this.backend = backend;
     this.delay = delay;
     if (initial) this.state = this.stored = initial;
   }
 
   async load(): Promise<void> {
-    this.stored = (await this.storage.read()) ?? empty();
+    this.stored = (await this.backend.read()) ?? empty();
     this.show();
   }
 
@@ -54,10 +54,10 @@ export class Folders {
       try {
         while (this.pending.length) {
           const ops = this.pending.slice();
-          const remote = (await this.storage.read()) ?? empty();
+          const remote = (await this.backend.read()) ?? empty();
           if (remote.rev !== this.stored.rev) this.stored = remote;
           const next = { ...ops.reduce(apply, this.stored), rev: this.stored.rev + 1 };
-          await this.storage.write(next);
+          await this.backend.write(next);
           this.stored = next;
           this.pending.splice(0, ops.length);
           this.show();
@@ -82,8 +82,8 @@ export class Folders {
   }
 }
 
-/** A Storage in memory (tests, or no storage). */
-export function memoryStorage(initial: State | null = null): Storage & { data: State | null } {
+/** A Backend in memory (tests). */
+export function memoryBackend(initial: State | null = null): Backend & { data: State | null } {
   return {
     data: initial,
     async read() {

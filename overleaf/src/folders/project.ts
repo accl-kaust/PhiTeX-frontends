@@ -1,4 +1,4 @@
-// A Storage in an Overleaf project of the user's, ".phitex-data": its data/folders.json,
+// A Backend in an Overleaf project of the user's, ".phitex-data": its data/folders.json,
 // versioned by Overleaf's history like any file. Plain HTTP, the editor's
 // own endpoints (services/web/app/src/Features/{Uploads,Editor,Project}):
 // - write: an upload replacing data/folders.json; the upload wants its
@@ -14,7 +14,7 @@
 import type { State } from "./folders.ts";
 import { call, csrf, fetchProjects, listProjects } from "./overleaf.ts";
 import { README_TEX } from "./readme.ts";
-import type { Storage } from "./sync.ts";
+import type { Backend } from "./sync.ts";
 
 export const PROJECT_NAME = ".phitex-data";
 const FILE = "folders.json";
@@ -30,7 +30,7 @@ export const isStorageName = (n: string, name = PROJECT_NAME) => n === name || (
 /** The file as stored: the state, and its folder's id. */
 type Stored = State & { dataFolder: string };
 
-export function projectStorage(name = PROJECT_NAME): Storage & { find(): Promise<string | null>; projectId(): Promise<string> } {
+export function projectBackend(name = PROJECT_NAME): Backend & { find(): Promise<string | null>; projectId(): Promise<string> } {
   // (remembered per browser: which project, the file's current id, its folder's)
   let cache: { project?: string; file?: string; folder?: string } = {};
   try {
