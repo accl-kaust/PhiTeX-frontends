@@ -70,7 +70,8 @@ let stderr = "";
 const timeline: [string, number, number][] = [];
 let packs = 0;
 let fetched = 0;
-const SHELF = "https://v1.shelf.phitex.org/tl2026/";
+// (SHELF_URL: the same release at another address, e.g. its Pages one where phitex.org is not reachable)
+const SHELF = process.env.SHELF_URL ?? "https://v1.shelf.phitex.org/tl2026/";
 const bundledDir = new URL("../texmf/", import.meta.url);
 
 /** Shelf's pack `id`: kept in target/shelf-cache/, else Shelf's, kept. */
