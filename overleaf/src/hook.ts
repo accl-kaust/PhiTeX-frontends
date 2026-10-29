@@ -9,14 +9,19 @@
   const SRC = "phitex-hook";
   let view: any = null;
   let file: string | null = null;
-  /** Changes made while the open file is not known yet (just switched). */
-  let held: any[] = [];
 
   const post = (msg: object) => window.postMessage({ src: SRC, ...msg }, location.origin);
 
-  /** The EditorView of `.cm-content`: `cmView.view` (CM ≤ 6.3x), or `cmTile.view`. */
+  /**
+   * The source editor's EditorView (of its `.cm-content`: `cmView.view` (CM ≤
+   * 6.3x), or `cmTile.view`). Never the history's: its document is a version's
+   * diff (deleted and added text both, read-only), first in the page while
+   * open, and was taken for the file (its text the session's, then the source
+   * editor's own changes applied on it).
+   */
   function findView(): any {
     for (const el of document.querySelectorAll(".cm-editor .cm-content")) {
+      if (el.closest(".history-react, .document-diff-container")) continue;
       const v = (el as any).cmView?.view ?? (el as any).cmTile?.view ?? (el as any).cmView?.rootView?.view;
       if (v?.state?.doc && typeof v.update === "function") return v;
     }
@@ -83,26 +88,30 @@
     }
     identifyTries = 0;
     file = name;
+    // (the whole text: changes made while the file was not known are in it)
     post({ type: "open", file: name, text: view.state.doc.toString() });
-    if (held.length) post({ type: "changes", file: name, edits: held.flat() });
-    held = [];
   }
 
+  /** `v` the editor from now on: patched once, taken again whenever it is the one found (identified anew). */
   function hook(v: any): void {
+    view = v;
+    file = null;
+    setTimeout(identify, 100);
     if (v.__phitex) return;
     v.__phitex = true;
     const update = v.update;
     v.update = function (trs: any[]) {
       const r = update.call(this, trs);
+      // (an editor no longer the one: its changes are not the file's)
+      if (this !== view) return r;
       const edits: any[] = [];
       for (const tr of trs) {
         const c = changesOf(tr);
         if (c) edits.push(...c);
       }
-      if (edits.length) {
-        if (file === null) held.push(edits);
-        else post({ type: "changes", file, edits, t: performance.now() });
-      }
+      // (with the text's length after them: the host checks its copy by it;
+      // none while the file is not known, the next "open" has them)
+      if (edits.length && file !== null) post({ type: "changes", file, edits, len: this.state.doc.length, t: performance.now() });
       // (a selection that changed: its text highlighted on the ⚡ page)
       if (trs.some((tr: any) => tr.selection)) selectionSoon();
       return r;
@@ -110,13 +119,12 @@
     const setState = v.setState;
     v.setState = function (s: any) {
       const r = setState.call(this, s);
+      if (this !== view) return r;
       // (a file switch: the DOM's name settles after the state)
       file = null;
       setTimeout(identify, 100);
       return r;
     };
-    view = v;
-    setTimeout(identify, 100);
   }
 
   // Overleaf builds the editor late and may build a new one: look again.
@@ -209,6 +217,25 @@
         if (!view || file === null) return;
         post({ type: "sync", file, pos: view.state.selection?.main?.head ?? 0 });
       }, inOutline ? 250 : 0);
+    },
+    true,
+  );
+
+  // Overleaf's arrows beside the PDF (its SyncTeX's), while ⚡ shows: ours.
+  // → the cursor's place on the ⚡ page, as a double-click in the editor; ←
+  // the ⚡ page's place in the editor. Told apart by their icons (the labels
+  // are translated), Overleaf's own handler not reached (React's, at its root).
+  document.addEventListener(
+    "click",
+    (e) => {
+      const b = (e.target as Element).closest?.(".synctex-control");
+      if (!b || !document.querySelector(".phitex-on")) return;
+      const icon = b.querySelector(".synctex-control-icon")?.textContent ?? "";
+      if (!/arrow_(right|left)/.test(icon)) return;
+      e.stopPropagation();
+      e.preventDefault();
+      if (icon.includes("left")) return post({ type: "toCode" });
+      if (view && file !== null) post({ type: "sync", file, pos: view.state.selection?.main?.head ?? 0 });
     },
     true,
   );

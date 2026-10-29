@@ -185,7 +185,7 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
 
 class OverleafHost implements EditorHost {
   private opens: ((f: string, t: string) => void)[] = [];
-  private changes: ((f: string, e: Edit[]) => void)[] = [];
+  private changes: ((f: string, e: Edit[], len?: number) => void)[] = [];
   private panel: Panel;
   constructor(panel: Panel) {
     this.panel = panel;
@@ -196,7 +196,7 @@ class OverleafHost implements EditorHost {
       if (m.type === "open") for (const cb of this.opens) cb(m.file, m.text);
       else if (m.type === "changes") {
         const es = m.edits.map(([from, to, text]: [number, number, string]) => ({ from, to, text }));
-        for (const cb of this.changes) cb(m.file, es);
+        for (const cb of this.changes) cb(m.file, es, m.len);
       }
     });
   }
@@ -206,8 +206,12 @@ class OverleafHost implements EditorHost {
   onOpen(cb: (f: string, t: string) => void) {
     this.opens.push(cb);
   }
-  onChanges(cb: (f: string, e: Edit[]) => void) {
+  onChanges(cb: (f: string, e: Edit[], len?: number) => void) {
     this.changes.push(cb);
+  }
+  /** The whole text again (the session's copy differs from the editor's): the hook announces the open file. */
+  resend() {
+    window.postMessage({ src: "phitex-content", type: "hello" }, location.origin);
   }
   ready() {
     // (the hook announces the open file again: the editor's text, unsaved
@@ -296,7 +300,8 @@ const DOCK_CSS = `
   .phitex-on .pdf-viewer { visibility: hidden !important; pointer-events: none !important; }
   /* Overleaf's logs (its compiler's) too, while Instant shows: back as they were on the PDF tab */
   .phitex-on .new-logs-pane, .phitex-on .logs-pane { visibility: hidden !important; pointer-events: none !important; }
-  .phitex-on .synctex-controls { z-index: 13 !important; }
+  /* Overleaf's SyncTeX arrows, beside the .pdf (not in it), over the ⚡ panel (its z-index 12) */
+  body:has(.phitex-on) .synctex-controls { z-index: 13 !important; }
   /* in PhiTeX mode, Overleaf's viewer controls go, all but its invert-colors button (which works on ours too) */
   .phitex-on #toolbar-pdf-controls *:not(:has(.theme-toggle-btn)):not(.theme-toggle-btn):not(.theme-toggle-btn *) { display: none !important; }
   .phitex-on .toolbar-pdf-right { display: flex; align-items: center; justify-content: flex-end; min-width: 0; }
@@ -589,6 +594,9 @@ function dockInOverleaf(panel: Panel): Dock {
     l = document.createElement("div");
     l.id = "phitex-left";
     l.innerHTML =
+      // (a clean recompile of ⚡ Instant alone: the project read again, typeset from the start)
+      `<button type="button" id="phitex-clean" aria-label="Clean recompile (Instant)" title="⚡ Instant: clean recompile, the project read again and typeset from the start (PhiTeX)" class="d-inline-grid pdf-toolbar-btn toolbar-item btn btn-link">` +
+      `<span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">refresh</span></span></button>` +
       `<button type="button" id="phitex-logs" aria-label="PhiTeX diagnostics" title="PhiTeX diagnostics" class="d-inline-grid pdf-toolbar-btn toolbar-item log-btn btn btn-link" style="position: relative;">` +
       `<span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">description</span></span>` +
       `<span class="phitex-badge" id="phitex-badge"></span></button>` +
@@ -601,6 +609,7 @@ function dockInOverleaf(panel: Panel): Dock {
       `<ul class="dropdown-menu" id="phitex-dlmenu" role="menu">` +
       `<li><button type="button" class="dropdown-item" data-dl="instant">⚡ Instant PDF <span class="text-muted small">PhiTeX, experimental</span></button></li>` +
       `<li><button type="button" class="dropdown-item" data-dl="compiled">Compiled PDF <span class="text-muted small">Overleaf</span></button></li></ul></div>`;
+    l.querySelector<HTMLElement>("#phitex-clean")!.onclick = () => panel.clean();
     l.querySelector<HTMLElement>("#phitex-logs")!.onclick = () => panel.diagnostics();
     const menu = l.querySelector<HTMLElement>("#phitex-dlmenu")!,
       more = l.querySelector<HTMLElement>("#phitex-dlmore")!;
@@ -823,6 +832,13 @@ function dockInOverleaf(panel: Panel): Dock {
       rc.dataset.phitex = "1";
       rc.addEventListener("click", () => mode === "phitex" && panel.clean(), true);
     }
+    // (its menu's "Recompile from scratch": ⚡ Instant's from scratch too; told by
+    // being the plain item right after a divider, the labels being translated)
+    const scratch = [...left.querySelectorAll<HTMLElement>(".compile-button-group .dropdown-menu .dropdown-item")].find((b) => !b.querySelector("input, .material-symbols") && b.closest("li")?.previousElementSibling?.matches('[role="separator"]'));
+    if (scratch && !scratch.dataset.phitex) {
+      scratch.dataset.phitex = "1";
+      scratch.addEventListener("click", () => mode === "phitex" && panel.clean(), true);
+    }
     if (rc) rc.title = mode === "phitex" ? "Recompile: Overleaf's PDF, and ⚡ Instant from scratch (PhiTeX)" : (rc.title.startsWith("Recompile: Overleaf") ? "" : rc.title);
     // (compact when the full controls do not fit what the toolbar has left: measured here,
     // not taken from Overleaf's own choice, which counts our switch against its room)
@@ -1042,6 +1058,11 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   window.addEventListener("message", (e) => {
     if (e.source !== window || e.data?.src !== "phitex-hook") return;
     if (e.data.type === "sync") void session?.toPage(e.data.file, e.data.pos);
+    // (Overleaf's ← beside the PDF: the place on the ⚡ pages in the editor)
+    if (e.data.type === "toCode") {
+      const p = panel.spot();
+      if (p) void session?.toSource(p.k, p.x, p.y);
+    }
     // (the editor's cursor as it moves: the word it is in, on the page)
     if (e.data.type === "cursor" && highlightMode === "cursor") session?.follow(e.data.file, e.data.pos);
     // (the editor's selection: its text highlighted on the pages)

@@ -10,7 +10,7 @@
 
 import * as vscode from "vscode";
 import { readdir, readFile } from "node:fs/promises";
-import { AbstractMessageReader, AbstractMessageWriter, CloseAction, ErrorAction, ExecuteCommandRequest, LanguageClient, State, type DataCallback, type LanguageClientOptions, type Message } from "vscode-languageclient/node";
+import { AbstractMessageReader, AbstractMessageWriter, CloseAction, ErrorAction, ExecuteCommandRequest, LanguageClient, State, type DataCallback, type LanguageClientOptions, type Message, type ShowDocumentParams, type ShowDocumentResult } from "vscode-languageclient/node";
 import { join } from "node:path";
 import { availableParallelism } from "node:os";
 import { setPlatform } from "../../common/src/platform.ts";
@@ -336,7 +336,30 @@ function clientOptions(folder: string, log: vscode.OutputChannel): LanguageClien
     // under the preview, the builtin's document is the preview's; an exit is said, with
     // Restart offered: crashed())
     errorHandler: { error: () => ({ action: ErrorAction.Continue }), closed: () => ({ action: CloseAction.DoNotRestart, handled: true }) },
+    // (a double-click on the pages: its source in the editor beside them, never over them)
+    middleware: { window: { showDocument: (params) => showSource(params) } },
   };
+}
+
+/**
+ * window/showDocument's place in an editor: the column already showing that
+ * file, else one showing another (the editor beside the preview), else a
+ * new one beside; the client's own opens it in the active column, which is
+ * the preview's after a double-click on its pages.
+ */
+async function showSource(params: ShowDocumentParams): Promise<ShowDocumentResult> {
+  const uri = vscode.Uri.parse(params.uri);
+  if (params.external) return { success: await vscode.env.openExternal(uri) };
+  const isPreview = (t: vscode.Tab | undefined) => t?.input instanceof vscode.TabInputWebview && /phitex\.(preview|watch)$/.test(t.input.viewType);
+  const column =
+    vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri.toString())?.viewColumn ??
+    vscode.window.tabGroups.all.find((g) => !isPreview(g.activeTab))?.viewColumn ??
+    vscode.ViewColumn.Beside;
+  const r = params.selection;
+  const selection = r && new vscode.Range(r.start.line, r.start.character, r.end.line, r.end.character);
+  const editor = await vscode.window.showTextDocument(uri, { viewColumn: column, preserveFocus: !params.takeFocus, selection });
+  if (selection) editor.revealRange(selection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  return { success: true };
 }
 
 /**
