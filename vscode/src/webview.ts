@@ -72,6 +72,8 @@ class Relay implements CoreTransport {
   }
 }
 
+/** Which engine builds (relay.ts's viewHtml says): the panel's words. */
+const watch = (window as unknown as { PHITEX_ENGINE?: string }).PHITEX_ENGINE === "watch";
 const relay = new Relay();
 // (the last frame's numbers, in the corner, with phitex.trace's trace too)
 const chip = document.createElement("div");
@@ -99,20 +101,20 @@ const panel = new Panel(
     outline: true,
     header: true,
     words: {
-      badge: "watch",
-      badgeTitle: "phitex watch: the document built as you type",
+      badge: watch ? "watch" : "builtin",
+      badgeTitle: watch ? "phitex watch: the native engine, the document built as you type" : "The builtin engine: PhiTeX in WebAssembly inside VS Code, the document built as you type",
       byline: "⚡ PhiTeX",
-      about: `<b>⚡ PhiTeX</b>: the document built by <code>phitex watch</code> as you type, its pages here. Nothing leaves this machine.
+      about: `<b>⚡ PhiTeX</b>: the document built ${watch ? "by <code>phitex watch</code>" : "inside VS Code"} as you type, its pages here. Nothing leaves this machine.
         <div class="about-foot">Free software (AGPL-3.0-only, <a id="license" target="_blank" rel="noopener">full license</a>),
         provided as is, without any warranty.</div>`,
       realPdf: "",
       stopped: "The build stopped: its problems are listed above.",
       notReady: "This engine does not run here yet.",
       openFailed: "Close the preview and open it again to retry.",
-      reading: "Reading the document from phitex watch.",
+      reading: watch ? "Reading the document from phitex watch." : "Reading the project.",
       keptIn: "this machine",
       preparing: "",
-      steps: ["Connected", "Format", "Building"],
+      steps: ["Starting", "Packages", "Typesetting"],
     },
   },
 );

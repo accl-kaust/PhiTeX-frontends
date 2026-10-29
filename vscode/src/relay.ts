@@ -8,15 +8,15 @@ import * as vscode from "vscode";
 import type { CoreEvent, CoreRes, CoreTransport } from "../../common/src/viewer/session.ts";
 import type { Down, Up } from "./webview.ts";
 
-/** The webview's page: the panel's script and MuPDF from the extension's dist/, nothing else. */
-export function viewHtml(view: vscode.Webview, ext: vscode.Uri): string {
+/** The webview's page: the panel's script from the extension's dist/, nothing else; `engine`: which one builds (its words). */
+export function viewHtml(view: vscode.Webview, ext: vscode.Uri, engine: "builtin" | "watch"): string {
   const root = view.asWebviewUri(ext).toString().replace(/\/?$/, "/");
   const nonce = Math.random().toString(36).slice(2);
   const src = view.cspSource;
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${src} data: blob:; font-src ${src} data:; style-src ${src} 'unsafe-inline'; script-src 'nonce-${nonce}' ${src} 'wasm-unsafe-eval'; connect-src ${src};">
 <meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0;height:100vh"><script nonce="${nonce}">window.PHITEX_ROOT=${JSON.stringify(root)};window.PHITEX_FONTS=${JSON.stringify(root + "fonts/")};</script><script nonce="${nonce}" src="${root}dist/webview.js"></script></body></html>`;
+<body style="margin:0;height:100vh"><script nonce="${nonce}">window.PHITEX_ROOT=${JSON.stringify(root)};window.PHITEX_FONTS=${JSON.stringify(root + "fonts/")};window.PHITEX_ENGINE=${JSON.stringify(engine)};</script><script nonce="${nonce}" src="${root}dist/webview.js"></script></body></html>`;
 }
 
 /** What the webview of `view` asks, answered by `core`; `pdf`: its download asked. */

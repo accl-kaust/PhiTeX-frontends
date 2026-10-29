@@ -33,6 +33,36 @@
         "title": "Open Preview",
         "category": "PhiTeX",
         "icon": "$(zap)"
+      },
+      {
+        "command": "phitex.stop",
+        "title": "Stop",
+        "category": "PhiTeX"
+      },
+      {
+        "command": "phitex.restart",
+        "title": "Restart",
+        "category": "PhiTeX"
+      },
+      {
+        "command": "phitex.switchEngine",
+        "title": "Switch Engine (builtin ↔ phitex watch)",
+        "category": "PhiTeX"
+      },
+      {
+        "command": "phitex.savePdf",
+        "title": "Save PDF…",
+        "category": "PhiTeX"
+      },
+      {
+        "command": "phitex.showLog",
+        "title": "Show Log",
+        "category": "PhiTeX"
+      },
+      {
+        "command": "phitex.menu",
+        "title": "Menu",
+        "category": "PhiTeX"
       }
     ],
     "menus": {

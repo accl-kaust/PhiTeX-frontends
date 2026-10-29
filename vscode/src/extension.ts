@@ -10,7 +10,7 @@
 
 import * as vscode from "vscode";
 import { readdir, readFile } from "node:fs/promises";
-import { LanguageClient, State } from "vscode-languageclient/node";
+import { CloseAction, ErrorAction, LanguageClient, State } from "vscode-languageclient/node";
 import { join } from "node:path";
 import { availableParallelism } from "node:os";
 import { setPlatform } from "../../common/src/platform.ts";
@@ -21,6 +21,7 @@ import { prefetch, startCore } from "./core.ts";
 import type { CoreIndex } from "../../common/src/wasm/host.ts";
 import { nodePlatform } from "./platform.ts";
 import { relay, viewHtml, WatchLink } from "./relay.ts";
+import { StatusItem, type EngineStatus } from "./status.ts";
 
 /** The project's text files (what the core reads as source), and the binary ones it is given apart. */
 const TEXT = /\.(tex|sty|cls|bib|bst|cfg|def|clo|fd|ltx|bbx|cbx|lbx|dtx|ins|txt|csv|dat|tikz|pgf|bbl)$/i;
@@ -82,24 +83,86 @@ let builtin: ReturnType<typeof startCore> | undefined;
 let builtinFolder = "";
 let builtinView: vscode.WebviewPanel | undefined;
 
+/** The status bar's item (status.ts). */
+let status: StatusItem;
+/** The preview last opened: what the menu's Stop, Restart and Save PDF act on. */
+let current: { folder: string; view: vscode.WebviewPanel; save(): void } | undefined;
+
+/** Which engine builds: the setting phitex.engine. */
+const engineSetting = () => (vscode.workspace.getConfiguration("phitex").get<string>("engine") === "phitex watch" ? "phitex watch" : "builtin");
+
 export function activate(ctx: vscode.ExtensionContext): void {
   const root = ctx.extensionPath;
   const store = join(ctx.globalStorageUri.fsPath, "store");
   setPlatform(nodePlatform(root, store));
   const log = vscode.window.createOutputChannel("PhiTeX");
-  ctx.subscriptions.push(log);
-  ctx.subscriptions.push(vscode.commands.registerCommand("phitex.preview", () => preview(ctx, root, log)));
+  status = new StatusItem();
+  const open = (folder?: string) => preview(ctx, root, log, folder);
+  /** The preview closed, its engine with it (the builtin core's document closed, the watch stopped). */
+  const stop = () => current?.view.dispose();
+  const restart = async () => {
+    const folder = current?.folder;
+    stop();
+    await Promise.all(stopping);
+    await open(folder);
+  };
+  ctx.subscriptions.push(
+    log,
+    status,
+    vscode.commands.registerCommand("phitex.preview", () => open()),
+    vscode.commands.registerCommand("phitex.stop", stop),
+    vscode.commands.registerCommand("phitex.restart", restart),
+    vscode.commands.registerCommand("phitex.savePdf", () => (current ? current.save() : void vscode.window.showWarningMessage("PhiTeX: open the preview first."))),
+    vscode.commands.registerCommand("phitex.showLog", () => log.show()),
+    vscode.commands.registerCommand("phitex.switchEngine", async () => {
+      const to = engineSetting() === "builtin" ? "phitex watch" : "builtin";
+      // (where it is set: the folder's settings if they say it, else the user's)
+      const set = vscode.workspace.getConfiguration("phitex").inspect<string>("engine");
+      const target = set?.workspaceFolderValue !== undefined ? vscode.ConfigurationTarget.WorkspaceFolder : set?.workspaceValue !== undefined ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+      await vscode.workspace.getConfiguration("phitex").update("engine", to, target);
+      if (current) await restart();
+      void vscode.window.showInformationMessage(`PhiTeX: the ${to === "builtin" ? "builtin engine (WebAssembly, in VS Code)" : "native engine (phitex watch)"} builds now.`);
+    }),
+    vscode.commands.registerCommand("phitex.menu", async () => {
+      const other = engineSetting() === "builtin" ? "the native engine (phitex watch)" : "the builtin engine (WebAssembly)";
+      type Item = vscode.QuickPickItem & { run(): unknown };
+      const items: Item[] = [
+        ...(current
+          ? [
+              { label: "$(eye) Show the preview", run: () => current?.view.reveal(vscode.ViewColumn.Beside, true) },
+              { label: "$(file-pdf) Save the PDF…", run: () => current?.save() },
+              { label: "$(debug-restart) Restart", run: restart },
+              { label: "$(debug-stop) Stop", description: "closes the preview", run: stop },
+            ]
+          : [{ label: "$(zap) Open the preview", description: "Ctrl+Alt+P", run: () => open() }]),
+        { label: "$(arrow-swap) Switch engine", description: `to ${other}`, run: () => vscode.commands.executeCommand("phitex.switchEngine") },
+        { label: "$(output) Show the log", run: () => log.show() },
+        { label: "$(gear) Settings", run: () => vscode.commands.executeCommand("workbench.action.openSettings", "@ext:accl-kaust.phitex-instant") },
+      ];
+      const pick = await vscode.window.showQuickPick(items, { title: "PhiTeX", placeHolder: status.state === "off" ? "Not running" : `Running: ${engineSetting()}` });
+      await pick?.run();
+    }),
+  );
 }
 
-async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.OutputChannel): Promise<void> {
+/** The engine stopped by itself: the status bar says so, and a notification offers what to do. */
+function crashed(why: string, log: vscode.OutputChannel): void {
+  status.set({ state: "crashed" });
+  void vscode.window.showErrorMessage(`PhiTeX: ${why}`, "Restart", "Show log").then((a) => {
+    if (a === "Restart") void vscode.commands.executeCommand("phitex.restart");
+    if (a === "Show log") log.show();
+  });
+}
+
+async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.OutputChannel, at?: string): Promise<void> {
   const ed = vscode.window.activeTextEditor;
-  const ws = ed ? vscode.workspace.getWorkspaceFolder(ed.document.uri) : vscode.workspace.workspaceFolders?.[0];
+  const ws = at ? { uri: vscode.Uri.file(at) } : ed ? vscode.workspace.getWorkspaceFolder(ed.document.uri) : vscode.workspace.workspaceFolders?.[0];
   if (!ws || ws.uri.scheme !== "file") {
     void vscode.window.showErrorMessage("PhiTeX: open a .tex file in a folder first.");
     return;
   }
   const folder = ws.uri.fsPath;
-  if (vscode.workspace.getConfiguration("phitex").get<string>("engine") === "phitex watch") return previewWatch(ctx.extensionUri, folder, ed, log);
+  if (engineSetting() === "phitex watch") return previewWatch(ctx.extensionUri, folder, ed, log);
   if (builtinView && builtinFolder === folder) return builtinView.reveal(vscode.ViewColumn.Beside, true);
   builtinView?.dispose();
 
@@ -108,7 +171,19 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   if (!main) return void vscode.window.showErrorMessage("PhiTeX: no .tex file with \\documentclass in this folder.");
   builtinFolder = folder;
   // (the engine's threads: this machine's cores, as in the browser: overleaf/src/worker.ts)
-  builtin ??= startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), availableParallelism());
+  if (!builtin) {
+    status.set({ state: "starting", engine: "wasm" });
+    const started = (builtin = startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), availableParallelism(), undefined, (why) => {
+      // (a trap: this core is gone, the next preview starts another)
+      if (builtin === started) builtin = undefined;
+      const view = builtinView;
+      builtinView = undefined;
+      view?.dispose();
+      crashed(`the builtin engine stopped (${why}).`, log);
+    }));
+    // (its events, once per core: the status bar's)
+    void started.then(({ session }) => session.onEvent((e) => status.event(e as never)), () => undefined);
+  }
 
   const view = vscode.window.createWebviewPanel("phitex.preview", "⚡ PhiTeX", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {
     enableScripts: true,
@@ -116,7 +191,8 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     localResourceRoots: [vscode.Uri.joinPath(ctx.extensionUri, "dist"), vscode.Uri.joinPath(ctx.extensionUri, "fonts")],
   });
   builtinView = view;
-  view.webview.html = viewHtml(view.webview, ctx.extensionUri);
+  view.webview.html = viewHtml(view.webview, ctx.extensionUri, "builtin");
+  if (status.state !== "starting") status.set({ state: "starting", engine: "wasm" });
 
   let core: Core, session: CoreSession, index: CoreIndex;
   try {
@@ -125,6 +201,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     builtin = undefined;
     log.appendLine(`core: ${e}`);
     view.dispose();
+    status.set({ state: "off" });
     return void vscode.window.showErrorMessage(`PhiTeX: the engine did not start: ${e}`);
   }
   // (a double-click's source: the core says where, the editor goes there)
@@ -159,11 +236,14 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
       }, 150);
     }),
   ];
+  current = { folder, view, save: () => void savePdf(transport, folder, main) };
   view.onDidDispose(() => {
     subs.forEach((s) => s.dispose());
+    if (current?.view === view) current = undefined;
     if (builtinView === view) builtinView = undefined;
-    // (the document closed: the core idle until the next preview)
-    if (!builtinView) core.close();
+    // (the document closed: the core idle until the next preview; a core that trapped is gone already)
+    if (!builtinView && builtin) core.close();
+    if (status.state !== "crashed") status.set({ state: "off" });
   });
 
   // (the project's binary files first, then its text and the open)
@@ -221,6 +301,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
     localResourceRoots: [vscode.Uri.joinPath(ext, "dist"), vscode.Uri.joinPath(ext, "fonts")],
   });
   watchViews.set(folder, view);
+  status.set({ state: "starting", engine: "native" });
   const said: string[] = [];
   const waiting = () => {
     const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -236,6 +317,9 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
       documentSelector: ["latex", "tex", "bibtex"].map((language) => ({ scheme: "file", language, pattern: `${folder}/**/*` })),
       workspaceFolder: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folder)),
       outputChannel: log,
+      // (never restarted behind the user's back: its viewer's address would change under the
+      // preview; an exit is said, with Restart offered: crashed())
+      errorHandler: { error: () => ({ action: ErrorAction.Continue }), closed: () => ({ action: CloseAction.DoNotRestart, handled: true }) },
     },
   );
   watches.add(client);
@@ -244,6 +328,8 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   const subs: vscode.Disposable[] = [];
   view.onDidDispose(() => {
     closed = true;
+    if (current?.view === view) current = undefined;
+    if (status.state !== "crashed") status.set({ state: "off" });
     watchViews.delete(folder);
     subs.forEach((s) => s.dispose());
     watches.delete(client);
@@ -257,6 +343,8 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   let found: (u: string | null) => void = () => undefined;
   const url = new Promise<string | null>((done) => (found = done));
   subs.push(
+    // (what the engine is doing: the status bar's, docs/spec-editor-protocol.md)
+    client.onNotification("phitex/status", (s: EngineStatus) => status.set(s)),
     // (the client writes each one to the PhiTeX output itself)
     client.onNotification("window/logMessage", (p: { message: string }) => {
       said.push(...p.message.split("\n").map((l) => l.trim()).filter(Boolean));
@@ -277,6 +365,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   if (!page0) {
     watches.delete(client);
     view.dispose();
+    status.set({ state: "off" });
     void vscode.window.showErrorMessage(`PhiTeX: \`${cmd} watch --lsp\` did not start (see the PhiTeX output). Install phitex, or set phitex.path, or phitex.engine to "builtin".`, "Show output").then((a) => a && log.show());
     return;
   }
@@ -284,7 +373,11 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   // the watch's address is this host's, local to the watch)
   shown = true;
   const link = new WatchLink(page0);
-  view.webview.html = viewHtml(view.webview, ext);
+  current = { folder, view, save: () => void savePdf(link, folder, main) };
+  // (the viewer's events too: its progress, until phitex/status says it all)
+  link.onEvent((e) => status.event(e as never));
+  if (status.state === "starting") status.set({ state: "ready" });
+  view.webview.html = viewHtml(view.webview, ext, "watch");
   subs.push(
     relay(view, link, () => void savePdf(link, folder, main), (s) => log.appendLine(s)),
     { dispose: () => link.close() },
@@ -303,7 +396,11 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
     client.onDidChangeState((s) => {
       if (s.newState !== State.Stopped) return;
       log.appendLine("phitex watch ended");
-      if (!closed) view.dispose();
+      if (closed) return;
+      // (it ended without the preview closing: it exited by itself)
+      status.set({ state: "crashed" });
+      view.dispose();
+      crashed("phitex watch exited.", log);
     }),
   );
 }
