@@ -329,7 +329,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   view.onDidDispose(() => {
     closed = true;
     if (current?.view === view) current = undefined;
-    if (status.state !== "crashed") status.set({ state: "off" });
+    if (status.state !== "crashed" && status.state !== "stopped") status.set({ state: "off" });
     watchViews.delete(folder);
     subs.forEach((s) => s.dispose());
     watches.delete(client);
@@ -397,7 +397,8 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
       if (s.newState !== State.Stopped) return;
       log.appendLine("phitex watch ended");
       if (closed) return;
-      // (it ended without the preview closing: it exited by itself)
+      // (stopped as asked, phitex.stop: its last phitex/status said so; else it exited by itself)
+      if (status.state === "stopped") return void view.dispose();
       status.set({ state: "crashed" });
       view.dispose();
       crashed("phitex watch exited.", log);

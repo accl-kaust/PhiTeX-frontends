@@ -7,7 +7,7 @@
 
 import * as vscode from "vscode";
 
-export type EngineState = "off" | "starting" | "fetching" | "typesetting" | "ready" | "failed" | "crashed";
+export type EngineState = "off" | "starting" | "fetching" | "typesetting" | "ready" | "failed" | "stopped" | "crashed";
 
 /** As phitex/status says it. */
 export type EngineStatus = {
@@ -84,6 +84,10 @@ export class StatusItem implements vscode.Disposable {
       case "failed":
         it.text = `$(error) PhiTeX${problems || " failed"}`;
         it.tooltip = "PhiTeX: the build stopped (its problems are in the preview). Click for the menu.";
+        break;
+      case "stopped":
+        it.text = "$(zap) PhiTeX";
+        it.tooltip = "PhiTeX: stopped. Click for the menu, or Ctrl+Alt+P to open the preview.";
         break;
       case "crashed":
         it.text = "$(warning) PhiTeX exited";
