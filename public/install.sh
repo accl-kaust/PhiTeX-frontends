@@ -10,7 +10,7 @@
 # sent but the downloads themselves.
 #
 # Settings (environment):
-#   PHITEX_VERSION=0.1.0   a version instead of the latest release
+#   PHITEX_VERSION=1.6     a version instead of the latest release
 #   PHITEX_PREFIX=DIR      install into DIR/bin (default ~/.local)
 #
 # `phitex upgrade` updates an install made by this script.
