@@ -19,9 +19,9 @@
 // from TeX Live's scripts/minted).
 //
 // Without FILE: a plain TeX job in ini mode (cmr10), DVI out. The first
-// build's output is written to target/core-run.pdf (or .dvi), its log to
-// target/core-run.log; the harness ends once the core is idle (its records
-// stored, its log written).
+// build's output is written to target/core-run.pdf (or .dvi), and
+// the harness ends after it (the records the build changed are stored as it
+// settles, before its event).
 
 import { execFile } from "node:child_process";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
@@ -130,8 +130,7 @@ const core = Core.start(module, {
     return path ? { path, bytes: new Uint8Array(await readFile(path)) } : null;
   },
   event(e) {
-    if (e.event === "build" || e.event === "failed") built(e);
-    else if (e.event === "idle") void idle(e);
+    if (e.event === "build" || e.event === "failed") void built(e);
   },
   log(s) {
     stderr += s;
@@ -153,8 +152,8 @@ if (!kpse) {
   for (const n of dir ? await readdir(dir) : []) if (n !== main && /\.(tex|sty|cls|bib|bst|cfg|def|png|pdf|jpg)$/.test(n)) core.provide(n, { path: "./" + n, bytes: new Uint8Array(await readFile(dir + n)) });
 }
 let first: any;
-/** The first build in: its output written, what it took said. */
-function built(e: any): void {
+/** The first build in: its output written, what it took said, the stores awaited, the harness done. */
+async function built(e: any): Promise<void> {
   if (first) return;
   first = e;
   const out = core.mainOutput();
@@ -163,13 +162,6 @@ function built(e: any): void {
   if (e.errors?.length || e.message) console.log("errors:", e.message ?? "", (e.errors ?? []).slice(0, 10));
   if (flag("--timeline")) for (const [id, a, b] of timeline) console.log(`  ${a.toFixed(0).padStart(6)} → ${b.toFixed(0).padStart(6)} ms  ${id}`);
   if (out) stored.push(writeFile(`target/core-run.${out.pdf ? "pdf" : "dvi"}`, out.bytes));
-}
-/** Idle after it: the log read, the stores awaited, the harness done. */
-async function idle(e: any): Promise<void> {
-  if (!first) return;
-  const log = core.file(e.log);
-  if (log) stored.push(writeFile("target/core-run.log", log));
-  if (!first.pages && log) console.log(new TextDecoder().decode(log).split("\n").slice(-25).join("\n"));
   // (--packs FILE: the packs this build fetched, one id a line)
   if (value("--packs")) stored.push(writeFile(value("--packs")!, timeline.map(([id]) => id + "\n").join("")));
   await Promise.all([...stored, writeFile(pathsFile, JSON.stringify(paths))]);

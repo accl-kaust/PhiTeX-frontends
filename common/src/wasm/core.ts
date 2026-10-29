@@ -55,7 +55,7 @@ export interface CoreOptions {
   shell?: Shell;
   /** The session's store (the format's state, the records): without it nothing is kept, every open builds its format. */
   store?: Store;
-  /** The core's events (the viewer's, `{event: "build", ...}`, `{event: "idle"}`); more listen with `onEvent`. */
+  /** The core's events (the viewer's, `{event: "build", ...}`); more listen with `onEvent`. */
   event?: (e: any) => void;
   /** What the core writes to stderr (a panic's message). */
   log?: (s: string) => void;
@@ -331,7 +331,7 @@ export class Core {
     return this.call((p, n) => this.x.ph_frame(p, n), JSON.stringify({ page: k, scale, have: have.join(",") })) ? this.output() : null;
   }
 
-  /** A file the build wrote (the log once the core is idle, `.aux`, ...); null: not written. */
+  /** A file the build wrote (`.aux`, ...); null: not written. */
   file(name: string): Uint8Array | null {
     return this.call((p, n) => this.x.ph_file(p, n), name) ? this.output() : null;
   }

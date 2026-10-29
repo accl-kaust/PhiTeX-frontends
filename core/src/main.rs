@@ -12,8 +12,7 @@
 //!   the editor changed), posts its events to the host (`phitex.event`,
 //!   JSON: the viewer's `preparing`, `diagnostics`, `origins`, `settled`,
 //!   ..., as they happen, and the build's `build` or `failed` after it),
-//!   then waits until something is asked. Idle for a while, it stores the
-//!   records the builds changed and writes the log (`{event: "idle"}`).
+//!   then waits until something is asked.
 //! - A viewer's request (`ph_request`, `session.ts`'s `CoreReq`) is
 //!   answered at once on thread 0 by the document's viewer, from its state
 //!   (each lock held for a copy, never across a build); what it asks of the
@@ -47,7 +46,6 @@ mod store;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
-use std::time::Duration;
 
 use phitex_live::document::Document;
 use phitex_live::session::{Job, Session, Status};
@@ -348,7 +346,7 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
         sink.clone(),
         Arc::new(Status::default()),
     );
-    // (as the watch's: no log laid out after each build, written when idle)
+    // (as the watch's: no log laid out after each build)
     session.watching = true;
     let doc = Document::new(session, &main);
     let viewer = doc.viewer().clone();
@@ -382,49 +380,27 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
     0
 }
 
-/// How long the session waits with nothing asked before it is idle (the
-/// watch's 2 s).
-const IDLE: Duration = Duration::from_secs(2);
-
 /// The session thread: the document stepped whenever something is asked,
-/// its events to the host, until it is closed.
+/// its events to the host, until it is closed. (The records a build
+/// changed are stored as it settles, by the document: nothing is left
+/// for a quiet moment.)
 fn run(mut doc: Document, wake: &Wake, output: &Output) {
-    let mut idle = true;
     loop {
         let events = doc.step();
         if events.iter().any(|e| e["event"] == "build" || e["event"] == "failed") {
             *lock(output) = doc.output();
-            idle = false;
         }
         for e in &events {
             event(e);
         }
         let mut s = lock(&wake.state);
-        loop {
-            if s.1 {
-                return;
-            }
-            if s.0 {
-                s.0 = false;
-                break;
-            }
-            if idle {
-                s = wake.cv.wait(s).unwrap_or_else(PoisonError::into_inner);
-                continue;
-            }
-            let (g, t) = wake.cv.wait_timeout(s, IDLE).unwrap_or_else(PoisonError::into_inner);
-            s = g;
-            if t.timed_out() && !s.0 && !s.1 {
-                drop(s);
-                // (the records the builds changed stored, the log written)
-                doc.idle();
-                let log = doc.session().write_log();
-                let name = format!("{}.log", doc.session().job.jobname);
-                event(&json!({"event": "idle", "log": name, "error": log.err()}));
-                idle = true;
-                s = lock(&wake.state);
-            }
+        while !s.0 && !s.1 {
+            s = wake.cv.wait(s).unwrap_or_else(PoisonError::into_inner);
         }
+        if s.1 {
+            return;
+        }
+        s.0 = false;
     }
 }
 
@@ -515,7 +491,7 @@ pub extern "C" fn ph_pdf() -> i32 {
     i32::from(found)
 }
 
-/// A file the build wrote (`name`: `doc.aux`, `doc.log` once idle, the
+/// A file the build wrote (`name`: `doc.aux`, the
 /// main output) in the answer's bytes: 1, or 0 (not written).
 #[unsafe(no_mangle)]
 pub extern "C" fn ph_file(p: *const u8, n: usize) -> i32 {

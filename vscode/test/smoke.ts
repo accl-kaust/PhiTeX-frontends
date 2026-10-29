@@ -92,7 +92,8 @@ const t4 = performance.now();
 // (a keystroke's frame: one word typed, the page asked again; only its changed bands drawn)
 const times: string[] = [];
 const builds: number[] = [];
-for (let i = 0; i < 5; i++) {
+// (PHITEX_KEYS keystrokes, 5 by default: two runs' profiles apart are that many more keystrokes' own)
+for (let i = 0; i < +(process.env.PHITEX_KEYS ?? 5); i++) {
   const n = settled;
   const b = performance.now();
   core.push({ ask: "edit", file: main, start: at, end: at, text: `w${i} ` });
@@ -102,8 +103,8 @@ for (let i = 0; i < 5; i++) {
   const f = await session.request({ op: "frame", page: 0, scale: 2.67 } as never);
   times.push(f.ok ? `${(performance.now() - a).toFixed(1)} ms (${f.json.drawn} drawn, ${f.json.kept} kept)` : "FAILED");
 }
-console.log(`keystroke builds (edit to settled): ${builds.map((x) => x.toFixed(0)).join(" ")} ms`);
-console.log(`keystroke frames: ${times.join(", ")}`);
+console.log(`keystroke builds (edit to settled): ${builds.slice(0, 12).map((x) => x.toFixed(0)).join(" ")}${builds.length > 12 ? " ..." : ""} ms; median ${[...builds].sort((a, b) => a - b)[builds.length >> 1]?.toFixed(1)}`);
+console.log(`keystroke frames: ${times.slice(0, 5).join(", ")}`);
 const png = { ok: frame.ok && !!strips.bytes?.length };
 console.log(frame.ok ? `frame: ${frame.json.pw}x${frame.json.ph}, ${keys.length} bands (${frame.json.drawn} drawn, ${frame.json.kept} kept), ${frame.json.text.length} text lines, ${(t3 - t2).toFixed(1)} ms; strips: ${strips.bytes?.length ?? 0} bytes, ${(t4 - t3).toFixed(1)} ms` : `frame FAILED ${frame.error}`);
 // (the heap: the last 64 KiB page with a byte set, from the top, and how many pages were written)
