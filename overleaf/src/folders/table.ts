@@ -148,7 +148,8 @@ function ownerCell(owners: Map<string, number>): HTMLElement {
  * it (filters, then their values); ↑ ↓ choose, Tab or Enter takes one.
  */
 function searchBox(v: View) {
-  const placeholder = v.current ? `Search in ${v.state.folders[v.current]?.name ?? "this folder"}…` : "Search in all projects…";
+  // (the language in a word: @owner, #tag, in:folder, after:7d; their suggestions as one is typed)
+  const placeholder = `${v.current ? `Search in ${v.state.folders[v.current]?.name ?? "this folder"}` : "Search in all projects"}… (@owner #tag in: after:)`;
   for (const theirs of document.querySelectorAll<HTMLElement>("#project-list-root .form-control-wrapper:has(> input.form-control:not(.olf-search-input))")) {
     let ours = theirs.previousElementSibling as HTMLElement | null;
     if (!ours?.classList.contains("olf-search")) {
@@ -176,7 +177,6 @@ function suggestions(v: View, box: HTMLElement, input: HTMLInputElement) {
   const draw = () => {
     if (!list.items.length || document.activeElement !== input) return close();
     menu.replaceChildren(
-      ...(input.value.trim() ? [] : [h("li", { class: "olf-suggest-hint" }, "Words find names, forgivingly; filters narrow:")]),
       ...list.items.map((s, i) => {
         const b = h("button", { type: "button", class: `dropdown-item${i === active ? " active" : ""}`, role: "option", tabindex: "-1" }, h("span", {}, s.label), ...(s.detail ? [h("small", {}, s.detail)] : []));
         // (taken on press: the box keeps the focus)
@@ -190,9 +190,17 @@ function suggestions(v: View, box: HTMLElement, input: HTMLInputElement) {
     if (!menu.isConnected) box.append(menu);
   };
   const refresh = () => {
-    list = suggest(input.value, input.selectionStart ?? input.value.length, vocabulary(v));
-    active = list.items.length && input.value.trim() ? 0 : -1;
+    // (nothing typed: no list over the projects; the placeholder says the language)
+    list = input.value.trim() ? suggest(input.value, input.selectionStart ?? input.value.length, vocabulary(v)) : { start: 0, end: 0, items: [] };
+    active = list.items.length ? 0 : -1;
     draw();
+  };
+  // (the search once typing pauses: a key held or typed fast is one search, not one a key)
+  let pending: ReturnType<typeof setTimeout> | undefined;
+  const search = (now = false) => {
+    clearTimeout(pending);
+    if (now) v.search(input.value);
+    else pending = setTimeout(() => v.search(input.value), 120);
   };
   const take = (s: Suggestion) => {
     const q = input.value;
@@ -202,11 +210,11 @@ function suggestions(v: View, box: HTMLElement, input: HTMLInputElement) {
     input.value = q.slice(0, list.start) + s.insert + more + rest;
     const at = list.start + s.insert.length + more.length;
     input.setSelectionRange(at, at);
-    v.search(input.value);
+    search(true);
     refresh();
   };
   input.addEventListener("input", () => {
-    v.search(input.value);
+    search();
     refresh();
   });
   input.addEventListener("focus", refresh);
@@ -224,7 +232,7 @@ function suggestions(v: View, box: HTMLElement, input: HTMLInputElement) {
     } else if (e.key === "Escape") {
       // (the suggestions first; then the search)
       if (open) close();
-      else (input.value = ""), v.search("");
+      else (input.value = ""), search(true);
     } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") setTimeout(refresh);
   });
 }

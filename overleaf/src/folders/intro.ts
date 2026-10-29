@@ -23,9 +23,10 @@ const busy = () => !!(document.getElementById(TIP) || document.getElementById(SE
 
 /** The tip, once the dashboard shows "New folder" and there's nothing yet to keep. */
 export function folderTip(v: View, never: () => void): void {
+  // (called at every drawing: what costs nothing first, the layout (offsetParent) last)
+  if (tipDone || !v.ready || !v.browsing || v.stored || Object.keys(v.state.folders).length) return;
   const anchor = document.querySelector<HTMLElement>(".olf-new-folder");
-  if (tipDone || busy() || !anchor?.offsetParent) return;
-  if (!v.ready || !v.browsing || v.stored || Object.keys(v.state.folders).length) return;
+  if (!anchor || busy() || !anchor.offsetParent) return;
   tipDone = true;
   addStyle();
   const yes = h("button", { type: "button", class: "btn btn-primary btn-sm" }, icon("create_new_folder"), " New folder");
@@ -61,15 +62,17 @@ let searchAt = 0;
  * found. Shown once (`seen`, saved by the caller).
  */
 export function searchTip(v: View, seen: () => void): void {
-  if (!v.ready || !v.browsing || !Object.keys(v.state.folders).length) return;
+  // (called at every drawing: what costs nothing first)
+  if (searchAt === Infinity || !v.ready || !v.browsing || !Object.keys(v.state.folders).length) return;
   if (!searchAt) {
     searchAt = Date.now() + 20_000;
     // (drawn again then: the dashboard may be quiet by that time)
     setTimeout(() => searchTip(v, seen), 20_500);
     return;
   }
+  if (Date.now() < searchAt) return;
   const anchor = document.querySelector<HTMLElement>(".olf-search");
-  if (Date.now() < searchAt || !anchor?.offsetParent || busy()) return;
+  if (!anchor || busy() || !anchor.offsetParent) return;
   searchAt = Infinity;
   seen();
   addStyle();
