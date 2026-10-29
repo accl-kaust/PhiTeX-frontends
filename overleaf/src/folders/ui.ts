@@ -60,6 +60,8 @@ export type View = {
   ready: boolean;
   /** The storage project is there, or agreed to (changes are made without asking). */
   stored: boolean;
+  /** The Status column shown (MountOptions.status): the folders' rows have its cell. */
+  status: boolean;
   /** Overleaf's "All projects", no tag, no search: the folders shown in the table. */
   browsing: boolean;
   /** The folder open; null: the top level. */
@@ -121,6 +123,7 @@ export function mount(opts: MountOptions = {}): () => void {
     state: folders.state,
     ready: false,
     stored: false,
+    status: !!opts.status,
     browsing: false,
     current: fromHash(),
     projects: new Map(),

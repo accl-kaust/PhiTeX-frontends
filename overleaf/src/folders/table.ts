@@ -21,11 +21,11 @@ export function renderTable(v: View) {
   if (after.previousElementSibling !== projects) projects.after(after);
   const widths = [45, 30, 55, 38, 50];
   if (!v.ready) {
-    body.replaceChildren(...widths.map(skeletonRow));
+    body.replaceChildren(...widths.map((w) => skeletonRow(w, v.status)));
     after.replaceChildren();
     return;
   }
-  after.replaceChildren(...(v.page.loading ? widths.slice(0, Math.min(v.page.missing, widths.length)).map(skeletonRow) : []));
+  after.replaceChildren(...(v.page.loading ? widths.slice(0, Math.min(v.page.missing, widths.length)).map((w) => skeletonRow(w, v.status)) : []));
   {
     const children = Object.entries(v.state.folders)
       .filter(([, f]) => f.parent === v.current)
@@ -41,13 +41,14 @@ export function renderTable(v: View) {
 }
 
 /** A row of grey bars, as the table's (name, owner, date). */
-function skeletonRow(width: number): HTMLElement {
+function skeletonRow(width: number, status: boolean): HTMLElement {
   const bar = (w: number) => h("span", { class: "olf-bar", style: `width: ${w}%` });
   return h("tr", { class: "olf-skeleton", "aria-hidden": "true" },
     h("td", { class: "dash-cell-checkbox d-none d-md-table-cell" }),
     h("td", { class: "dash-cell-name" }, bar(width)),
     h("td", { class: "dash-cell-date-owner pb-0 d-md-none" }, bar(40)),
-    blankCell(),
+    // (the Status column's cell, only with the column: else its columns shift, the date's squeezed out)
+    ...(status ? [blankCell()] : []),
     h("td", { class: "dash-cell-owner d-none d-md-table-cell" }, bar(50)),
     h("td", { class: "dash-cell-date d-none d-md-table-cell" }, bar(60)),
     h("td", { class: "dash-cell-tag pt-0 d-md-none" }),
@@ -99,7 +100,7 @@ function folderRow(v: View, id: Id, name: string): HTMLElement {
     h("td", { class: "dash-cell-checkbox d-none d-md-table-cell olf-folder-icon" }, icon("folder")),
     h("td", { class: "dash-cell-name" }, link, " ", h("span", { class: "olf-count", title: count === 1 ? "1 project" : `${count} projects` }, `(${count})`)),
     h("td", { class: "dash-cell-date-owner pb-0 d-md-none" }, when),
-    blankCell(),
+    ...(v.status ? [blankCell()] : []),
     h("td", { class: "dash-cell-owner d-none d-md-table-cell" }),
     h("td", { class: "dash-cell-date d-none d-md-table-cell" }, when),
     h("td", { class: "dash-cell-tag pt-0 d-md-none" }),
