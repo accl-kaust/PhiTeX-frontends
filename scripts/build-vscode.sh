@@ -24,9 +24,14 @@ for f in core.wasm diff.wasm; do
 done
 rm -f vscode/dist/worker.js vscode/dist/assets*
 rm -rf vscode/dist/mupdf
-for d in texmf packs fonts shims formats; do
+for d in texmf packs fonts shims formats minted; do
   rm -rf "vscode/$d"
   cp -r "overleaf/$d" "vscode/$d"
+done
+# (minted's runner: Pyodide and PhiTeX's latexminted runner, as the browser's; vscode/src/core.ts)
+for d in pyodide minted; do
+  rm -rf "vscode/dist/$d"
+  cp -r "overleaf/dist/$d" "vscode/dist/$d"
 done
 cp overleaf/shelf-index.tsv.gzdata overleaf/shelf-packs.tsv.gzdata overleaf/shelf-release.json overleaf/LICENSE.txt overleaf/NOTICE.txt vscode/
 

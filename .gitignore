@@ -17,6 +17,7 @@ overleaf/NOTICE.txt
 overleaf/texmf/
 overleaf/packs/
 overleaf/minted/
+vscode/minted/
 overleaf/formats/
 overleaf/fonts/
 overleaf/shims/

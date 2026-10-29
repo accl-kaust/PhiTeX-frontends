@@ -16,7 +16,29 @@ import { pathToFileURL } from "node:url";
 import { platform } from "../../common/src/platform.ts";
 import { Core, CoreSession } from "../../common/src/wasm/core.ts";
 import { coreIndex, coreStore, pack, prefetch, type CoreIndex } from "../../common/src/wasm/host.ts";
+import { mintedShell } from "../../common/src/wasm/minted.ts";
 import { spawner } from "./thread.ts";
+
+/**
+ * `\write18`'s allowed commands (minted's latexminted) in Pyodide, as the
+ * Overleaf extension runs them: Pyodide, PhiTeX's runner and TeX Live's
+ * wheels, the extension's own (scripts/build-vscode.sh), loaded at the
+ * first call.
+ */
+function shellOf(root: string, log: (s: string) => void) {
+  return mintedShell(async () => {
+    const t0 = performance.now();
+    const at = (p: string) => join(root, p);
+    const { loadPyodide } = await import(pathToFileURL(at("dist/pyodide/pyodide.mjs")).href);
+    const { createMintedRunner } = await import(pathToFileURL(at("dist/minted/runner.mjs")).href);
+    const names = (await readFile(at("minted/wheels.txt"), "utf8")).split("\n").filter(Boolean);
+    const wheels = await Promise.all(names.map(async (n) => [n, new Uint8Array(await readFile(at("minted/" + n + ".data")))]));
+    // (Node's Pyodide reads its files by path)
+    const r = await createMintedRunner({ loadPyodide, pyodideOptions: { indexURL: at("dist/pyodide/"), stdLibURL: at("dist/pyodide/python_stdlib.data") }, wheels });
+    log(`minted: Pyodide loaded in ${Math.round(performance.now() - t0)} ms`);
+    return r;
+  });
+}
 
 /** The core for the extension at `root`; `folder()`: the project shown, whose document keys are its own; `trapped`: told when a thread traps (the core is gone). */
 export async function startCore(root: string, folder: () => string, log: (s: string) => void, threads?: number, env?: string[], trapped?: (why: string) => void): Promise<{ core: Core; session: CoreSession; index: CoreIndex }> {
@@ -29,6 +51,7 @@ export async function startCore(root: string, folder: () => string, log: (s: str
       return r?.ok ? { path: name, bytes: new Uint8Array(await r.arrayBuffer()) } : null;
     },
     store: coreStore(folder, async () => core),
+    shell: shellOf(root, log),
     env,
     log,
     trap: (tid, error) => {
@@ -37,7 +60,8 @@ export async function startCore(root: string, folder: () => string, log: (s: str
     },
   });
   // (the engine's threads: the host's to say, wasm has no available_parallelism)
-  const session = new CoreSession(core, threads ? { threads } : {});
+  // (every project may use minted: the runner loads only at its first call)
+  const session = new CoreSession(core, threads ? { shell: true, threads } : { shell: true });
   const index = await coreIndex();
   core.setIndex(index.tsv, index.release, index.table, index.names);
   log(`core started in ${Math.round(performance.now() - t0)} ms`);
