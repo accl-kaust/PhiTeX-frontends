@@ -525,6 +525,19 @@ pub extern "C" fn ph_file(p: *const u8, n: usize) -> i32 {
     i32::from(found)
 }
 
+/// The strips of `keys` (hex, comma-separated, as a `frame` request's
+/// bands name them: phitex-live's Viewer::strips) in the answer's bytes,
+/// each its width and height (little-endian u32) then its RGBA pixels, in
+/// the order asked (0 by 0: one no longer kept): 1, or 0 (no document).
+#[unsafe(no_mangle)]
+pub extern "C" fn ph_strips(p: *const u8, n: usize) -> i32 {
+    let Some(viewer) = lock(&OPEN).as_ref().map(|o| o.viewer.clone()) else {
+        return 0;
+    };
+    *lock(&OUTPUT) = viewer.strips(&text(p, n));
+    1
+}
+
 /// Every thread's stack: a native process's main thread's (wasm has no
 /// guard page: an overflow would write over the heap unseen).
 const STACK: usize = 8 << 20;

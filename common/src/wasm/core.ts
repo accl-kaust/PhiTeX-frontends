@@ -82,6 +82,7 @@ interface Exports {
   ph_main_output(): number;
   ph_pdf(): number;
   ph_file(p: number, n: number): number;
+  ph_strips(p: number, n: number): number;
 }
 
 /** What the editor changes besides the viewer's requests (core/src/main.rs's `ph_push`); offsets in UTF-16. */
@@ -311,6 +312,15 @@ export class Core {
     return this.x.ph_pdf() ? this.output() : null;
   }
 
+  /**
+   * The strips of `keys` (a `frame` answer's bands: phitex-live's
+   * Viewer::strips), each its width and height (little-endian u32) then
+   * its RGBA pixels, in the order asked; null: no document open.
+   */
+  strips(keys: string[]): Uint8Array | null {
+    return this.call((p, n) => this.x.ph_strips(p, n), keys.join(",")) ? this.output() : null;
+  }
+
   /** A file the build wrote (the log once the core is idle, `.aux`, ...); null: not written. */
   file(name: string): Uint8Array | null {
     return this.call((p, n) => this.x.ph_file(p, n), name) ? this.output() : null;
@@ -351,10 +361,9 @@ export class Core {
  * The core as the viewer's transport (session.ts's CoreTransport), as
  * `phitex watch`'s WebSocket is (the CLI's viewer, cli.ts's Socket): every
  * request answered by the core's viewer, its events pushed. Beside its
- * ops, `pdf` (the PDF the viewer is shown, the watch's doc.pdf), `png`
- * answered as the old worker answered it (`render: {page, key}`, the PDF
- * along when it changed since the last sent: the host's transport draws
- * the page from it, as the CLI's page draws it from doc.pdf), `open` (the
+ * ops (`frame`, `text`, `outline` among them: the pages as strips), `pdf`
+ * (the PDF the viewer is shown, the watch's doc.pdf), `strips` (their
+ * pixels, `bytes`: the viewer's Strips asks for those it hasn't), `open` (the
  * project's files given, the document opened: the reply is the core's
  * `open`, its build comes as events) and `cursor` (the editor's, pushed:
  * a `reveal` event). `origins` is answered as the viewer reads it
@@ -365,9 +374,6 @@ export class Core {
 export class CoreSession implements CoreTransport {
   private next = 1;
   private events: ((e: CoreEvent) => void)[] = [];
-  /** The builds settled, and the one whose PDF `png` last sent. */
-  private version = 0;
-  private sent = -1;
   private core: Core;
   /** What `open` opens with (the engine's threads, the shell, the ini). */
   private opts: Partial<Omit<Open, "main" | "text">>;
@@ -375,7 +381,6 @@ export class CoreSession implements CoreTransport {
   constructor(core: Core, opts: Partial<Omit<Open, "main" | "text">> = {}) {
     [this.core, this.opts] = [core, opts];
     core.onEvent((e) => {
-      if (e?.event === "settled") this.version++;
       if (typeof e?.event === "string") for (const f of this.events) f(e as CoreEvent);
     });
   }
@@ -386,12 +391,11 @@ export class CoreSession implements CoreTransport {
       const pdf = this.core.pdf();
       return pdf ? { ok: true, pdf } : { ok: false, error: "no PDF yet" };
     }
-    if (req.op === "png") {
-      const v = this.version;
-      const pdf = v === this.sent ? undefined : this.core.pdf();
-      if (v !== this.sent && !pdf) return { ok: false, error: "no PDF yet" };
-      this.sent = v;
-      return { ok: true, render: { page: (req as { page: number }).page, key: `core:${v}` }, pdf } as CoreRes;
+    // (the pages are the viewer's Strips' (viewer/src/strips.ts): a page's
+    // `frame` is the core's own op, its strips' pixels these bytes)
+    if (req.op === "strips") {
+      const bytes = this.core.strips((req as unknown as { keys: string[] }).keys);
+      return bytes ? ({ ok: true, bytes } as CoreRes) : { ok: false, error: "no document open" };
     }
     if (req.op === "open") {
       const o = req as Extract<CoreReq, { op: "open" }>;
@@ -426,10 +430,6 @@ export class CoreSession implements CoreTransport {
     for (const f of this.events) f(e as CoreEvent);
   }
 
-  /** The viewer (re)loaded: it has no PDF, the next `png` sends it. */
-  joined(): void {
-    this.sent = -1;
-  }
 }
 
 /**

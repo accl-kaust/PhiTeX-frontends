@@ -1,18 +1,17 @@
 // The preview in VS Code's webview: the viewer every host shows (the panel,
-// common/src/viewer/panel.ts, on the session, session.ts), its pages drawn
-// here by MuPDF (common/src/tabrender.ts), as in Overleaf's tab. Its core is
-// the extension host's (extension.ts's `relay`: `phitex watch`'s, over its
-// WebSocket), each request and event relayed by postMessage; a `png` is
-// answered with the PDF's key (and the PDF, when new), drawn here.
+// common/src/viewer/panel.ts, on the session, session.ts), its pages strips
+// (common/src/strippages.ts: the core draws them, this page composes them),
+// as in Overleaf's tab. Its core is the extension host's (extension.ts's
+// `relay`: the builtin engine's CoreSession, or `phitex watch`'s), each
+// request and event relayed by postMessage, a strip's pixels as bytes.
 //
 // (Not the watch's own page in an iframe: VS Code shows a frame nested in
 // its webview's only once, its later frames never on the screen.)
 
 import { Panel, type PanelPrefs } from "../../common/src/viewer/panel.ts";
 import { PreviewSession, type CoreEvent, type CoreRes, type CoreTransport, type EditorHost } from "../../common/src/viewer/session.ts";
-import type { Hit } from "../../common/src/viewer/mupdf.ts";
-import { drawPage, findIn, outlineOf } from "../../common/src/tabrender.ts";
-import { setPlatform } from "../../common/src/platform.ts";
+import type { Hit } from "../../common/src/viewer/text.ts";
+import { StripPages } from "../../common/src/strippages.ts";
 
 declare function acquireVsCodeApi(): { postMessage(m: unknown): void; getState(): unknown; setState(s: unknown): void };
 /** The extension's root, as this webview addresses it (".../"). */
@@ -40,26 +39,11 @@ setInterval(() => {
   beat = performance.now();
 }, 250);
 
-// (tabrender's MuPDF, from the extension's dist/mupdf/; nothing else of the platform is asked here)
-setPlatform({
-  asset: (p) => fetch(PHITEX_ROOT + p),
-  assetUrl: (p) => PHITEX_ROOT + p,
-  fetch: (u) => fetch(u),
-  kv: {
-    get: async () => undefined,
-    all: async () => new Map(),
-    write: async () => {},
-    clear: async () => {},
-  },
-});
-
-/** The extension host's core: requests answered by id, events pushed; a page drawn here from the PDF. */
+/** The extension host's core: requests answered by id, events pushed. */
 class Relay implements CoreTransport {
   private next = 1;
   private waiting = new Map<number, (r: Down & { t: "res" }) => void>();
   private events: ((e: CoreEvent) => void)[] = [];
-  /** The PDF the last page was drawn from. */
-  key: string | null = null;
 
   constructor() {
     addEventListener("message", (m: MessageEvent<Down>) => {
@@ -78,17 +62,9 @@ class Relay implements CoreTransport {
   }
 
   private async ask(o: { op: string; page?: number }): Promise<CoreRes> {
-    // (the outline: MuPDF's, from the PDF last drawn)
-    if (o.op === "outline") return { ok: true, json: { items: this.key ? outlineOf(this.key) : [] } };
     const id = this.next++;
     const { r } = await new Promise<Down & { t: "res" }>((ok) => (this.waiting.set(id, ok), up({ t: "req", id, op: o })));
-    if (!r.render) return r;
-    const t = performance.now();
-    const img = await drawPage(r.render.key, r.render.page, panel.pixelsPerPoint(), r.pdf).catch((e) => (trace(`draw: ${e}`), null));
-    trace(`draw ${r.render.key} page ${r.render.page} at ${panel.pixelsPerPoint().toFixed(2)} px/pt${r.pdf ? `, PDF ${r.pdf.length} bytes` : ""}: ${img ? `${img.canvas.querySelector("canvas")?.width}x${img.canvas.querySelector("canvas")?.height}` : "none"} ${(performance.now() - t).toFixed(0)} ms`);
-    if (!img) return { ok: false, error: "no such page" };
-    this.key = r.render.key;
-    return { ok: true, canvas: img.canvas, size: [img.w, img.h], links: img.links };
+    return r;
   }
 
   onEvent(cb: (e: CoreEvent) => void): void {
@@ -97,6 +73,10 @@ class Relay implements CoreTransport {
 }
 
 const relay = new Relay();
+// (the last frame's numbers, in the corner, with phitex.trace's trace too)
+const chip = document.createElement("div");
+chip.style.cssText = "position:fixed;right:8px;bottom:28px;z-index:30;font:11px monospace;opacity:.6;pointer-events:none";
+const pages = new StripPages(relay, { pixelsPerPoint: () => panel.pixelsPerPoint(), painted: (ms) => panel.painted(ms) }, chip);
 
 const panel = new Panel(
   {
@@ -108,7 +88,7 @@ const panel = new Panel(
     onClean: () => void session.resync(),
     onGoto: (file, line) => void relay.request({ op: "source", file, line, col: 1 }),
     onSyncSource: (k, x, y) => void session.toSource(k, x, y),
-    onFind: async (q) => (relay.key ? findIn(relay.key, q) : []),
+    onFind: (q) => pages.find(q),
   },
   // (the panel's settings: kept in the webview's own state)
   {
@@ -142,10 +122,11 @@ pane.style.cssText = "position:fixed;inset:0";
 document.body.append(pane);
 panel.dock(pane);
 panel.shown(true);
+document.body.append(chip);
 
 const host: EditorHost = { loadProject: async () => ({}), onOpen() {}, onChanges() {} };
 // (a double-click: the watch opens the source in the editor, window/showDocument)
-const session = new PreviewSession(host, relay, panel, {
+const session = new PreviewSession(host, pages, panel, {
   checkEveryMs: 0,
   remote: { source: (file, start, end) => void relay.request({ op: "source", file, start, end }) },
 });
@@ -155,11 +136,11 @@ const session = new PreviewSession(host, relay, panel, {
 // with no page, the first found nearest the place last revealed; else the
 // page brought into view; as the watch's own page does)
 let revealed = 0;
-relay.onEvent((e: any) => {
-  if (e.event !== "reveal" || !relay.key) return;
+relay.onEvent(async (e: any) => {
+  if (e.event !== "reveal") return;
   const k = typeof e.page === "number" ? e.page - 1 : -1;
   for (const q of (e.texts ?? [e.text]) as string[]) {
-    const hits = q ? findIn(relay.key, q) : [];
+    const hits = q ? await pages.find(q) : [];
     const near = (a: Hit, h: Hit) => (Math.abs(h.k - revealed) < Math.abs(a.k - revealed) ? h : a);
     const hit = k >= 0 ? hits.find((h) => h.k === k) : hits.length ? hits.reduce(near) : undefined;
     if (!hit) continue;

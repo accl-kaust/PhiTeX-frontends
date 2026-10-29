@@ -59,7 +59,7 @@
         "dist/common/compare.js",
         "dist/common/packages.js",
         "LICENSE.txt",
-        "dist/common/tabrender.js",
+        "dist/common/strippages.js",
         "dist/common/viewer/*.js",
         "fonts/*",
         "shims/*"

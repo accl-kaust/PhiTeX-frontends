@@ -1,5 +1,6 @@
 // The extension host's side of the webview's preview (webview.ts): its
-// requests answered by a core, the core's events sent on. The core here is
+// requests answered by a core, the core's events sent on (a strip's pixels
+// as bytes: the webview composes the pages, strippages.ts). The core here is
 // `phitex watch`'s (WatchLink: its WebSocket, and its doc.pdf for the
 // pages, which the webview draws).
 
@@ -19,10 +20,9 @@ export function viewHtml(view: vscode.Webview, ext: vscode.Uri): string {
 }
 
 /** What the webview of `view` asks, answered by `core`; `pdf`: its download asked. */
-export function relay(view: vscode.WebviewPanel, core: CoreTransport & { joined?(): void }, pdf: () => void, log?: (s: string) => void): vscode.Disposable {
+export function relay(view: vscode.WebviewPanel, core: CoreTransport, pdf: () => void, log?: (s: string) => void): vscode.Disposable {
   core.onEvent?.((e: CoreEvent) => void view.webview.postMessage({ t: "event", e } satisfies Down));
   return view.webview.onDidReceiveMessage(async (m: Up) => {
-    if (m.t === "hello") core.joined?.();
     // (the webview's trace: errors and blocks always, the rest with phitex.trace)
     if (m.t === "log") {
       if (log && (vscode.workspace.getConfiguration("phitex").get<boolean>("trace") || /^ *\d+ ms {2}(error|rejected|blocked|draw:)/.test(m.s))) log("webview: " + m.s);
@@ -37,18 +37,15 @@ export function relay(view: vscode.WebviewPanel, core: CoreTransport & { joined?
 
 /**
  * `phitex watch`'s viewer protocol, from the extension host: its requests
- * and events over its WebSocket (joined again when it drops), and `png`
- * answered with its doc.pdf's key (the builds settled), the PDF itself when
- * the webview doesn't have it yet.
+ * and events over its WebSocket (joined again when it drops), a page's
+ * `frame` and its `strips` over the watch's HTTP (`frame/K/S`,
+ * `strips/KEYS`, as the watch's own page asks), and `pdf` its doc.pdf.
  */
 export class WatchLink implements CoreTransport {
   private ws?: WebSocket;
   private next = 1;
   private waiting = new Map<number, (r: CoreRes) => void>();
   private events: ((e: CoreEvent) => void)[] = [];
-  /** The builds settled, and the one whose PDF the webview was sent. */
-  private version = 0;
-  private sent = -1;
   private closed = false;
   private base: string;
   /** The next open (a request waits for it), and whether it opened before (a join again redraws). */
@@ -70,13 +67,12 @@ export class WatchLink implements CoreTransport {
       this.ready = new Promise<void>((ok) => (this.wake = ok));
       wake();
       // (joined again: what changed meanwhile drawn)
-      if (this.was) (this.version++, this.events.forEach((f) => f({ event: "settled" } as CoreEvent)));
+      if (this.was) this.events.forEach((f) => f({ event: "settled" } as CoreEvent));
       this.was = true;
     };
     ws.onmessage = (m) => {
       const r = JSON.parse(String(m.data));
       if (r.event) {
-        if (r.event === "settled") this.version++;
         return this.events.forEach((f) => f(r));
       }
       this.waiting.get(r.id)?.(r);
@@ -90,11 +86,6 @@ export class WatchLink implements CoreTransport {
     };
   }
 
-  /** The webview (re)loaded: it has no PDF. */
-  joined(): void {
-    this.sent = -1;
-  }
-
   private async pdf(): Promise<Uint8Array | null> {
     const r = await fetch(new URL("doc.pdf", this.base), { cache: "no-store" });
     return r.ok ? new Uint8Array(await r.arrayBuffer()) : null;
@@ -106,12 +97,15 @@ export class WatchLink implements CoreTransport {
       const pdf = await this.pdf();
       return pdf ? { ok: true, pdf } : { ok: false, error: "no PDF yet" };
     }
-    if (o.op === "png") {
-      const v = this.version;
-      const pdf = v === this.sent ? undefined : await this.pdf();
-      if (v !== this.sent && !pdf) return { ok: false, error: "no PDF yet" };
-      this.sent = v;
-      return { ok: true, render: { page: o.page ?? 0, key: `watch:${v}` }, pdf } as CoreRes;
+    // (the pages as strips, over the watch's HTTP: a page's frame, the strips' pixels)
+    if (o.op === "frame") {
+      const { page, scale } = req as { page?: number; scale: number };
+      const r = await fetch(new URL(`frame/${page ?? 0}/${Math.round(scale * 1000)}`, this.base), { cache: "no-store" });
+      return r.ok ? { ok: true, json: await r.json() } : { ok: false, error: `frame: ${r.status}` };
+    }
+    if (o.op === "strips") {
+      const r = await fetch(new URL(`strips/${(req as { keys: string[] }).keys.join(",")}`, this.base), { cache: "no-store" });
+      return r.ok ? ({ ok: true, bytes: new Uint8Array(await r.arrayBuffer()) } as CoreRes) : { ok: false, error: `strips: ${r.status}` };
     }
     while (this.ws?.readyState !== WebSocket.OPEN && !this.closed) await this.ready;
     const id = this.next++;

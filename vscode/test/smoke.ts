@@ -81,7 +81,25 @@ await next(2);
 const second = core.pdf();
 const changed = !!first && !!second && Buffer.compare(Buffer.from(first), Buffer.from(second)) !== 0;
 console.log(`edit: ${Math.round(performance.now() - t1)} ms, PDF ${changed ? "changed" : "UNCHANGED"}`);
-const png = await session.request({ op: "png", page: 0 } as never);
-console.log(`png: ${png.ok ? "render " + JSON.stringify((png as any).render) : "FAILED " + png.error}`);
+// (the page as the viewer's Strips asks for it: its frame at 2.67 px/pt, then its strips)
+const t2 = performance.now();
+const frame = await session.request({ op: "frame", page: 0, scale: 2.67 } as never);
+const keys = frame.ok ? ((frame.json?.bands ?? []) as [string, number, number][]).map((b) => b[0]) : [];
+const t3 = performance.now();
+const strips = (await session.request({ op: "strips", keys } as never)) as { ok: boolean; bytes?: Uint8Array; error?: string };
+const t4 = performance.now();
+// (a keystroke's frame: one word typed, the page asked again; only its changed bands drawn)
+const times: string[] = [];
+for (let i = 0; i < 5; i++) {
+  const n = settled;
+  core.push({ ask: "edit", file: main, start: at, end: at, text: `w${i} ` });
+  await next(n + 1);
+  const a = performance.now();
+  const f = await session.request({ op: "frame", page: 0, scale: 2.67 } as never);
+  times.push(f.ok ? `${(performance.now() - a).toFixed(1)} ms (${f.json.drawn} drawn, ${f.json.kept} kept)` : "FAILED");
+}
+console.log(`keystroke frames: ${times.join(", ")}`);
+const png = { ok: frame.ok && !!strips.bytes?.length };
+console.log(frame.ok ? `frame: ${frame.json.pw}x${frame.json.ph}, ${keys.length} bands (${frame.json.drawn} drawn, ${frame.json.kept} kept), ${frame.json.text.length} text lines, ${(t3 - t2).toFixed(1)} ms; strips: ${strips.bytes?.length ?? 0} bytes, ${(t4 - t3).toFixed(1)} ms` : `frame FAILED ${frame.error}`);
 core.close();
 process.exit(first && changed && png.ok ? 0 : 1);

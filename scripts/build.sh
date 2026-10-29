@@ -58,11 +58,7 @@ scripts/sandbox npx tsc -p overleaf
 lm=/usr/share/texmf-dist/fonts/opentype/public
 cp $lm/lm/lmroman10-{regular,bold,italic,bolditalic}.otf $lm/lm/lmmono10-regular.otf $lm/lm-math/latinmodern-math.otf common/fonts/
 rm -rf overleaf/fonts overleaf/shims && cp -r common/fonts common/shims overleaf/
-# MuPDF's WebAssembly build (mupdf on npm, AGPL-3.0-or-later), which draws
-# the pages in the tab (tabrender.ts): PhiTeX's pin, fetched once into
-# target/mupdf/ (scripts/fetch-mupdf.sh, checked by its SHA-256)
-[ -s target/mupdf/mupdf-wasm.wasm ] || scripts/fetch-mupdf.sh
-mkdir -p overleaf/dist/mupdf && cp target/mupdf/* overleaf/dist/mupdf/
+rm -rf overleaf/dist/mupdf
 # minted: Pyodide (Python in wasm), the engine's latexminted runner, and TeX
 # Live's four wheels (latexminted, latexrestricted, latex2pydata, Pygments);
 # bundled, loaded by the core's worker at a project's first \write18

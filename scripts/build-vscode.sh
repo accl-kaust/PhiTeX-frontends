@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The VS Code extension (vscode/): its bundles (esbuild: the extension
 # host's, the core's threads' entry, the webview's; and test/smoke.ts's),
-# MuPDF, and the browser build's files the shared code reads (overleaf/:
+# and the browser build's files the shared code reads (overleaf/:
 # run scripts/build.sh first): the core and latexdiff modules, the shipped
 # formats, texmf/, the packs, the fonts.
 #
@@ -23,9 +23,7 @@ for f in core.wasm diff.wasm; do
   cp overleaf/dist/$f vscode/dist/$f
 done
 rm -f vscode/dist/worker.js vscode/dist/assets*
-# (MuPDF, which the webview draws the pages with)
-[ -s target/mupdf/mupdf-wasm.wasm ] || scripts/fetch-mupdf.sh
-mkdir -p vscode/dist/mupdf && cp target/mupdf/* vscode/dist/mupdf/
+rm -rf vscode/dist/mupdf
 for d in texmf packs fonts shims formats; do
   rm -rf "vscode/$d"
   cp -r "overleaf/$d" "vscode/$d"

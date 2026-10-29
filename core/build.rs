@@ -8,7 +8,7 @@
 //! `ph_*` functions the host calls (a reactor's binary exports none by
 //! itself).
 
-const EXPORTS: [&str; 16] = [
+const EXPORTS: [&str; 17] = [
     "ph_alloc",
     "ph_free",
     "ph_open",
@@ -25,6 +25,7 @@ const EXPORTS: [&str; 16] = [
     "ph_main_output",
     "ph_pdf",
     "ph_file",
+    "ph_strips",
 ];
 
 fn main() {

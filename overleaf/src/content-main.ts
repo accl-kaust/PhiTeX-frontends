@@ -21,7 +21,7 @@ import { SUPPORT, unseen, type News } from "./news.ts";
 import { Panel, type DiffLook, type PanelPrefs, type Prefs } from "./common/viewer/panel.ts";
 import { channel, follow, tee, type Ask } from "./mirror.ts";
 import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
-import { pageOf } from "./common/tabrender.ts";
+import { StripPages } from "./common/strippages.ts";
 
 /** The panel's preferences, in the extension's own storage (not the page's). */
 const prefs: Prefs = {
@@ -231,20 +231,9 @@ class ChromeTransport implements CoreTransport {
     this.port.postMessage({ id: 0, op: "hello", project: project() });
     this.port.onMessage.addListener(async (r: any) => {
       if (r.event) return this.events.forEach((f) => f(r));
+      // (bytes base64: the PDF for a download, a page's strips' pixels)
       if (r.pdf) r.pdf = unb64(r.pdf);
-      // (a page drawn by the core's worker: shown from its image, its text
-      // over it; MuPDF can't run here, overleaf.com's policy forbids the
-      // tab WebAssembly)
-      if (r.image) {
-        const img = await pageOf(r.drawn, unb64(r.image)).catch((e) => (console.warn("[phitex] draw", e), null));
-        if (img) {
-          r.canvas = img.canvas;
-          r.size = [img.w, img.h];
-          r.links = img.links;
-        }
-        delete r.image;
-        delete r.drawn;
-      }
+      if (r.bytes) r.bytes = unb64(r.bytes);
       this.waiting.get(r.id)?.(r);
       this.waiting.delete(r.id);
     });
@@ -272,8 +261,7 @@ class ChromeTransport implements CoreTransport {
     if (contextGone()) return Promise.resolve({ ok: false, error: GONE } as CoreRes);
     return new Promise((res) => {
       this.waiting.set(id, res);
-      // (a page drawn at twice the screen's pixels: sharp when zoomed in)
-      this.port.postMessage({ id, ...req, ...(req.op === "png" ? { scale: (devicePixelRatio || 1) * 2 } : {}) });
+      this.port.postMessage({ id, ...req });
     });
   }
   onLost(cb: () => void) {
@@ -977,7 +965,10 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   const shown = () => compare?.shown() ?? session;
   const ch = channel(project());
   const ask = (a: Ask) => ch.postMessage(a);
+  /** The pages as strips over the core's transport (set once the transport is). */
+  let pages: StripPages | undefined;
   const panel = new Panel({
+    onFind: (q) => pages?.find(q) ?? Promise.resolve([]),
     onPage: (p) => (DETACHED ? ask({ t: "page", k: p }) : shown()?.setPage(p)),
     onNeed: (k) => (DETACHED ? ask({ t: "need", k }) : shown()?.fetch(k)),
     onPdf: async () => {
@@ -1049,7 +1040,8 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
         const t = new ChromeTransport();
         await t.connect();
         for (const [p, b] of Object.entries(lastBinaries)) await t.request({ op: "binary", file: p, b64: b64of(b) } as never);
-        return t;
+        // (the diff's pages as strips too, composed here)
+        return new StripPages(t, panel);
       },
       sink: (on) => gate(tee(panel, ch, () => mirrored), on, ["goto"]),
       goto: (file, from, to) => window.postMessage({ src: "phitex-content", type: "gotoRange", file, from, to, focus: false }, location.origin),
@@ -1122,6 +1114,9 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     if (e.data.type === "select" && (highlightMode !== "dblclick" || e.data.from === e.data.to)) void session?.selectSource(e.data.file, e.data.from, e.data.to);
   });
   const transport = new ChromeTransport();
+  // (the pages as strips: the core draws them, this tab composes them; MuPDF
+  // can't run here, overleaf.com's policy forbids the tab WebAssembly)
+  pages = new StripPages(transport, panel);
   // (Shelf's release, release.ts: an extension older than it needs asks for
   // an update, and its notice shows; both once per page, and it keeps working)
   let releaseShown = false;
@@ -1178,7 +1173,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
       shims: async (main) => (projectEngine || !approximable(main) ? null : shimTexts((p) => platform().asset(p))),
     };
     const sink = gate(tee(panel, ch, () => mirrored), () => compare?.showing !== "diff");
-    session = new PreviewSession(host, transport, sink, {
+    session = new PreviewSession(host, pages, sink, {
       ...opts,
       // (a double-click's source: bytes of the file as the session has it,
       // the editor put there)

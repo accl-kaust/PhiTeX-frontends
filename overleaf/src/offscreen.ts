@@ -44,9 +44,9 @@ chrome.runtime.onConnect.addListener((port) => {
   };
   core.onmessage = (e) => {
     const m = e.data;
-    // (bytes as base64: the port carries JSON; a page's image, the PDF only for a download)
+    // (bytes as base64: the port carries JSON; a page's strips' pixels, the PDF only for a download)
     if (m.pdf) m.pdf = b64(m.pdf);
-    if (m.image) m.image = b64(m.image);
+    if (m.bytes) m.bytes = b64(m.bytes);
     say(m);
   };
   core.onerror = (e) => say({ event: "console", item: { kind: "error", text: `core worker: ${e.message}` } });
