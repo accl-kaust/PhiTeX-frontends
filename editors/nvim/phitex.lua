@@ -25,6 +25,11 @@
 -- `phitex` must be on PATH. A project with several .tex files names its
 -- main one in phitex.toml (`main = "paper.tex"`) or in init_options.
 
+--- This file, as the server is told (initializationOptions.client: docs/spec-editor-protocol.md §1).
+local CLIENT = { name = "phitex.nvim", version = "0.1.0" }
+--- The editor protocol this file speaks: an older server's (capabilities.experimental.phitex.protocol) is said.
+local PROTOCOL = 1
+
 --- phitex/status, per client.
 local status = {}
 
@@ -68,7 +73,7 @@ PhitexSettings = PhitexSettings or {}
 local function start(buf)
   local id = vim.lsp.start({
     -- (the engine's settings: at the start, and when it asks)
-    init_options = PhitexSettings,
+    init_options = vim.tbl_extend("force", PhitexSettings, { client = CLIENT }),
     settings = { phitex = PhitexSettings },
     name = "phitex",
     cmd = { "phitex", "watch", "--lsp" },
@@ -82,6 +87,14 @@ local function start(buf)
         vim.cmd.redrawstatus()
       end,
     },
+    -- (a phitex older than this file's protocol: said, the watch kept)
+    on_init = function(_, result)
+      local p = vim.tbl_get(result, "capabilities", "experimental", "phitex", "protocol")
+      if type(p) ~= "number" or p < PROTOCOL then
+        local v = vim.tbl_get(result, "serverInfo", "version") or "(of an unknown version)"
+        vim.schedule(function() vim.notify("PhiTeX: PhiTeX " .. v .. " is older than this editor's phitex.lua needs: update phitex.", vim.log.levels.ERROR) end)
+      end
+    end,
     on_exit = function(code, signal, client_id)
       status[client_id] = nil
       -- (an exit not asked for: said, with how to start it again)

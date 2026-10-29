@@ -111,11 +111,17 @@ const settings = () => {
   return { threads, main: c.get<string>("main") || undefined, follow: c.get<string>("follow") ?? "cursor" };
 };
 
+/** This extension, as the server is told (initializationOptions.client: docs/spec-editor-protocol.md §1); set at activation. */
+let clientInfo = { name: "phitex-vscode", version: "" };
+/** The editor protocol this extension speaks: an older server's (capabilities.experimental.phitex.protocol) is said. */
+const PROTOCOL = 1;
+
 /** Which engine builds: the setting phitex.engine. */
 const engineSetting = () => (vscode.workspace.getConfiguration("phitex").get<string>("engine") === "phitex watch" ? "phitex watch" : "builtin");
 
 export function activate(ctx: vscode.ExtensionContext): void {
   const root = ctx.extensionPath;
+  clientInfo = { name: "phitex-vscode", version: ctx.extension.packageJSON.version };
   storeDir = join(ctx.globalStorageUri.fsPath, "store");
   setPlatform(nodePlatform(root, storeDir));
   const log = vscode.window.createOutputChannel("PhiTeX");
@@ -330,7 +336,7 @@ function clientOptions(folder: string, log: vscode.OutputChannel): LanguageClien
     workspaceFolder: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folder)),
     outputChannel: log,
     // (the engine's settings: at the start, and each change (workspace/configuration))
-    initializationOptions: settings(),
+    initializationOptions: { ...settings(), client: clientInfo },
     synchronize: { configurationSection: "phitex" },
     // (never restarted behind the user's back: the watch's viewer's address would change
     // under the preview, the builtin's document is the preview's; an exit is said, with
@@ -533,6 +539,11 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   // (the viewer in the webview, its core the watch's, through this host:
   // the watch's address is this host's, local to the watch)
   shown = true;
+  // (a phitex older than this extension's protocol: said, the preview opened all the same)
+  const init = client.initializeResult;
+  if (!(Number(init?.capabilities.experimental?.phitex?.protocol) >= PROTOCOL)) {
+    void vscode.window.showErrorMessage(`PhiTeX: PhiTeX ${init?.serverInfo?.version ?? "(of an unknown version)"} is older than this extension needs: update phitex.`);
+  }
   const link = new WatchLink(page0);
   current = { folder, view, save: () => void savePdf(link, folder, main) };
   setServer(client);

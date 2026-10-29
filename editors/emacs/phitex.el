@@ -35,6 +35,7 @@
 (require 'cl-lib)
 (require 'subr-x)
 (require 'jsonrpc)
+(require 'map)
 (require 'flymake)
 (require 'url-util)
 
@@ -43,6 +44,13 @@
 
 (defvar phitex-command '("phitex" "watch" "--lsp")
   "How the language server is started.")
+
+(defconst phitex--client '(:name "phitex.el" :version "0.1.0")
+  "This file, as the server is told (initializationOptions.client).
+See docs/spec-editor-protocol.md §1.")
+
+(defconst phitex--protocol 1
+  "The editor protocol this file speaks: an older server's is said.")
 
 ;;; The servers: one a project
 
@@ -79,12 +87,19 @@
                                :notification-dispatcher #'phitex--notification
                                :on-shutdown (lambda (s) (phitex--ended s root)))))
         (puthash root s phitex--servers)
-        (jsonrpc-request s :initialize
-                         (list :processId (emacs-pid) :rootUri (phitex--uri root)
-                               :capabilities '(:window (:showDocument (:support t) :workDoneProgress t)
-                                               :workspace (:configuration t)
-                                               :general (:positionEncodings ["utf-16"]))
-                               :initializationOptions (or phitex-settings :json-false)))
+        (let* ((init (jsonrpc-request s :initialize
+                                      (list :processId (emacs-pid) :rootUri (phitex--uri root)
+                                            :capabilities '(:window (:showDocument (:support t) :workDoneProgress t)
+                                                            :workspace (:configuration t)
+                                                            :general (:positionEncodings ["utf-16"]))
+                                            :initializationOptions (append phitex-settings (list :client phitex--client)))))
+               (protocol (map-nested-elt init '(:capabilities :experimental :phitex :protocol))))
+          ;; (a phitex older than this file's protocol: said, the watch kept)
+          (unless (and (numberp protocol) (>= protocol phitex--protocol))
+            (display-warning 'phitex
+                             (format "PhiTeX %s is older than this phitex.el needs: update phitex"
+                                     (or (map-nested-elt init '(:serverInfo :version)) "(of an unknown version)"))
+                             :error)))
         (jsonrpc-notify s :initialized (make-hash-table))
         s)))
 
