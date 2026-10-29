@@ -107,8 +107,8 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   const main = findMain(project.files, ed ? (relPath(folder, ed.document.uri.fsPath) ?? undefined) : undefined);
   if (!main) return void vscode.window.showErrorMessage("PhiTeX: no .tex file with \\documentclass in this folder.");
   builtinFolder = folder;
-  // (the engine's threads: this machine's cores, at most 4, as in the browser: overleaf/src/worker.ts)
-  builtin ??= startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), Math.min(availableParallelism(), 4));
+  // (the engine's threads: this machine's cores, as in the browser: overleaf/src/worker.ts)
+  builtin ??= startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), availableParallelism());
 
   const view = vscode.window.createWebviewPanel("phitex.preview", "⚡ PhiTeX", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {
     enableScripts: true,
