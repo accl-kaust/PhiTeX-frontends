@@ -21,6 +21,7 @@ import { prefetch, startCore } from "./core.ts";
 import { lspChannel, type CoreIndex, type LspChannel } from "../../common/src/wasm/host.ts";
 import { nodePlatform } from "./platform.ts";
 import { relay, viewHtml, WatchLink } from "./relay.ts";
+import type { Down } from "./webview.ts";
 import { StatusItem, type EngineStatus } from "./status.ts";
 
 /** The project's text files (what the core reads as source), and the binary ones it is given apart. */
@@ -109,11 +110,6 @@ const settings = () => {
   const threads = c.get<number>("threads") || availableParallelism();
   return { threads, main: c.get<string>("main") || undefined, follow: c.get<string>("follow") ?? "cursor" };
 };
-/** Whether the cursor's place is sent now (the setting phitex.follow): at rest; with a selection only; never (a double-click on a page instead). */
-const follows = (e: vscode.TextEditorSelectionChangeEvent) => {
-  const f = settings().follow;
-  return f === "cursor" || (f === "selection" && !e.selections[0].isEmpty);
-};
 
 /** Which engine builds: the setting phitex.engine. */
 const engineSetting = () => (vscode.workspace.getConfiguration("phitex").get<string>("engine") === "phitex watch" ? "phitex watch" : "builtin");
@@ -197,6 +193,14 @@ export function activate(ctx: vscode.ExtensionContext): void {
   );
 }
 
+/** Previews whose engine is gone: kept, their pages dimmed (the viewer's banner says why); opening the preview again starts anew. */
+const lost = new WeakSet<vscode.WebviewPanel>();
+/** `view`'s engine gone by itself: its pages dimmed under the viewer's banner, kept until closed or restarted. */
+function disconnected(view: vscode.WebviewPanel, why: string): void {
+  lost.add(view);
+  void view.webview.postMessage({ t: "connection", up: false, why } satisfies Down);
+}
+
 /** The engine stopped by itself: the status bar says so, and a notification offers what to do. */
 function crashed(why: string, log: vscode.OutputChannel): void {
   status.set({ state: "crashed" });
@@ -215,6 +219,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   }
   const folder = ws.uri.fsPath;
   if (engineSetting() === "phitex watch") return previewWatch(ctx.extensionUri, folder, ed, log);
+  if (builtinView && lost.has(builtinView)) builtinView.dispose();
   if (builtinView && builtinFolder === folder) return builtinView.reveal(vscode.ViewColumn.Beside, true);
   builtinView?.dispose();
 
@@ -226,11 +231,9 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   if (!builtin) {
     status.set({ state: "starting", engine: "wasm" });
     const started = (builtin = startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), settings().threads, undefined, (why) => {
-      // (a trap: this core is gone, the next preview starts another)
+      // (a trap: this core is gone, the next preview starts another; this one's pages kept, dimmed)
       if (builtin === started) builtin = undefined;
-      const view = builtinView;
-      builtinView = undefined;
-      view?.dispose();
+      if (builtinView) disconnected(builtinView, `the builtin engine stopped: ${why}`);
       crashed(`the builtin engine stopped (${why}).`, log);
     }));
     // (its events, once per core: the status bar's)
@@ -336,16 +339,31 @@ function clientOptions(folder: string, log: vscode.OutputChannel): LanguageClien
   };
 }
 
-/** The cursor's place sent once it rests 150 ms (phitex/cursor: its words marked on the page), as phitex.follow says. */
+/**
+ * The cursor and its selection sent as they move (phitex/cursor with its
+ * range: the cursor's word and line marked on the page, a selection's text
+ * too, an empty one clearing it), the latest at most every 30 ms; as
+ * phitex.follow says: "cursor" every move, "selection" only while there is
+ * one (and as it ends), "dblclick" never.
+ */
 function followCursor(client: LanguageClient, folder: string): vscode.Disposable {
-  let rest: ReturnType<typeof setTimeout> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let latest: object | undefined;
+  let selected = false;
+  const at = (p: vscode.Position) => ({ line: p.line, character: p.character });
   return vscode.window.onDidChangeTextEditorSelection((e) => {
-    if (!relPath(folder, e.textEditor.document.uri.fsPath) || !follows(e)) return;
-    clearTimeout(rest);
-    rest = setTimeout(() => {
-      const at = e.selections[0].active;
-      void client.sendNotification("phitex/cursor", { textDocument: { uri: e.textEditor.document.uri.toString() }, position: { line: at.line, character: at.character } });
-    }, 150);
+    const doc = e.textEditor.document;
+    if (!relPath(folder, doc.uri.fsPath)) return;
+    const f = settings().follow;
+    const sel = e.selections[0];
+    const ended = selected && sel.isEmpty;
+    if (f === "dblclick" || (f === "selection" && sel.isEmpty && !ended)) return;
+    selected = !sel.isEmpty;
+    latest = { textDocument: { uri: doc.uri.toString() }, position: at(sel.active), range: { start: at(sel.anchor), end: at(sel.active) } };
+    timer ??= setTimeout(() => {
+      timer = undefined;
+      void client.sendNotification("phitex/cursor", latest);
+    }, 30);
   });
 }
 
@@ -394,6 +412,9 @@ const stopping = new Set<Promise<void>>();
 /** A folder's preview by its watch: one a folder, shown again when asked again. */
 const watchViews = new Map<string, vscode.WebviewPanel | "starting">();
 async function previewWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor | undefined, log: vscode.OutputChannel): Promise<void> {
+  // (one whose watch exited: closed, a new one started)
+  const was = watchViews.get(folder);
+  if (was && was !== "starting" && lost.has(was)) was.dispose();
   const have = watchViews.get(folder);
   if (have === "starting") return;
   if (have) return have.reveal(vscode.ViewColumn.Beside, true);
@@ -509,7 +530,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
       // (stopped as asked, phitex.stop: its last phitex/status said so; else it exited by itself)
       if (status.state === "stopped") return void view.dispose();
       status.set({ state: "crashed" });
-      view.dispose();
+      disconnected(view, "phitex watch exited");
       crashed("phitex watch exited.", log);
     }),
   );

@@ -7,8 +7,8 @@
 ;; the rest), or nothing. The buffer is built as you type (its unsaved
 ;; edits sent as they are made), TeX's errors are flymake diagnostics, a
 ;; double-click on a page opens its source here (window/showDocument), and
-;; the cursor's words are marked on the page (phitex/cursor, sent when Emacs
-;; has been idle 0.15 s). The pages are in a browser tab the watch serves
+;; the cursor's word and line, and the region's text, are marked on the page
+;; as you move (phitex/cursor with its range). The pages are in a browser tab the watch serves
 ;; (M-x phitex-open-viewer).
 ;;
 ;; What the engine is doing (phitex/status: fetching a package,
@@ -145,24 +145,37 @@
     (jsonrpc-notify phitex--server :textDocument/didClose (list :textDocument (list :uri (phitex--uri)))))
   (setq phitex--server nil))
 
+(defvar-local phitex--selected nil
+  "Whether the last cursor sent had a region (its end clears the page's marks).")
+
 (defun phitex--cursor ()
-  "Tell the watch where the cursor is, once Emacs is idle.
-As `phitex-settings' :follow says."
+  "Tell the watch where the cursor and its region are, once Emacs pauses.
+The latest after 0.03 s idle: the cursor's word marked on the page, the
+region's text too (an empty range clearing it); as `phitex-settings'
+:follow says (\"cursor\": every move; \"selection\": only a region's,
+and as it ends; \"dblclick\": never)."
   (when phitex--timer (cancel-timer phitex--timer))
-  (when (and phitex--server
-             (pcase (or (plist-get phitex-settings :follow) "cursor")
-               ("cursor" t)
-               ("selection" (use-region-p))))
-    (let ((buf (current-buffer)))
-      (setq phitex--timer
-            (run-with-idle-timer
-             0.15 nil
-             (lambda ()
-               (when (buffer-live-p buf)
-                 (with-current-buffer buf
-                   (when phitex--server
-                     (jsonrpc-notify phitex--server :phitex/cursor
-                                     (list :textDocument (list :uri (phitex--uri)) :position (phitex--pos))))))))))))
+  (let* ((region (use-region-p))
+         (ended (and phitex--selected (not region))))
+    (when (and phitex--server
+               (pcase (or (plist-get phitex-settings :follow) "cursor")
+                 ("cursor" t)
+                 ("selection" (or region ended))))
+      (let ((buf (current-buffer)))
+        (setq phitex--timer
+              (run-with-idle-timer
+               0.03 nil
+               (lambda ()
+                 (when (buffer-live-p buf)
+                   (with-current-buffer buf
+                     (when phitex--server
+                       (let ((region (use-region-p)))
+                         (setq phitex--selected region)
+                         (jsonrpc-notify phitex--server :phitex/cursor
+                                         (list :textDocument (list :uri (phitex--uri))
+                                               :position (phitex--pos)
+                                               :range (list :start (phitex--pos (if region (mark) (point)))
+                                                            :end (phitex--pos)))))))))))))))
 
 ;;;###autoload
 (define-minor-mode phitex-mode

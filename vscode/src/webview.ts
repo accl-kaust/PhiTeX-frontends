@@ -10,7 +10,6 @@
 
 import { Panel, type PanelPrefs } from "../../common/src/viewer/panel.ts";
 import { PreviewSession, type CoreEvent, type CoreRes, type CoreTransport, type EditorHost } from "../../common/src/viewer/session.ts";
-import type { Hit } from "../../common/src/viewer/text.ts";
 import { StripPages } from "../../common/src/strippages.ts";
 
 declare function acquireVsCodeApi(): { postMessage(m: unknown): void; getState(): unknown; setState(s: unknown): void };
@@ -20,7 +19,11 @@ declare const PHITEX_ROOT: string;
 /** What the webview says to the extension host. */
 export type Up = { t: "hello" } | { t: "req"; id: number; op: { op: string; [k: string]: unknown } } | { t: "pdf" } | { t: "log"; s: string };
 /** What the extension host says to the webview. */
-export type Down = { t: "res"; id: number; r: CoreRes & { render?: { page: number; key: string } } } | { t: "event"; e: CoreEvent };
+export type Down =
+  | { t: "res"; id: number; r: CoreRes & { render?: { page: number; key: string } } }
+  | { t: "event"; e: CoreEvent }
+  /** The engine lost (the watch exited, the core trapped): the pages dimmed under a banner saying why. */
+  | { t: "connection"; up: boolean; why?: string };
 
 const vscode = acquireVsCodeApi();
 const up = (m: Up) => vscode.postMessage(m);
@@ -118,6 +121,8 @@ const panel = new Panel(
     },
   },
 );
+// (the engine lost, as the extension host says: the last pages dimmed, a banner saying why)
+addEventListener("message", (m: MessageEvent<Down>) => m.data.t === "connection" && panel.connection(m.data.up, m.data.why));
 // (docked in a pane that fills the webview)
 const pane = document.createElement("div");
 pane.style.cssText = "position:fixed;inset:0";
@@ -131,27 +136,6 @@ const host: EditorHost = { loadProject: async () => ({}), onOpen() {}, onChanges
 const session = new PreviewSession(host, pages, panel, {
   checkEveryMs: 0,
   remote: { source: (file, start, end) => void relay.request({ op: "source", file, start, end }) },
-});
-
-// (the editor's cursor as the watch placed it (phitex/cursor): the words
-// around it (`texts`, longest first) found on its page (from 1) and marked;
-// with no page, the first found nearest the place last revealed; else the
-// page brought into view; as the watch's own page does)
-let revealed = 0;
-relay.onEvent(async (e: any) => {
-  if (e.event !== "reveal") return;
-  const k = typeof e.page === "number" ? e.page - 1 : -1;
-  for (const q of (e.texts ?? [e.text]) as string[]) {
-    const hits = q ? await pages.find(q) : [];
-    const near = (a: Hit, h: Hit) => (Math.abs(h.k - revealed) < Math.abs(a.k - revealed) ? h : a);
-    const hit = k >= 0 ? hits.find((h) => h.k === k) : hits.length ? hits.reduce(near) : undefined;
-    if (!hit) continue;
-    revealed = hit.k;
-    return panel.reveal([hit]);
-  }
-  if (k < 0) return;
-  revealed = k;
-  panel.reveal([{ k, boxes: [[0, 0, 0, 0]] }]);
 });
 
 up({ t: "hello" });

@@ -1,8 +1,9 @@
 -- PhiTeX's live preview in Neovim (0.11): `phitex watch --lsp` as the
 -- language server of TeX files. The editor's buffer is built as you type,
 -- TeX's errors are diagnostics, a double-click on a page opens its source
--- here (window/showDocument), and the cursor's words are marked on the
--- page (phitex/cursor, sent 150 ms after the cursor stops). The pages are
+-- here (window/showDocument), and the cursor's word and line, and a visual
+-- selection's text, are marked on the page as you move (phitex/cursor with
+-- its range). The pages are
 -- in a browser tab the watch serves (<leader>lv opens it).
 --
 -- What the engine is doing (phitex/status: building, the last build's
@@ -96,19 +97,36 @@ vim.api.nvim_create_autocmd("FileType", {
   pattern = { "tex", "plaintex", "bib" },
   callback = function(ev)
     start(ev.buf)
+    -- (the cursor and its visual selection as they move, the latest at most every
+    -- 30 ms: phitex/cursor with its range, an empty one clearing a selection's marks)
     local timer = vim.uv.new_timer()
-    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+    local pending, selected = false, false
+    local function send()
+      pending = false
+      local c = vim.lsp.get_clients({ bufnr = ev.buf, name = "phitex" })[1]
+      if not c or vim.api.nvim_get_current_buf() ~= ev.buf then return end
+      local follow = PhitexSettings.follow or "cursor"
+      local selecting = vim.fn.mode():match("^[vV\22]") ~= nil
+      local ended = selected and not selecting
+      if follow == "dblclick" or (follow == "selection" and not selecting and not ended) then return end
+      selected = selecting
+      local p = vim.lsp.util.make_position_params(0, "utf-16")
+      if selecting then
+        local v, cur = vim.fn.getpos("v"), vim.fn.getpos(".")
+        local a, b = { v[2], v[3] - 1 }, { cur[2], cur[3] - 1 }
+        if a[1] > b[1] or (a[1] == b[1] and a[2] > b[2]) then a, b = b, a end
+        p.range = vim.lsp.util.make_given_range_params(a, b, ev.buf, "utf-16").range
+      else
+        p.range = { start = p.position, ["end"] = p.position }
+      end
+      c:notify("phitex/cursor", p)
+    end
+    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "ModeChanged" }, {
       buffer = ev.buf,
       callback = function()
-        timer:stop()
-        timer:start(150, 0, vim.schedule_wrap(function()
-          local c = vim.lsp.get_clients({ bufnr = ev.buf, name = "phitex" })[1]
-          local follow = PhitexSettings.follow or "cursor"
-          local selecting = vim.fn.mode():match("^[vV\22]") ~= nil
-          if c and vim.api.nvim_get_current_buf() == ev.buf and (follow == "cursor" or (follow == "selection" and selecting)) then
-            c:notify("phitex/cursor", vim.lsp.util.make_position_params(0, "utf-16"))
-          end
-        end))
+        if pending then return end
+        pending = true
+        timer:start(30, 0, vim.schedule_wrap(send))
       end,
     })
     vim.keymap.set("n", "<leader>lv", "<cmd>PhiTeXViewer<cr>", { buffer = ev.buf, desc = "PhiTeX: open the pages" })
