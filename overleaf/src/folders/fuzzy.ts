@@ -102,3 +102,15 @@ export function fuzzy(query: string, name: string, context = ""): Match | null {
   spans.sort((a, b) => a[0] - b[0]);
   return { score, spans };
 }
+
+/** Where any of `terms` occur in `text` (case and accents ignored): its spans, in `text`'s own characters, in order. */
+export function occurrences(text: string, terms: string[]): [number, number][] {
+  const f = fold(text);
+  const spans: [number, number][] = [];
+  for (const t of terms) {
+    const q = fold(t).text;
+    if (!q) continue;
+    for (let i = f.text.indexOf(q); i >= 0; i = f.text.indexOf(q, i + q.length)) spans.push([f.at[i], f.at[i + q.length]]);
+  }
+  return spans.sort((a, b) => a[0] - b[0]);
+}

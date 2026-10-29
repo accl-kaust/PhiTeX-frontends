@@ -60,6 +60,72 @@ export function folderTip(v: View, never: () => void): void {
   off.onclick = () => (hide(), never());
 }
 
+const SEARCH_TIP = "phitex-search-tip";
+/** When the search tip may show: 20 s after there are folders to search, in this page. */
+let searchAt = 0;
+
+/**
+ * The search, introduced once there's something to search: 20 s after the
+ * dashboard first has folders (the first one just made, or there before),
+ * a tip in the folders tip's style points at the search box, its demo a
+ * misspelled name and an owner found. Shown once (`seen`, saved by the
+ * caller); never over another tip or a dialog.
+ */
+export function searchTip(v: View, seen: () => void): void {
+  if (!v.ready || !v.browsing || !Object.keys(v.state.folders).length) return;
+  if (!searchAt) {
+    searchAt = Date.now() + 20_000;
+    // (drawn again then: the dashboard may be quiet by that time)
+    setTimeout(() => searchTip(v, seen), 20_500);
+    return;
+  }
+  const anchor = document.querySelector<HTMLElement>(".olf-search");
+  if (Date.now() < searchAt || !anchor?.offsetParent || document.getElementById(SEARCH_TIP)) return;
+  if (document.getElementById(TIP) || document.getElementById(CONSENT) || document.querySelector(".modal.show")) return;
+  searchAt = Infinity;
+  seen();
+  addStyle();
+  const input = anchor.querySelector<HTMLInputElement>("input");
+  const yes = h("button", { type: "button", class: "btn btn-primary btn-sm" }, icon("search"), " Try it");
+  const no = h("button", { type: "button", class: "btn btn-secondary btn-sm" }, "Got it");
+  const row = (k: string, what: string) => h("li", {}, h("code", {}, k), " ", what);
+  const t = h("div", { id: SEARCH_TIP, class: "popover bs-popover-bottom show phitex-folders-pop", role: "dialog", "aria-label": "Search your projects" },
+    h("div", { class: "phitex-folders-clip" },
+      h("div", { class: "popover-header" }, h("span", { class: "phitex-folders-wiggle", "aria-hidden": "true" }, icon("search")), "Search that forgives"),
+      h("div", { class: "popover-body" },
+        "Typos are fine, and folders are searched too. Narrow with filters, suggested as you type:",
+        h("div", { class: "phitex-search-demo", "aria-hidden": "true" },
+          h("div", { class: "phitex-search-box" }, icon("search"), h("span", { class: "phitex-search-typed" }, "reserch @moh")),
+          h("div", { class: "phitex-search-hit" }, icon("folder"), h("mark", {}, "Research"), h("span", { class: "phitex-search-owner" }, "Mohamed B."))),
+        h("ul", { class: "phitex-search-keys" }, row("@name", "owner"), row("#tag", "tag"), row("in:folder", "under a folder"), row("after:7d", "modified since"), row("status:", "its status"), row("-#tag", "not")),
+        h("div", { class: "phitex-folders-actions" }, no, yes))));
+  document.body.append(t);
+  const place = () => {
+    const r = anchor.getBoundingClientRect();
+    const w = t.offsetWidth;
+    const left = Math.max(8, Math.min(r.left + 40 - w / 2, innerWidth - w - 8));
+    t.style.left = `${left}px`;
+    t.style.top = `${r.bottom + 10}px`;
+    t.style.setProperty("--arrow", `${r.left + 40 - left}px`);
+  };
+  place();
+  addEventListener("resize", place);
+  const away = (e: Event) => {
+    if (!t.contains(e.target as Node)) hide();
+  };
+  document.addEventListener("pointerdown", away, true);
+  const hide = () => {
+    t.remove();
+    removeEventListener("resize", place);
+    document.removeEventListener("pointerdown", away, true);
+  };
+  no.onclick = hide;
+  yes.onclick = () => {
+    hide();
+    input?.focus();
+  };
+}
+
 /** A project row going into a folder, over and over. */
 const demo = () =>
   h("div", { class: "phitex-folders-demo", "aria-hidden": "true" },
@@ -135,6 +201,33 @@ function addStyle() {
   if (document.getElementById("phitex-folders-style")) return;
   const s = h("style", { id: "phitex-folders-style" });
   s.textContent = `
+  #${SEARCH_TIP} { position: fixed; z-index: 1060; width: 340px; max-width: calc(100vw - 16px); overflow: visible; color: #f4f5f6; background: #1b222c;
+    border: 1.5px solid #53b57f; border-radius: 12px;
+    box-shadow: 0 0 0 4px rgb(83 181 127 / 18%), 0 18px 48px rgb(0 0 0 / 45%), 0 0 32px rgb(83 181 127 / 35%);
+    animation: phitex-folders-in .6s cubic-bezier(.18,1.5,.4,1), phitex-folders-glow 2.4s ease-in-out .6s infinite; }
+  #${SEARCH_TIP}::before { content: ""; position: absolute; top: -8px; left: var(--arrow, 50%); width: 14px; height: 14px; transform: translateX(-50%) rotate(45deg);
+    background: #098842; border-left: 1.5px solid #53b57f; border-top: 1.5px solid #53b57f; }
+  #${SEARCH_TIP} .phitex-folders-clip { position: relative; overflow: hidden; border-radius: 11px; }
+  #${SEARCH_TIP} .phitex-folders-clip::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 22%) 50%, transparent 65%); transform: translateX(-120%);
+    animation: phitex-folders-shimmer 2.8s ease-in-out 1s infinite; }
+  #${SEARCH_TIP} .popover-header { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: #fff; border: 0; padding: 10px 14px;
+    background: linear-gradient(135deg, #098842, #1e6b41); }
+  #${SEARCH_TIP} .popover-body { color: #f4f5f6; font-size: 14px; }
+  #${SEARCH_TIP} .phitex-folders-wiggle { display: inline-flex; animation: phitex-folders-wiggle 1.6s ease-in-out .5s 2; transform-origin: 50% 70%; }
+  .phitex-search-demo { margin: 10px 0 6px; padding: 10px; border-radius: 8px; background: rgb(0 0 0 / 22%); font-size: 13px; }
+  .phitex-search-box { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; background: #fff; color: #1b222c; }
+  .phitex-search-box .material-symbols { font-size: 16px; color: #5a6578; }
+  .phitex-search-typed { display: inline-block; overflow: hidden; white-space: nowrap; border-right: 2px solid currentColor; width: 0;
+    font-family: "DM Mono", monospace; animation: phitex-search-type 4s steps(12) 1s infinite; }
+  .phitex-search-hit { display: flex; align-items: center; gap: 6px; margin-top: 8px; opacity: 0; animation: phitex-search-show 4s steps(1) 1s infinite; }
+  .phitex-search-hit .material-symbols { font-size: 18px; color: #53b57f; font-variation-settings: "FILL" 1; }
+  .phitex-search-hit mark { padding: 0 2px; border-radius: 3px; color: inherit; background: rgb(255 199 0 / 45%); }
+  .phitex-search-owner { margin-left: auto; font-size: 12px; color: #afb5c0; }
+  .phitex-search-keys { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin: 6px 0 0; padding: 0; font-size: 12px; color: #afb5c0; }
+  .phitex-search-keys code { color: #86caa5; background: rgb(0 0 0 / 22%); padding: 0 4px; border-radius: 4px; }
+  @keyframes phitex-search-type { 0% { width: 0; } 55%, 100% { width: 12ch; } }
+  @keyframes phitex-search-show { 0%, 30% { opacity: 0; } 31%, 100% { opacity: 1; } }
   #${TIP} { position: fixed; z-index: 1060; width: 340px; max-width: calc(100vw - 16px); overflow: visible; color: #f4f5f6; background: #1b222c;
     border: 1.5px solid #53b57f; border-radius: 12px;
     box-shadow: 0 0 0 4px rgb(83 181 127 / 18%), 0 18px 48px rgb(0 0 0 / 45%), 0 0 32px rgb(83 181 127 / 35%);
@@ -225,7 +318,8 @@ function addStyle() {
   @keyframes phitex-folders-ring { 70% { box-shadow: 0 0 0 14px rgb(83 181 127 / 0%); } 100% { box-shadow: 0 0 0 0 rgb(83 181 127 / 0%); } }
   @media (max-width: 575px) { .phitex-folders-stage { grid-template-columns: 1fr; justify-items: center; } .phitex-folders-wire { width: 2px; height: 18px; } }
   @media (prefers-reduced-motion: reduce) {
-    #${TIP}, #${TIP} *, #${TIP} .phitex-folders-clip::after, .phitex-folders-stage *, .phitex-folders-stage::after, .phitex-folders-pulse::after { animation: none !important; }
+    .phitex-search-typed { width: 12ch; } .phitex-search-hit { opacity: 1; }
+    #${SEARCH_TIP}, #${SEARCH_TIP} *, #${SEARCH_TIP} .phitex-folders-clip::after, .phitex-folders-stage *, .phitex-folders-stage::after, .phitex-folders-pulse::after { animation: none !important; }
     .phitex-folders-wire i { opacity: 1; left: calc(50% - 4px); }
   }`;
   (document.head ?? document.documentElement).append(s);

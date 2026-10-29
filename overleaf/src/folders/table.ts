@@ -11,8 +11,9 @@
 import { subtree, type Id } from "./folders.ts";
 import { ago, h, icon } from "./dom.ts";
 import { blankCell } from "./status.ts";
-import { PAGE, pathChip, relPath, type View } from "./ui.ts";
-import type { Project } from "./overleaf.ts";
+import { PAGE, pathChip, relPath, vocabulary, type View } from "./ui.ts";
+import { suggest, type Suggestion } from "./query.ts";
+import { ownerName } from "./overleaf.ts";
 
 export function renderTable(v: View) {
   const table = document.querySelector("#project-list-root table.project-dash-table");
@@ -127,13 +128,6 @@ function folderRow(v: View, id: Id, name: string): HTMLElement {
   return tr;
 }
 
-/** Who owns a project, as the table says it: "You", else the owner's name. */
-function ownerName(p: Project): string {
-  if (p.accessLevel === "owner") return "You";
-  const o = p.owner;
-  return [o?.firstName, o?.lastName].filter(Boolean).join(" ").trim() || o?.email || "Someone";
-}
-
 /** The owners of a folder's projects: "You", "You, Mohamed Bouaziz", "You, Mohamed +3"; all of them, with counts, on hover. */
 function ownerCell(owners: Map<string, number>): HTMLElement {
   // (you first, then by how many projects each owns)
@@ -147,21 +141,20 @@ function ownerCell(owners: Map<string, number>): HTMLElement {
 
 /**
  * Our search box, in place of Overleaf's while browsing (its own filters
- * by exact substring; ours forgives, and finds folders): each of Overleaf's
- * boxes (a wide layout's, a narrow one's) gets one of ours before it, in
- * its markup, shown instead of it while browsing.
+ * by exact substring; ours forgives, finds folders, and has filters:
+ * query.ts): each of Overleaf's boxes (a wide layout's, a narrow one's)
+ * gets one of ours before it, in its markup, shown instead of it while
+ * browsing. As you type, what fits where the caret is is suggested under
+ * it (filters, then their values); ↑ ↓ choose, Tab or Enter takes one.
  */
 function searchBox(v: View) {
   const placeholder = v.current ? `Search in ${v.state.folders[v.current]?.name ?? "this folder"}…` : "Search in all projects…";
   for (const theirs of document.querySelectorAll<HTMLElement>("#project-list-root .form-control-wrapper:has(> input.form-control:not(.olf-search-input))")) {
     let ours = theirs.previousElementSibling as HTMLElement | null;
     if (!ours?.classList.contains("olf-search")) {
-      const input = h("input", { type: "text", class: "form-control-offset-start form-control olf-search-input", "aria-label": placeholder, autocomplete: "off" });
-      input.addEventListener("input", () => v.search(input.value));
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") (input.value = ""), v.search("");
-      });
+      const input = h("input", { type: "text", class: "form-control-offset-start form-control olf-search-input", "aria-label": placeholder, autocomplete: "off", spellcheck: "false" });
       ours = h("div", { class: "form-control-wrapper olf-search" }, h("span", { class: "form-control-start-icon" }, icon("search")), input);
+      suggestions(v, ours, input);
       theirs.before(ours);
     }
     const input = ours.querySelector<HTMLInputElement>("input")!;
@@ -169,6 +162,71 @@ function searchBox(v: View) {
     // (the text ours: kept, unless cleared here, as opening a folder does)
     if (input.value !== v.query && document.activeElement !== input) input.value = v.query;
   }
+}
+
+/** The search box's suggestions under it (query.ts's suggest), and its keys. */
+function suggestions(v: View, box: HTMLElement, input: HTMLInputElement) {
+  let list: { start: number; end: number; items: Suggestion[] } = { start: 0, end: 0, items: [] };
+  let active = -1;
+  const menu = h("ul", { class: "dropdown-menu show olf-suggest", role: "listbox" });
+  const close = () => {
+    list.items = [];
+    menu.remove();
+  };
+  const draw = () => {
+    if (!list.items.length || document.activeElement !== input) return close();
+    menu.replaceChildren(
+      ...(input.value.trim() ? [] : [h("li", { class: "olf-suggest-hint" }, "Words find names, forgivingly; filters narrow:")]),
+      ...list.items.map((s, i) => {
+        const b = h("button", { type: "button", class: `dropdown-item${i === active ? " active" : ""}`, role: "option", tabindex: "-1" }, h("span", {}, s.label), ...(s.detail ? [h("small", {}, s.detail)] : []));
+        // (taken on press: the box keeps the focus)
+        b.onmousedown = (e) => {
+          e.preventDefault();
+          take(s);
+        };
+        return h("li", {}, b);
+      }),
+    );
+    if (!menu.isConnected) box.append(menu);
+  };
+  const refresh = () => {
+    list = suggest(input.value, input.selectionStart ?? input.value.length, vocabulary(v));
+    active = list.items.length && input.value.trim() ? 0 : -1;
+    draw();
+  };
+  const take = (s: Suggestion) => {
+    const q = input.value;
+    // (a filter's name: its value next, no space; a value: the next term after a space)
+    const more = /[:@#,]$/.test(s.insert) ? "" : " ";
+    const rest = q.slice(list.end).replace(/^\s*/, "");
+    input.value = q.slice(0, list.start) + s.insert + more + rest;
+    const at = list.start + s.insert.length + more.length;
+    input.setSelectionRange(at, at);
+    v.search(input.value);
+    refresh();
+  };
+  input.addEventListener("input", () => {
+    v.search(input.value);
+    refresh();
+  });
+  input.addEventListener("focus", refresh);
+  input.addEventListener("click", refresh);
+  input.addEventListener("blur", () => setTimeout(close, 100));
+  input.addEventListener("keydown", (e) => {
+    const open = list.items.length > 0 && menu.isConnected;
+    if (open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      active = (active + (e.key === "ArrowDown" ? 1 : -1) + list.items.length) % list.items.length;
+      draw();
+    } else if (open && active >= 0 && (e.key === "Tab" || e.key === "Enter")) {
+      e.preventDefault();
+      take(list.items[active]);
+    } else if (e.key === "Escape") {
+      // (the suggestions first; then the search)
+      if (open) close();
+      else (input.value = ""), v.search("");
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") setTimeout(refresh);
+  });
 }
 
 /** An icon button as the table's own (Copy, Download, ...). */

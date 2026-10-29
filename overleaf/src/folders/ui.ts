@@ -18,10 +18,11 @@
 // from the page's start, while the stored ones are read; with none kept yet,
 // skeleton rows stand in.
 
-import { canMove, invalid, newId, pathOf, subtree, type Id, type Op, type State } from "./folders.ts";
-import { fuzzy, type Match } from "./fuzzy.ts";
+import { canMove, invalid, newId, pathOf, statusesOf, subtree, type Id, type Op, type State } from "./folders.ts";
+import { fuzzy, occurrences, type Match } from "./fuzzy.ts";
+import { matches, parse, type Item, type Query, type Vocabulary } from "./query.ts";
 import { dialog, h, icon } from "./dom.ts";
-import { dashboard, listProjects, projectsOnPage, watch, type Dashboard, type Project } from "./overleaf.ts";
+import { dashboard, listProjects, ownerName, projectsOnPage, watch, type Dashboard, type Project } from "./overleaf.ts";
 import { isStorageName, projectStorage } from "./project.ts";
 import { renderSidebar } from "./sidebar.ts";
 import { loadSort, saveSort, sortCompare, statusCell, statusHeader, type Sort } from "./status.ts";
@@ -66,7 +67,7 @@ export type View = {
   /** The search box's text (ours, in place of Overleaf's while browsing: forgiving, folders too). */
   query: string;
   /** While searching: what matches under the open folder, projects by id and folders, best first. */
-  found: { projects: Map<string, Match>; folders: { id: Id; match: Match }[] } | null;
+  found: { query: Query; projects: Map<string, Match>; folders: { id: Id; match: Match }[] } | null;
   search(q: string): void;
   /** Overleaf's "All projects", no tag, no search: the folders shown in the table. */
   browsing: boolean;
@@ -355,29 +356,63 @@ export function mount(opts: MountOptions = {}): () => void {
 }
 
 /**
- * The search: what matches `q` under the open folder (everything, at the
- * top level). A project's folder path is its context, so "thesis draft"
- * finds a "Draft" in the "Thesis" folder; a folder's is its parent's path.
+ * The search (query.ts's language): what matches `q` under the open folder
+ * (everything, at the top level). A project's words are its name, with its
+ * folder path, owner and tags as context, so "thesis draft" finds a "Draft"
+ * in the "Thesis" folder; its filters (owner, tag, status, folder, dates)
+ * must all hold. Folders are found by their names, when the query is words
+ * only (a filter says what projects are, not folders).
  */
 function search(v: View, q: string): NonNullable<View["found"]> {
   const s = v.state;
+  const query = parse(q);
   const under = v.current ? subtree(s, v.current) : null;
+  const tags = new Map<string, string[]>();
+  for (const t of dashboard()?.tags ?? []) for (const p of t.project_ids ?? []) tags.set(p, [...(tags.get(p) ?? []), t.name]);
+  const statuses = new Map(statusesOf(s).map((x) => [x.id, x.name]));
+  const now = Date.now();
   const projects = new Map<string, Match>();
   for (const [id, p] of v.projects) {
     const f = s.projects[id];
     const inFolder = f !== undefined && !!s.folders[f];
     if (under && !(inFolder && under.has(f))) continue;
-    const m = fuzzy(q, p.name, inFolder ? pathOf(s, f) : "");
+    const chain: string[] = [];
+    for (let x: Id | null = inFolder ? f : null; x && s.folders[x]; x = s.folders[x].parent) chain.push(s.folders[x].name);
+    const it: Item = {
+      name: p.name,
+      path: inFolder ? pathOf(s, f) : "",
+      folders: chain,
+      owner: ownerName(p),
+      ownerEmail: p.owner?.email,
+      mine: p.accessLevel === "owner",
+      tags: tags.get(id) ?? [],
+      status: s.status?.[id] ? statuses.get(s.status[id]) : undefined,
+      updated: Date.parse(p.lastUpdated),
+    };
+    const m = matches(query, it, now);
     if (m) projects.set(id, m);
   }
   const folders: { id: Id; match: Match }[] = [];
-  for (const [id, f] of Object.entries(s.folders)) {
-    if (id === v.current || (under && !under.has(id))) continue;
-    const m = fuzzy(q, f.name, f.parent ? pathOf(s, f.parent) : "");
-    if (m) folders.push({ id, match: m });
-  }
+  if (query.words.trim() && !query.filters.length)
+    for (const [id, f] of Object.entries(s.folders)) {
+      if (id === v.current || (under && !under.has(id))) continue;
+      const m = fuzzy(query.words, f.name, f.parent ? pathOf(s, f.parent) : "");
+      if (m) folders.push({ id, match: m });
+    }
   folders.sort((a, b) => b.match.score - a.match.score || s.folders[a.id].name.localeCompare(s.folders[b.id].name));
-  return { projects, folders };
+  return { query, projects, folders };
+}
+
+/** What the search box suggests a filter's values from: the owners, tags, statuses and folders there are. */
+export function vocabulary(v: View): Vocabulary {
+  const owners = new Set<string>();
+  for (const p of v.projects.values()) owners.add(ownerName(p));
+  return {
+    owners: [...owners].sort(),
+    tags: (dashboard()?.tags ?? []).map((t) => t.name).sort(),
+    statuses: statusesOf(v.state).map((x) => x.name),
+    folders: [...new Set(Object.values(v.state.folders).map((f) => f.name))].sort(),
+  };
 }
 
 /** The folders from the open one (not included) down to `id`, as "Research › CGRA"; "" if `id` is the open one. */
@@ -407,7 +442,21 @@ function searchMarks(v: View, items: { tr: HTMLElement; id: string | undefined }
     }
     const m = v.found && id ? v.found.projects.get(id) : undefined;
     const name = id ? v.projects.get(id)?.name : undefined;
-    if (m && name) ranges.push(...textRanges(tr.querySelector("td.dash-cell-name a"), name, m.spans));
+    const link = tr.querySelector("td.dash-cell-name a");
+    if (m && name) ranges.push(...textRanges(link, name, m.spans));
+    // (what else the query found in the row: the owner it names, the tags, the folder)
+    if (m && v.found) {
+      const { words, filters } = v.found.query;
+      const terms = (key: string) => filters.filter((f) => f.key === key && !f.not).flatMap((f) => f.values);
+      const free = words.split(/\s+/).filter((w) => w.length >= 2);
+      const owners = terms("owner").map((o) => (/^(me|you|mine)$/i.test(o) ? "You" : o));
+      for (const cell of tr.querySelectorAll(":scope > td.dash-cell-owner")) ranges.push(...termRanges(cell, [...owners, ...free]));
+      for (const el of tr.querySelectorAll(":scope > td.dash-cell-name *")) {
+        if (el === link || link?.contains(el)) continue;
+        if (el.closest(".olf-path")) ranges.push(...termRanges(el, [...terms("in"), ...free], true));
+        else ranges.push(...termRanges(el, [...terms("tag"), ...free], true));
+      }
+    }
   }
   for (const { id, match } of v.found?.folders ?? []) {
     const link = document.querySelector(`.olf-rows tr[data-folder="${id}"] .olf-folder-link`);
@@ -429,6 +478,23 @@ export function pathChip(v: View, folder: Id, where: string): HTMLElement {
     v.open(folder);
   };
   return a;
+}
+
+/** Ranges over where `terms` occur in `el`'s text (`own`: its own text nodes only, not its children's). */
+function termRanges(el: Element, terms: string[], own = false): Range[] {
+  if (!terms.length) return [];
+  const out: Range[] = [];
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+    if (own && t.parentNode !== el) continue;
+    for (const [a, b] of occurrences(t.textContent ?? "", terms)) {
+      const r = document.createRange();
+      r.setStart(t, a);
+      r.setEnd(t, b);
+      out.push(r);
+    }
+  }
+  return out;
 }
 
 /** Ranges over `spans` of `name`, in the text node of `el` that holds it. */
@@ -544,6 +610,18 @@ function addStyle() {
   :is(.olf-browsing, .olf-loading) #project-list-root div.text-center:has(> p):not(.olf-footer) { display: none; }
   html:not(.olf-browsing) .olf-footer { display: none; }
   .olf-footer .spinner-border { width: 1rem; height: 1rem; border-width: 2px; margin-right: 6px; vertical-align: -2px; }
+  /* the search box's suggestions (query.ts), under it */
+  .olf-search { position: relative; }
+  .olf-suggest { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 1060; max-height: 320px; overflow-y: auto; margin: 0; }
+  .olf-suggest .dropdown-item { display: flex; justify-content: space-between; gap: 12px; }
+  .olf-suggest .dropdown-item small { opacity: .65; white-space: nowrap; }
+  #project-list-root .olf-suggest .dropdown-item.active, .olf-suggest .dropdown-item.active { background: rgb(50 101 178 / 30%) !important; color: var(--content-primary-themed, inherit) !important; }
+  .olf-suggest .dropdown-item { color: var(--content-primary-themed, inherit); }
+  .olf-suggest .olf-suggest-hint { padding: 4px 16px 2px; font-size: 12px; opacity: .65; }
+  /* (the search and the buttons on one row: the search takes what "New folder" and "New project" leave) */
+  @media (min-width: 768px) {
+    #project-list-root .row:has(> .col-auto .olf-new-folder) > :has(> .project-search) { flex: 1 1 0; width: auto; max-width: none; min-width: 0; }
+  }
   /* our search box, in place of Overleaf's while browsing; a result's place; the matched letters */
   .olf-browsing #project-list-root .form-control-wrapper:has(> input.form-control:not(.olf-search-input)) { display: none !important; }
   html:not(.olf-browsing) .olf-search { display: none !important; }

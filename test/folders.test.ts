@@ -145,3 +145,60 @@ test("fuzzy: words, starts, parts, letters in order, slips; accents and case ign
   const e = hit("ete", "École d'été")!;
   assert.equal("École d'été".slice(e.spans[0][0], e.spans[0][1]), "été");
 });
+
+import { dateSpan, matches, parse, suggest, type Item } from "../overleaf/src/folders/query.ts";
+
+const NOW = new Date(2026, 9, 29, 12).getTime();
+const item = (o: Partial<Item>): Item => ({ name: "Paper", path: "", folders: [], owner: "You", mine: true, tags: [], updated: NOW, ...o });
+
+test("query: words and filters, aliases, negation, alternatives, quotes", () => {
+  const q = parse('cgra owner:mohamed,"Krishnan Iyer" -#old status:drafting in:Research after:7d');
+  assert.equal(q.words, "cgra");
+  assert.deepEqual(q.filters.map((f) => [f.key, f.values, f.not]), [
+    ["owner", ["mohamed", "Krishnan Iyer"], false],
+    ["tag", ["old"], true],
+    ["status", ["drafting"], false],
+    ["in", ["Research"], false],
+    ["after", ["7d"], false],
+  ]);
+  assert.deepEqual(parse("@me author:x by:y").filters.map((f) => f.key), ["owner", "owner", "owner"]);
+  assert.equal(parse("weird:thing").words, "weird:thing", "an unknown key is a word");
+});
+
+test("query: filters hold or don't", () => {
+  const theirs = item({ owner: "Mohamed Bouaziz", ownerEmail: "m.b@kaust.edu.sa", mine: false, tags: ["ACCL Paper"], folders: ["CGRA", "Research"], status: "drafting" });
+  const m = (q: string, it: Item) => matches(parse(q), it, NOW) !== null;
+  assert.ok(m("@mohamed", theirs) && m("owner:bouaziz", theirs) && m("@kaust", theirs));
+  assert.ok(!m("@me", theirs) && m("@me", item({})) && m("-@me", theirs));
+  assert.ok(m("#accl", theirs) && m('tag:"accl paper"', theirs) && !m("-#accl", theirs));
+  assert.ok(m("in:research", theirs) && m("in:cgra", theirs) && !m("in:thesis", theirs));
+  assert.ok(m("status:draft", theirs) && !m("status:accepted", theirs));
+  assert.ok(m("is:shared", theirs) && !m("is:mine", theirs));
+  assert.ok(m("@nobody,mohamed", theirs), "alternatives");
+  // (dates: last modified)
+  const old = item({ updated: new Date(2026, 0, 15).getTime() });
+  assert.ok(m("before:2026-02", old) && !m("after:2026-02", old) && m("after:2026", old) && m("before:1m", old) && !m("after:7d", old));
+  assert.ok(m("after:today", item({})) && !m("after:today", old));
+  assert.deepEqual(dateSpan("2026-09", NOW), [new Date(2026, 8, 1).getTime(), new Date(2026, 9, 1).getTime()]);
+  assert.equal(dateSpan("soon", NOW), null);
+  // (words with filters: the name fuzzy, the context too)
+  assert.ok(matches(parse("papr @mohamed"), theirs, NOW)!.spans.length === 1);
+  assert.ok(m("research", item({ path: "Research / CGRA" })), "a word in the folder's path");
+  assert.ok(m("bouaziz", theirs), "a word in the owner's name");
+});
+
+test("query: suggestions as you type", () => {
+  const vocab = { owners: ["You", "Mohamed Bouaziz", "Krishnan Iyer Balasubramaniam"], tags: ["ACCL Paper", "SHARED"], statuses: ["idea", "drafting"], folders: ["Research", "MS Thesis"] };
+  const s = (q: string, at = q.length) => suggest(q, at, vocab);
+  assert.equal(s("").items[0].label, "owner:", "help when empty");
+  assert.deepEqual(s("ow").items.map((i) => i.insert), ["owner:"]);
+  assert.deepEqual(s("@mo").items.map((i) => i.insert), ['@"Mohamed Bouaziz"']);
+  assert.deepEqual(suggest("@mo", 3, { ...vocab, owners: ["Samy Mounir", "Mohamed Bouaziz", "Amos Ito"] }).items.map((i) => i.label), ["Mohamed Bouaziz", "Samy Mounir", "Amos Ito"], "a name it begins, then a word it begins, then a part");
+  assert.ok(s("@").items.some((i) => i.insert === "@me"));
+  assert.deepEqual(s("cgra #ac").items.map((i) => i.insert), ['#"ACCL Paper"']);
+  assert.equal(s("cgra #ac").start, 5);
+  assert.deepEqual(s("in:th").items.map((i) => i.insert), ['in:"MS Thesis"']);
+  assert.deepEqual(s("-tag:sh").items.map((i) => i.insert), ["-tag:SHARED"]);
+  assert.ok(s("after:").items.some((i) => i.insert === "after:7d"));
+  assert.deepEqual(s("tag:accl,sh").items.map((i) => i.insert), ["tag:accl,SHARED"]);
+});

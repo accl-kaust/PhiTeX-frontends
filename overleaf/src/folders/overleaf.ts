@@ -33,6 +33,13 @@ export type Dashboard = {
   showAllProjects(): void;
 };
 
+/** Who owns a project, as the table says it: "You", else the owner's name. */
+export function ownerName(p: Project): string {
+  if (p.accessLevel === "owner") return "You";
+  const o = p.owner;
+  return [o?.firstName, o?.lastName].filter(Boolean).join(" ").trim() || o?.email || "Someone";
+}
+
 /** The dashboard's state as of its last render (read it again after a change), or null off the dashboard. */
 export function dashboard(): Dashboard | null {
   const el = document.querySelector("#project-list-root .project-list-filters, #project-list-root table");

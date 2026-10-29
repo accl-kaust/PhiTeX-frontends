@@ -7,8 +7,8 @@
 (() => {
   if (/^\/project\/([0-9a-f]{24}|mock)/.test(location.pathname)) return;
   const send = async () => {
-    const s = await chrome.storage.local.get(["enabled", "folders", "statusColumn", "hideData", "foldersTipOff"]);
-    const settings = { on: s.enabled !== false && s.folders !== false, status: s.statusColumn === true, hide: s.hideData === true, tip: !s.foldersTipOff };
+    const s = await chrome.storage.local.get(["enabled", "folders", "statusColumn", "hideData", "foldersTipOff", "searchTipSeen"]);
+    const settings = { on: s.enabled !== false && s.folders !== false, status: s.statusColumn === true, hide: s.hideData === true, tip: !s.foldersTipOff, searchTip: !s.searchTipSeen };
     try {
       localStorage.setItem("phitex:dashboard", JSON.stringify(settings));
     } catch {}
@@ -19,6 +19,8 @@
     if (area === "local") void send();
   });
   window.addEventListener("message", (e) => {
-    if (e.source === window && e.data?.src === "phitex-folders" && e.data.tipOff === true) void chrome.storage.local.set({ foldersTipOff: true });
+    if (e.source !== window || e.data?.src !== "phitex-folders") return;
+    if (e.data.tipOff === true) void chrome.storage.local.set({ foldersTipOff: true });
+    if (e.data.searchTipSeen === true) void chrome.storage.local.set({ searchTipSeen: true });
   });
 })();
