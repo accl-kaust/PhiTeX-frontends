@@ -12,8 +12,8 @@ is sent to the extension's authors or to anyone else.
 - **What it sends.** Your documents are never sent anywhere. Besides those
   reads from overleaf.com, it makes one kind of request: for a TeX package
   it doesn't bundle, a plain download of that package from Shelf
-  (`shelf-phitex.pages.dev`, static files on Cloudflare Pages), such as
-  `…/tl2026/p/tikz.pack`. The request carries only the package's name,
+  (`v1.shelf.phitex.org`, static files on Cloudflare Pages), such as
+  `…/tl2026/h/pgf-3f9a2c41b0de.pack`. The request carries only the package's name,
   which comes from TeX Live's public list. It carries no document text, no
   file name of yours, and no identifier or cookie. Like any website,
   Cloudflare sees the request and your IP address. Shelf keeps no logs of

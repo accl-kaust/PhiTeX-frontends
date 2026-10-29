@@ -1,14 +1,19 @@
 {
- "schema": 3,
- "release": "tl2026.5",
- "index": "index-tl2026.5.tsv.gz",
- "min_extension": "0.2.90",
+ "schema": 1,
+ "release": "tl2026.7",
+ "index": "index-tl2026.7.tsv.gz",
+ "pack_table": "packs-tl2026.7.tsv.gz",
+ "packs": 7163,
+ "min_extension": "0.7.0",
  "notice": null,
- "packs": 6919,
  "deps": [
   "pdftex",
   "xetex"
  ],
+ "traced_by": {
+  "pdftex": "phitex 0f8b1fa579e6dc67df5741a50a2cc0df8987e08e shelf-trace 2",
+  "xetex": "phitex 0f8b1fa579e6dc67df5741a50a2cc0df8987e08e shelf-trace 2"
+ },
  "search": {
   "pdftex": {
    "tex": [
@@ -51,6 +56,15 @@
    ],
    "ist": [
     "makeindex"
+   ],
+   "cmap": [
+    "fonts/cmap"
+   ],
+   "sfd": [
+    "fonts/sfd"
+   ],
+   "misc": [
+    "fonts/misc"
    ]
   },
   "xetex": {
@@ -96,6 +110,15 @@
    ],
    "ist": [
     "makeindex"
+   ],
+   "cmap": [
+    "fonts/cmap"
+   ],
+   "sfd": [
+    "fonts/sfd"
+   ],
+   "misc": [
+    "fonts/misc"
    ]
   },
   "luatex": {
@@ -141,6 +164,15 @@
    ],
    "ist": [
     "makeindex"
+   ],
+   "cmap": [
+    "fonts/cmap"
+   ],
+   "sfd": [
+    "fonts/sfd"
+   ],
+   "misc": [
+    "fonts/misc"
    ],
    "lua": [
     "scripts/lualatex/lua",

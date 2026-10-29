@@ -39,7 +39,7 @@ export async function startCore(root: string, folder: () => string, log: (s: str
   // (the engine's threads: the host's to say, wasm has no available_parallelism)
   const session = new CoreSession(core, threads ? { threads } : {});
   const index = await coreIndex();
-  core.setIndex(index.tsv, index.release, index.names);
+  core.setIndex(index.tsv, index.release, index.table, index.names);
   log(`core started in ${Math.round(performance.now() - t0)} ms`);
   return { core, session, index };
 }

@@ -48,12 +48,14 @@ cp NOTICE overleaf/NOTICE.txt
 # The bundled packages (scripts/fetch-texmf.sh), flat by name: shelf.ts reads
 # them before asking Shelf.
 rm -rf overleaf/texmf && cp -r texmf overleaf/texmf
-# Shelf's index (texmf path -> pack) and its release.json (how names
+# Shelf's index (texmf path -> pack), its pack table (each pack's SHA-256
+# and size) and its release.json (how names
 # resolve per engine), made by Shelf's release.py: scripts/shelf-index.sh
 # (named .gzdata: Edge's store refuses archives inside a package)
-# (SHELF_INDEX, SHELF_RELEASE: another release's, a local Shelf's for a --dev build)
+# (SHELF_INDEX, SHELF_PACKS, SHELF_RELEASE: another release's, a local Shelf's for a --dev build)
 cp "${SHELF_INDEX:-shelf-index.tsv.gz}" overleaf/shelf-index.tsv.gzdata
 cp "${SHELF_RELEASE:-shelf-release.json}" overleaf/shelf-release.json
+cp "${SHELF_PACKS:-shelf-packs.tsv.gz}" overleaf/shelf-packs.tsv.gzdata
 # The extension's TypeScript, as the modules it loads (dist/: the content
 # script's, the offscreen document's, the core's worker and its threads')
 scripts/sandbox npx tsc -p overleaf

@@ -78,7 +78,7 @@ interface Exports {
   ph_pack(id: number, idLen: number, data: number, dataLen: number, ok: number): void;
   ph_stored(key: number, keyLen: number, data: number, dataLen: number, found: number): void;
   ph_shell_done(id: number, p: number, n: number): void;
-  ph_set_index(tsv: number, tsvLen: number, release: number, releaseLen: number, bundled: number, bundledLen: number): number;
+  ph_set_index(tsv: number, tsvLen: number, release: number, releaseLen: number, table: number, tableLen: number, bundled: number, bundledLen: number): number;
   ph_output_ptr(): number;
   ph_output_len(): number;
   ph_main_output(): number;
@@ -249,17 +249,20 @@ export class Core {
   }
 
   /**
-   * Shelf's index (its TSV, gunzipped), its release.json, and the names of
-   * the bundled texmf/: the core resolves names itself from now on, and
-   * asks for packs (`fetch`) instead of names.
+   * Shelf's index (its TSV, gunzipped), its release.json, the release's
+   * pack table (its TSV, gunzipped: every pack checked against it before
+   * use), and the names of the bundled texmf/: the core resolves names
+   * itself from now on, and asks for packs (`fetch`) instead of names.
    */
-  setIndex(tsv: Uint8Array, release: Uint8Array, bundled: string[]): void {
+  setIndex(tsv: Uint8Array, release: Uint8Array, table: Uint8Array, bundled: string[]): void {
     const names = new TextEncoder().encode(bundled.join("\n"));
-    const [pt, pr, pn] = [this.put(tsv), this.put(release), this.put(names)];
-    const r = this.x.ph_set_index(pt, tsv.length, pr, release.length, pn, names.length);
+    const [pt, pr, pp, pn] = [this.put(tsv), this.put(release), this.put(table), this.put(names)];
+    const r = this.x.ph_set_index(pt, tsv.length, pr, release.length, pp, table.length, pn, names.length);
     this.x.ph_free(pt, tsv.length);
     this.x.ph_free(pr, release.length);
+    this.x.ph_free(pp, table.length);
     this.x.ph_free(pn, names.length);
+    if (r === 2) throw new Error(`Shelf's pack table: ${new TextDecoder().decode(this.output())}`);
     if (r !== 0) throw new Error(`ph_set_index: ${r}`);
   }
 

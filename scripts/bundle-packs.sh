@@ -24,7 +24,7 @@ while read -r id; do
   # (a pack the release no longer has by that name: fetched from Shelf when used)
   [ -z "$h" ] && { echo "bundled pack $id: not in the shipped index, not bundled" >&2; continue; }
   if [ -f "$src/$h.pack" ]; then cp "$src/$h.pack" "overleaf/packs/$h.pack"
-  else curl -fsS -o "overleaf/packs/$h.pack" "https://shelf-phitex.pages.dev/tl2026/h/$h.pack"
+  else curl -fsS -o "overleaf/packs/$h.pack" "https://v1.shelf.phitex.org/tl2026/h/$h.pack"
   fi
   echo "$h" >> overleaf/packs/list.txt
 done < data/bundled-packs.txt

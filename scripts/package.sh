@@ -15,7 +15,7 @@ mkdir -p store
 rm -f "$out"
 
 if grep -q localhost overleaf/manifest.json; then echo "manifest has localhost: not a release build" >&2; exit 1; fi
-files=(manifest.json popup.html offscreen.html LICENSE.txt NOTICE.txt icons fonts shims dist texmf packs minted formats shelf-index.tsv.gzdata shelf-release.json)
+files=(manifest.json popup.html offscreen.html LICENSE.txt NOTICE.txt icons fonts shims dist texmf packs minted formats shelf-index.tsv.gzdata shelf-packs.tsv.gzdata shelf-release.json)
 for f in "${files[@]}"; do [ -e "overleaf/$f" ] || { echo "missing overleaf/$f" >&2; exit 1; }; done
 [ -s overleaf/dist/core.wasm ] || { echo "no core.wasm" >&2; exit 1; }
 ls overleaf/formats/pdflatex-*.gzdata > /dev/null 2>&1 || { echo "no pdfLaTeX format in overleaf/formats (scripts/make-formats.sh)" >&2; exit 1; }

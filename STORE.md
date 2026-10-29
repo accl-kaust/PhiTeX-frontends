@@ -109,7 +109,7 @@ repository) and paste its URL.
 >     \end{document}
 >
 > The extension's network requests: overleaf.com (the project's files, as
-> the signed-in user) and Shelf (shelf-phitex.pages.dev, TeX Live's package files,
+> the signed-in user) and Shelf (v1.shelf.phitex.org, TeX Live's package files,
 > fetched by name when a document needs one not bundled; nothing about the
 > document is sent). The engine runs locally in an offscreen document.
 

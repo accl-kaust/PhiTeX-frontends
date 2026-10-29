@@ -266,22 +266,34 @@ pub extern "C" fn ph_shell_done(id: u32, frame: *const u8, len: usize) {
     shell_hook().done(id, bytes(frame, len));
 }
 
-/// Shelf's index (its TSV, gunzipped) and `release.json`, and the names of
-/// the extension's bundled texmf/ (one a line): names are resolved here
-/// from now on. 0: done; 1: `release.json` is not JSON.
+/// Shelf's index (its TSV, gunzipped), `release.json` and the release's
+/// pack table (its TSV, gunzipped: every pack checked against it before
+/// use), and the names of the extension's bundled texmf/ (one a line):
+/// names are resolved here from now on. 0: done; 1: `release.json` is not
+/// JSON; 2: the pack table is not one (why in the answer's bytes).
 #[unsafe(no_mangle)]
 pub extern "C" fn ph_set_index(
     tsv: *const u8,
     tsv_len: usize,
     release: *const u8,
     release_len: usize,
+    table: *const u8,
+    table_len: usize,
     bundled: *const u8,
     bundled_len: usize,
 ) -> i32 {
     let Ok(release) = serde_json::from_slice::<Value>(bytes(release, release_len)) else {
         return 1;
     };
-    let index = shelf::Index::new(&String::from_utf8_lossy(bytes(tsv, tsv_len)), &release);
+    let index = match shelf::Index::new(&String::from_utf8_lossy(bytes(tsv, tsv_len)), &release)
+        .with_pack_table(&String::from_utf8_lossy(bytes(table, table_len)))
+    {
+        Ok(ix) => ix,
+        Err(e) => {
+            *lock(&OUTPUT) = e.into_bytes();
+            return 2;
+        }
+    };
     let names = text(bundled, bundled_len)
         .lines()
         .filter(|l| !l.is_empty())

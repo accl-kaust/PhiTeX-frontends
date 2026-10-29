@@ -70,7 +70,7 @@ let stderr = "";
 const timeline: [string, number, number][] = [];
 let packs = 0;
 let fetched = 0;
-const SHELF = "https://shelf-phitex.pages.dev/tl2026/";
+const SHELF = "https://v1.shelf.phitex.org/tl2026/";
 const bundledDir = new URL("../texmf/", import.meta.url);
 
 /** Shelf's pack `id`: kept in target/shelf-cache/, else Shelf's, kept. */
@@ -146,7 +146,7 @@ const core = Core.start(module, {
 });
 const main = file ? file.split("/").pop()! : "plain.tex";
 if (!kpse) {
-  core.setIndex(gunzipSync(await readFile("shelf-index.tsv.gz")), await readFile("shelf-release.json"), (await readdir(bundledDir)).filter((n) => n !== "names.txt"));
+  core.setIndex(gunzipSync(await readFile("shelf-index.tsv.gz")), await readFile("shelf-release.json"), gunzipSync(await readFile("shelf-packs.tsv.gz")), (await readdir(bundledDir)).filter((n) => n !== "names.txt"));
   // (the document's directory, given before the build: a project's files)
   const dir = file ? file.slice(0, file.lastIndexOf("/") + 1) || "./" : null;
   for (const n of dir ? await readdir(dir) : []) if (n !== main && /\.(tex|sty|cls|bib|bst|cfg|def|png|pdf|jpg)$/.test(n)) core.provide(n, { path: "./" + n, bytes: new Uint8Array(await readFile(dir + n)) });

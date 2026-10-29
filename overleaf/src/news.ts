@@ -19,6 +19,17 @@ export const SUPPORT: { label: string; href: string } | null = null;
 
 export const NEWS: News[] = [
   {
+    version: "0.7.0",
+    date: "2026-10-30",
+    title: "A new package server, and a clean recompile",
+    items: [
+      "TeX Live packages now come from Shelf's new server (TeX Live 2026, release 7), and every package is checked against the release's list of fingerprints before it is used or kept.",
+      "⚡ Instant has its own clean recompile button beside Recompile; Overleaf's \"Recompile from scratch\" also starts ⚡ Instant from scratch.",
+      "Restoring a file from Overleaf's history now updates the ⚡ preview; before, the old text could stay in it.",
+      "While you type, the preview marks the word you are in, no longer flickering to the whole line.",
+    ],
+  },
+  {
     version: "0.5.2",
     date: "2026-10-08",
     title: "A smaller download",

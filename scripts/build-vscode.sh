@@ -28,7 +28,7 @@ for d in texmf packs fonts shims formats; do
   rm -rf "vscode/$d"
   cp -r "overleaf/$d" "vscode/$d"
 done
-cp overleaf/shelf-index.tsv.gzdata overleaf/shelf-release.json overleaf/LICENSE.txt overleaf/NOTICE.txt vscode/
+cp overleaf/shelf-index.tsv.gzdata overleaf/shelf-packs.tsv.gzdata overleaf/shelf-release.json overleaf/LICENSE.txt overleaf/NOTICE.txt vscode/
 
 if [ "${1:-}" = --package ]; then
   # (no source maps in the package)

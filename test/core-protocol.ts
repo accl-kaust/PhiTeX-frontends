@@ -46,7 +46,7 @@ const core = Core.start(await WebAssembly.compile(await readFile(new URL("../tar
   async fetch(id) {
     const b = await readFile(`target/shelf-cache/${id}.pack`).catch(() => null);
     if (b) return new Uint8Array(b);
-    const r = await fetch("https://shelf-phitex.pages.dev/tl2026/h/" + encodeURIComponent(id) + ".pack");
+    const r = await fetch("https://v1.shelf.phitex.org/tl2026/h/" + encodeURIComponent(id) + ".pack");
     return r.ok ? new Uint8Array(await r.arrayBuffer()) : null;
   },
   async resolve(name) {
@@ -59,7 +59,7 @@ const core = Core.start(await WebAssembly.compile(await readFile(new URL("../tar
     process.exit(2);
   },
 });
-core.setIndex(gunzipSync(await readFile("shelf-index.tsv.gz")), await readFile("shelf-release.json"), (await readdir(bundled)).filter((n) => n !== "names.txt"));
+core.setIndex(gunzipSync(await readFile("shelf-index.tsv.gz")), await readFile("shelf-release.json"), gunzipSync(await readFile("shelf-packs.tsv.gz")), (await readdir(bundled)).filter((n) => n !== "names.txt"));
 
 const t = new CoreSession(core);
 /** Every event, in order, with when it came. */

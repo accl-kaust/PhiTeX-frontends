@@ -7,9 +7,10 @@
 //      of the packages arXiv papers use most);
 //   2. the packs kept on this machine (packstore.ts: fetched before, by a
 //      project or ahead of one by prefetch.ts; no request);
-//   3. Shelf (shelf-phitex.pages.dev): TeX Live's files in packs, one per
+//   3. Shelf (v1.shelf.phitex.org): TeX Live's files in packs, one per
 //      package (or per part of a big one), fetched whole: a .sty comes with
-//      the .def, .cfg and .fd files it reads, and the pack is kept.
+//      the .def, .cfg and .fd files it reads, and the pack, checked against
+//      the release's pack table (its SHA-256 and size), is kept.
 //
 // Which file a name is, for the project's engine, and which pack holds it,
 // is in an index the extension holds (shipped, and newer releases of it
@@ -17,8 +18,7 @@
 // no request to learn it, and a name the index lacks (a project's own file
 // it doesn't have) never leaves the machine.
 
-// (Cloudflare Pages' own address until there is a domain: shelf.phitex.org)
-export const SHELF = "https://shelf-phitex.pages.dev/tl2026/";
+export const SHELF = "https://v1.shelf.phitex.org/tl2026/";
 
 import { indexBytes, packUrl } from "./release.ts";
 import { Index, formatOf, shelfEngine } from "./resolve.ts";
@@ -42,6 +42,26 @@ export const index = once(async () => {
   const { gz, meta } = await indexBytes();
   return new Index(await new Response(gz.pipeThrough(new DecompressionStream("gzip"))).text(), meta);
 });
+
+/** The release's pack table (release.ts): each pack's SHA-256 (hex) and size, by id. */
+const packTable = once(async () => {
+  const { table } = await indexBytes();
+  const t = new Map<string, { sha256: string; bytes: number }>();
+  for (const line of (await new Response(table.pipeThrough(new DecompressionStream("gzip"))).text()).split("\n")) {
+    const [id, sha256, bytes] = line.split("\t");
+    if (id && sha256 && bytes) t.set(id, { sha256, bytes: Number(bytes) });
+  }
+  return t;
+});
+
+/** Whether pack `id`'s bytes as served are the pack table's (the core checks them again before use); why not, thrown. */
+async function checkPack(id: string, raw: Uint8Array): Promise<void> {
+  const want = (await packTable()).get(id);
+  if (!want) throw new Error(`pack ${id} is not in the release's pack table`);
+  if (raw.byteLength !== want.bytes) throw new Error(`pack ${id} has ${raw.byteLength} bytes, the pack table ${want.bytes}`);
+  const sum = new Uint8Array(await crypto.subtle.digest("SHA-256", raw as BufferSource));
+  if (Array.from(sum, (b) => b.toString(16).padStart(2, "0")).join("") !== want.sha256) throw new Error(`pack ${id}'s SHA-256 is not the pack table's`);
+}
 
 /** A pack's files: gzip of `u32 n, (u32 len, name, u32 len, bytes) × n`. */
 function unpack(b: Uint8Array): [string, Uint8Array][] {
@@ -70,7 +90,7 @@ export const shipped = once(async () => {
 
 const isGzip = (b: Uint8Array) => b[0] === 0x1f && b[1] === 0x8b;
 
-/** A pack Shelf serves, as is (gzip); `priority` "low" for one fetched ahead (a project's own go first). */
+/** A pack Shelf serves, as is (gzip), checked against the pack table (none kept otherwise); `priority` "low" for one fetched ahead (a project's own go first). */
 export async function fetchPack(id: string, priority: RequestPriority = "auto"): Promise<Uint8Array> {
   const get = async (cache: RequestCache) => {
     const r = await platform().fetch(packUrl(id), { cache, priority });
@@ -83,6 +103,7 @@ export async function fetchPack(id: string, priority: RequestPriority = "auto"):
   if (!isGzip(raw)) raw = await get("reload");
   if (!raw.length) throw new Error(`Shelf has no pack "${id}" (HTTP error)`);
   if (!isGzip(raw)) throw new Error(`Shelf has no pack "${id}" (the package server is older than this extension)`);
+  await checkPack(id, raw);
   return raw;
 }
 

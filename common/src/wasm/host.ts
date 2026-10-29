@@ -147,18 +147,19 @@ export function lspChannel(core: Core, location: string): LspChannel {
   };
 }
 
-/** Shelf's index (its TSV, the release's metadata) and the names the extension bundles (texmf/). */
+/** Shelf's index (its TSV, the release's metadata, its pack table's TSV) and the names the extension bundles (texmf/). */
 export interface CoreIndex {
   tsv: Uint8Array;
   meta: ReleaseMeta;
   release: Uint8Array;
+  table: Uint8Array;
   names: string[];
 }
 
 export async function coreIndex(): Promise<CoreIndex> {
-  const { gz, meta } = await indexBytes();
+  const { gz, table, meta } = await indexBytes();
   const names = (await (await platform().asset("texmf/names.txt")).text()).split("\n").filter(Boolean);
-  return { tsv: await gunzip(gz), meta, release: new TextEncoder().encode(JSON.stringify(meta)), names };
+  return { tsv: await gunzip(gz), meta, release: new TextEncoder().encode(JSON.stringify(meta)), table: await gunzip(table), names };
 }
 
 /**

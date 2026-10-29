@@ -74,7 +74,7 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
     },
   });
   const ix = await index;
-  core.setIndex(ix.tsv, ix.release, ix.names);
+  core.setIndex(ix.tsv, ix.release, ix.table, ix.names);
   for (const [f, b] of binaries) core.provide(f, { path: "./" + f, bytes: b });
   console.info(`[phitex core] started in ${Math.round(performance.now() - t0)} ms`);
   // (every project may use minted: the runner loads only at its first call)
