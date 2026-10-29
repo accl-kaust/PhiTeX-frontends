@@ -19,9 +19,9 @@ set -eu
 REPO=accl-kaust/PhiTeX
 PREFIX=${PHITEX_PREFIX:-$HOME/.local}
 VERSION=${PHITEX_VERSION:-}
-# The release's signing key (minisign). Filled in when the first release
-# is signed; empty, the signature is not checked.
-PUBKEY=""
+# The releases' signing key (minisign; PhiTeX's ci/minisign.pub). With
+# minisign installed, SHA256SUMS's signature is checked against it.
+PUBKEY="RWS/tPWBRVVf0Y9h/ODPiO2EgZi1labeCog3siaCfIdaC9HJkDJZ8k4u"
 
 say() { printf 'phitex: %s\n' "$*" >&2; }
 die() { say "$*"; exit 1; }
