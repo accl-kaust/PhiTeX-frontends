@@ -14,7 +14,7 @@
 //   scripts/build-vscode.sh && scripts/sandbox --net node vscode/dist/smoke.mjs FOLDER [MAIN] [--high]
 
 import { readdirSync, readFileSync, statSync, mkdtempSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { setPlatform } from "../../common/src/platform.ts";
@@ -87,8 +87,10 @@ const ask = (method: string, params: unknown) => new Promise<any>((ok) => {
   lsp.send({ jsonrpc: "2.0", id, method, params });
 });
 const tell = (method: string, params: unknown) => lsp.send({ jsonrpc: "2.0", method, params });
-const uri = "file://" + join(folder, main);
-const init = await ask("initialize", { processId: null, rootUri: "file://" + folder, capabilities: {}, initializationOptions: { threads } });
+// (as VS Code's client is: window/showDocument supported, the folder's absolute URI its root)
+const folderAt = resolve(folder);
+const uri = "file://" + join(folderAt, main);
+const init = await ask("initialize", { processId: null, rootUri: "file://" + folderAt, capabilities: { window: { showDocument: { support: true } } }, initializationOptions: { threads } });
 tell("initialized", {});
 tell("textDocument/didOpen", { textDocument: { uri, languageId: "latex", version: 1, text: files[main] } });
 console.log(`lsp: ${(init.result?.capabilities?.executeCommandProvider?.commands ?? []).length} commands`);
@@ -103,7 +105,12 @@ const at = files[main].indexOf("\\begin{document}") + "\\begin{document}".length
 const before = files[main].slice(0, at).split("\n");
 const pos = { line: before.length - 1, character: before[before.length - 1].length };
 let version = 1;
-const edit = (text: string) => tell("textDocument/didChange", { textDocument: { uri, version: ++version }, contentChanges: [{ range: { start: pos, end: pos }, text }] });
+// (what the edits inserted at `at`, each before the last: the text as the core has it)
+let inserted = "";
+const edit = (text: string) => {
+  inserted = text + inserted;
+  tell("textDocument/didChange", { textDocument: { uri, version: ++version }, contentChanges: [{ range: { start: pos, end: pos }, text }] });
+};
 const t1 = performance.now();
 edit("\nSmoke test words.\n");
 await next(2);
@@ -144,11 +151,23 @@ for (let p = 0; p < mem.length / PAGE; p++) {
   for (let i = 0; i < PAGE; i++) if (mem[o + i]) { written++; top = p; break; }
 }
 console.log(`threads ${threads ?? "default"}: heap top ${((top + 1) * 65536 / 2 ** 20).toFixed(0)} MiB, ${(written * 65536 / 2 ** 20).toFixed(0)} MiB of pages written`);
+// (a double-click on the page, as the webview asks for it: the source of a place, the
+// editor told by the server, window/showDocument)
+const shown = new Promise<any>((ok) => {
+  lsp.onMessage((m) => m.method === "window/showDocument" && ok(m));
+  setTimeout(() => ok(null), 10_000);
+});
+const now = files[main].slice(0, at) + inserted + files[main].slice(at);
+const word = now.indexOf("Smoke test words.");
+const bytes = (n: number) => new TextEncoder().encode(now.slice(0, n)).length;
+const src = await session.request({ op: "source", file: main, start: bytes(word), end: bytes(word + 5) } as never);
+const doc = await shown;
+console.log(`double-click: source ${src.ok ? "ok" : "failed " + src.error}; showDocument ${doc ? `${doc.params.uri.split("/").pop()} line ${doc.params.selection?.start?.line}` : "NOT SENT"}`);
 // (the status the server told; the caches, this host's)
 const caches = await ask("workspace/executeCommand", { command: "phitex.cacheStats", arguments: [] });
 const said = caches.result?.caches?.map((c: any) => `${c.scope} ${c.entries} entries ${c.hits}/${c.misses}`).join(", ");
 console.log(`lsp: status ${[...new Set(states)].join(" ")}; caches: ${said ?? caches.error?.message}`);
-const statusOk = states.includes("ready") && !!caches.result;
+const statusOk = states.includes("ready") && !!caches.result && !!doc;
 await ask("shutdown", null);
 tell("exit", null);
 lsp.close();

@@ -260,7 +260,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   // diagnostics, a double-click's source (window/showDocument), the cursor,
   // the commands, as with the watch's; the caches' commands answered here)
   const channel = lspChannel(core, storeDir);
-  const client = new LanguageClient("phitex", "PhiTeX", async () => ({ reader: new ChannelReader(channel), writer: new ChannelWriter(channel) }), clientOptions(folder, log));
+  const client = ownCommands(new LanguageClient("phitex", "PhiTeX", async () => ({ reader: new ChannelReader(channel), writer: new ChannelWriter(channel) }), clientOptions(folder, log)));
   let closed = false;
   const subs: vscode.Disposable[] = [relay(view, session, () => void savePdf(session, folder, main), (s) => log.appendLine(s))];
   current = { folder, view, save: () => void savePdf(session, folder, main) };
@@ -306,6 +306,18 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   );
   await client.start();
   if (!closed) setServer(client);
+}
+
+/**
+ * `client` leaving the server's commands (executeCommandProvider) to this
+ * extension, which offers them itself (activate's, through exec()): the
+ * client's own registration of each as a VS Code command clashed with
+ * ours, and with another client's still stopping ("command 'phitex.rebuild'
+ * already exists": its initialization failed).
+ */
+function ownCommands(client: LanguageClient): LanguageClient {
+  Object.assign(client.getFeature(ExecuteCommandRequest.method), { initialize: () => undefined, register: () => undefined });
+  return client;
 }
 
 /** What the language client says to either engine's server: the folder's TeX buffers, its settings, no restart behind the user's back. */
@@ -420,12 +432,12 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
 <body style="font:13px system-ui,sans-serif;padding:24px;color:var(--vscode-foreground)"><b>Starting phitex watch…</b><pre style="opacity:.75">${esc(said.slice(-8).join("\n"))}</pre></body></html>`;
   };
   waiting();
-  const client = new LanguageClient(
+  const client = ownCommands(new LanguageClient(
     "phitex",
     "PhiTeX",
     { command: cmd, args: ["watch", main, "--lsp"], options: { cwd: folder, env: { ...process.env, CI: "" } } },
     clientOptions(folder, log),
-  );
+  ));
   watches.add(client);
   // (the tab closed, even while the watch starts: the watch ends with it)
   let closed = false;
