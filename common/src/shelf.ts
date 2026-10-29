@@ -7,7 +7,7 @@
 //      of the packages arXiv papers use most);
 //   2. the packs kept on this machine (packstore.ts: fetched before, by a
 //      project or ahead of one by prefetch.ts; no request);
-//   3. Shelf (v1.shelf.phitex.org): TeX Live's files in packs, one per
+//   3. Shelf (v1.shelf.phitex.org, else its Pages address: HOSTS): TeX Live's files in packs, one per
 //      package (or per part of a big one), fetched whole: a .sty comes with
 //      the .def, .cfg and .fd files it reads, and the pack, checked against
 //      the release's pack table (its SHA-256 and size), is kept.
@@ -18,9 +18,39 @@
 // no request to learn it, and a name the index lacks (a project's own file
 // it doesn't have) never leaves the machine.
 
-export const SHELF = "https://v1.shelf.phitex.org/tl2026/";
+/**
+ * Shelf's hosts, in order (PhiTeX's shelf::HOSTS): the same release at
+ * each; its Pages address second, for networks that reset TLS to a new
+ * domain by its name (KAUST's).
+ */
+export const HOSTS = ["https://v1.shelf.phitex.org/tl2026/", "https://shelf-phitex-v1.pages.dev/tl2026/"];
 
-import { indexBytes, packUrl } from "./release.ts";
+/** Hosts that could not be reached (no answer at all): skipped for the rest of this session. */
+const unreachable = new Set<string>();
+
+/**
+ * `path` (from the release's folder: "release.json", "h/<id>.pack") from
+ * the first host that answers. Any answer is the answer, an HTTP error
+ * included (packs are checked against the pack table whichever host gives
+ * them); only a host that cannot be reached (fetch's TypeError: refused,
+ * reset, timed out) is passed over, and skipped from then on.
+ */
+export async function shelfFetch(path: string, init?: RequestInit): Promise<Response> {
+  let why: unknown = new Error("Shelf: no host could be reached");
+  for (const host of HOSTS) {
+    if (unreachable.has(host)) continue;
+    try {
+      return await platform().fetch(host + path, init);
+    } catch (e) {
+      if (!(e instanceof TypeError)) throw e;
+      unreachable.add(host);
+      why = e;
+    }
+  }
+  throw why;
+}
+
+import { indexBytes } from "./release.ts";
 import { Index, formatOf, shelfEngine } from "./resolve.ts";
 import { evict, getPack, putPack } from "./packstore.ts";
 import { platform } from "./platform.ts";
@@ -93,7 +123,7 @@ const isGzip = (b: Uint8Array) => b[0] === 0x1f && b[1] === 0x8b;
 /** A pack Shelf serves, as is (gzip), checked against the pack table (none kept otherwise); `priority` "low" for one fetched ahead (a project's own go first). */
 export async function fetchPack(id: string, priority: RequestPriority = "auto"): Promise<Uint8Array> {
   const get = async (cache: RequestCache) => {
-    const r = await platform().fetch(packUrl(id), { cache, priority });
+    const r = await shelfFetch("h/" + encodeURIComponent(id) + ".pack", { cache, priority });
     return r.ok ? new Uint8Array(await r.arrayBuffer()) : new Uint8Array();
   };
   // (a pack Shelf doesn't have comes back as its home page, 200, and the

@@ -22,7 +22,7 @@
 //
 // Used by the offscreen document and the core's workers (one store).
 
-import { SHELF } from "./shelf.ts";
+import { shelfFetch } from "./shelf.ts";
 import { platform } from "./platform.ts";
 export { older } from "./version.ts";
 
@@ -81,7 +81,7 @@ export async function refresh(force = false): Promise<Release | undefined> {
   if (!force && seen && Date.now() - seen.at < DAY) return seen.r;
   let r: Release;
   try {
-    const res = await platform().fetch(SHELF + "release.json", { cache: "no-cache" });
+    const res = await shelfFetch("release.json", { cache: "no-cache" });
     if (!res.ok) return seen?.r;
     r = (await res.json()) as Release;
   } catch {
@@ -95,7 +95,7 @@ export async function refresh(force = false): Promise<Release | undefined> {
   // (this schema only: an index of another is not this extension's to read;
   // a release without a pack table is not taken)
   if (r.schema === SCHEMA && r.release !== have && r.pack_table) {
-    const gzip = (name: string) => platform().fetch(SHELF + name).then(async (x) => (x.ok ? new Uint8Array(await x.arrayBuffer()) : null), () => null);
+    const gzip = (name: string) => shelfFetch(name).then(async (x) => (x.ok ? new Uint8Array(await x.arrayBuffer()) : null), () => null);
     const [gz, table] = await Promise.all([gzip(r.index), gzip(r.pack_table)]);
     // (both gzip: one that isn't, a 404 page served as 200, is not kept)
     const isGz = (b: Uint8Array | null): b is Uint8Array => !!b && b.length > 2 && b[0] === 0x1f && b[1] === 0x8b;
@@ -108,9 +108,4 @@ export async function refresh(force = false): Promise<Release | undefined> {
 /** The release as last seen (refresh), if any. */
 export async function latest(): Promise<Release | undefined> {
   return (await get<{ r: Release }>("seen").catch(() => undefined))?.r;
-}
-
-/** A pack's address: by its content, under h/. */
-export function packUrl(id: string): string {
-  return SHELF + "h/" + encodeURIComponent(id) + ".pack";
 }

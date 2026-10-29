@@ -87,7 +87,7 @@ Click the extension's ⚡ icon in the browser toolbar:
   Overleaf's editor does. It never writes to Overleaf and never changes your
   documents.
 - For a TeX package it doesn't bundle, it downloads that package from
-  **Shelf** (`v1.shelf.phitex.org`, static files on Cloudflare Pages)
+  **Shelf** (`v1.shelf.phitex.org`, or `shelf-phitex-v1.pages.dev` where that cannot be reached; static files on Cloudflare Pages)
   with a plain GET request such as `…/tl2026/h/pgf-3f9a2c41b0de.pack`. Which
   file holds which package is listed in an index inside the extension, so
   only package names are requested. At most once a day the extension also
