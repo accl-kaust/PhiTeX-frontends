@@ -95,6 +95,8 @@ export function initReplica() {
   const takeOver = () => {
     if (userTyped) return;
     userTyped = true;
+    // (on the home page: say it is a mock-up, and where the real thing is)
+    document.getElementById("r-real")?.classList.add("on");
     // (the auto-typing stops mid-word: give the reader the example as it was)
     if (autoDirty) {
       src.value = preset.files[preset.open];

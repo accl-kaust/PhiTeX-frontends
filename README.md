@@ -1,15 +1,18 @@
 # PhiTeX.org
 
 The website for **PhiTeX**, a fast, modern TeX compiler: incremental,
-parallel, and byte-identical to pdfTeX and XeTeX.
+parallel, and byte-identical to pdfLaTeX and XeLaTeX.
 
 A static, framework-free site built with Vite and TypeScript.
 
-- **`/`** — the compiler: the `phitex watch` CLI, how incremental rebuilds
-  work (files → CST → SSA → pages → PDF), the numbers, and a live editor.
+- **`/`** — the compiler: the banner, why PhiTeX, the editors, a live
+  editor, the CLI and how an edit is rebuilt. The animations and pictures in
+  `public/anim/` and `public/img/` come from the PhiTeX repo's `assets/`.
 - **`/overleaf`** (`overleaf.html`) — the browser extension that puts PhiTeX
   inside Overleaf, with install links for Chrome, Edge and Firefox.
 - **`/proof.html`** — byte-exactness and benchmarks.
+- **`/install.html`** — installing the CLI (Linux, macOS), the extension and the editors.
+- **`/try`** — redirects to the demo, its own site: demo.phitex.org.
 
 Related repositories:
 
@@ -51,15 +54,20 @@ VITE_CHROME_URL=https://chrome.google.com/... scripts/sandbox npm run build
 ## Layout
 
 ```
-index.html, overleaf.html, proof.html, pick.html   the pages
+index.html, overleaf.html, proof.html, install.html   the pages
 src/
   ui.ts          shared chrome: theme, nav, reveal, links
-  main.ts        home page: CLI hero, document-flow, demos
+  main.ts        home page: the ribbon, how-it-works steps, ACCL's footer intro
   overleaf.ts    /overleaf page
   replica.ts     the editable editor demo (home + Overleaf)
   style.css      the whole design system (imports replicas.css)
   demo/, fake.ts the on-page demo content and its illustrative typesetter
-  fonts/         Computer Modern (CMU), Noto Sans, DM Mono
+  install.ts     /install: the install page's tabs and copy buttons
+public/
+  anim/          the README's animations (from the PhiTeX repo's assets/), embedded in frames
+  img/, logo/    the README's pictures (site colours) and the logos
+  fonts/         Computer Modern (CMU, subset to Latin, Greek and math), Noto Sans, DM Mono
+  vendor/accl/   ACCL's logo intro (ammar.engineer/web/accl-logo) with GSAP
 ```
 
 The interactive editors on the page are **design mocks**: they illustrate

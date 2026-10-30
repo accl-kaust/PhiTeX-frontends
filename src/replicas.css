@@ -237,7 +237,8 @@
 .replica, .replica .r-body, .replica .r-editor, .replica .r-pdf { overflow: clip; }
 .r-editor .code pre, .r-editor .code textarea { white-space: pre; word-break: normal; overflow-wrap: normal; }
 .r-editor .code { min-width: max-content; }
-.r-editor .gutter { position: sticky; left: 0; z-index: 1; }
+.r-editor .gutter { position: sticky; left: 0; z-index: 1; background: var(--code-bg); }
+.ol .r-editor .gutter { background: #f0f0f0; }
 
 /* the replica, editable */
 .r-editor .r-scroll { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: 38px 1fr; align-items: start; text-align: left; }

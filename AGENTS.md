@@ -47,11 +47,18 @@ defaults in `links.ts` are used. The Pages project is `phitex-org`.
 These have been wrong before. Check against the engine repo if unsure.
 
 - The engine is **AGPL-3.0-only**. This website is MIT OR Apache-2.0.
-- Engines: **pdfTeX and XeTeX**. There is **no LuaTeX** yet (say "planned").
-- Output is **byte-identical to pdfTeX 1.40.29**, cold and after every edit.
-- SSA = **static single assignment** (standard term; don't write "dynamic").
-- Native word-edit rebuild on a 64-page thesis is about **10 ms**; a cold
-  tracked build is roughly 2x a plain pdflatex run.
+- Engines: **pdfLaTeX and XeLaTeX** (XeLaTeX's corpus check is pending).
+  **LuaLaTeX** is planned, after the alpha.
+- Output is **byte-identical to pdfTeX 1.40.29**, cold and after every edit;
+  gated on the AMS's amsldoc at 1, 8 and 16 threads.
+- How it works (2026-10-30, from the engine): pieces cut at paragraph ends,
+  each a node with a read set; speculative parallel runs; mergeless commits;
+  the loop-back per entry. The older "files → CST → SSA → pages → PDF" and
+  "graph reduction of thunks" designs are gone: don't describe them.
+- **No timing numbers** until they are measured on public documents (the old
+  "10 ms on a 64-page thesis" and "cold 2× pdflatex" had no source).
+- The Overleaf extension is listed on the Chrome Web Store, Firefox Add-ons
+  and Edge Add-ons (`links.ts`). VS Code: not yet published ("coming soon").
 - `phitex watch` serves a live preview on `127.0.0.1` (random-token URL) and
   redraws only the pages that changed. Same viewer as the extension.
 
@@ -78,7 +85,8 @@ engine's benches or the extension's report.
 ## Structure
 
 - Multi-page Vite app. Each page is an entry in `vite.config.ts`
-  (`index.html`, `overleaf.html`, `proof.html`, `pick.html`).
+  (`index.html`, `overleaf.html`, `proof.html`, `install.html`). `/try` is a
+  redirect (`public/_redirects`) to the demo's own site, demo.phitex.org.
 - JS is split: `ui.ts` (shared chrome, loaded on every page), `replica.ts`
   (the editable demo, used by home and Overleaf), `main.ts` (home),
   `overleaf.ts` (Overleaf). Page-specific blocks guard on an element being
