@@ -59,7 +59,18 @@ await step("article", async () => {
   const key = await typeAt(28, " Typed here.");
   const statusAfter = await st();
   await p.screenshot({ path: "web/shots/article.png" });
-  return { coldFirstPageMs: cold, onBuildFirstMs: firstBuild, statusFirst, tipShown, keystrokeMs: key, statusAfter };
+  // (a selection in the editor marked on the page, then collapsed: its marks gone, not left yellow)
+  const marks = () => p.evaluate(shadow(`return r.querySelectorAll(".slot .mark:not(.sel):not(.fade)").length`));
+  await p.click(".cm-line >> nth=20");
+  await p.keyboard.press("Home");
+  await p.keyboard.press("Shift+End");
+  await p.waitForFunction(shadow(`return r.querySelectorAll(".slot .mark:not(.sel)").length > 0`), null, { timeout: 15000 });
+  const selMarks = await marks();
+  await p.keyboard.press("ArrowRight");
+  await p.waitForTimeout(2500);
+  const afterCollapse = await marks();
+  if (afterCollapse) throw new Error(`${afterCollapse} marks left after the selection collapsed`);
+  return { coldFirstPageMs: cold, onBuildFirstMs: firstBuild, statusFirst, tipShown, keystrokeMs: key, statusAfter, selMarks, afterCollapse };
 });
 for (const [i, name, n, line] of [[1, "beamer", 4, 17], [2, "tikz", 1, 23]]) {
   await step(name, async () => {

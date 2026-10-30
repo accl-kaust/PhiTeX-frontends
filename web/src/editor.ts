@@ -43,7 +43,7 @@ export interface EditorEvents {
   changed(file: string, edits: Edit[], len: number): void;
   /** The cursor moved (no selection). */
   cursor(file: string, pos: number): void;
-  /** Text selected ([from, to), from < to). */
+  /** The selection, [from, to) (from === to: none, which clears its marks on the pages), as Overleaf's hook posts it. */
   selected(file: string, from: number, to: number): void;
   /** A double-click at `pos`. */
   dblclick(file: string, pos: number): void;
@@ -93,8 +93,8 @@ export class Editor {
       }
     if (u.selectionSet && u.view.hasFocus) {
       const r = u.state.selection.main;
+      this.ev.selected(this.file, r.from, r.to);
       if (r.empty) this.ev.cursor(this.file, r.head);
-      else this.ev.selected(this.file, r.from, r.to);
     }
   }
 
