@@ -187,7 +187,10 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     pixelsPerPoint: () => panel.pixelsPerPoint(),
     painted: (ms: number) => {
       panel.painted(ms);
-      o.onBuild?.(ms, paints++ === 0);
+      const first = paints++ === 0;
+      o.onBuild?.(ms, first);
+      // (a first visit, once the page is in: the projects' tip, then the panel's own)
+      if (first) setTimeout(projectsTip, 900);
     },
   };
   const prefs: Prefs = {
@@ -228,6 +231,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     {
       // (a page of its own: the panel's own bar, in the watch's palette)
       host: "watch",
+      // (the panel's tips after this app's own: projectsTip, then panel.tour())
+      tips: false,
       outline: true,
       keys: true,
       header: true,
@@ -290,6 +295,43 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   system.addEventListener("change", followTheme);
   followTheme();
+
+  /**
+   * A first visit's first tip, the project picker's (the user: picking
+   * projects taught by a popup): a small looping demo of its list, the
+   * examples then the visitor's own; "Got it" (or Skip) hands over to the
+   * panel's tips. Shown once (local "tip.projects").
+   */
+  let tipShown = false;
+  function projectsTip(): void {
+    if (tipShown) return;
+    tipShown = true;
+    if (local.get("tip.projects")) return panel.tour();
+    const at = $("#phx-proj").getBoundingClientRect();
+    const tip = document.createElement("div");
+    tip.className = "phx-tip";
+    tip.setAttribute("role", "dialog");
+    tip.setAttribute("aria-label", "Examples and your projects");
+    const ex = samples.slice(0, 4).map((d) => `<span>${esc(d.name)}</span>`).join("");
+    tip.innerHTML =
+      `<h4>Examples and your projects</h4>` +
+      `<div class="demo" aria-hidden="true"><div class="pick"><b>${esc(samples[0]?.name ?? "Article")}</b><span class="chev">▾</span></div>` +
+      `<div class="list"><small>Examples</small>${ex}<small>Your projects</small><span class="own">My thesis</span><i class="hi"></i></div></div>` +
+      `<p>Open an example here: ${samples.length} of them, from slides to plots. Edit any; your copy is kept in this browser. Projects you start with New or a ZIP are listed under them.</p>` +
+      `<div class="acts"><button type="button" data-t="skip">Skip</button><button type="button" class="primary" data-t="ok">Got it</button></div>`;
+    root.append(tip);
+    const box = root.getBoundingClientRect();
+    Object.assign(tip.style, { left: `${Math.max(8, at.left - box.left)}px`, top: `${at.bottom - box.top + 10}px` });
+    tip.style.setProperty("--ax", `${Math.min(at.width / 2, 60)}px`);
+    $("#phx-proj").classList.add("ringed");
+    tip.onclick = (e) => {
+      if (!(e.target as HTMLElement).closest("[data-t]")) return;
+      local.set("tip.projects", "1");
+      tip.remove();
+      $("#phx-proj").classList.remove("ringed");
+      panel.tour();
+    };
+  }
 
   const tree = new Tree($(".phx-tree"), {
     open: (p) => void openFile(p),

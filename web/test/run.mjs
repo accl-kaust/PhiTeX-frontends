@@ -54,6 +54,10 @@ await step("article", async () => {
   await p.waitForTimeout(2500);
   const st = () => p.evaluate(shadow(`return r.getElementById("sttext").textContent + " " + (r.getElementById("stmore")?.textContent ?? "")`));
   const statusFirst = await st();
+  // (a first visit: the project picker's tip, then, once it is dismissed, the panel's own)
+  const projectsTip = await p.locator(".phx-tip").isVisible().catch(() => false);
+  await p.locator('.phx-tip button:has-text("Got it")').click({ timeout: 3000 }).catch(() => undefined);
+  await p.waitForTimeout(300);
   const tipShown = await p.locator("phitex-preview #tip").isVisible().catch(() => false);
   const firstBuild = await p.evaluate(() => window.phitexFirst);
   const key = await typeAt(28, " Typed here.");
@@ -70,7 +74,7 @@ await step("article", async () => {
   await p.waitForTimeout(2500);
   const afterCollapse = await marks();
   if (afterCollapse) throw new Error(`${afterCollapse} marks left after the selection collapsed`);
-  return { coldFirstPageMs: cold, onBuildFirstMs: firstBuild, statusFirst, tipShown, keystrokeMs: key, statusAfter, selMarks, afterCollapse };
+  return { coldFirstPageMs: cold, onBuildFirstMs: firstBuild, statusFirst, projectsTip, tipShown, keystrokeMs: key, statusAfter, selMarks, afterCollapse };
 });
 for (const [i, name, n, line] of [[1, "beamer", 4, 17], [2, "tikz", 1, 23]]) {
   await step(name, async () => {
