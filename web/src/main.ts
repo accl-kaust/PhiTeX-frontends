@@ -271,8 +271,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     dblclick: (file, pos) => void session?.toPage(file, pos),
   });
 
-  /** A line at the foot of the panel. */
-  const say = (t: string, err = false) => panel.msg(t, err);
+  /** The answer to something the user did: a note in the panel's corner (and its status popover). */
+  const say = (t: string, err = false) => panel.msg(t, err, true);
 
   // (light or dark as the page is: its own toggle, data-theme on the root, else the system's; followed live)
   const system = matchMedia("(prefers-color-scheme: dark)");
@@ -283,6 +283,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   const followTheme = () => {
     const t = pageTheme();
     editor.dark(t ? t === "dark" : system.matches);
+    panel.theme(t);
   };
   const themeWatch = new MutationObserver(followTheme);
   themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
