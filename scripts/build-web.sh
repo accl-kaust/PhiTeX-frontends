@@ -47,6 +47,7 @@ for e in $(ls "$assets/formats" | sed -n 's/^\([a-z]*\)-.*\.gzdata$/\1/p' | sort
   stem=$(ls -t "$assets/formats/$e"-*.gzdata | grep -v '\.pkgrec\.' | head -1)
   stem=$(basename "$stem" .gzdata)
   cp "$assets/formats/$stem".* web/dist/formats/
+  echo "$stem" >> web/dist/formats/list.txt
 done
 cp "$assets"/shelf-index.tsv.gzdata "$assets"/shelf-packs.tsv.gzdata "$assets"/shelf-release.json web/dist/
 cp "$assets"/LICENSE.txt "$assets"/NOTICE.txt web/dist/ 2>/dev/null || true

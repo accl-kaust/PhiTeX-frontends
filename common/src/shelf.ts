@@ -27,6 +27,12 @@ export const HOSTS = ["https://v1.shelf.phitex.org/tl2026/", "https://shelf-phit
 
 /** Hosts that could not be reached (no answer at all): skipped for the rest of this session. */
 const unreachable = new Set<string>();
+/**
+ * A host's first answer, while it is coming: requests made meanwhile wait
+ * for it (true: reached) instead of each trying a host that resets them
+ * (a first build asks for a dozen packs at once).
+ */
+const verdict = new Map<string, Promise<boolean>>();
 
 /**
  * `path` (from the release's folder: "release.json", "h/<id>.pack") from
@@ -39,8 +45,12 @@ export async function shelfFetch(path: string, init?: RequestInit): Promise<Resp
   let why: unknown = new Error("Shelf: no host could be reached");
   for (const host of HOSTS) {
     if (unreachable.has(host)) continue;
+    const known = verdict.get(host);
+    if (known && !(await known)) continue;
+    const attempt = platform().fetch(host + path, init);
+    if (!known) verdict.set(host, attempt.then(() => true, (e: unknown) => !(e instanceof TypeError)));
     try {
-      return await platform().fetch(host + path, init);
+      return await attempt;
     } catch (e) {
       if (!(e instanceof TypeError)) throw e;
       unreachable.add(host);

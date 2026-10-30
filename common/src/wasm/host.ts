@@ -27,8 +27,31 @@ const KV = "core.kv";
  */
 async function shippedFormat(key: string): Promise<Uint8Array | null> {
   const name = key.slice("format/".length).replaceAll("/", ".");
-  const r = await platform().asset(`formats/${name}.gzdata`).catch(() => null);
+  const path = `formats/${name}.gzdata`;
+  const early = warming.get(path);
+  warming.delete(path);
+  const r = await (early ?? platform().asset(path)).catch(() => null);
   return r?.ok ? gunzip(r.body!) : null;
+}
+
+/** Formats being fetched ahead (warmFormats), by path: each taken once. */
+const warming = new Map<string, Promise<Response>>();
+
+/**
+ * The shipped formats (`formats/list.txt`: the web frontend's, one per
+ * engine, scripts/build-web.sh) fetched now, while the core compiles,
+ * instead of once it asks: a first visit's 5 MB beside its 22. Without the
+ * list (the extensions': their formats are local files), nothing.
+ */
+export async function warmFormats(): Promise<void> {
+  const r = await platform().asset("formats/list.txt").catch(() => null);
+  if (!r?.ok) return;
+  for (const name of (await r.text()).split("\n").filter(Boolean))
+    for (const f of [`${name}.gzdata`, `${name}.pkgrec.gzdata`]) {
+      const p = platform().asset(`formats/${f}`);
+      p.catch(() => undefined);
+      warming.set(`formats/${f}`, p);
+    }
 }
 
 /**

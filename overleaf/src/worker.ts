@@ -19,7 +19,7 @@ import "./platform.ts";
 import { platform } from "./common/platform.ts";
 import { Core, CoreSession, WASM_THREADS } from "./common/wasm/core.ts";
 import { mintedShell } from "./common/wasm/minted.ts";
-import { coreIndex, coreStore, pack, prefetch } from "./common/wasm/host.ts";
+import { coreIndex, coreStore, pack, prefetch, warmFormats } from "./common/wasm/host.ts";
 import { spawnThread } from "./thread.ts";
 
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
@@ -51,6 +51,8 @@ let stderr = "";
 
 const module = WebAssembly.compileStreaming(fetch(at("dist/core.wasm")));
 const index = coreIndex();
+// (the shipped formats on their way while the core compiles: the web frontend's; the extension's are local)
+void warmFormats();
 
 async function start(): Promise<{ core: Core; session: CoreSession }> {
   const t0 = performance.now();
