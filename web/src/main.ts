@@ -421,6 +421,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
 
   async function openProject(p: Project): Promise<void> {
     if (controls.active) controls.stop();
+    // (another project in the panel: a cold build's opening over the last one's pages, not its "last complete render")
+    if (session) panel.opening();
     // (the session before stopped; its pages' transport is the core, shared: not closed)
     session?.stop();
     proj = p;
