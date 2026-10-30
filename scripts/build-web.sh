@@ -40,7 +40,14 @@ cp web/index.html web/dist/
 
 for f in core.wasm diff.wasm; do cp "$assets/dist/$f" web/dist/dist/; done
 for d in pyodide minted; do [ -d "$assets/dist/$d" ] && cp -r "$assets/dist/$d" web/dist/dist/; done
-for d in texmf formats fonts shims packs minted; do [ -d "$assets/$d" ] && cp -r "$assets/$d" web/dist/; done
+for d in texmf fonts shims packs minted; do [ -d "$assets/$d" ] && cp -r "$assets/$d" web/dist/; done
+# (the formats: each engine's newest only, the one this core.wasm made; older ones a core never asks for)
+mkdir -p web/dist/formats
+for e in $(ls "$assets/formats" | sed -n 's/^\([a-z]*\)-.*\.gzdata$/\1/p' | sort -u); do
+  stem=$(ls -t "$assets/formats/$e"-*.gzdata | grep -v '\.pkgrec\.' | head -1)
+  stem=$(basename "$stem" .gzdata)
+  cp "$assets/formats/$stem".* web/dist/formats/
+done
 cp "$assets"/shelf-index.tsv.gzdata "$assets"/shelf-packs.tsv.gzdata "$assets"/shelf-release.json web/dist/
 cp "$assets"/LICENSE.txt "$assets"/NOTICE.txt web/dist/ 2>/dev/null || true
 du -sh web/dist web/dist/* web/dist/dist/*

@@ -83,8 +83,11 @@ await step("multifile", async () => {
   await p.keyboard.press("End");
   await p.keyboard.type("\n\\input{intro}", { delay: 40 });
   await p.waitForFunction(onPage("Wordfromintro"), null, { timeout: 60000 });
+  // (settled: the status once the last keystroke's build is in, not mid-typing)
+  await p.waitForTimeout(4000);
   await p.screenshot({ path: "web/shots/multifile.png" });
-  return { inputShown: true, files: await p.locator(".phx-tree-list li").count() };
+  const status = await p.evaluate(shadow(`return (r.getElementById("sttext")?.textContent ?? "") + " | problems: " + (r.getElementById("pcount")?.textContent ?? "")`));
+  return { inputShown: true, files: await p.locator(".phx-tree-list li").count(), status };
 });
 await step("zip", async () => {
   await p.click("[data-menu=new]");
@@ -95,7 +98,8 @@ await step("zip", async () => {
   return { files: await p.locator(".phx-tree-list li").allTextContents() };
 });
 await step("compare", async () => {
-  await p.click("[data-menu=compare]");
+  // (the panel's Compare: the versions' dialog; a version saved there)
+  await p.click("phitex-preview #b-compare");
   await p.fill(".phx-save input", "Before");
   await p.press(".phx-save input", "Enter");
   await p.waitForTimeout(500);
@@ -104,21 +108,33 @@ await step("compare", async () => {
   await p.keyboard.press("End");
   await p.keyboard.type(" Addedwords now.", { delay: 40 });
   await p.waitForFunction(onPage("Addedwords"), null, { timeout: 60000 });
-  await p.click("[data-menu=compare]");
-  await p.click("[data-pop=compare] button[data-v]");
-  await p.waitForFunction(shadow(`const d = r.getElementById("diffbar"); return !!d && d.classList.contains("on") && /\\d/.test(d.textContent) && !/Diffing|Fetching|Typesetting/.test(d.textContent);`), null, { timeout: 120000 });
+  await p.click("phitex-preview #b-compare");
+  await p.click(".phx-versions button[data-v]");
+  await p.waitForFunction(shadow(`const d = r.getElementById("diffbar"); return !!d && /\\d+ change/.test(d.textContent) && !/Diffing|Fetching|Typesetting/.test(d.textContent);`), null, { timeout: 120000 });
   await p.waitForTimeout(4000);
   const bar = await p.evaluate(() => document.querySelector("phitex-preview").shadowRoot.getElementById("diffbar").textContent);
   await p.screenshot({ path: "web/shots/compare.png" });
   return { diffbar: bar };
 });
 await step("log", async () => {
-  await p.click("#phx-log");
-  await p.waitForFunction(() => !/Reading the log/.test(document.querySelector(".phx-log")?.textContent ?? "Reading the log"), null, { timeout: 30000 });
-  const t = await p.textContent(".phx-log");
+  // (the panel's first-visit tips dismissed, then its ⋯ › View log)
+  const skip = p.locator('phitex-preview #tip button:has-text("Skip")');
+  if (await skip.isVisible().catch(() => false)) await skip.click();
+  await p.click("phitex-preview #b-more");
+  await p.click("phitex-preview #x-log");
+  await p.waitForFunction(shadow(`return (r.getElementById("logtext")?.textContent ?? "").length > 200`), null, { timeout: 30000 });
+  const t = await p.evaluate(shadow(`return r.getElementById("logtext").textContent`));
   await p.screenshot({ path: "web/shots/log.png" });
-  await p.click("[data-close]");
+  await p.click("phitex-preview #logview [data-close]");
   return { logChars: t.length, head: t.slice(0, 60) };
+});
+await step("dark", async () => {
+  await p.click("phitex-preview #b-more");
+  await p.click('phitex-preview #darkpdf [data-dark="on"]');
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(800);
+  await p.screenshot({ path: "web/shots/dark.png" });
+  return {};
 });
 await step("narrow", async () => {
   await p.setViewportSize({ width: 420, height: 820 });

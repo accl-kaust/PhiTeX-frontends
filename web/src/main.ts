@@ -131,11 +131,8 @@ const BAR = `
   <label class="phx-proj"><span class="sr">Project</span><select id="phx-proj" title="Your projects, kept in this browser"></select></label>
   <div class="phx-menu"><button type="button" data-menu="new" aria-haspopup="menu" aria-expanded="false">New ▾</button><div class="phx-pop" data-pop="new" role="menu" hidden></div></div>
   <div class="phx-menu"><button type="button" data-menu="project" aria-haspopup="menu" aria-expanded="false">Project ▾</button><div class="phx-pop" data-pop="project" role="menu" hidden></div></div>
-  <div class="phx-menu"><button type="button" data-menu="compare" aria-haspopup="menu" aria-expanded="false" title="Compare with a saved version (latexdiff)">Compare ▾</button><div class="phx-pop" data-pop="compare" role="menu" hidden></div></div>
   <span class="grow"></span>
-  <label class="phx-engine" title="The TeX engine">Engine <select id="phx-engine"></select></label>
-  <button type="button" id="phx-log" title="The build's .log">Log</button>
-  <button type="button" id="phx-dark" aria-pressed="false" title="The PDF in dark colours">Dark PDF</button>
+  <label class="phx-engine" title="This project's TeX engine">Engine <select id="phx-engine"></select></label>
   <button type="button" id="phx-files" class="phx-narrow" aria-pressed="false">Files</button>
 </div>
 <div class="phx-body">
@@ -198,7 +195,14 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       onPdf: () => void downloadPdf(),
       onMain: (m) => setMain(m),
       onReload: () => session?.refresh({ ...P().files }),
+      // (builds run by themselves on each edit: Rebuild typesets the files as they are once more, Clean rebuild from a fresh session)
+      onRebuild: () => void session?.reopen(),
       onClean: () => void session?.clean({ ...P().files }),
+      onCompare: () => void versionsDialog(),
+      onClearCache: () => void cacheDialog(),
+      onLog: () => shown()?.log() ?? Promise.resolve(null),
+      // (a problem's culprit, underlined on the pages)
+      onBoxes: (file, start, end) => shown()?.boxesOf(file, start, end) ?? Promise.resolve([]),
       onGoto: (file, line) => {
         if (!openFile(file)) return;
         const at = editor.lineStart(line);
@@ -213,6 +217,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     },
     prefs,
     {
+      // (a page of its own: the panel's own bar, in the watch's palette)
+      host: "watch",
       outline: true,
       keys: true,
       header: true,
@@ -524,25 +530,6 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     if (p) await openProject(p);
   };
 
-  $("#phx-log").onclick = async () => {
-    const pre = document.createElement("pre");
-    pre.className = "phx-log";
-    pre.textContent = "Reading the log…";
-    showModal(`${P().main.replace(/\.tex$/, "")}.log`, pre);
-    const t = await shown()?.log();
-    pre.textContent = t ?? "No log yet: the document hasn't been typeset.";
-  };
-
-  const darkBtn = $("#phx-dark");
-  const dark = (on: boolean) => {
-    pane.classList.toggle("pdf-dark-mode", on);
-    darkBtn.setAttribute("aria-pressed", String(on));
-    local.set("dark", on ? "1" : "0");
-    panel.dock(pane);
-  };
-  darkBtn.onclick = () => dark(darkBtn.getAttribute("aria-pressed") !== "true");
-  dark(local.get("dark") === "1");
-
   const filesBtn = $("#phx-files");
   filesBtn.onclick = () => {
     const on = !root.classList.contains("files-on");
@@ -575,6 +562,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       pop.innerHTML =
         `<button type="button" role="menuitem" data-act="zip">Download as ZIP</button>` +
         `<button type="button" role="menuitem" data-act="rename">Rename…</button>` +
+        `<button type="button" role="menuitem" data-act="versions">Versions and Compare…</button>` +
         `<hr><button type="button" role="menuitem" data-act="cache">Clear cache…</button>` +
         `<hr><button type="button" role="menuitem" data-act="delete" class="danger">Delete this project…</button>`;
       pop.onclick = (e) => {
@@ -584,34 +572,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
         if (act === "zip") void downloadZip();
         if (act === "rename") renameProject();
         if (act === "cache") void cacheDialog();
+        if (act === "versions") void versionsDialog();
         if (act === "delete") deleteDialog();
-      };
-    },
-    async compare(pop) {
-      const vs = await versions(P().id).catch((): Version[] => []);
-      pop.innerHTML =
-        (controls.active ? `<button type="button" role="menuitem" data-stop="1">✕ Stop comparing</button><hr>` : "") +
-        `<form class="phx-save"><input type="text" placeholder="Name this version" aria-label="Version name" spellcheck="false"><button type="submit">Save version</button></form>` +
-        `<div class="phx-head">Compare the current version with…</div>` +
-        (vs.length
-          ? vs.map((v) => `<button type="button" role="menuitem" data-v="${esc(v.id)}"><span>${v.label ? "🏷 " : ""}${esc(titleOf(v))}</span><small>${ago(v.at / 1000)}</small></button>`).join("")
-          : `<div class="phx-none">No versions yet: save one, then change the document.</div>`);
-      const form = pop.querySelector<HTMLFormElement>("form")!;
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        const label = form.querySelector("input")!.value.trim() || new Date().toLocaleString();
-        await saveProject(P());
-        await saveVersion(P(), label);
-        close();
-        say(`Saved "${label}"`);
-      };
-      pop.onclick = (e) => {
-        const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-v], button[data-stop]");
-        if (!b) return;
-        close();
-        if (b.dataset.stop) return controls.stop();
-        const v = vs.find((x) => x.id === b.dataset.v);
-        if (v) void controls.start(v, titleOf(v), ago(v.at / 1000));
       };
     },
   };
@@ -639,6 +601,38 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     };
   });
   root.addEventListener("click", (e) => void (!(e.target as HTMLElement).closest(".phx-pop") && close()));
+
+  /** The project's versions: one saved by name, or one picked to compare with (the panel's Compare, and the Project menu). */
+  async function versionsDialog(): Promise<void> {
+    const vs = await versions(P().id).catch((): Version[] => []);
+    const b = showModal(
+      "Versions",
+      (controls.active ? `<p><button type="button" data-stop="1">Stop comparing</button></p>` : "") +
+        `<form class="phx-form phx-save"><input type="text" placeholder="Name this version" aria-label="Version name" spellcheck="false"><button type="submit">Save version</button></form>` +
+        `<p class="phx-head">Compare the current version with…</p>` +
+        (vs.length
+          ? `<div class="phx-versions">${vs.map((v) => `<button type="button" data-v="${esc(v.id)}"><span>${v.label ? "🏷 " : ""}${esc(titleOf(v))}</span><small>${ago(v.at / 1000)}</small></button>`).join("")}</div>`
+          : `<p class="phx-none">No versions yet: save one, change the document, then compare. Versions are also saved every five minutes of editing.</p>`),
+    );
+    const form = b.querySelector<HTMLFormElement>("form")!;
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const label = form.querySelector("input")!.value.trim() || new Date().toLocaleString();
+      await saveProject(P());
+      await saveVersion(P(), label);
+      modal.hidden = true;
+      say(`Saved "${label}"`);
+    };
+    b.onclick = (e) => {
+      const t = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-v], button[data-stop]");
+      if (!t) return;
+      modal.hidden = true;
+      if (t.dataset.stop) return controls.stop();
+      const v = vs.find((x) => x.id === t.dataset.v);
+      if (v) void controls.start(v, titleOf(v), ago(v.at / 1000));
+    };
+    form.querySelector("input")!.focus();
+  }
 
   function renameProject(): void {
     const f = document.createElement("form");

@@ -65,11 +65,15 @@ export const CSS = `
 .phx-modal-body { padding: 12px 16px 16px; overflow: auto; }
 .phx-modal-body p { margin: 0 0 10px; }
 .phx-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.phx-log { margin: 0; font: 12px/1.45 ui-monospace, "DejaVu Sans Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.phx-versions { display: flex; flex-direction: column; margin: 0 -16px; }
+.phx-versions button { display: flex; justify-content: space-between; gap: 12px; padding: 7px 16px; border: 0; background: none; text-align: left; cursor: pointer; }
+.phx-versions button:hover { background: var(--bg2); }
+.phx-versions small, .phx-modal .phx-head, .phx-modal .phx-none { color: var(--fg2); }
+.phx-modal .phx-save { padding: 0 0 10px; }
 .phx-narrow { display: none; }
 @media (max-width: 760px) {
   .phx-narrow { display: inline-block; }
-  .phx-engine, #phx-log, .phx-logo { display: none; }
+  .phx-engine, .phx-logo { display: none; }
   .phx-body { flex-direction: column; }
   .phx-tree { display: none; position: absolute; z-index: 30; top: 40px; bottom: 0; left: 0; width: min(260px, 80%); box-shadow: 4px 0 16px rgb(0 0 0 / 20%); }
   .phx-web.files-on .phx-tree { display: flex; }
