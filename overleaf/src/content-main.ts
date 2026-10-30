@@ -1061,7 +1061,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     onClearCache: async () => {
       if (!confirm("Clear the LaTeX packages ⚡ Instant keeps in this browser? They are fetched again when a document needs them.")) return;
       const r = await chrome.runtime.sendMessage({ type: "clear-cache" }).catch((e: unknown) => ({ error: String(e) }));
-      panel.msg(r?.error ? `Couldn't clear the cache: ${r.error}` : `Cleared ${Math.round((r?.freed ?? 0) / 1048576)} MB of packages.`, !!r?.error);
+      panel.msg(r?.error ? `Couldn't clear the cache: ${r.error}` : `Cleared ${Math.round((r?.freed ?? 0) / 1048576)} MB of packages.`, !!r?.error, true);
     },
     // (the last build's log: the core's transcript)
     onLog: () => shown()?.log() ?? Promise.resolve(null),

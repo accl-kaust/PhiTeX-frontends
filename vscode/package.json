@@ -5,6 +5,7 @@
   "version": "0.7.0",
   "publisher": "accl-kaust",
   "license": "AGPL-3.0-only",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/accl-kaust/PhiTeX-frontends"
@@ -126,6 +127,21 @@
           "default": false,
           "markdownDescription": "Write what the preview does (each request, page drawn and event, with its time) to the PhiTeX output: for a bug report."
         },
+        "phitex.texEngine": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "pdflatex",
+            "xelatex"
+          ],
+          "enumDescriptions": [
+            "What the project needs: a `% !TEX program = …` comment in its main file, else XeLaTeX when its preamble loads fontspec, unicode-math, polyglossia and the like, else pdfLaTeX.",
+            "pdfLaTeX for every project (a `% !TEX program` comment still wins).",
+            "XeLaTeX for every project (a `% !TEX program` comment still wins)."
+          ],
+          "default": "auto",
+          "markdownDescription": "The TeX engine the builtin engine typesets with. A `% !TEX program = …` comment in the main file wins over this. (`phitex watch` chooses its own.)"
+        },
         "phitex.main": {
           "type": "string",
           "default": "",
@@ -135,7 +151,7 @@
           "type": "integer",
           "default": 0,
           "minimum": 0,
-          "markdownDescription": "The engine's threads. `0`: one per core of this machine."
+          "markdownDescription": "The builtin engine's threads. `0`: one per core of this machine, at most 4 (more are capped at 4 for now)."
         },
         "phitex.follow": {
           "type": "string",
