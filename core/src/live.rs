@@ -8,9 +8,11 @@
 //! gives them (crates/cli/src/shelf.rs): the release's font index, the
 //! faces and `[file]` names from Shelf's packs, the project's own first.
 //!
-//! What a native host gives and this one does not (the defaults):
-//! xdvipdfmx and dvipdfmx (a DVI made a PDF; XeLaTeX's PDF is the
-//! engine's own), a failure's report file.
+//! XeTeX's PDF (xelatex's xdvipdfmx, in process) reads its files through
+//! [`Shelf`]'s `dpx_finder` the same way: the project's, else Shelf's.
+//!
+//! What a native host gives and this one does not (the default): a
+//! failure's report file.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -57,6 +59,46 @@ fn font_suffix(format: phitex_tex::KpseFormat) -> &'static str {
     }
 }
 
+/// dvipdfmx's kpathsea format name for `format`, as Shelf's index has it.
+fn dpx_format(format: phitex_live::dvipdf::Format) -> &'static str {
+    use phitex_live::dvipdf::Format as F;
+    match format {
+        F::Fontmap => "map",
+        F::Type1 => "type1",
+        F::TrueType => "truetype",
+        F::OpenType => "opentype",
+        F::Enc => "enc",
+        F::Tfm => "tfm",
+        F::Vf => "vf",
+        F::Sfd => "sfd",
+        F::Ofm => "ofm",
+        F::Ovf => "ovf",
+        F::Cmap => "cmap",
+        F::Pict => "pict",
+        F::Tex => "tex",
+        F::ProgramText => "other text files",
+        F::ProgramBinary => "other binary files",
+    }
+}
+
+/// The suffix kpathsea adds in dvipdfmx's `format` to a name without one.
+fn dpx_suffix(format: phitex_live::dvipdf::Format) -> &'static str {
+    use phitex_live::dvipdf::Format as F;
+    match format {
+        F::Fontmap => ".map",
+        F::Type1 => ".pfb",
+        F::TrueType => ".ttf",
+        F::OpenType => ".otf",
+        F::Enc => ".enc",
+        F::Tfm => ".tfm",
+        F::Vf => ".vf",
+        F::Sfd => ".sfd",
+        F::Ofm => ".ofm",
+        F::Ovf => ".ovf",
+        F::Cmap | F::Pict | F::Tex | F::ProgramText | F::ProgramBinary => "",
+    }
+}
+
 impl Host for Shelf {
     fn locate(&self, name: &str) -> Option<PathBuf> {
         self.files.locate(name, self.engine).map(PathBuf::from)
@@ -94,6 +136,32 @@ impl Host for Shelf {
 
     fn shell_hook(&self, _job: &Job) -> Option<Arc<dyn phitex_tex::ShellHook>> {
         self.shell.clone()
+    }
+
+    /// dvipdfmx's files (XeTeX's PDF): the project's (pictures), else
+    /// Shelf's by name in its format (its suffix added where the name has
+    /// none).
+    fn dpx_finder(&self) -> Option<Arc<phitex_live::dvipdf::DpxFinder>> {
+        let (f1, f2, e) = (self.files.clone(), self.files.clone(), self.engine);
+        Some(Arc::new(phitex_live::dvipdf::DpxFinder::new(
+            Box::new(move |name, format, _prog| {
+                let n = String::from_utf8_lossy(name).into_owned();
+                if let Some(p) = f1.given(&n) {
+                    return Some(p.into_bytes());
+                }
+                let suffix = dpx_suffix(format);
+                let n = if suffix.is_empty() || n.contains('.') { n } else { format!("{n}{suffix}") };
+                f1.shelf_find(&n, Some(dpx_format(format)), e).map(|(p, _)| p.into_bytes())
+            }),
+            Box::new(move |path| {
+                let p = String::from_utf8_lossy(path).into_owned();
+                match f2.read(&p) {
+                    Some(b) => Some(Arc::from(b.as_slice())),
+                    None if p.starts_with(phitex_shelf::TL) => f2.shelf_find(&p, None, e).map(|(_, b)| Arc::from(b.as_slice())),
+                    None => None,
+                }
+            }),
+        )))
     }
 
     /// XeTeX's fonts: the release's font index ([`font_index`]), the faces

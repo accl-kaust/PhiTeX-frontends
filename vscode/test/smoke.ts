@@ -187,8 +187,8 @@ for (let i = 0; i < 100 && log.ok && (log as any).json?.pending; i++) {
 const logText = String((log as any).json?.text ?? "");
 const logOk = log.ok && /^This is |\(\.\/[^)]*\.tex/m.test(logText);
 console.log(`log: ${log.ok ? `${logText.length} chars, ${JSON.stringify(logText.split("\n")[0].slice(0, 60))}` : "failed " + log.error}`);
-// (no pages: the log's end, why)
-if (!pages.json?.pages?.length) console.log(`log start:\n${logText.slice(0, 600)}\nlog end:\n${logText.slice(-1500)}`);
+// (no pages or no PDF: the log's start and end, why)
+if (!pages.json?.pages?.length || !first?.length) console.log(`log start:\n${logText.slice(0, 600)}\nlog end:\n${logText.slice(-1500)}`);
 // (the status the server told; the caches, this host's)
 const caches = await ask("workspace/executeCommand", { command: "phitex.cacheStats", arguments: [] });
 const said = caches.result?.caches?.map((c: any) => `${c.scope} ${c.entries} entries ${c.hits}/${c.misses}`).join(", ");
