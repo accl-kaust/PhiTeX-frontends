@@ -1073,7 +1073,8 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
       if (p) void session?.toSource(p.k, p.x, p.y);
     }
     // (the editor's cursor as it moves: the word it is in, on the page)
-    if (e.data.type === "cursor" && highlightMode === "cursor") session?.follow(e.data.file, e.data.pos);
+    // (while a compare's diff is shown, on its pages, through the diff's map)
+    if (e.data.type === "cursor" && highlightMode === "cursor") (compare ?? session)?.follow(e.data.file, e.data.pos);
     // (collaborators' cursors in the open file: their words marked in their colours)
     if (e.data.type === "others") {
       others = { file: e.data.file, others: e.data.others };
