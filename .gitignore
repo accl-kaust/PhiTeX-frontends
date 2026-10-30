@@ -40,3 +40,4 @@ vscode/formats/
 web/dist/
 web/shots/
 web/test/.cache/
+web/build/

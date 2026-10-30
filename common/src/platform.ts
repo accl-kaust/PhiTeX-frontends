@@ -19,12 +19,15 @@ export const DATABASES: Record<string, { format: number; stores: string[] }> = {
   release: { format: 1, stores: ["kv"] },
   /** The core's session store (common/src/wasm/core.ts's Store): the formats' state and records, the documents' keys. */
   core: { format: 1, stores: ["kv"] },
+  /** The web frontend's projects (web/src/store.ts): each project whole, and its saved versions. */
+  web: { format: 1, stores: ["projects", "versions"] },
 };
 
 /**
  * Stores of keys and values (a value: what structured clone keeps, bytes
  * included). Store names are `db.store` (DATABASES): "shelf.packs",
- * "shelf.meta", "shelf.kv", "release.kv", "core.kv"; one `write` touches
+ * "shelf.meta", "shelf.kv", "release.kv", "core.kv", "web.projects",
+ * "web.versions"; one `write` touches
  * one db's stores, at once.
  */
 export interface KeyValue {

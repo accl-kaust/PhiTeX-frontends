@@ -6,8 +6,8 @@
 # shared code reads (overleaf/: scripts/build.sh first, as for
 # build-vscode.sh; PHITEX_ASSETS names another checkout's overleaf/): the
 # core and latexdiff modules, the shipped formats, texmf/, the packs'
-# lists, the fonts, the shims, Shelf's index. Not minted (Pyodide: too big
-# for a demo; a \write18 is refused).
+# lists, the fonts, the shims, Shelf's index, and minted's runner
+# (Pyodide), fetched only when a document runs minted.
 #
 #   scripts/build-web.sh     # web/dist/
 #
@@ -20,10 +20,12 @@ assets="${PHITEX_ASSETS:-overleaf}"
 sandbox=(/home/lambda/.local/bin/bw)
 [ -x "${sandbox[0]}" ] || sandbox=(scripts/sandbox)
 
-# (the editor's grammar, as scripts/mock-editor.sh makes it)
-mkdir -p mock/build
-cp mock/editor/tokens.mjs mock/build/tokens.mjs
-[ mock/build/latex.mjs -nt mock/editor/latex.grammar ] || "${sandbox[@]}" node_modules/.bin/lezer-generator mock/editor/latex.grammar -o mock/build/latex.mjs
+# (the editor's grammar, Overleaf's, generated as scripts/mock-editor.sh
+# does, with its type for the editor's TypeScript)
+mkdir -p web/build
+cp mock/editor/tokens.mjs web/build/tokens.mjs
+[ web/build/latex.mjs -nt mock/editor/latex.grammar ] || "${sandbox[@]}" node_modules/.bin/lezer-generator mock/editor/latex.grammar -o web/build/latex.mjs 2>&1 | grep -v "generating a lot\|Consider splitting" || true
+echo 'export declare const parser: import("@lezer/lr").LRParser;' > web/build/latex.d.mts
 
 "${sandbox[@]}" node_modules/.bin/tsc -p web
 rm -rf web/dist
@@ -37,7 +39,8 @@ echo 'export * from "./dist/web.js";' > web/dist/web.js
 cp web/index.html web/dist/
 
 for f in core.wasm diff.wasm; do cp "$assets/dist/$f" web/dist/dist/; done
-for d in texmf formats fonts shims packs; do cp -r "$assets/$d" web/dist/; done
+for d in pyodide minted; do [ -d "$assets/dist/$d" ] && cp -r "$assets/dist/$d" web/dist/dist/; done
+for d in texmf formats fonts shims packs minted; do [ -d "$assets/$d" ] && cp -r "$assets/$d" web/dist/; done
 cp "$assets"/shelf-index.tsv.gzdata "$assets"/shelf-packs.tsv.gzdata "$assets"/shelf-release.json web/dist/
 cp "$assets"/LICENSE.txt "$assets"/NOTICE.txt web/dist/ 2>/dev/null || true
 du -sh web/dist web/dist/* web/dist/dist/*

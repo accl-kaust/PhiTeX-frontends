@@ -1,43 +1,57 @@
-// The demo on phitex.org (/try): PhiTeX in the visitor's browser, nothing
-// installed. An editor (the mock's CodeMirror 6, Overleaf's LaTeX grammar)
-// beside the viewer every host shows (the panel on a PreviewSession, its
-// pages strips), on the wasm core in a module worker: the Overleaf
-// extension's own (overleaf/src/worker.ts, its threads thread.ts), so the
-// demo runs what the extension runs. Its files are served from /try/ as the
-// extension's are from its root (dist/core.wasm, formats/, texmf/, the
-// Shelf index); Shelf's packs come from Shelf, kept in this browser's
-// IndexedDB.
+// The web frontend: PhiTeX in a browser tab, nothing installed (the demo
+// phitex.org serves at /try). A project's files (a tree; uploads; a ZIP in
+// and out), the editor (CodeMirror 6, Overleaf's LaTeX grammar), and the
+// viewer every host shows (the panel on a PreviewSession, its pages
+// strips), on the wasm core in a module worker: the Overleaf extension's
+// own (overleaf/src/worker.ts, core.ts here), so the page runs what the
+// extension runs. Projects and their versions are kept in this browser
+// (store.ts); Compare diffs the project against one of them (PhiTeX's
+// latexdiff, compare.ts), as Overleaf's diff does against its history.
+// Its files are served beside it as the extension's are from its root
+// (dist/core.wasm, formats/, texmf/, Shelf's index); Shelf's packs come
+// from Shelf, kept in IndexedDB; minted's Pyodide only when a document
+// runs minted.
 //
-// Nothing is fetched until `mount`: the page imports this module when the
-// visitor gets to the demo.
+// Nothing is fetched until `mount`.
 
 import "../../overleaf/src/platform.ts";
-import { Panel } from "../../common/src/viewer/panel.ts";
-import { PreviewSession, type CoreEvent, type CoreRes, type CoreTransport, type EditorHost } from "../../common/src/viewer/session.ts";
+import { platform } from "../../common/src/platform.ts";
+import { Panel, type DiffLook, type PanelPrefs, type Prefs } from "../../common/src/viewer/panel.ts";
+import { PreviewSession, guessMain, type EditorHost, type Options } from "../../common/src/viewer/session.ts";
 import type { Edit } from "../../common/src/viewer/edits.ts";
+import { Compare, DiffControls, gate, type CompareHost } from "../../common/src/viewer/compare.ts";
+import { ENGINES, approximable, resolve, shimTexts, type Engine, type EngineChoice } from "../../common/src/viewer/engines.ts";
+import { ago } from "../../common/src/viewer/commits.ts";
 import { StripPages } from "../../common/src/strippages.ts";
-import { EditorState, EditorView, extensions } from "../../mock/editor/editor.mjs";
+import { TEXT, readZip } from "../../common/src/zip.ts";
+import { cacheStats, clearCache } from "../../common/src/wasm/host.ts";
+import { WorkerCore } from "./core.ts";
+import { Editor } from "./editor.ts";
+import { Tree, validPath } from "./tree.ts";
+import { writeZip } from "./zipwrite.ts";
+import { autoVersion, deleteProject, newId, project as loadProjectById, projects, saveProject, saveVersion, versions, type Project, type Version } from "./store.ts";
+import { CSS } from "./style.ts";
 import article from "../samples/article.tex";
 import beamer from "../samples/beamer.tex";
 import tikz from "../samples/tikz.tex";
 
 export interface Doc {
   name: string;
-  /** The project's files by path; the main one is main.tex (else the first .tex). */
+  /** The project's files by path; the main one is main.tex (else the one with \documentclass). */
   files: Record<string, string | Uint8Array>;
 }
 
 export interface MountOptions {
-  /** The documents to offer (none: the demo's own three). */
+  /** The sample documents offered (none: the three of the demo). */
   docs?: Doc[];
   /** A repaint reached the screen, `ms` after its keystroke. */
   onBuild?(ms: number): void;
 }
 
-export interface Demo {
-  /** Shows document `i` of the docs. */
+export interface Web {
+  /** Opens sample `i` (the visitor's copy of it, kept). */
   setDoc(i: number): void;
-  /** The demo gone: its worker ended, its elements removed. */
+  /** Everything gone: the engine's worker ended, the elements removed. */
   destroy(): void;
 }
 
@@ -47,7 +61,7 @@ export const SAMPLES: Doc[] = [
   { name: "TikZ", files: { "main.tex": tikz } },
 ];
 
-/** Why the demo can't run here: `code` says which (the page shows its own words). */
+/** Why PhiTeX can't run here: `code` says which (the page shows its own words). */
 export class Unsupported extends Error {
   code: "no-isolation" | "no-threads";
   constructor(code: "no-isolation" | "no-threads", message: string) {
@@ -67,110 +81,153 @@ function check(): void {
   }
 }
 
-/** The worker's core: requests answered by id, events pushed (overleaf/src/worker.ts's protocol). */
-class WorkerCore implements CoreTransport {
-  private next = 1;
-  private waiting = new Map<number, (r: CoreRes) => void>();
-  private events: ((e: CoreEvent) => void)[] = [];
-  private w: Worker;
+/** Kept in this browser (localStorage: small things), never failing. */
+const local = {
+  get(k: string): string | null {
+    try {
+      return localStorage.getItem(`phitex.web.${k}`);
+    } catch {
+      return null;
+    }
+  },
+  set(k: string, v: string): void {
+    try {
+      localStorage.setItem(`phitex.web.${k}`, v);
+    } catch {
+      /* (not kept) */
+    }
+  },
+};
 
-  constructor(w: Worker) {
-    this.w = w;
-    w.onmessage = (m: MessageEvent<{ id?: number; event?: string } & CoreRes>) => {
-      const d = m.data;
-      if (typeof d.id === "number") (this.waiting.get(d.id)?.(d), this.waiting.delete(d.id));
-      else if (typeof d.event === "string") for (const f of this.events) f(d as unknown as CoreEvent);
-    };
-  }
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+const mainOf = (files: Record<string, string>) => ("main.tex" in files ? "main.tex" : (guessMain(files) ?? Object.keys(files).find((f) => f.endsWith(".tex")) ?? "main.tex"));
 
-  request(op: object, transfer: Transferable[] = []): Promise<CoreRes> {
-    const id = this.next++;
-    return new Promise((ok) => (this.waiting.set(id, ok), this.w.postMessage({ ...op, id }, transfer)));
-  }
-
-  onEvent(cb: (e: CoreEvent) => void): () => void {
-    this.events.push(cb);
-    return () => void this.events.splice(this.events.indexOf(cb) >>> 0, 1);
-  }
+function save(bytes: BlobPart, type: string, name: string): void {
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-const CSS = `
-.phx-try { display: flex; width: 100%; height: 100%; min-height: 0; background: #fff; }
-.phx-try-ed { flex: 1 1 45%; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid #e7e9ee; }
-.phx-try-docs { flex: none; display: flex; align-items: center; gap: 4px; height: 34px; padding: 0 8px; border-bottom: 1px solid #e7e9ee;
-  font: 13px/1 "Noto Sans", system-ui, sans-serif; color: #495365; }
-.phx-try-docs button { font: inherit; padding: 4px 10px; border: 0; border-radius: 4px; background: none; color: inherit; cursor: pointer; }
-.phx-try-docs button:hover { background: #f4f5f6; }
-.phx-try-docs button[aria-pressed="true"] { background: #e7e9ee; color: #1b222c; font-weight: 600; }
-.phx-try-docs button:focus-visible { outline: 2px solid #366cbf; }
-.phx-try-ed .cm-editor { flex: 1; min-width: 0; min-height: 0; }
-.phx-try-pages { flex: 1 1 55%; min-width: 0; position: relative; }
-@media (max-width: 700px) {
-  .phx-try { flex-direction: column; }
-  .phx-try-ed { flex: 0 0 40%; border-right: 0; border-bottom: 1px solid #e7e9ee; }
-  .phx-try-pages { flex: 1 1 60%; }
-}`;
+/** A sample's project: its texts and binaries apart. */
+function fromDoc(d: Doc, id: string): Project {
+  const files: Record<string, string> = {};
+  const binaries: Record<string, Uint8Array> = {};
+  for (const [p, v] of Object.entries(d.files)) {
+    if (typeof v === "string") files[p] = v;
+    else binaries[p] = v;
+  }
+  return { id, name: d.name, files, binaries, main: mainOf(files), engine: "auto", updated: Date.now() };
+}
 
-const mainOf = (files: Record<string, unknown>) => ("main.tex" in files ? "main.tex" : Object.keys(files).find((f) => f.endsWith(".tex")) ?? "main.tex");
+/** A version's title in the menu and the diff bar. */
+const titleOf = (v: Version) => v.label || "Autosaved";
+
+const BAR = `
+<div class="phx-bar">
+  <span class="phx-logo">PhiTeX</span>
+  <label class="phx-proj"><span class="sr">Project</span><select id="phx-proj" title="Your projects, kept in this browser"></select></label>
+  <div class="phx-menu"><button type="button" data-menu="new" aria-haspopup="menu" aria-expanded="false">New ▾</button><div class="phx-pop" data-pop="new" role="menu" hidden></div></div>
+  <div class="phx-menu"><button type="button" data-menu="project" aria-haspopup="menu" aria-expanded="false">Project ▾</button><div class="phx-pop" data-pop="project" role="menu" hidden></div></div>
+  <div class="phx-menu"><button type="button" data-menu="compare" aria-haspopup="menu" aria-expanded="false" title="Compare with a saved version (latexdiff)">Compare ▾</button><div class="phx-pop" data-pop="compare" role="menu" hidden></div></div>
+  <span class="grow"></span>
+  <label class="phx-engine" title="The TeX engine">Engine <select id="phx-engine"></select></label>
+  <button type="button" id="phx-log" title="The build's .log">Log</button>
+  <button type="button" id="phx-dark" aria-pressed="false" title="The PDF in dark colours">Dark PDF</button>
+  <button type="button" id="phx-files" class="phx-narrow" aria-pressed="false">Files</button>
+</div>
+<div class="phx-body">
+  <nav class="phx-tree" aria-label="Files"></nav>
+  <div class="phx-ed"></div>
+  <div class="phx-pages"></div>
+</div>
+<div class="phx-modal" hidden role="dialog" aria-modal="true"><div class="phx-card"><header><b></b><span class="grow"></span><button type="button" data-close="1" aria-label="Close">✕</button></header><div class="phx-modal-body"></div></div></div>`;
 
 /**
- * The demo in `el` (it fills it: give it a height): the editor and the
- * pages, the first document open. Throws Unsupported before fetching
- * anything when the page can't run the engine.
+ * PhiTeX in `el` (it fills it: give it a height): the projects, the
+ * editor and the pages, the last project open (or the first sample). Throws
+ * Unsupported before fetching anything when the page can't run the engine.
  */
-export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Demo> {
+export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web> {
   check();
-  const docs = o.docs?.length ? o.docs : SAMPLES;
+  const samples = o.docs?.length ? o.docs : SAMPLES;
   const style = document.createElement("style");
   style.textContent = CSS;
   const root = document.createElement("div");
-  root.className = "phx-try";
-  root.innerHTML = `<div class="phx-try-ed"><div class="phx-try-docs" role="group" aria-label="Sample documents"></div></div><div class="phx-try-pages"></div>`;
-  const picker = root.querySelector<HTMLElement>(".phx-try-docs")!;
-  picker.hidden = docs.length < 2;
-  for (const [i, d] of docs.entries()) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = d.name;
-    b.onclick = () => setDoc(i);
-    picker.append(b);
-  }
+  root.className = "phx-web";
+  root.innerHTML = BAR;
   el.append(style, root);
-  const pane = root.querySelector<HTMLElement>(".phx-try-pages")!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string): T => root.querySelector<T>(s)!;
+  const pane = $(".phx-pages");
 
-  const worker = new Worker(new URL("worker.js", import.meta.url), { type: "module", name: "phitex-core" });
-  const core = new WorkerCore(worker);
+  const core = new WorkerCore("web");
+  /** The project open, its session, its pages. */
+  let proj: Project | undefined;
+  let session: PreviewSession | undefined;
+  let pages: StripPages | undefined;
+  /** What the session listens to (its EditorHost's callbacks). */
+  let changedCb: ((file: string, edits: Edit[], len?: number) => void) | undefined;
+  let openCb: ((file: string, text: string) => void) | undefined;
+  const editListeners: (() => void)[] = [];
+  /** The project open (mount opens one before anything asks). */
+  const P = (): Project => {
+    if (!proj) throw new Error("no project open");
+    return proj;
+  };
 
-  // (the current document's session and pages: a new pair for each document)
-  let session: PreviewSession;
-  let pages: StripPages;
+  const stripPanel = {
+    pixelsPerPoint: () => panel.pixelsPerPoint(),
+    painted: (ms: number) => {
+      panel.painted(ms);
+      o.onBuild?.(ms);
+    },
+  };
+  const prefs: Prefs = {
+    load: async () => JSON.parse(local.get("panel") ?? "{}") as Partial<PanelPrefs>,
+    save: (p) => local.set("panel", JSON.stringify(p)),
+  };
+  /** The session the panel shows: the compare's while its diff is in view. */
+  const shown = (): PreviewSession | undefined => (session ? compare.shown() : undefined);
+
   const panel = new Panel(
     {
-      onPage: () => {},
-      onNeed: (k) => void session.fetch(k),
-      onPdf: () => void download(),
-      onMain: () => {},
-      onReload: () => void session.resync(),
-      onClean: () => setDoc(at, true),
-      onGoto: () => {},
-      onSyncSource: (k, x, y) => void session.toSource(k, x, y),
-      onFind: (q) => pages.find(q),
+      onPage: (p) => void shown()?.setPage(p),
+      onNeed: (k) => void shown()?.fetch(k),
+      onPdf: () => void downloadPdf(),
+      onMain: (m) => setMain(m),
+      onReload: () => session?.refresh({ ...P().files }),
+      onClean: () => void session?.clean({ ...P().files }),
+      onGoto: (file, line) => {
+        if (!openFile(file)) return;
+        const at = editor.lineStart(line);
+        editor.select(at, at);
+      },
+      onGotoRange: (file, from, to, focus) => void (openFile(file) && editor.select(from, to, focus !== false)),
+      onSyncSource: (k, x, y) => void shown()?.toSource(k, x, y),
+      onSelectPage: (sel) => void shown()?.selectPage(sel),
+      onEngine: (e) => setEngine(e),
+      onFind: (q) => pages?.find(q) ?? Promise.resolve([]),
+      onContents: () => void shown()?.outline(),
     },
-    undefined,
+    prefs,
     {
+      outline: true,
+      keys: true,
       header: true,
       words: {
         badge: "in your browser",
         badgeTitle: "PhiTeX in WebAssembly, in this tab: nothing installed, nothing uploaded",
         byline: "⚡ PhiTeX",
         about: `<b>⚡ PhiTeX</b>: an incremental TeX engine, here compiled to WebAssembly and running in this tab.
-          Your text never leaves your browser; TeX Live's packages are fetched from Shelf and kept in this browser.
+          Your projects never leave your browser; TeX Live's packages are fetched from Shelf and kept in this browser.
           <div class="about-foot">Free software (AGPL-3.0-only), provided as is, without any warranty.</div>`,
         realPdf: "",
         stopped: "The build stopped: its problems are listed above.",
-        notReady: "This engine does not run in the demo yet.",
+        notReady: "This engine does not run here yet.",
         openFailed: "Reload the page to try again.",
-        reading: "Your text stays in this browser.",
+        reading: "Your files stay in this browser.",
         keptIn: "this browser",
         preparing: "",
         steps: ["Starting", "Packages", "Typesetting"],
@@ -179,70 +236,474 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Demo
   );
   panel.dock(pane);
   panel.shown(true);
+  // (the contents closed until the visitor opens them: most samples have no outline, and narrow pages no room)
+  let sideKept = false;
+  try {
+    sideKept = localStorage.getItem("phitex.side") !== null;
+  } catch {
+    /* (not kept) */
+  }
+  if (!sideKept) panel.side(false);
 
-  // (the editor: its changes, as the session takes them, in the order applied)
-  let changed: ((file: string, edits: Edit[], len?: number) => void) | undefined;
-  let file = "main.tex";
-  const view = new EditorView({ parent: root.querySelector<HTMLElement>(".phx-try-ed")! });
-  const editing = extensions((u: any) => {
-    if (!u.docChanged || !changed) return;
-    for (const tr of u.transactions) {
-      if (tr.changes.empty) continue;
-      const edits: Edit[] = [];
-      // (fromB: where the change is once those before it are applied, as overleaf/src/hook.ts)
-      tr.changes.iterChanges((fromA: number, toA: number, fromB: number, _toB: number, ins: any) => edits.push({ from: fromB, to: fromB + (toA - fromA), text: ins.toString() }));
-      changed(file, edits, tr.newDoc.length);
-    }
+  const editor = new Editor($(".phx-ed"), {
+    changed(file, edits, len) {
+      P().files[file] = editor.text();
+      changedCb?.(file, edits, len);
+      for (const f of editListeners) f();
+      dirty();
+    },
+    cursor: (file, pos) => compare.follow(file, pos),
+    selected: (file, from, to) => void session?.selectSource(file, from, to),
+    dblclick: (file, pos) => void session?.toPage(file, pos),
   });
 
-  async function download(): Promise<void> {
-    const r = (await core.request({ op: "pdf" })) as CoreRes & { pdf?: Uint8Array };
-    if (!r.ok || !r.pdf) return;
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([r.pdf as BlobPart], { type: "application/pdf" }));
-    a.download = "main.pdf";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  /** A line at the foot of the panel. */
+  const say = (t: string, err = false) => panel.msg(t, err);
+
+  const tree = new Tree($(".phx-tree"), {
+    open: (p) => void openFile(p),
+    add(p) {
+      const pr = P();
+      if (p in pr.files || p in pr.binaries) return say(`${p} is already in the project.`);
+      pr.files[p] = "";
+      // (a new file: the core is given it with the others, in a fresh open; edits then go to it)
+      void session?.clean({ ...pr.files });
+      openFile(p);
+      dirty();
+    },
+    rename(from, to) {
+      const pr = P();
+      if (to in pr.files || to in pr.binaries) return say(`${to} is already in the project.`);
+      if (from in pr.binaries) {
+        pr.binaries[to] = pr.binaries[from];
+        delete pr.binaries[from];
+        void core.binary(to, pr.binaries[to]);
+      } else {
+        pr.files[to] = pr.files[from];
+        delete pr.files[from];
+        if (pr.main === from) pr.main = to;
+        if (editor.file === from) editor.show(to, pr.files[to]);
+      }
+      void session?.clean({ ...pr.files });
+      showTree();
+      dirty();
+    },
+    remove(p) {
+      const pr = P();
+      if (p in pr.binaries) delete pr.binaries[p];
+      else {
+        if (Object.keys(pr.files).length <= 1) return say("A project keeps at least one file.");
+        delete pr.files[p];
+        if (pr.main === p) pr.main = mainOf(pr.files);
+        if (editor.file === p) openFile(pr.main);
+      }
+      void session?.clean({ ...pr.files });
+      showTree();
+      dirty();
+    },
+    main: (p) => setMain(p),
+    upload: (fs) => void upload(fs),
+  });
+
+  // (the compare: the project against one of its versions, the diff typeset by a core of its own)
+  let diffCore: WorkerCore | undefined;
+  const compareHost: CompareHost<Version> = {
+    session: () => {
+      if (!session) throw new Error("no session");
+      return session;
+    },
+    core,
+    onChanges: (cb) => void editListeners.push(cb),
+    files: async (v) => v.files,
+    async connect() {
+      diffCore?.close();
+      const t = (diffCore = new WorkerCore(`web-diff/${P().id}`));
+      for (const [p, b] of Object.entries(P().binaries)) await t.binary(p, b);
+      // (its pages as strips too; closing them ends its core)
+      return new StripPages(t, stripPanel);
+    },
+    sink: (on) => gate(panel, on, ["goto"]),
+    goto: (file, from, to) => void (openFile(file) && editor.select(from, to, false)),
+    save,
+    msg: (t) => say(t, true),
+    options: sessionOptions(),
+    loadLook: async () => JSON.parse(local.get("diffLook") ?? "{}") as Partial<DiffLook>,
+    saveLook: (l) => local.set("diffLook", JSON.stringify(l)),
+  };
+  const compare = new Compare<Version>(compareHost);
+  const controls = new DiffControls<Version>(panel, compare);
+  const onKey = (e: KeyboardEvent) => void controls.key(e);
+  addEventListener("keydown", onKey);
+
+  function sessionOptions(): Partial<Options> {
+    return {
+      checkEveryMs: 0,
+      engine: (main) => resolve(proj?.engine ?? "auto", undefined, main),
+      // (a XeLaTeX project the core can't run: approximated with pdfLaTeX's stand-ins)
+      shims: async (main) => (proj?.engine !== "auto" || !approximable(main) || ENGINES.xelatex.ready ? null : shimTexts((p) => platform().asset(p))),
+    };
   }
 
-  let at = 0;
-  /** Document `i` opened anew (`keep`: with the editor's text, a clean rebuild). */
-  function setDoc(i: number, keep = false): void {
-    at = Math.max(0, Math.min(i, docs.length - 1));
-    picker.querySelectorAll("button").forEach((b, k) => b.setAttribute("aria-pressed", String(k === at)));
+  // ---- the project ----
+
+  async function openProject(p: Project): Promise<void> {
+    if (controls.active) controls.stop();
+    // (the session before stopped; its pages' transport is the core, shared: not closed)
     session?.stop();
-    const doc = docs[at];
-    const texts: Record<string, string> = {};
-    for (const [f, v] of Object.entries(doc.files)) {
-      if (typeof v === "string") texts[f] = v;
-      else void core.request({ op: "binary", file: f, bytes: v });
-    }
-    file = mainOf(texts);
-    changed = undefined;
-    if (keep) texts[file] = view.state.doc.toString();
-    view.setState(EditorState.create({ doc: texts[file] ?? "", extensions: editing }));
-    void core.request({ op: "hello", project: `try/${doc.name}` });
-    pages = new StripPages(core, {
-      pixelsPerPoint: () => panel.pixelsPerPoint(),
-      painted: (ms) => (panel.painted(ms), o.onBuild?.(ms)),
-    });
+    proj = p;
+    local.set("open", p.id);
+    await core.request({ op: "hello", project: p.id });
+    for (const [f, b] of Object.entries(p.binaries)) await core.binary(f, b);
+    pages = new StripPages(core, stripPanel);
     const host: EditorHost = {
-      loadProject: async () => ({ ...texts, [file]: view.state.doc.toString() }),
-      mainFile: () => file,
-      onOpen() {},
-      onChanges: (cb) => void (changed = cb),
+      loadProject: async () => ({ ...P().files }),
+      mainFile: () => P().main,
+      onOpen: (cb) => void (openCb = cb),
+      onChanges: (cb) => void (changedCb = cb),
     };
-    session = new PreviewSession(host, pages, panel, { checkEveryMs: 0 });
+    const sink = gate(panel, () => compare.showing !== "diff");
+    session = new PreviewSession(host, pages, sink, sessionOptions());
+    editor.file = "";
+    openFile(p.main in p.files ? p.main : Object.keys(p.files)[0]);
+    $<HTMLSelectElement>("#phx-engine").value = p.engine;
     void session.start();
+    await listProjects();
   }
-  setDoc(0);
+
+  /** `file` in the editor (a text file of the project); false if there is none. */
+  function openFile(file: string): boolean {
+    const pr = P();
+    if (!(file in pr.files)) return false;
+    if (editor.file !== file || editor.text() !== pr.files[file]) {
+      editor.show(file, pr.files[file]);
+      openCb?.(file, pr.files[file]);
+    }
+    showTree();
+    return true;
+  }
+
+  function showTree(): void {
+    const pr = P();
+    tree.show(Object.keys(pr.files), Object.keys(pr.binaries), editor.file, pr.main);
+  }
+
+  function setMain(m: string): void {
+    const pr = P();
+    if (!(m in pr.files)) return;
+    pr.main = m;
+    void session?.setMain(m);
+    showTree();
+    dirty();
+  }
+
+  function setEngine(e: EngineChoice): void {
+    const pr = P();
+    pr.engine = e;
+    $<HTMLSelectElement>("#phx-engine").value = e;
+    void session?.clean({ ...pr.files });
+    dirty();
+  }
+
+  // (kept: the project saved after a pause in typing, a version every few minutes of editing)
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  let changedSinceVersion = false;
+  function dirty(): void {
+    changedSinceVersion = true;
+    clearTimeout(saveTimer);
+    const p = P();
+    saveTimer = setTimeout(() => void saveProject(p).catch((e: unknown) => say(`Not saved in this browser: ${e}`, true)), 800);
+  }
+  const versionTimer = setInterval(() => {
+    if (!changedSinceVersion || !proj) return;
+    changedSinceVersion = false;
+    void autoVersion(proj).catch(() => undefined);
+  }, 5 * 60_000);
+
+  async function listProjects(): Promise<void> {
+    const cur = P();
+    const ps = await projects().catch((): Project[] => []);
+    if (!ps.some((p) => p.id === cur.id)) ps.unshift(cur);
+    $<HTMLSelectElement>("#phx-proj").innerHTML = ps.map((p) => `<option value="${esc(p.id)}"${p.id === cur.id ? " selected" : ""}>${esc(p.name)}</option>`).join("");
+  }
+
+  /** Sample `i`: the visitor's copy, as they left it, else a new one. */
+  async function openSample(i: number): Promise<void> {
+    const d = samples[Math.max(0, Math.min(i, samples.length - 1))];
+    const id = `sample-${d.name}`;
+    const kept = await loadProjectById(id).catch(() => undefined);
+    const p = kept ?? fromDoc(d, id);
+    if (!kept) await saveProject(p).catch(() => undefined);
+    await openProject(p);
+  }
+
+  async function newProject(p: Project): Promise<void> {
+    await saveProject(p).catch((e: unknown) => say(`Not saved in this browser: ${e}`, true));
+    await openProject(p);
+  }
+
+  async function upload(fs: File[]): Promise<void> {
+    const pr = P();
+    let fresh = false;
+    for (const f of fs) {
+      const name = f.name;
+      if (/\.zip$/i.test(name)) {
+        await importZip(f);
+        return;
+      }
+      if (!validPath(name)) continue;
+      if (TEXT.test(name)) {
+        fresh ||= !(name in pr.files);
+        pr.files[name] = await f.text();
+      } else {
+        pr.binaries[name] = new Uint8Array(await f.arrayBuffer());
+        await core.binary(name, pr.binaries[name]);
+        fresh = true;
+      }
+    }
+    // (a new file or figure: the document opened again with it, so it is found)
+    if (fresh) void session?.clean({ ...pr.files });
+    else session?.refresh({ ...pr.files });
+    showTree();
+    dirty();
+  }
+
+  async function importZip(f: File): Promise<void> {
+    say(`Reading ${f.name}…`);
+    try {
+      const z = await readZip(await f.arrayBuffer());
+      const files = z.files;
+      if (!Object.keys(files).some((p) => p.endsWith(".tex"))) return say(`${f.name} has no .tex file.`, true);
+      const name = f.name.replace(/\.zip$/i, "");
+      await newProject({ id: newId(), name, files, binaries: z.binaries, main: mainOf(files), engine: "auto", updated: Date.now() });
+      say(`${name}: ${Object.keys(files).length} text files, ${Object.keys(z.binaries).length} others`);
+    } catch (e) {
+      say(`Couldn't read ${f.name}: ${e}`, true);
+    }
+  }
+
+  async function downloadZip(): Promise<void> {
+    const pr = P();
+    const enc = new TextEncoder();
+    const all: Record<string, Uint8Array> = { ...pr.binaries };
+    for (const [p, t] of Object.entries(pr.files)) all[p] = enc.encode(t);
+    save((await writeZip(all)) as BlobPart, "application/zip", `${pr.name.replace(/[^\w.-]+/g, "-")}.zip`);
+  }
+
+  async function downloadPdf(): Promise<void> {
+    const pdf = await shown()?.pdf();
+    // (a job that stopped early left its file unfinished, which no viewer opens)
+    const tail = pdf ? new TextDecoder("latin1").decode(pdf.subarray(Math.max(0, pdf.length - 64))) : "";
+    if (!pdf?.length || !tail.includes("%%EOF")) return say("No complete PDF yet: the build stopped before the end of the document.", true);
+    save(pdf as BlobPart, "application/pdf", `${P().main.replace(/\.tex$/, "").replace(/.*\//, "")}.pdf`);
+  }
+
+  // ---- the bar ----
+
+  const modal = $(".phx-modal");
+  function showModal(title: string, body: HTMLElement | string): HTMLElement {
+    modal.querySelector("header b")!.textContent = title;
+    const b = modal.querySelector<HTMLElement>(".phx-modal-body")!;
+    if (typeof body === "string") b.innerHTML = body;
+    else b.replaceChildren(body);
+    modal.hidden = false;
+    return b;
+  }
+  modal.onclick = (e) => {
+    const t = e.target as HTMLElement;
+    if (t === modal || t.closest("[data-close]")) modal.hidden = true;
+  };
+
+  const engineSel = $<HTMLSelectElement>("#phx-engine");
+  engineSel.innerHTML =
+    `<option value="auto">Auto</option>` +
+    (Object.entries(ENGINES) as [Engine, { label: string; ready: boolean }][]).map(([k, e]) => `<option value="${k}"${e.ready ? "" : " disabled"}>${e.label}${e.ready ? "" : " (soon)"}</option>`).join("");
+  engineSel.onchange = () => setEngine(engineSel.value as EngineChoice);
+
+  $<HTMLSelectElement>("#phx-proj").onchange = async (e) => {
+    const p = await loadProjectById((e.target as HTMLSelectElement).value);
+    if (p) await openProject(p);
+  };
+
+  $("#phx-log").onclick = async () => {
+    const pre = document.createElement("pre");
+    pre.className = "phx-log";
+    pre.textContent = "Reading the log…";
+    showModal(`${P().main.replace(/\.tex$/, "")}.log`, pre);
+    const t = await shown()?.log();
+    pre.textContent = t ?? "No log yet: the document hasn't been typeset.";
+  };
+
+  const darkBtn = $("#phx-dark");
+  const dark = (on: boolean) => {
+    pane.classList.toggle("pdf-dark-mode", on);
+    darkBtn.setAttribute("aria-pressed", String(on));
+    local.set("dark", on ? "1" : "0");
+    panel.dock(pane);
+  };
+  darkBtn.onclick = () => dark(darkBtn.getAttribute("aria-pressed") !== "true");
+  dark(local.get("dark") === "1");
+
+  const filesBtn = $("#phx-files");
+  filesBtn.onclick = () => {
+    const on = !root.classList.contains("files-on");
+    root.classList.toggle("files-on", on);
+    filesBtn.setAttribute("aria-pressed", String(on));
+  };
+
+  /** The menus: one open at a time, each built when opened. */
+  const menus: Record<string, (pop: HTMLElement) => void | Promise<void>> = {
+    new(pop) {
+      pop.innerHTML =
+        `<button type="button" role="menuitem" data-new="blank">Blank project</button>` +
+        samples.map((d, i) => `<button type="button" role="menuitem" data-sample="${i}">${esc(d.name)} (sample)</button>`).join("") +
+        `<hr><label class="phx-item" role="menuitem">Upload a project ZIP…<input type="file" accept=".zip,application/zip" hidden></label>`;
+      const zip = pop.querySelector<HTMLInputElement>("input[type=file]")!;
+      zip.onchange = () => {
+        close();
+        if (zip.files?.[0]) void importZip(zip.files[0]);
+      };
+      pop.onclick = (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button");
+        if (!b) return;
+        close();
+        if (b.dataset.new)
+          void newProject({ id: newId(), name: "Untitled", files: { "main.tex": "\\documentclass{article}\n\\begin{document}\n\n\\end{document}\n" }, binaries: {}, main: "main.tex", engine: "auto", updated: Date.now() });
+        if (b.dataset.sample) void openSample(Number(b.dataset.sample));
+      };
+    },
+    project(pop) {
+      pop.innerHTML =
+        `<button type="button" role="menuitem" data-act="zip">Download as ZIP</button>` +
+        `<button type="button" role="menuitem" data-act="rename">Rename…</button>` +
+        `<hr><button type="button" role="menuitem" data-act="cache">Clear cache…</button>` +
+        `<hr><button type="button" role="menuitem" data-act="delete" class="danger">Delete this project…</button>`;
+      pop.onclick = (e) => {
+        const act = (e.target as HTMLElement).closest<HTMLElement>("[data-act]")?.dataset.act;
+        if (!act) return;
+        close();
+        if (act === "zip") void downloadZip();
+        if (act === "rename") renameProject();
+        if (act === "cache") void cacheDialog();
+        if (act === "delete") deleteDialog();
+      };
+    },
+    async compare(pop) {
+      const vs = await versions(P().id).catch((): Version[] => []);
+      pop.innerHTML =
+        (controls.active ? `<button type="button" role="menuitem" data-stop="1">✕ Stop comparing</button><hr>` : "") +
+        `<form class="phx-save"><input type="text" placeholder="Name this version" aria-label="Version name" spellcheck="false"><button type="submit">Save version</button></form>` +
+        `<div class="phx-head">Compare the current version with…</div>` +
+        (vs.length
+          ? vs.map((v) => `<button type="button" role="menuitem" data-v="${esc(v.id)}"><span>${v.label ? "🏷 " : ""}${esc(titleOf(v))}</span><small>${ago(v.at / 1000)}</small></button>`).join("")
+          : `<div class="phx-none">No versions yet: save one, then change the document.</div>`);
+      const form = pop.querySelector<HTMLFormElement>("form")!;
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const label = form.querySelector("input")!.value.trim() || new Date().toLocaleString();
+        await saveProject(P());
+        await saveVersion(P(), label);
+        close();
+        say(`Saved "${label}"`);
+      };
+      pop.onclick = (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-v], button[data-stop]");
+        if (!b) return;
+        close();
+        if (b.dataset.stop) return controls.stop();
+        const v = vs.find((x) => x.id === b.dataset.v);
+        if (v) void controls.start(v, titleOf(v), ago(v.at / 1000));
+      };
+    },
+  };
+  let openMenu = "";
+  const close = () => {
+    root.querySelectorAll<HTMLElement>(".phx-pop").forEach((p) => (p.hidden = true));
+    root.querySelectorAll("[data-menu]").forEach((b) => b.setAttribute("aria-expanded", "false"));
+    openMenu = "";
+  };
+  root.querySelectorAll<HTMLButtonElement>("[data-menu]").forEach((b) => {
+    b.onclick = async (e) => {
+      e.stopPropagation();
+      const k = b.dataset.menu ?? "";
+      const was = openMenu === k;
+      close();
+      if (was) return;
+      const pop = $(`[data-pop="${k}"]`);
+      // (fixed under its button: the bar scrolls sideways on a narrow page, and clips what it holds)
+      const r = b.getBoundingClientRect();
+      Object.assign(pop.style, { top: `${r.bottom + 4}px`, left: `${Math.max(4, Math.min(r.left, innerWidth - 260))}px` });
+      openMenu = k;
+      b.setAttribute("aria-expanded", "true");
+      pop.hidden = false;
+      await menus[k](pop);
+    };
+  });
+  root.addEventListener("click", (e) => void (!(e.target as HTMLElement).closest(".phx-pop") && close()));
+
+  function renameProject(): void {
+    const f = document.createElement("form");
+    f.className = "phx-form";
+    f.innerHTML = `<input type="text" spellcheck="false" aria-label="Project name"><button type="submit">Rename</button>`;
+    const input = f.querySelector("input")!;
+    input.value = P().name;
+    f.onsubmit = (e) => {
+      e.preventDefault();
+      const pr = P();
+      pr.name = input.value.trim() || pr.name;
+      modal.hidden = true;
+      void saveProject(pr).then(listProjects);
+    };
+    showModal("Rename the project", f);
+    input.select();
+  }
+
+  function deleteDialog(): void {
+    const b = showModal(
+      "Delete this project?",
+      `<p><b>${esc(P().name)}</b> and its saved versions are deleted from this browser. Download it as a ZIP first to keep it.</p>` +
+        `<div class="phx-acts"><button type="button" data-close="1">Cancel</button><button type="button" class="danger" data-yes="1">Delete</button></div>`,
+    );
+    b.querySelector<HTMLButtonElement>("[data-yes]")!.onclick = async () => {
+      modal.hidden = true;
+      await deleteProject(P().id);
+      const rest = await projects().catch((): Project[] => []);
+      if (rest[0]) await openProject(rest[0]);
+      else await openSample(0);
+    };
+  }
+
+  async function cacheDialog(): Promise<void> {
+    const b = showModal("Clear cache", `<p>Reading the cache…</p>`);
+    const { caches } = await cacheStats("this browser");
+    const mb = (n: number) => `${(n / 1e6).toFixed(1)} MB`;
+    const total = caches.reduce((n, c) => n + c.bytes, 0);
+    b.innerHTML =
+      `<p>PhiTeX keeps TeX Live's packages and the engine's formats in this browser, so later builds start fast. Your projects are not affected.</p>` +
+      `<ul>${caches.map((c) => `<li>${c.scope === "packages" ? "Packages" : "Build state"}: ${mb(c.bytes)} (${c.entries} entries)</li>`).join("")}</ul>` +
+      `<div class="phx-acts"><button type="button" data-close="1">Cancel</button><button type="button" class="danger" data-yes="1">Clear ${mb(total)}</button></div>`;
+    b.querySelector<HTMLButtonElement>("[data-yes]")!.onclick = async () => {
+      const r = await clearCache("all", "this browser");
+      modal.hidden = true;
+      say(`Cleared ${mb(r.freed_bytes)}: packages are fetched again when needed.`);
+    };
+  }
+
+  // ---- start ----
+  const lastId = local.get("open");
+  const last = lastId ? await loadProjectById(lastId).catch(() => undefined) : undefined;
+  if (last) await openProject(last);
+  else await openSample(0);
 
   return {
-    setDoc: (i) => setDoc(i),
+    setDoc: (i) => void openSample(i),
     destroy() {
+      if (controls.active) controls.stop();
       session?.stop();
-      worker.terminate();
-      view.destroy();
+      core.close();
+      diffCore?.close();
+      clearInterval(versionTimer);
+      removeEventListener("keydown", onKey);
+      editor.destroy();
       root.remove();
       style.remove();
     },
