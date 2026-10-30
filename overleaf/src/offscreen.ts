@@ -61,7 +61,10 @@ chrome.runtime.onConnect.addListener((port) => {
     }
     // (the project's binary files, figures: as bytes to the core)
     if (m.op === "binary") {
-      const bytes = Uint8Array.from(atob(m.b64), (c) => c.charCodeAt(0));
+      // (atob's string copied in a plain loop: a mapping function per byte is slow)
+      const t = atob(m.b64);
+      const bytes = new Uint8Array(t.length);
+      for (let i = 0; i < t.length; i++) bytes[i] = t.charCodeAt(i);
       return core.postMessage({ id: m.id, op: "binary", file: m.file, bytes }, [bytes.buffer]);
     }
     core.postMessage(m);

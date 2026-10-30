@@ -223,7 +223,18 @@ class OverleafHost implements EditorHost {
 /** Whether the extension was reloaded or updated under this tab (its content script then cut off). */
 const contextGone = () => !chrome.runtime?.id;
 const GONE = "PhiTeX Instant was updated or reloaded: reload this tab to use it";
-const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+/**
+ * Base64 to bytes: atob's string copied in a plain loop. Uint8Array.from
+ * with a mapping function called it for every byte: the user's trace of a
+ * fast scroll, 88 tasks of 700-1200 ms on the tab's thread, nearly all of
+ * them here (the strips' pixels), Overleaf frozen meanwhile.
+ */
+function unb64(s: string): Uint8Array {
+  const t = atob(s);
+  const b = new Uint8Array(t.length);
+  for (let i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
+  return b;
+}
 
 /** A chrome port to the offscreen document (which relays to the worker). Bytes come base64. */
 class ChromeTransport implements CoreTransport {
