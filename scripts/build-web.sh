@@ -36,7 +36,18 @@ es=(node_modules/.bin/esbuild --bundle --minify --log-level=warning --platform=b
 "${sandbox[@]}" "${es[@]}" overleaf/src/thread.ts --outfile=web/dist/dist/thread.js
 # (a page imports web.js (mount); the bundles sit in dist/, the platform's root one up, as in the extension)
 echo 'export * from "./dist/web.js";' > web/dist/web.js
-cp web/index.html web/dist/
+cp web/index.html web/static/* web/dist/
+# (demo.phitex.org's headers, Cloudflare Pages: the page cross-origin isolated, its threads share one
+# memory; credentialless keeps Shelf's packs (CORS) loading. The formats' names change with
+# their contents (immutable); the rest is asked again each visit (an ETag's 304 when unchanged))
+cat > web/dist/_headers <<'HEADERS'
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: credentialless
+  X-Content-Type-Options: nosniff
+/formats/*
+  Cache-Control: public, max-age=31536000, immutable
+HEADERS
 
 for f in core.wasm diff.wasm; do cp "$assets/dist/$f" web/dist/dist/; done
 for d in pyodide minted; do [ -d "$assets/dist/$d" ] && cp -r "$assets/dist/$d" web/dist/dist/; done

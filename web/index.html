@@ -3,21 +3,61 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PhiTeX</title>
+<title>Try PhiTeX in Your Browser</title>
+<meta name="description" content="PhiTeX running in your browser: edit a LaTeX document and the PDF follows every keystroke. Nothing is installed and nothing is uploaded.">
+<meta name="color-scheme" content="dark light">
+<script>try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="modulepreload" href="dist/web.js">
+<link rel="preconnect" href="https://shelf-phitex-v1.pages.dev" crossorigin>
 <style>
-  html, body { height: 100%; margin: 0; }
-  #app { position: fixed; inset: 0; }
-  .unsupported { font: 15px/1.5 system-ui, sans-serif; max-width: 34em; margin: 15vh auto; padding: 0 16px; color: #1b222c; }
+  /* (demo.phitex.org: the web frontend's own page, phitex.org's /try header; the app below in its own palette) */
+  :root { --bg: #fff; --line: #e3e6ec; --fg: #1b222c; --muted: #5d6778; --faint: #8d96a5; color-scheme: light; }
+  :root[data-theme="dark"] { --bg: #161b23; --line: #262d38; --fg: #e7e9ee; --muted: #98a1b0; --faint: #6f7888; color-scheme: dark; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #161b23; --line: #262d38; --fg: #e7e9ee; --muted: #98a1b0; --faint: #6f7888; color-scheme: dark; } }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.4 "Noto Sans", system-ui, sans-serif; }
+  .top { position: fixed; inset: 0 0 auto 0; height: 40px; display: flex; align-items: center; gap: 14px; padding: 0 14px; border-bottom: 1px solid var(--line); background: var(--bg); box-sizing: border-box; }
+  .home { display: inline-flex; align-items: center; gap: 8px; color: var(--fg); text-decoration: none; }
+  .home b { font-size: 14px; font-weight: 600; }
+  .note { color: var(--faint); cursor: help; }
+  .back { margin-left: auto; color: var(--muted); text-decoration: none; }
+  .back:hover { color: var(--fg); }
+  .theme { all: unset; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--muted); cursor: pointer; }
+  .theme:hover { color: var(--fg); }
+  .theme:focus-visible { outline: 2px solid var(--muted); }
+  .theme svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .dk, .moon { display: none; }
+  :root[data-theme="dark"] .lt, :root[data-theme="dark"] .sun { display: none; }
+  :root[data-theme="dark"] .dk, :root[data-theme="dark"] .moon { display: inline; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .lt, :root:not([data-theme="light"]) .sun { display: none; }
+    :root:not([data-theme="light"]) .dk, :root:not([data-theme="light"]) .moon { display: inline; }
+  }
+  #app { position: fixed; inset: 40px 0 0 0; }
+  .unsupported { max-width: 34em; margin: 15vh auto; padding: 0 16px; font-size: 15px; line-height: 1.5; }
+  @media (max-width: 520px) { .note { display: none; } }
 </style>
 </head>
 <body>
+<header class="top">
+  <a class="home" href="https://phitex.org/" aria-label="PhiTeX home"><img class="lt" width="25" height="24" src="phitex-mark.svg" alt=""><img class="dk" width="25" height="24" src="phitex-mark-dark.svg" alt=""><b>PhiTeX</b></a>
+  <span class="note" title="The real engine, built to WebAssembly. Nothing is installed and nothing leaves your browser. The first build downloads the engine and your document's packages, kept for next time.">Runs in your browser</span>
+  <a class="back" href="https://phitex.org/">The compiler&nbsp;↗</a>
+  <button class="theme" id="theme" type="button" aria-label="Toggle dark and light theme"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path class="sun" d="M12 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10zM12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><path class="moon" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+</header>
 <div id="app"></div>
 <script type="module">
-  // (the web frontend on its own: phitex.org's try.html mounts it in its own page)
+  // (the theme toggle sets data-theme, kept as phitex.org keeps it; the app and its panel follow it live)
+  const root = document.documentElement, system = matchMedia("(prefers-color-scheme: dark)");
+  document.getElementById("theme").onclick = () => {
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : system.matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("theme", root.dataset.theme); } catch {}
+  };
   import { mount } from "./web.js";
   const app = document.getElementById("app");
   try {
-    window.phitex = await mount(app, { onBuild: (ms, first) => first ? (window.phitexFirst = ms) : (window.phitexLast = ms) });
+    window.phitex = await mount(app, { brand: false, onBuild: (ms, first) => first ? (window.phitexFirst = ms) : (window.phitexLast = ms) });
   } catch (e) {
     app.innerHTML = `<div class="unsupported"><h1>PhiTeX can't run here</h1><p></p></div>`;
     app.querySelector("p").textContent = e.message;
