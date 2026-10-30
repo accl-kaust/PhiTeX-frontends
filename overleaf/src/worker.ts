@@ -17,7 +17,7 @@
 
 import "./platform.ts";
 import { platform } from "./common/platform.ts";
-import { Core, CoreSession } from "./common/wasm/core.ts";
+import { Core, CoreSession, WASM_THREADS } from "./common/wasm/core.ts";
 import { mintedShell } from "./common/wasm/minted.ts";
 import { coreIndex, coreStore, pack, prefetch } from "./common/wasm/host.ts";
 import { spawnThread } from "./thread.ts";
@@ -78,10 +78,9 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
   for (const [f, b] of binaries) core.provide(f, { path: "./" + f, bytes: b });
   console.info(`[phitex core] started in ${Math.round(performance.now() - t0)} ms`);
   // (every project may use minted: the runner loads only at its first call)
-  // (the engine's threads: this machine's cores. wasm has no
-  // available_parallelism, so the host says; an idle thread must cost
-  // nothing, which is the engine's to keep so: no cap here)
-  return { core, session: new CoreSession(core, { shell: true, threads: navigator.hardwareConcurrency || 1 }) };
+  // (the engine's threads: this machine's cores, at most WASM_THREADS.
+  // wasm has no available_parallelism, so the host says)
+  return { core, session: new CoreSession(core, { shell: true, threads: Math.min(navigator.hardwareConcurrency || 1, WASM_THREADS) }) };
 }
 
 let started = start();

@@ -22,6 +22,14 @@
 import { type Spawn, type ThreadData, type ThreadMsg, imports, newMemory } from "./threads.ts";
 import type { CoreEvent, CoreReq, CoreRes, CoreTransport } from "../viewer/session.ts";
 
+/**
+ * The most threads a host gives the wasm engine (the user's call,
+ * 2026-10-30): more cost it time, the engine's threads contending (the
+ * 17-page TikZ demo's clean build in Overleaf: 87 s at 24 threads, 2.4 s
+ * at 4); the engine's fix is under way (PhiTeX), this cap until then.
+ */
+export const WASM_THREADS = 4;
+
 /** A file by name: its path as the build should report it, and its bytes; null if it is nowhere. */
 export type Resolve = (name: string) => Promise<{ path: string; bytes: Uint8Array } | null>;
 /** A Shelf pack by id, as Shelf serves it (gzip); null if it could not be had. */
