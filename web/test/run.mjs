@@ -22,6 +22,8 @@ fs.mkdirSync("web/shots", { recursive: true });
 
 const shadow = (js) => `(() => { const r = document.querySelector("phitex-preview")?.shadowRoot; if (!r) return false; ${js} })()`;
 /** n slots, each drawn. */
+/** Another document's first page: its opening gone and a page drawn (the last one's pages stay, hidden, under the opening). */
+const opened = () => shadow(`return !r.querySelector(".win").classList.contains("sheet-up") && !!r.querySelector(".slot canvas, .slot svg.page")`);
 const pagesShown = (n) => shadow(`const s = [...r.querySelectorAll(".slot")]; return s.length === ${n} && s.every((x) => x.querySelector("canvas"));`);
 /** a word in the pages' text layer. */
 const onPage = (w) => shadow(`return [...r.querySelectorAll(".slot text")].some((t) => t.textContent.includes(${JSON.stringify(w)}));`);
@@ -84,7 +86,7 @@ for (let i = 1; i < names.length; i++) {
     await p.evaluate((i) => window.phitex.setDoc(i), i);
     // (the last example's pages stay, hidden, under the opening: its own first page is the opening gone with a page drawn)
     await p.waitForTimeout(200);
-    await p.waitForFunction(shadow(`return !r.querySelector(".win").classList.contains("sheet-up") && !!r.querySelector(".slot canvas, .slot svg.page")`), null, { timeout: 240000 });
+    await p.waitForFunction(opened(), null, { timeout: 240000 });
     const first = Date.now() - t;
     await p.waitForTimeout(2500);
     const status = await p.evaluate(shadow(`return r.getElementById("sttext").textContent + " " + (r.getElementById("stmore")?.textContent ?? "")`));
@@ -94,7 +96,8 @@ for (let i = 1; i < names.length; i++) {
 }
 await step("multifile", async () => {
   await p.evaluate(() => window.phitex.setDoc(0));
-  await p.waitForFunction(pagesShown(1), null, { timeout: 60000 });
+  await p.waitForTimeout(200);
+  await p.waitForFunction(opened(), null, { timeout: 60000 });
   await p.waitForTimeout(1500);
   await p.click(".phx-tree-head [data-act=new]");
   await p.fill(".phx-tree-name input", "intro.tex");
@@ -102,10 +105,15 @@ await step("multifile", async () => {
   await p.click(".cm-content");
   await p.keyboard.type("\\section{Second file} Wordfromintro is here.", { delay: 20 });
   await p.click('.phx-tree-list li[data-path="main.tex"] .name');
-  const lines = await p.locator(".cm-line").count();
-  await p.click(`.cm-line >> nth=${lines - 3}`);
-  await p.keyboard.press("End");
-  await p.keyboard.type("\n\\input{intro}", { delay: 40 });
+  // (just before \end{document}, whatever the article holds above it: the cursor put there through the editor's view, then typed)
+  await p.evaluate(() => {
+    const c = document.querySelector(".cm-content");
+    const view = c.cmView?.view ?? c.cmTile?.view ?? c.cmView?.rootView?.view;
+    const at = view.state.doc.toString().lastIndexOf("\\end{document}");
+    view.dispatch({ selection: { anchor: at } });
+    view.focus();
+  });
+  await p.keyboard.type("\\input{intro}\n", { delay: 40 });
   await p.waitForFunction(onPage("Wordfromintro"), null, { timeout: 60000 });
   // (settled: the status once the last keystroke's build is in, not mid-typing)
   await p.waitForTimeout(4000);
