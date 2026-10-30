@@ -50,6 +50,8 @@ export interface MountOptions {
    * whole document: seconds), not a keystroke's.
    */
   onBuild?(ms: number, first: boolean): void;
+  /** The app bar's "PhiTeX" (default true); false where the page around it already names PhiTeX. */
+  brand?: boolean;
 }
 
 export interface Web {
@@ -159,6 +161,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   const root = document.createElement("div");
   root.className = "phx-web";
   root.innerHTML = BAR;
+  if (o.brand === false) root.querySelector(".phx-logo")?.remove();
   el.append(style, root);
   const $ = <T extends HTMLElement = HTMLElement>(s: string): T => root.querySelector<T>(s)!;
   const pane = $(".phx-pages");
