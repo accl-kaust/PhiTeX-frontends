@@ -127,6 +127,7 @@ const panel = new Panel(
     onFind: (q) => pages.find(q),
     // (the contents opened: the outline asked for now)
     onContents: () => void shown().outline(),
+    onBoxes: (file, start, end) => shown().boxesOf(file, start, end),
     // (the version from the folder's git history, picked in the extension host: compare.ts there)
     onCompare: watch ? undefined : () => up({ t: "compare" }),
     // (the caches: the extension's command, which lists them and clears one)
