@@ -53,8 +53,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let text;
   if (/^https:/.test(src)) {
     const r = await fetch(src);
-    if (!r.ok) throw new Error(`${src}: ${r.status}`);
-    text = await r.text();
+    // Before PhiTeX's first release its main has no CHANGELOG.md: the news then is none. Only then: once a release
+    // exists, a missing CHANGELOG.md is an error.
+    if (r.status === 404) {
+      const rel = await fetch("https://api.github.com/repos/accl-kaust/PhiTeX/releases?per_page=1", { headers: { accept: "application/vnd.github+json" } });
+      if (!rel.ok) throw new Error(`${src}: 404, and the releases list: ${rel.status}`);
+      if ((await rel.json()).length) throw new Error(`${src}: 404, but PhiTeX has a release`);
+      text = "";
+    } else if (!r.ok) throw new Error(`${src}: ${r.status}`);
+    else text = await r.text();
   } else text = await readFile(src, "utf8");
   const n = news(text);
   await writeFile(out, JSON.stringify(n, null, 1) + "\n");
