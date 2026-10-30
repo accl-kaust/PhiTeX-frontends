@@ -7,6 +7,7 @@
 import * as vscode from "vscode";
 import type { CoreEvent, CoreRes, CoreTransport } from "../../common/src/viewer/session.ts";
 import type { Down, Up } from "./webview.ts";
+import { latexdiff } from "./compare.ts";
 
 /** The webview's page: the panel's script from the extension's dist/, nothing else; `engine`: which one builds (its words). */
 export function viewHtml(view: vscode.Webview, ext: vscode.Uri, engine: "builtin" | "watch"): string {
@@ -29,8 +30,13 @@ export function relay(view: vscode.WebviewPanel, core: CoreTransport, pdf: () =>
       return;
     }
     if (m.t === "pdf") pdf();
-    if (m.t !== "req") return;
-    const r = await core.request(m.op as never).catch((e): CoreRes => ({ ok: false, error: String(e) }));
+    // (a compare's own document's, channel 2: compare.ts's)
+    if (m.t !== "req" || m.ch) return;
+    // (latexdiff: here, the diff wasm, as Overleaf's offscreen page runs it)
+    const r =
+      m.op.op === "latexdiff"
+        ? await latexdiff(m.op.req as never)
+        : await core.request(m.op as never).catch((e): CoreRes => ({ ok: false, error: String(e) }));
     void view.webview.postMessage({ t: "res", id: m.id, r } satisfies Down);
   });
 }
