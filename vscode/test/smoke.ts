@@ -174,11 +174,16 @@ const pick = await selected;
 const range = pick?.params.selection;
 const selectOk = !!range && (range.start.line !== range.end.line || range.start.character !== range.end.character);
 console.log(`select: ${sel.ok ? "ok" : "failed " + sel.error}; showDocument ${pick ? `${pick.params.uri.split("/").pop()} ${range?.start.line}:${range?.start.character}-${range?.end.line}:${range?.end.character} takeFocus ${pick.params.takeFocus}` : "NOT SENT"}`);
+// (the last build's .log, as the panel's View log asks for it)
+const log = await session.request({ op: "log" } as never);
+const logText = String((log as any).json?.text ?? "");
+const logOk = log.ok && /^This is |\(\.\/[^)]*\.tex/m.test(logText);
+console.log(`log: ${log.ok ? `${logText.length} chars, ${JSON.stringify(logText.split("\n")[0].slice(0, 60))}` : "failed " + log.error}`);
 // (the status the server told; the caches, this host's)
 const caches = await ask("workspace/executeCommand", { command: "phitex.cacheStats", arguments: [] });
 const said = caches.result?.caches?.map((c: any) => `${c.scope} ${c.entries} entries ${c.hits}/${c.misses}`).join(", ");
 console.log(`lsp: status ${[...new Set(states)].join(" ")}; caches: ${said ?? caches.error?.message}`);
-const statusOk = states.includes("ready") && !!caches.result && !!doc && selectOk;
+const statusOk = states.includes("ready") && !!caches.result && !!doc && selectOk && logOk;
 await ask("shutdown", null);
 tell("exit", null);
 lsp.close();
