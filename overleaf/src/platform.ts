@@ -100,8 +100,19 @@ const idb: KeyValue = {
   },
 };
 
+/**
+ * One of our files: a server's page in its place (a dev server's or a host's
+ * SPA fallback answers a file it lacks with its index.html, 200) is no file,
+ * as a 404 is: TeX given HTML for a .sty never asks Shelf for it.
+ */
+async function asset(p: string): Promise<Response> {
+  const r = await fetch(url(p));
+  if (r.ok && !/\.html?$/.test(p) && /^text\/html\b/.test(r.headers.get("content-type") ?? "")) return new Response(null, { status: 404, statusText: "not found (a page in its place)" });
+  return r;
+}
+
 setPlatform({
-  asset: (p) => fetch(url(p)),
+  asset,
   assetUrl: url,
   kv: idb,
   fetch: (u, init) => fetch(u, init),

@@ -9,8 +9,8 @@ cd "$(dirname "$0")/.."
 site="${1:-$HOME/code/flinner/PhiTeX.org}"
 [ -s web/dist/dist/web.js ] || { echo "no web/dist: scripts/build-web.sh first" >&2; exit 1; }
 [ -f "$site/vite.config.ts" ] || { echo "not PhiTeX.org's checkout: $site" >&2; exit 1; }
-rm -rf "$site/public/try"
+# (files written in place, the gone ones removed: a dev server running meanwhile keeps
+# knowing them; removed and copied anew, vite's dev server lost track of them until restarted)
 mkdir -p "$site/public/try"
-cp -r web/dist/. "$site/public/try/"
-rm -f "$site/public/try/index.html"   # (the site's own try.html is the page)
+rsync -a --delete --exclude=/index.html web/dist/ "$site/public/try/"   # (the site's own try.html is the page)
 du -sh "$site/public/try"
