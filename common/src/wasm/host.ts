@@ -48,7 +48,7 @@ function warm(path: string): void {
 }
 
 /**
- * The shipped formats (`formats/list.txt`: the web frontend's, one per
+ * pdfLaTeX's shipped format (`formats/list.txt`: the web frontend's, one per
  * engine, scripts/build-web.sh) fetched now, while the core compiles,
  * instead of once it asks: a first visit's 5 MB beside its 22; and the
  * bundled texmf/ files a first build on each reads (`NAME.texmf.txt`,
@@ -59,7 +59,8 @@ function warm(path: string): void {
 export async function warmFormats(): Promise<void> {
   const r = await platform().asset("formats/list.txt").catch(() => null);
   if (!r?.ok) return;
-  for (const name of (await r.text()).split("\n").filter(Boolean)) {
+  // (pdfLaTeX's only, most documents' engine: another's format, XeLaTeX's 13 MB, fetched when a document asks for it, not by every visit)
+  for (const name of (await r.text()).split("\n").filter((n) => n.startsWith("pdflatex-"))) {
     warm(`formats/${name}.gzdata`);
     warm(`formats/${name}.pkgrec.gzdata`);
     const t = await platform().asset(`formats/${name}.texmf.txt`);

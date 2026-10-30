@@ -54,14 +54,21 @@ done
 # texmf/, from the first sample's first build (test/core-run.ts --names), so
 # the list is always the one these files make; its packs from Shelf, by its
 # Pages address, which every network reaches)
+# (each engine's first build from the document its format was made from or
+# with: pdfLaTeX the article sample, XeLaTeX make-formats.sh's fontspec one)
 while read -r stem; do
-  [ "${stem%%-*}" = pdflatex ] || { echo "no first build recorded for ${stem%%-*}'s format yet (test/core-run.ts opens pdfLaTeX)" >&2; exit 1; }
+  engine=${stem%%-*}
+  case $engine in
+    pdflatex) doc=web/samples/article.tex ;;
+    xelatex) doc=test/scenarios/fontspec/main.tex ;;
+    *) echo "no first build to record for $engine's format" >&2; exit 1 ;;
+  esac
   st=web/build/names-store
   rm -rf "$st"
   mkdir -p "$st"
   gunzip -c "$assets/formats/$stem.gzdata" > "$st/format%2F$stem"
   gunzip -c "$assets/formats/$stem.pkgrec.gzdata" > "$st/format%2F$stem%2Fpkgrec"
-  "${sandbox[@]}" --net env SHELF_URL="${SHELF_URL:-https://shelf-phitex-v1.pages.dev/tl2026/}" node test/core-run.ts web/samples/article.tex \
+  "${sandbox[@]}" --net env SHELF_URL="${SHELF_URL:-https://shelf-phitex-v1.pages.dev/tl2026/}" node test/core-run.ts "$doc" --engine "$engine" \
     --wasm web/dist/dist/core.wasm --store "$st" --texmf web/dist/texmf --names "web/dist/formats/$stem.texmf.txt" | grep '^built'
   [ -s "web/dist/formats/$stem.texmf.txt" ] || { echo "no texmf/ files recorded for $stem" >&2; exit 1; }
 done < web/dist/formats/list.txt
