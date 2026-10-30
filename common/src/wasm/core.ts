@@ -275,6 +275,8 @@ export class Core {
     this.x.ph_free(pp, table.length);
     this.x.ph_free(pn, names.length);
     if (r === 2) throw new Error(`Shelf's pack table: ${new TextDecoder().decode(this.output())}`);
+    // (a new index: the core's shelves start over and ask for their packs again, the ones given before too)
+    this.given.clear();
     if (r !== 0) throw new Error(`ph_set_index: ${r}`);
   }
 
