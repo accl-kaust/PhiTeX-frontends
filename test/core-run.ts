@@ -14,6 +14,7 @@
 // --packs FILE: the ids of the packs the build fetched, written there.
 // --wasm PATH: the core built elsewhere (e.g. with --features profile).
 // --env NAME=value (repeatable): the core's environment, e.g. PHITEX_TEX_TIME=1.
+// --engine NAME: the TeX program (pdflatex by default; xelatex: make-formats.sh's XeLaTeX format).
 // --minted: \write18 runs latexminted in Pyodide (PhiTeX's
 // tools/minted-pyodide runner, Pyodide from node_modules, minted's wheels
 // from TeX Live's scripts/minted).
@@ -36,7 +37,7 @@ const run = promisify(execFile);
 const args = process.argv.slice(2);
 const flag = (f: string) => args.includes(f);
 const value = (f: string) => (args.includes(f) ? args[args.indexOf(f) + 1] : undefined);
-const file = args.find((a, i) => a.endsWith(".tex") && !["--threads", "--wasm", "--env", "--store", "--packs"].includes(args[i - 1]));
+const file = args.find((a, i) => a.endsWith(".tex") && !["--threads", "--wasm", "--env", "--store", "--packs", "--engine"].includes(args[i - 1]));
 const ini = !file || flag("--ini");
 const kpse = flag("--kpse");
 const text = file ? await readFile(file, "utf8") : "\\catcode`\\{=1 \\catcode`\\}=2 \\font\\x=cmr10 \\x \\shipout\\hbox{Hello}\\end\n";
@@ -168,4 +169,4 @@ async function built(e: any): Promise<void> {
   await Promise.all([...stored, writeFile(pathsFile, JSON.stringify(paths))]);
   process.exit(first.pages > 0 ? 0 : 1);
 }
-core.open({ main, text, ini, shell: !!shell, threads: value("--threads") ? Number(value("--threads")) : undefined });
+core.open({ main, text, ini, shell: !!shell, threads: value("--threads") ? Number(value("--threads")) : undefined, engine: value("--engine") });
