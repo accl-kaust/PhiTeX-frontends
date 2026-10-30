@@ -1,6 +1,7 @@
 {
   "name": "phitex-instant",
   "displayName": "PhiTeX ⚡ Instant",
+  "icon": "icon.png",
   "description": "Instant LaTeX preview: pages update as you type, typeset by PhiTeX in VS Code itself.",
   "version": "0.7.0",
   "publisher": "accl-kaust",
@@ -32,7 +33,10 @@
         "command": "phitex.preview",
         "title": "Open Preview",
         "category": "PhiTeX",
-        "icon": "$(zap)"
+        "icon": {
+          "light": "media/phi-light.svg",
+          "dark": "media/phi-dark.svg"
+        }
       },
       {
         "command": "phitex.stop",
