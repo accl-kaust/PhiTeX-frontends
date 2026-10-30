@@ -4,3 +4,4 @@ dist/
 test-results/
 public/core.wasm
 public/news.json
+public/try/
