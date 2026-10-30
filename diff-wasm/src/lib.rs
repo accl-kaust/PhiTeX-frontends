@@ -5,8 +5,11 @@
 //! "subtype": its --subtype ("safe", "color", "marker", …), "add_color",
 //! "del_color": an xcolor name or "#RRGGBB"}`.
 //! Reply: `{"tex": "…", "changes": [{kind, old: {file, start, end}, new:
-//! {…}, old_text, new_text, section, out: [start, end]}]}`, or
-//! `{"error": "…"}`. Offsets are UTF-8 bytes, as phitex-diff gives them.
+//! {…}, old_text, new_text, section, out: [start, end]}], "files": [path],
+//! "map": [[out, len, file, src]]}` (`map`: phitex-diff's MapRun, the runs
+//! of the diff's text that are the user's new text as it is, `file` an
+//! index into `files`), or `{"error": "…"}`. Offsets are UTF-8 bytes, as
+//! phitex-diff gives them.
 
 use std::collections::BTreeMap;
 
@@ -73,6 +76,9 @@ fn answer(req: &[u8]) -> Value {
                 "section": c.section,
                 "out": [c.out.start, c.out.end],
             })).collect::<Vec<_>>(),
+            // (the diff's text that is the user's new text as it is: back to their files)
+            "files": d.files,
+            "map": d.map.iter().map(|r| [r.out, r.len, r.file, r.src]).collect::<Vec<_>>(),
         }),
     }
 }
