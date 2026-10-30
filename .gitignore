@@ -41,3 +41,4 @@ web/dist/
 web/shots/
 web/test/.cache/
 web/build/
+web/test/node_modules

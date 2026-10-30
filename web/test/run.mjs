@@ -2,7 +2,8 @@
 // and typed in (its first page's time, a keystroke's), a second file added
 // and \input, a project ZIP uploaded (a figure in it), and a compare with a
 // saved version. Screenshots in web/shots/.
-//   node web/test/run.mjs   (from the worktree, web/dist built; network for Shelf)
+//   node web/test/run.mjs   (from the worktree, web/dist built; network for Shelf;
+//   playwright-core resolvable here, e.g. web/test/node_modules linked to an install of it)
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
