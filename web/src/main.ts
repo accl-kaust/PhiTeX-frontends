@@ -228,8 +228,6 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     {
       // (a page of its own: the panel's own bar, in the watch's palette)
       host: "watch",
-      // (a demo's first visitors: no "New" tips by themselves; What's new still shows them)
-      tips: false,
       outline: true,
       keys: true,
       header: true,
@@ -457,7 +455,12 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     const cur = P();
     const ps = await projects().catch((): Project[] => []);
     if (!ps.some((p) => p.id === cur.id)) ps.unshift(cur);
-    $<HTMLSelectElement>("#phx-proj").innerHTML = ps.map((p) => `<option value="${esc(p.id)}"${p.id === cur.id ? " selected" : ""}>${esc(p.name)}</option>`).join("");
+    // (the examples first, each the visitor's copy once opened; then the projects they made)
+    const opt = (v: string, name: string, on: boolean) => `<option value="${esc(v)}"${on ? " selected" : ""}>${esc(name)}</option>`;
+    const own = ps.filter((p) => !p.id.startsWith("sample-"));
+    $<HTMLSelectElement>("#phx-proj").innerHTML =
+      `<optgroup label="Examples">${samples.map((d, i) => opt(`sample:${i}`, d.name, cur.id === `sample-${d.name}`)).join("")}</optgroup>` +
+      (own.length ? `<optgroup label="Your projects">${own.map((p) => opt(p.id, p.name, p.id === cur.id)).join("")}</optgroup>` : "");
   }
 
   /** Sample `i`: the visitor's copy, as they left it, else a new one. */
@@ -554,7 +557,9 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   engineSel.onchange = () => setEngine(engineSel.value as EngineChoice);
 
   $<HTMLSelectElement>("#phx-proj").onchange = async (e) => {
-    const p = await loadProjectById((e.target as HTMLSelectElement).value);
+    const v = (e.target as HTMLSelectElement).value;
+    if (v.startsWith("sample:")) return openSample(Number(v.slice(7)));
+    const p = await loadProjectById(v);
     if (p) await openProject(p);
   };
 
@@ -570,7 +575,6 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     new(pop) {
       pop.innerHTML =
         `<button type="button" role="menuitem" data-new="blank">Blank project</button>` +
-        samples.map((d, i) => `<button type="button" role="menuitem" data-sample="${i}">${esc(d.name)} (sample)</button>`).join("") +
         `<hr><label class="phx-item" role="menuitem">Upload a project ZIP…<input type="file" accept=".zip,application/zip" hidden></label>`;
       const zip = pop.querySelector<HTMLInputElement>("input[type=file]")!;
       zip.onchange = () => {
@@ -583,7 +587,6 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
         close();
         if (b.dataset.new)
           void newProject({ id: newId(), name: "Untitled", files: { "main.tex": "\\documentclass{article}\n\\begin{document}\n\n\\end{document}\n" }, binaries: {}, main: "main.tex", engine: "auto", updated: Date.now() });
-        if (b.dataset.sample) void openSample(Number(b.dataset.sample));
       };
     },
     project(pop) {
