@@ -21,6 +21,7 @@ import { prefetch, startCore } from "./core.ts";
 import { lspChannel, type CoreIndex, type LspChannel } from "../../common/src/wasm/host.ts";
 import { nodePlatform } from "./platform.ts";
 import { relay, viewHtml, WatchLink } from "./relay.ts";
+import { compareHost } from "./compare.ts";
 import type { Down } from "./webview.ts";
 import { StatusItem, type EngineStatus } from "./status.ts";
 
@@ -271,7 +272,11 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   const channel = lspChannel(core, storeDir);
   const client = ownCommands(new LanguageClient("phitex", "PhiTeX", async () => ({ reader: new ChannelReader(channel), writer: new ChannelWriter(channel) }), clientOptions(folder, log)));
   let closed = false;
-  const subs: vscode.Disposable[] = [relay(view, session, () => void savePdf(session, folder, main), (s) => log.appendLine(s))];
+  const subs: vscode.Disposable[] = [
+    relay(view, session, () => void savePdf(session, folder, main), (s) => log.appendLine(s)),
+    // (Compare, View log, Clear cache: what the webview asks of this host)
+    compareHost(view, { root, folder, main, files: Object.keys(project.files), binaries: project.binaries, log: (s) => log.append(s.endsWith("\n") ? s : s + "\n") }),
+  ];
   current = { folder, view, save: () => void savePdf(session, folder, main) };
   view.onDidDispose(() => {
     closed = true;

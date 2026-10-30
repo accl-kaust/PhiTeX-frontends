@@ -5,6 +5,7 @@
 import "./platform.ts";
 import { prefetch } from "./common/prefetch.ts";
 import { settled } from "./settings.ts";
+import { allMeta, clearPacks } from "./common/packstore.ts";
 
 let creating: Promise<void> | null = null;
 
@@ -26,6 +27,18 @@ chrome.runtime.onMessage.addListener((m, _sender, reply) => {
   if (m?.type === "update-check") {
     void chrome.runtime.requestUpdateCheck?.().catch(() => undefined);
     return;
+  }
+  // (the panel's Clear cache: the packs kept in this browser, and how much they held)
+  if (m?.type === "clear-cache") {
+    allMeta()
+      .then(async (all) => {
+        let freed = 0;
+        for (const p of all.values()) freed += p.bytes;
+        await clearPacks();
+        reply({ freed });
+      })
+      .catch((e) => reply({ error: String(e) }));
+    return true;
   }
   if (m?.type === "ensure-offscreen") {
     ensureOffscreen().then(() => reply(true), (e) => reply(String(e)));
