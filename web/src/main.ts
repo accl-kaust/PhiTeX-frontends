@@ -44,8 +44,12 @@ export interface Doc {
 export interface MountOptions {
   /** The sample documents offered (none: the three of the demo). */
   docs?: Doc[];
-  /** A repaint reached the screen, `ms` after its keystroke. */
-  onBuild?(ms: number): void;
+  /**
+   * A repaint reached the screen, `ms` after its keystroke; `first`: the
+   * project's first build since it was opened (downloads, the format, the
+   * whole document: seconds), not a keystroke's.
+   */
+  onBuild?(ms: number, first: boolean): void;
 }
 
 export interface Web {
@@ -174,11 +178,13 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     return proj;
   };
 
+  /** Repaints since the project was opened: the first is its first build's. */
+  let paints = 0;
   const stripPanel = {
     pixelsPerPoint: () => panel.pixelsPerPoint(),
     painted: (ms: number) => {
       panel.painted(ms);
-      o.onBuild?.(ms);
+      o.onBuild?.(ms, paints++ === 0);
     },
   };
   const prefs: Prefs = {
@@ -219,6 +225,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     {
       // (a page of its own: the panel's own bar, in the watch's palette)
       host: "watch",
+      // (a demo's first visitors: no "New" tips by themselves; What's new still shows them)
+      tips: false,
       outline: true,
       keys: true,
       header: true,
@@ -357,6 +365,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     // (the session before stopped; its pages' transport is the core, shared: not closed)
     session?.stop();
     proj = p;
+    paints = 0;
     local.set("open", p.id);
     await core.request({ op: "hello", project: p.id });
     for (const [f, b] of Object.entries(p.binaries)) await core.binary(f, b);

@@ -52,9 +52,14 @@ await step("article", async () => {
   await p.waitForFunction(pagesShown(1), null, { timeout: 180000 });
   const cold = Date.now() - t0;
   await p.waitForTimeout(2500);
+  const st = () => p.evaluate(shadow(`return r.getElementById("sttext").textContent + " " + (r.getElementById("stmore")?.textContent ?? "")`));
+  const statusFirst = await st();
+  const tipShown = await p.locator("phitex-preview #tip").isVisible().catch(() => false);
+  const firstBuild = await p.evaluate(() => window.phitexFirst);
   const key = await typeAt(28, " Typed here.");
+  const statusAfter = await st();
   await p.screenshot({ path: "web/shots/article.png" });
-  return { coldFirstPageMs: cold, keystrokeMs: key };
+  return { coldFirstPageMs: cold, onBuildFirstMs: firstBuild, statusFirst, tipShown, keystrokeMs: key, statusAfter };
 });
 for (const [i, name, n, line] of [[1, "beamer", 4, 17], [2, "tikz", 1, 23]]) {
   await step(name, async () => {

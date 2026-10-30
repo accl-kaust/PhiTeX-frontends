@@ -17,7 +17,7 @@
   import { mount } from "./web.js";
   const app = document.getElementById("app");
   try {
-    window.phitex = await mount(app, { onBuild: (ms) => (window.phitexLast = ms) });
+    window.phitex = await mount(app, { onBuild: (ms, first) => first ? (window.phitexFirst = ms) : (window.phitexLast = ms) });
   } catch (e) {
     app.innerHTML = `<div class="unsupported"><h1>PhiTeX can't run here</h1><p></p></div>`;
     app.querySelector("p").textContent = e.message;
