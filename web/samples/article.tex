@@ -1,0 +1,37 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath}
+\usepackage[margin=1in]{geometry}
+
+\title{Typesetting as You Type}
+\author{A PhiTeX demo}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document is typeset in your browser by PhiTeX, an incremental TeX
+engine compiled to WebAssembly. Change any word on the left: only the
+paragraph you touch is typeset again, and the page on the right follows.
+\end{abstract}
+
+\section{Introduction}
+TeX reads a whole document from the top every time it runs. PhiTeX keeps
+what it built last time and reuses everything an edit cannot change, so a
+keystroke costs a paragraph, not a document.
+
+\section{An equation}
+The Gaussian integral is a classic test of any typesetter:
+\begin{equation}
+  \int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}.
+\end{equation}
+Try changing the exponent, or add a second equation below it.
+
+\section{Things to try}
+\begin{itemize}
+  \item Edit this list, or add an item.
+  \item Add a new \verb|\section| and watch the numbering follow.
+  \item Make a mistake on purpose: delete a closing brace.
+\end{itemize}
+
+\end{document}

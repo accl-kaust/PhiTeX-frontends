@@ -36,3 +36,7 @@ vscode/shelf-index.tsv.gzdata
 vscode/shelf-packs.tsv.gzdata
 vscode/shelf-release.json
 vscode/formats/
+# (the web frontend: scripts/build-web.sh)
+web/dist/
+web/shots/
+web/test/.cache/

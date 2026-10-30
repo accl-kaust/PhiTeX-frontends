@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhiTeX</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  #app { position: fixed; inset: 0; }
+  .unsupported { font: 15px/1.5 system-ui, sans-serif; max-width: 34em; margin: 15vh auto; padding: 0 16px; color: #1b222c; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+  // (the web frontend on its own: phitex.org's try.html mounts it in its own page)
+  import { mount } from "./web.js";
+  const app = document.getElementById("app");
+  try {
+    window.phitex = await mount(app, { onBuild: (ms) => (window.phitexLast = ms) });
+  } catch (e) {
+    app.innerHTML = `<div class="unsupported"><h1>PhiTeX can't run here</h1><p></p></div>`;
+    app.querySelector("p").textContent = e.message;
+  }
+</script>
+</body>
+</html>
