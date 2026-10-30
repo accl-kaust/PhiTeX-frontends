@@ -8,7 +8,7 @@
 
 import { platform } from "../platform.ts";
 import type { Core, Store } from "./core.ts";
-import { indexBytes } from "../release.ts";
+import { indexOnce } from "../release.ts";
 import { packRaw, shipped } from "../shelf.ts";
 import { allMeta, clearPacks } from "../packstore.ts";
 import { Index, formatOf, shelfEngine, type ReleaseMeta } from "../resolve.ts";
@@ -27,31 +27,51 @@ const KV = "core.kv";
  */
 async function shippedFormat(key: string): Promise<Uint8Array | null> {
   const name = key.slice("format/".length).replaceAll("/", ".");
-  const path = `formats/${name}.gzdata`;
-  const early = warming.get(path);
-  warming.delete(path);
-  const r = await (early ?? platform().asset(path)).catch(() => null);
+  const r = await ours(`formats/${name}.gzdata`).catch(() => null);
   return r?.ok ? gunzip(r.body!) : null;
 }
 
-/** Formats being fetched ahead (warmFormats), by path: each taken once. */
+/** Files of ours being fetched ahead (warmFormats), by path: each taken once, by `ours`. */
 const warming = new Map<string, Promise<Response>>();
+
+/** One of our files (the platform's asset): the one fetched ahead if it was, else fetched now. */
+function ours(path: string): Promise<Response> {
+  const early = warming.get(path);
+  warming.delete(path);
+  return early ?? platform().asset(path);
+}
+
+function warm(path: string): void {
+  const p = platform().asset(path);
+  p.catch(() => undefined);
+  warming.set(path, p);
+}
 
 /**
  * The shipped formats (`formats/list.txt`: the web frontend's, one per
  * engine, scripts/build-web.sh) fetched now, while the core compiles,
- * instead of once it asks: a first visit's 5 MB beside its 22. Without the
- * list (the extensions': their formats are local files), nothing.
+ * instead of once it asks: a first visit's 5 MB beside its 22; and the
+ * bundled texmf/ files a first build on each reads (`NAME.texmf.txt`,
+ * recorded by build-web.sh), all at once instead of one by one as TeX
+ * asks. Without the list (the extensions': their files are local, read
+ * without the network), nothing.
  */
 export async function warmFormats(): Promise<void> {
   const r = await platform().asset("formats/list.txt").catch(() => null);
   if (!r?.ok) return;
-  for (const name of (await r.text()).split("\n").filter(Boolean))
-    for (const f of [`${name}.gzdata`, `${name}.pkgrec.gzdata`]) {
-      const p = platform().asset(`formats/${f}`);
-      p.catch(() => undefined);
-      warming.set(`formats/${f}`, p);
-    }
+  for (const name of (await r.text()).split("\n").filter(Boolean)) {
+    warm(`formats/${name}.gzdata`);
+    warm(`formats/${name}.pkgrec.gzdata`);
+    const t = await platform().asset(`formats/${name}.texmf.txt`);
+    if (!t.ok) throw new Error(`formats/${name}.texmf.txt: ${t.status} (scripts/build-web.sh writes it)`);
+    for (const f of (await t.text()).split("\n").filter(Boolean)) warm(`texmf/${f}`);
+  }
+}
+
+/** A bundled texmf/ file by name (the core's `resolve`, every host's): its bytes, null if there is none. */
+export async function texmfFile(name: string): Promise<{ path: string; bytes: Uint8Array } | null> {
+  const r = await ours("texmf/" + name).catch(() => null);
+  return r?.ok ? { path: name, bytes: new Uint8Array(await r.arrayBuffer()) } : null;
 }
 
 /**
@@ -180,9 +200,10 @@ export interface CoreIndex {
 }
 
 export async function coreIndex(): Promise<CoreIndex> {
-  const { gz, table, meta } = await indexBytes();
+  const { gz, table, meta } = await indexOnce();
   const names = (await (await platform().asset("texmf/names.txt")).text()).split("\n").filter(Boolean);
-  return { tsv: await gunzip(gz), meta, release: new TextEncoder().encode(JSON.stringify(meta)), table: await gunzip(table), names };
+  const stream = (b: Uint8Array) => new Blob([b as BlobPart]).stream();
+  return { tsv: await gunzip(stream(gz)), meta, release: new TextEncoder().encode(JSON.stringify(meta)), table: await gunzip(stream(table)), names };
 }
 
 /**

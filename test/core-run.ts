@@ -12,6 +12,9 @@
 // --cold: the store's formats not given (built again, and stored).
 // --store DIR: the store there (scripts/make-formats.sh: the formats shipped).
 // --packs FILE: the ids of the packs the build fetched, written there.
+// --names FILE: the bundled texmf/ files the build read, by name, written there
+// (scripts/build-web.sh: a format's first build's, fetched ahead by the web frontend).
+// --texmf DIR: the bundled texmf/ read from there (default: the repo's texmf/).
 // --wasm PATH: the core built elsewhere (e.g. with --features profile).
 // --env NAME=value (repeatable): the core's environment, e.g. PHITEX_TEX_TIME=1.
 // --minted: \write18 runs latexminted in Pyodide (PhiTeX's
@@ -27,6 +30,8 @@ import { execFile } from "node:child_process";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
+import { resolve as resolvePath } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { Core, type Store } from "../common/src/wasm/core.ts";
 import { mintedShell } from "../common/src/wasm/minted.ts";
@@ -36,7 +41,7 @@ const run = promisify(execFile);
 const args = process.argv.slice(2);
 const flag = (f: string) => args.includes(f);
 const value = (f: string) => (args.includes(f) ? args[args.indexOf(f) + 1] : undefined);
-const file = args.find((a, i) => a.endsWith(".tex") && !["--threads", "--wasm", "--env", "--store", "--packs"].includes(args[i - 1]));
+const file = args.find((a, i) => a.endsWith(".tex") && !["--threads", "--wasm", "--env", "--store", "--packs", "--names", "--texmf"].includes(args[i - 1]));
 const ini = !file || flag("--ini");
 const kpse = flag("--kpse");
 const text = file ? await readFile(file, "utf8") : "\\catcode`\\{=1 \\catcode`\\}=2 \\font\\x=cmr10 \\x \\shipout\\hbox{Hello}\\end\n";
@@ -72,7 +77,9 @@ let packs = 0;
 let fetched = 0;
 // (SHELF_URL: the same release at another address, e.g. its Pages one where phitex.org is not reachable)
 const SHELF = process.env.SHELF_URL ?? "https://v1.shelf.phitex.org/tl2026/";
-const bundledDir = new URL("../texmf/", import.meta.url);
+const bundledDir = value("--texmf") ? new URL(pathToFileURL(resolvePath(value("--texmf")!)).href + "/") : new URL("../texmf/", import.meta.url);
+/** The bundled files the build read, in the order it asked (--names). */
+const read: string[] = [];
 
 /** Shelf's pack `id`: kept in target/shelf-cache/, else Shelf's, kept. */
 async function fetchPack(id: string): Promise<Uint8Array | null> {
@@ -124,6 +131,7 @@ const core = Core.start(module, {
     if (!kpse) {
       // (by name only the bundled texmf/: the project's own were given before)
       const b = await readFile(new URL(name, bundledDir)).catch(() => null);
+      if (b) read.push(name);
       return b ? { path: name, bytes: new Uint8Array(b) } : null;
     }
     if (!(name in paths)) paths[name] = await run("kpsewhich", ["-progname=pdflatex", name]).then((r) => r.stdout.trim() || null, () => null);
@@ -165,6 +173,8 @@ async function built(e: any): Promise<void> {
   if (out) stored.push(writeFile(`target/core-run.${out.pdf ? "pdf" : "dvi"}`, out.bytes));
   // (--packs FILE: the packs this build fetched, one id a line)
   if (value("--packs")) stored.push(writeFile(value("--packs")!, timeline.map(([id]) => id + "\n").join("")));
+  // (--names FILE: the bundled files it read, one name a line)
+  if (value("--names")) stored.push(writeFile(value("--names")!, read.map((n) => n + "\n").join("")));
   await Promise.all([...stored, writeFile(pathsFile, JSON.stringify(paths))]);
   process.exit(first.pages > 0 ? 0 : 1);
 }

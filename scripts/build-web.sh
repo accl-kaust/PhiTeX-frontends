@@ -49,6 +49,22 @@ for e in $(ls "$assets/formats" | sed -n 's/^\([a-z]*\)-.*\.gzdata$/\1/p' | sort
   cp "$assets/formats/$stem".* web/dist/formats/
   echo "$stem" >> web/dist/formats/list.txt
 done
+# (each format's first build's bundled texmf/ files, fetched ahead by the page
+# (host.ts's warmFormats): recorded here, by this core on this format with this
+# texmf/, from the first sample's first build (test/core-run.ts --names), so
+# the list is always the one these files make; its packs from Shelf, by its
+# Pages address, which every network reaches)
+while read -r stem; do
+  [ "${stem%%-*}" = pdflatex ] || { echo "no first build recorded for ${stem%%-*}'s format yet (test/core-run.ts opens pdfLaTeX)" >&2; exit 1; }
+  st=web/build/names-store
+  rm -rf "$st"
+  mkdir -p "$st"
+  gunzip -c "$assets/formats/$stem.gzdata" > "$st/format%2F$stem"
+  gunzip -c "$assets/formats/$stem.pkgrec.gzdata" > "$st/format%2F$stem%2Fpkgrec"
+  "${sandbox[@]}" --net env SHELF_URL="${SHELF_URL:-https://shelf-phitex-v1.pages.dev/tl2026/}" node test/core-run.ts web/samples/article.tex \
+    --wasm web/dist/dist/core.wasm --store "$st" --texmf web/dist/texmf --names "web/dist/formats/$stem.texmf.txt" | grep '^built'
+  [ -s "web/dist/formats/$stem.texmf.txt" ] || { echo "no texmf/ files recorded for $stem" >&2; exit 1; }
+done < web/dist/formats/list.txt
 cp "$assets"/shelf-index.tsv.gzdata "$assets"/shelf-packs.tsv.gzdata "$assets"/shelf-release.json web/dist/
 cp "$assets"/LICENSE.txt "$assets"/NOTICE.txt web/dist/ 2>/dev/null || true
 du -sh web/dist web/dist/* web/dist/dist/*

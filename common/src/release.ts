@@ -45,6 +45,21 @@ export interface Release extends ReleaseMeta {
 
 const DAY = 24 * 3600 * 1000;
 
+let read: Promise<{ gz: Uint8Array; table: Uint8Array; release: string; meta: ReleaseMeta }> | undefined;
+/**
+ * `indexBytes`, read once per context and kept as its gzip bytes: the
+ * core's index (host.ts's coreIndex) and the packs' checks (shelf.ts) read
+ * the same release, the index and its pack table fetched once, not each.
+ */
+export function indexOnce(): Promise<{ gz: Uint8Array; table: Uint8Array; release: string; meta: ReleaseMeta }> {
+  read ??= (async () => {
+    const { gz, table, release, meta } = await indexBytes();
+    const bytes = async (s: ReadableStream) => new Uint8Array(await new Response(s).arrayBuffer());
+    return { gz: await bytes(gz), table: await bytes(table), release, meta };
+  })().catch((e: unknown) => ((read = undefined), Promise.reject(e)));
+  return read;
+}
+
 const KV = "release.kv";
 const get = <T>(k: string) => platform().kv.get<T>(KV, k);
 const put = (entries: [string, unknown][]) => platform().kv.write(entries.map(([k, v]) => [KV, k, v]));

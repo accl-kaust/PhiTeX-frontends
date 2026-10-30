@@ -13,10 +13,10 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { platform } from "../../common/src/platform.ts";
 import { Core, CoreSession, WASM_THREADS } from "../../common/src/wasm/core.ts";
-import { coreIndex, coreStore, pack, prefetch, type CoreIndex } from "../../common/src/wasm/host.ts";
+import { coreIndex, coreStore, pack, prefetch, texmfFile, type CoreIndex } from "../../common/src/wasm/host.ts";
 import { mintedShell } from "../../common/src/wasm/minted.ts";
+import { order } from "../../common/src/shelf.ts";
 import { spawner } from "./thread.ts";
 
 /**
@@ -43,13 +43,12 @@ function shellOf(root: string, log: (s: string) => void) {
 /** The core for the extension at `root`; `folder()`: the project shown, whose document keys are its own; `trapped`: told when a thread traps (the core is gone). */
 export async function startCore(root: string, folder: () => string, log: (s: string) => void, threads?: number, env?: string[], trapped?: (why: string) => void): Promise<{ core: Core; session: CoreSession; index: CoreIndex }> {
   const t0 = performance.now();
+  // (which Shelf host answers first, found while the core compiles)
+  void order();
   const core = Core.start(await WebAssembly.compile(await readFile(join(root, "dist/core.wasm"))), {
     spawn: spawner(pathToFileURL(join(root, "dist/thread.js"))),
     fetch: pack,
-    async resolve(name) {
-      const r = await platform().asset("texmf/" + name).catch(() => null);
-      return r?.ok ? { path: name, bytes: new Uint8Array(await r.arrayBuffer()) } : null;
-    },
+    resolve: texmfFile,
     store: coreStore(folder, async () => core),
     shell: shellOf(root, log),
     env,

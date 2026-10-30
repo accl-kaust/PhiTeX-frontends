@@ -19,8 +19,9 @@ import "./platform.ts";
 import { platform } from "./common/platform.ts";
 import { Core, CoreSession, WASM_THREADS } from "./common/wasm/core.ts";
 import { mintedShell } from "./common/wasm/minted.ts";
-import { coreIndex, coreStore, pack, prefetch, warmFormats } from "./common/wasm/host.ts";
+import { coreIndex, coreStore, pack, prefetch, texmfFile, warmFormats } from "./common/wasm/host.ts";
 import { spawnThread } from "./thread.ts";
+import { order } from "./common/shelf.ts";
 
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
 
@@ -51,18 +52,17 @@ let stderr = "";
 
 const module = WebAssembly.compileStreaming(fetch(at("dist/core.wasm")));
 const index = coreIndex();
-// (the shipped formats on their way while the core compiles: the web frontend's; the extension's are local)
-void warmFormats();
+// (the shipped formats and a first build's texmf/ files on their way while the core compiles: the web frontend's; the extension's are local)
+warmFormats().catch((e: unknown) => console.warn("[phitex core] fetching ahead:", e));
+// (which Shelf host answers first, found while the core compiles: its first pack waits for none)
+void order();
 
 async function start(): Promise<{ core: Core; session: CoreSession }> {
   const t0 = performance.now();
   const core = Core.start(await module, {
     spawn: (d) => void threads.push(spawnThread(d)),
     fetch: pack,
-    async resolve(name) {
-      const r = await platform().asset("texmf/" + name).catch(() => null);
-      return r?.ok ? { path: name, bytes: new Uint8Array(await r.arrayBuffer()) } : null;
-    },
+    resolve: texmfFile,
     store,
     shell,
     event: post,

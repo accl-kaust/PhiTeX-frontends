@@ -25,42 +25,48 @@
  */
 export const HOSTS = ["https://v1.shelf.phitex.org/tl2026/", "https://shelf-phitex-v1.pages.dev/tl2026/"];
 
-/** Hosts that could not be reached (no answer at all): skipped for the rest of this session. */
-const unreachable = new Set<string>();
 /**
- * A host's first answer, while it is coming: requests made meanwhile wait
- * for it (true: reached) instead of each trying a host that resets them
- * (a first build asks for a dozen packs at once).
+ * The hosts in the order to ask them: whichever answered first a small
+ * request sent to each at once (release.json, not cached), then the
+ * others. One per visit, so a network that resets one host (KAUST's, by
+ * its name) costs that host one small request, not a failed pack each.
+ * None answering: HOSTS' own order.
  */
-const verdict = new Map<string, Promise<boolean>>();
+let ordered: Promise<string[]> | undefined;
+/** The hosts' order, asked for now (a core's worker at its start: decided while the core compiles, before its first pack). */
+export const order = (): Promise<string[]> => (ordered ??= race());
+async function race(): Promise<string[]> {
+  const first = await Promise.any(
+    HOSTS.map(async (h) => {
+      const r = await platform().fetch(h + "release.json", { cache: "no-store" });
+      void r.body?.cancel();
+      return h;
+    }),
+  ).catch(() => HOSTS[0]);
+  return [first, ...HOSTS.filter((h) => h !== first)];
+}
 
 /**
  * `path` (from the release's folder: "release.json", "h/<id>.pack") from
- * the first host that answers. Any answer is the answer, an HTTP error
- * included (packs are checked against the pack table whichever host gives
- * them); only a host that cannot be reached (fetch's TypeError: refused,
- * reset, timed out) is passed over, and skipped from then on.
+ * the first host that answers, in `order`. Any answer is the answer, an
+ * HTTP error included (packs are checked against the pack table whichever
+ * host gives them); a host that cannot be reached (fetch's TypeError:
+ * refused, reset, timed out) is passed over for the next.
  */
 export async function shelfFetch(path: string, init?: RequestInit): Promise<Response> {
   let why: unknown = new Error("Shelf: no host could be reached");
-  for (const host of HOSTS) {
-    if (unreachable.has(host)) continue;
-    const known = verdict.get(host);
-    if (known && !(await known)) continue;
-    const attempt = platform().fetch(host + path, init);
-    if (!known) verdict.set(host, attempt.then(() => true, (e: unknown) => !(e instanceof TypeError)));
+  for (const host of await order()) {
     try {
-      return await attempt;
+      return await platform().fetch(host + path, init);
     } catch (e) {
       if (!(e instanceof TypeError)) throw e;
-      unreachable.add(host);
       why = e;
     }
   }
   throw why;
 }
 
-import { indexBytes } from "./release.ts";
+import { indexOnce } from "./release.ts";
 import { Index, formatOf, shelfEngine } from "./resolve.ts";
 import { evict, getPack, putPack } from "./packstore.ts";
 import { platform } from "./platform.ts";
@@ -79,15 +85,15 @@ const inCore = once(async () => names(await (await platform().asset("dist/assets
 
 /** Path → pack, from Shelf's newest release this extension has (release.ts), else its own copy. */
 export const index = once(async () => {
-  const { gz, meta } = await indexBytes();
-  return new Index(await new Response(gz.pipeThrough(new DecompressionStream("gzip"))).text(), meta);
+  const { gz, meta } = await indexOnce();
+  return new Index(await new Response(new Blob([gz as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"))).text(), meta);
 });
 
 /** The release's pack table (release.ts): each pack's SHA-256 (hex) and size, by id. */
 const packTable = once(async () => {
-  const { table } = await indexBytes();
+  const { table } = await indexOnce();
   const t = new Map<string, { sha256: string; bytes: number }>();
-  for (const line of (await new Response(table.pipeThrough(new DecompressionStream("gzip"))).text()).split("\n")) {
+  for (const line of (await new Response(new Blob([table as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"))).text()).split("\n")) {
     const [id, sha256, bytes] = line.split("\t");
     if (id && sha256 && bytes) t.set(id, { sha256, bytes: Number(bytes) });
   }
