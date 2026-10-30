@@ -186,6 +186,9 @@ export class Core {
   private async fetch(id: string, asked = true): Promise<void> {
     let p = this.packs.get(id);
     if (!p) {
+      // (each fetch told as an event, its start and its end: the viewer's "Fetching packages", the time a first build spends on them)
+      const tell = (e: { state: "fetching" | "done" | "failed"; bytes?: number }) => this.listeners.forEach((f) => f({ event: "pack", id, ...e }));
+      tell({ state: "fetching" });
       p = (async () => {
         try {
           // (as Shelf serves it: the core checks it against the release's pack table and gunzips it, phitex-shelf)
@@ -195,6 +198,7 @@ export class Core {
           return null;
         }
       })();
+      void p.then((b) => tell(b ? { state: "done", bytes: b.length } : { state: "failed" }));
       this.packs.set(id, p);
     }
     const b = await p;
