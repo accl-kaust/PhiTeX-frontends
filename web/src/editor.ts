@@ -4,7 +4,7 @@
 // takes them, in the order applied (overleaf/src/hook.ts's), and its
 // cursor, selection and double-clicks, for the pages to follow.
 
-import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, drawSelection, highlightActiveLine, keymap, lineNumbers, type ViewUpdate } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { HighlightStyle, LRLanguage, LanguageSupport, syntaxHighlighting } from "@codemirror/language";
@@ -29,7 +29,7 @@ const latex = LRLanguage.define({
   }),
 });
 
-// (Overleaf's light theme's colours, roughly; the dark ones for a dark page)
+// (Overleaf's light theme's colours, roughly; the dark ones on the app's dark tokens, style.ts)
 const light = HighlightStyle.define([
   { tag: t.tagName, color: "#7b2bb3" },
   { tag: t.comment, color: "#6c7380", fontStyle: "italic" },
@@ -37,6 +37,30 @@ const light = HighlightStyle.define([
   { tag: t.keyword, color: "#1b4bb3" },
   { tag: t.number, color: "#a35100" },
 ]);
+const dark = HighlightStyle.define([
+  { tag: t.tagName, color: "#c792ea" },
+  { tag: t.comment, color: "#7f8a9c", fontStyle: "italic" },
+  { tag: t.string, color: "#8fd19e" },
+  { tag: t.keyword, color: "#82aaff" },
+  { tag: t.number, color: "#f0a868" },
+]);
+/** The editor's frame on the app's tokens (style.ts), in either look. */
+const frame = {
+  "&": { background: "var(--bg)", color: "var(--fg)" },
+  "&.cm-focused": { outline: "none" },
+  ".cm-content": { caretColor: "var(--fg)" },
+  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--fg)" },
+  ".cm-gutters": { background: "var(--bg2)", color: "var(--fg2)", borderRight: "1px solid var(--line)" },
+  ".cm-activeLine": { background: "color-mix(in srgb, var(--sel) 40%, transparent)" },
+  ".cm-activeLineGutter": { background: "var(--hover)", color: "var(--fg)" },
+  "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": { background: "var(--sel)" },
+  "&.cm-focused .cm-matchingBracket": { background: "var(--sel)", outline: "1px solid var(--current)" },
+};
+/** The look for a light or a dark page: the frame from the app's tokens, the highlighting its own. */
+const looks = {
+  light: [syntaxHighlighting(light), EditorView.theme(frame, { dark: false })],
+  dark: [syntaxHighlighting(dark), EditorView.theme(frame, { dark: true })],
+};
 
 export interface EditorEvents {
   /** `file`'s edits, and its length after them (UTF-16 units). */
@@ -56,6 +80,9 @@ export class Editor {
   file = "";
   /** (a text set by `show` is no edit) */
   private quiet = false;
+  /** The look in use, swapped as the page's theme changes (`dark`). */
+  private look = new Compartment();
+  private isDark = false;
 
   constructor(parent: HTMLElement, ev: EditorEvents) {
     this.ev = ev;
@@ -74,7 +101,7 @@ export class Editor {
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
       new LanguageSupport(latex),
-      syntaxHighlighting(light),
+      this.look.of(looks[this.isDark ? "dark" : "light"]),
       EditorView.lineWrapping,
       EditorView.updateListener.of((u) => this.update(u)),
       EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { fontFamily: "ui-monospace, 'DejaVu Sans Mono', monospace", fontSize: "13px" } }),
@@ -104,6 +131,12 @@ export class Editor {
     this.quiet = true;
     this.view.setState(EditorState.create({ doc: text, extensions: this.extensions() }));
     this.quiet = false;
+  }
+
+  /** The page went dark or light: the editor's look with it, now. */
+  dark(on: boolean): void {
+    this.isDark = on;
+    this.view.dispatch({ effects: this.look.reconfigure(looks[on ? "dark" : "light"]) });
   }
 
   text(): string {

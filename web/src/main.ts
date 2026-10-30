@@ -274,6 +274,21 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   /** A line at the foot of the panel. */
   const say = (t: string, err = false) => panel.msg(t, err);
 
+  // (light or dark as the page is: its own toggle, data-theme on the root, else the system's; followed live)
+  const system = matchMedia("(prefers-color-scheme: dark)");
+  const pageTheme = (): "dark" | "light" | null => {
+    const t = document.documentElement.dataset.theme;
+    return t === "dark" || t === "light" ? t : null;
+  };
+  const followTheme = () => {
+    const t = pageTheme();
+    editor.dark(t ? t === "dark" : system.matches);
+  };
+  const themeWatch = new MutationObserver(followTheme);
+  themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  system.addEventListener("change", followTheme);
+  followTheme();
+
   const tree = new Tree($(".phx-tree"), {
     open: (p) => void openFile(p),
     add(p) {
@@ -705,6 +720,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       core.close();
       diffCore?.close();
       clearInterval(versionTimer);
+      themeWatch.disconnect();
+      system.removeEventListener("change", followTheme);
       removeEventListener("keydown", onKey);
       editor.destroy();
       root.remove();
