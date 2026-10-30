@@ -22,5 +22,5 @@ home="${WRANGLER_HOME:-$HOME/code/tmp/phitex-demo-wrangler}"
 mkdir -p "$home"
 cd "$home"
 wr() { /home/lambda/.local/bin/bw --net env HOME="$home" XDG_CONFIG_HOME="$home/.config" CLOUDFLARE_ACCOUNT_ID=2925ae0c4cb07a33b3ab848a3a4c6c99 CLOUDFLARE_API_TOKEN="$(cat "$token")" npx --yes wrangler@4 "$@"; }
-[ "${1:-}" = --create ] && wr pages project create phitex-demo --production-branch main
+[ "${1:-}" = --create ] && wr pages project create phitex-demo --production-branch main --force
 wr pages deploy "$dist" --project-name phitex-demo --branch main --commit-dirty=true
