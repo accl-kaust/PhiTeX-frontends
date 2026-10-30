@@ -179,6 +179,27 @@ impl Files {
         Some((path, bytes))
     }
 
+    /// The project's own file `name` as the host gave it: its path (none:
+    /// not given, or given as absent).
+    pub fn given(&self, name: &str) -> Option<String> {
+        match self.lock().by_name.get(name) {
+            Some(Entry::Given(Some((p, _)))) => Some(p.clone()),
+            _ => None,
+        }
+    }
+
+    /// Shelf's file `name` (a name, or a path in TeX Live's tree) for
+    /// `engine`, in kpathsea format `format` (none: its suffix's), its pack
+    /// fetched as any file's: XeTeX's faces and font index
+    /// ([`crate::live::Shelf`]'s `xetex`).
+    pub fn shelf_find(self: &Arc<Self>, name: &str, format: Option<&str>, engine: &'static str) -> Option<Kept> {
+        let f = self.shelf(engine)?;
+        match format {
+            Some(k) => f.find_in(name, k),
+            None => f.find(name),
+        }
+    }
+
     /// `name`'s content key without fetching it (Shelf's: its pack and
     /// path), for a warm start's check; none: the host's.
     pub fn key(self: &Arc<Self>, name: &str, engine: &'static str) -> Option<(String, Vec<u8>)> {
