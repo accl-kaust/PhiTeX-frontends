@@ -7,7 +7,7 @@
 // file name, not pack: a new release's packs follow by the index. Everyone fetches the same
 // list, so it says nothing of anyone's papers.
 //
-// One pack at a time; at most AHEAD_SHARE of the cache's cap, so the packs
+// A few packs at a time (AHEAD_AT_ONCE); at most AHEAD_SHARE of the cache's cap, so the packs
 // projects ask for keep room (and the oldest of those, prefetched or not,
 // go first past the cap, packstore.ts). Not on a Save-Data connection, nor
 // with the popup's switch off (VS Code's setting). Run by the background
@@ -22,6 +22,8 @@ import { allMeta, capBytes, kvGet, kvSet, putPack } from "./packstore.ts";
 import { platform } from "./platform.ts";
 
 const AHEAD_SHARE = 0.8;
+/** Packs fetched at once, at low priority (a project's own go first). */
+const AHEAD_AT_ONCE = 6;
 
 export interface Ahead {
   /** Packs of the list kept (here or shipped), of `total`. */
@@ -73,24 +75,34 @@ async function run(tell: (a: Ahead) => void): Promise<void> {
     }
   }
   tell(a);
-  for (const id of want) {
-    if (kept.has(id)) continue;
-    let raw: Uint8Array;
-    try {
-      raw = await fetchPack(id, "low");
-    } catch (e) {
-      // (one pack Shelf lacks: the rest still come)
-      a.error = e instanceof Error ? e.message : String(e);
-      continue;
+  // (AHEAD_AT_ONCE fetches in flight, each taking the next pack missing: a
+  // round trip each no longer waited for in turn)
+  const todo = want.filter((id) => !kept.has(id))[Symbol.iterator]();
+  let full = false;
+  const one = async (): Promise<void> => {
+    for (let n = todo.next(); !n.done && !full; n = todo.next()) {
+      const id = n.value;
+      let raw: Uint8Array;
+      try {
+        raw = await fetchPack(id, "low");
+      } catch (e) {
+        // (one pack Shelf lacks: the rest still come)
+        a.error = e instanceof Error ? e.message : String(e);
+        continue;
+      }
+      if (used + raw.byteLength > budget) {
+        full = true;
+        return;
+      }
+      used += raw.byteLength;
+      await putPack(id, raw, true);
+      a.have++;
+      a.bytes += raw.byteLength;
+      tell(a);
     }
-    if (used + raw.byteLength > budget) return tell({ ...a, state: "full" });
-    await putPack(id, raw, true);
-    used += raw.byteLength;
-    a.have++;
-    a.bytes += raw.byteLength;
-    tell(a);
-  }
-  tell({ ...a, state: a.error ? "error" : "done" });
+  };
+  await Promise.all(Array.from({ length: AHEAD_AT_ONCE }, one));
+  tell({ ...a, state: full ? "full" : a.error ? "error" : "done" });
 }
 
 export async function setAheadOff(off: boolean): Promise<void> {
