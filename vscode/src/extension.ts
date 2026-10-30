@@ -24,6 +24,7 @@ import { relay, viewHtml, WatchLink } from "./relay.ts";
 import { compareHost } from "./compare.ts";
 import type { Down } from "./webview.ts";
 import { StatusItem, type EngineStatus } from "./status.ts";
+import { texEngineOf } from "./texengine.ts";
 
 /** The project's text files (what the core reads as source), and the binary ones it is given apart. */
 const TEXT = /\.(tex|sty|cls|bib|bst|cfg|def|clo|fd|ltx|bbx|cbx|lbx|dtx|ins|txt|csv|dat|tikz|pgf|bbl)$/i;
@@ -117,6 +118,13 @@ let clientInfo = { name: "phitex-vscode", version: "" };
 /** The editor protocol this extension speaks: an older server's (capabilities.experimental.phitex.protocol) is said. */
 const PROTOCOL = 1;
 
+/** The TeX engine for a project's main file (texengine.ts), the setting phitex.texEngine's; one not runnable yet said. */
+function texEngine(main: string | undefined): string {
+  const r = texEngineOf(main, vscode.workspace.getConfiguration("phitex").get<string>("texEngine") ?? "auto");
+  if (r.unready) void vscode.window.showWarningMessage(`PhiTeX: this project needs ${r.unready}, which the builtin engine doesn't run yet; the preview uses pdfLaTeX.`);
+  return r.engine;
+}
+
 /** Which engine builds: the setting phitex.engine. */
 const engineSetting = () => (vscode.workspace.getConfiguration("phitex").get<string>("engine") === "phitex watch" ? "phitex watch" : "builtin");
 
@@ -142,6 +150,22 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("phitex.preview", () => open()),
     vscode.commands.registerCommand("phitex.stop", stop),
     vscode.commands.registerCommand("phitex.restart", restart),
+    // (a preview tab restored after a restart: its preview started again in it, for the
+    // folder open; one that can't be (no folder, a second tab) closed, never left stale)
+    ...["phitex.preview", "phitex.watch"].map((type) =>
+      vscode.window.registerWebviewPanelSerializer(type, {
+        async deserializeWebviewPanel(p) {
+          restored = p;
+          await open().catch(() => undefined);
+          if (restored === p) {
+            restored = undefined;
+            p.dispose();
+          }
+        },
+      }),
+    ),
+    // (another TeX engine chosen: the open builtin preview typeset again with it)
+    vscode.workspace.onDidChangeConfiguration((e) => void (e.affectsConfiguration("phitex.texEngine") && current && builtinView === current.view && restart())),
     vscode.commands.registerCommand("phitex.savePdf", () => (current ? current.save() : void vscode.window.showWarningMessage("PhiTeX: open the preview first."))),
     vscode.commands.registerCommand("phitex.showLog", () => log.show()),
     vscode.commands.registerCommand("phitex.rebuild", () => exec("phitex.rebuild")),
@@ -217,6 +241,19 @@ function crashed(why: string, log: vscode.OutputChannel): void {
   });
 }
 
+/** A preview tab VS Code restored after a restart, waiting for its preview (the next tab made takes it). */
+let restored: vscode.WebviewPanel | undefined;
+
+/** A preview's tab: the restored one if there is one (its options given again), else a new one beside the editor. */
+function previewPanel(type: string, title: string, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
+  const r = restored;
+  restored = undefined;
+  if (!r) return vscode.window.createWebviewPanel(type, title, { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, options);
+  r.webview.options = options;
+  r.title = title;
+  return r;
+}
+
 async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.OutputChannel, at?: string): Promise<void> {
   const ed = vscode.window.activeTextEditor;
   const ws = at ? { uri: vscode.Uri.file(at) } : ed ? vscode.workspace.getWorkspaceFolder(ed.document.uri) : vscode.workspace.workspaceFolders?.[0];
@@ -247,7 +284,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     void started.then(({ session }) => session.onEvent((e) => status.event(e as never)), () => undefined);
   }
 
-  const view = vscode.window.createWebviewPanel("phitex.preview", "⚡ PhiTeX", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {
+  const view = previewPanel("phitex.preview", "⚡ PhiTeX", {
     enableScripts: true,
     retainContextWhenHidden: true,
     localResourceRoots: [vscode.Uri.joinPath(ctx.extensionUri, "dist"), vscode.Uri.joinPath(ctx.extensionUri, "fonts")],
@@ -298,8 +335,10 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   // (the project's binary files first, then its text and the open)
   await Promise.all(stopping);
   for (const [file, bytes] of Object.entries(project.binaries)) core.provide(file, { path: "./" + file, bytes });
-  prefetch(core, index, project.files, "pdflatex");
-  const r = await session.request({ op: "open", main, files: project.files } as never);
+  const engine = texEngine(project.files[main]);
+  if (engine !== "pdflatex") log.appendLine(`engine: ${engine}`);
+  prefetch(core, index, project.files, engine);
+  const r = await session.request({ op: "open", main, files: project.files, engine } as never);
   if (!r.ok) {
     log.appendLine(`open: ${r.error}`);
     void vscode.window.showErrorMessage(`PhiTeX: ${r.error}`);
@@ -473,7 +512,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   log.appendLine(`phitex watch: ${cmd} watch ${main} --lsp (in ${folder})`);
   // (the tab at once, saying what the watch does until its viewer is up: a
   // first run builds the format, seconds)
-  const view = vscode.window.createWebviewPanel("phitex.watch", "⚡ phitex watch", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {
+  const view = previewPanel("phitex.watch", "⚡ phitex watch", {
     enableScripts: true,
     retainContextWhenHidden: true,
     localResourceRoots: [vscode.Uri.joinPath(ext, "dist"), vscode.Uri.joinPath(ext, "fonts")],

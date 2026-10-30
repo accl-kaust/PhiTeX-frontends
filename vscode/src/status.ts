@@ -1,13 +1,13 @@
 // The status bar's PhiTeX item: what the engine is doing, always true to
 // it. Idle, "⚡ PhiTeX" (a click: the menu); while it builds, a spinner and
-// the step (starting, fetching a package, typesetting); built, the last
+// the step (starting, fetching a package, making the format, typesetting); built, the last
 // build's time and its problems; a crash, in the error colour. Its state is
 // phitex/status's (docs/spec-editor-protocol.md: the language server's,
 // native or wasm); the builtin engine's events say the same meanwhile.
 
 import * as vscode from "vscode";
 
-export type EngineState = "off" | "starting" | "fetching" | "typesetting" | "ready" | "failed" | "stopped" | "crashed";
+export type EngineState = "off" | "starting" | "fetching" | "format" | "typesetting" | "ready" | "failed" | "stopped" | "crashed";
 
 /** As phitex/status says it. */
 export type EngineStatus = {
@@ -45,7 +45,7 @@ export class StatusItem implements vscode.Disposable {
 
   /** The builtin engine's events (the viewer's, common/src/viewer/session.ts's CoreEvent), as phitex/status would say them. */
   event(e: { event: string; [k: string]: unknown }): void {
-    if (e.event === "progress") this.set(e.phase === "fetching" ? { state: "fetching", name: String(e.name ?? e.pack ?? "") } : { state: "typesetting", pages: Number(e.pages ?? 0) || undefined });
+    if (e.event === "progress") this.set(e.phase === "fetching" ? { state: "fetching", name: String(e.name ?? e.pack ?? "") } : e.phase === "format" ? { state: "format" } : { state: "typesetting", pages: Number(e.pages ?? 0) || undefined });
     else if (e.event === "preparing" && e.on) this.set({ state: "typesetting" });
     else if (e.event === "build" || e.event === "failed") {
       const errors = Array.isArray(e.errors) ? e.errors.length : e.event === "failed" ? 1 : 0;
@@ -71,6 +71,10 @@ export class StatusItem implements vscode.Disposable {
       case "fetching":
         it.text = `$(loading~spin) PhiTeX: ${s.name || "packages"}`;
         it.tooltip = `PhiTeX: fetching ${s.name || "packages"} (kept for next time)`;
+        break;
+      case "format":
+        it.text = "$(loading~spin) PhiTeX: format";
+        it.tooltip = "PhiTeX: making the format, once per PhiTeX update";
         break;
       case "typesetting":
         it.text = `$(loading~spin) PhiTeX${s.pages ? `: p. ${s.pages}` : ""}`;

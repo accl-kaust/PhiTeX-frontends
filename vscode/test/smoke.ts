@@ -22,6 +22,7 @@ import { findMain } from "../src/changes.ts";
 import { prefetch, startCore } from "../src/core.ts";
 import { nodePlatform } from "../src/platform.ts";
 import { lspChannel } from "../../common/src/wasm/host.ts";
+import { texEngineOf } from "../src/texengine.ts";
 
 const high = process.argv.includes("--high");
 const [folder, mainArg] = process.argv.slice(2).filter((a) => a !== "--high");
@@ -69,8 +70,10 @@ if (high) {
   while ((probe = x.ph_alloc(64) >>> 0) < 2 ** 31) if (!x.ph_alloc(4096)) throw new Error("--high: the heap is full below 2 GiB");
   console.log(`--high: a new allocation at ${(probe / 2 ** 30).toFixed(2)} GiB`);
 }
-prefetch(core, index, files, "pdflatex");
-const r = await session.request({ op: "open", main, files } as never);
+const engine = texEngineOf(files[main]).engine;
+console.log(`engine: ${engine}`);
+prefetch(core, index, files, engine);
+const r = await session.request({ op: "open", main, files, engine } as never);
 if (!r.ok) throw new Error(`open: ${r.error}`);
 // (the editor's language client: initialized, the main file opened as its buffer)
 const lsp = lspChannel(core, "smoke");
@@ -184,6 +187,8 @@ for (let i = 0; i < 100 && log.ok && (log as any).json?.pending; i++) {
 const logText = String((log as any).json?.text ?? "");
 const logOk = log.ok && /^This is |\(\.\/[^)]*\.tex/m.test(logText);
 console.log(`log: ${log.ok ? `${logText.length} chars, ${JSON.stringify(logText.split("\n")[0].slice(0, 60))}` : "failed " + log.error}`);
+// (no pages or no PDF: the log's start and end, why)
+if (!pages.json?.pages?.length || !first?.length) console.log(`log start:\n${logText.slice(0, 600)}\nlog end:\n${logText.slice(-1500)}`);
 // (the status the server told; the caches, this host's)
 const caches = await ask("workspace/executeCommand", { command: "phitex.cacheStats", arguments: [] });
 const said = caches.result?.caches?.map((c: any) => `${c.scope} ${c.entries} entries ${c.hits}/${c.misses}`).join(", ");

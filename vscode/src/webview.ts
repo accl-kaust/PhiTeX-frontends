@@ -124,6 +124,8 @@ const panel = new Panel(
     onClean: () => void session.resync(),
     onGoto: (file, line) => void relay.request({ op: "source", file, line, col: 1 }),
     onSyncSource: (k, x, y) => void shown().toSource(k, x, y),
+    // (text selected on the pages: its source selected in the editor, remote.select)
+    onSelectPage: (sel) => void shown().selectPage(sel),
     onFind: (q) => pages.find(q),
     // (the contents opened: the outline asked for now)
     onContents: () => void shown().outline(),
