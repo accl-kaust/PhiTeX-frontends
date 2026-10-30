@@ -128,6 +128,16 @@ function fromDoc(d: Doc, id: string): Project {
   return { id, name: d.name, files, binaries, main: mainOf(files), engine: "auto", updated: Date.now() };
 }
 
+/** An example's files in a word: its copies made from another example's text are told apart (djb2 over its paths, texts and binaries' sizes). */
+function fingerprint(d: Doc): string {
+  let h = 5381;
+  for (const [p, v] of Object.entries(d.files).sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const t = `${p}\0${typeof v === "string" ? v : `#${v.length}`}\0`;
+    for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  }
+  return h.toString(36);
+}
+
 /** A version's title in the menu and the diff bar. */
 const titleOf = (v: Version) => v.label || "Autosaved";
 
@@ -485,6 +495,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   let changedSinceVersion = false;
   function dirty(): void {
     changedSinceVersion = true;
+    P().edited = true;
     clearTimeout(saveTimer);
     const p = P();
     saveTimer = setTimeout(() => void saveProject(p).catch((e: unknown) => say(`Not saved in this browser: ${e}`, true)), 800);
@@ -511,8 +522,14 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   async function openSample(i: number): Promise<void> {
     const d = samples[Math.max(0, Math.min(i, samples.length - 1))];
     const id = `sample-${d.name}`;
-    const kept = await loadProjectById(id).catch(() => undefined);
-    const p = kept ?? fromDoc(d, id);
+    let kept = await loadProjectById(id).catch(() => undefined);
+    // (the example changed since this copy was made: an unedited copy is the new example;
+    // an edited one, or one from before copies were marked, kept as the visitor's own project beside it)
+    if (kept && kept.sample !== fingerprint(d)) {
+      if (kept.edited !== false) await saveProject({ ...kept, id: newId(), name: `${kept.name} (your edits)`, sample: undefined }).catch(() => undefined);
+      kept = undefined;
+    }
+    const p = kept ?? { ...fromDoc(d, id), sample: fingerprint(d), edited: false };
     // (a new copy saved with a version of it as it came, "As opened": an edit can be compared at once, no version to save first)
     if (!kept) await saveProject(p).then(() => saveVersion(p, "As opened")).catch(() => undefined);
     await openProject(p);

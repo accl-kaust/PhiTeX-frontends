@@ -15,6 +15,10 @@ export interface Project {
   engine: EngineChoice;
   /** Date.now() of its last change. */
   updated: number;
+  /** An example's copy: the example's fingerprint when copied (a newer example replaces an unedited copy). */
+  sample?: string;
+  /** Edited since it was made (an example's copy then kept as the visitor's own when the example changes). */
+  edited?: boolean;
 }
 
 export interface Version {
