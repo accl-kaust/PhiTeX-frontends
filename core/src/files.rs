@@ -109,6 +109,9 @@ impl Files {
     fn shelf(self: &Arc<Self>, engine: &'static str) -> Option<Arc<shelf::Files>> {
         let mut s = self.lock();
         let ix = s.index.clone()?;
+        if let Some(f) = s.shelves.get(engine) {
+            return Some(f.clone());
+        }
         // (another engine's shelf over the same packs when there is one: the host gives each pack once,
         // so a second engine's own store would ask again for a pack the first took and wait for ever)
         let made = s.shelves.values().next().map(|f| f.for_engine(engine));

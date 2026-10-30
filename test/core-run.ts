@@ -17,6 +17,7 @@
 // --texmf DIR: the bundled texmf/ read from there (default: the repo's texmf/).
 // --wasm PATH: the core built elsewhere (e.g. with --features profile).
 // --env NAME=value (repeatable): the core's environment, e.g. PHITEX_TEX_TIME=1.
+// --no-bundled: no texmf/ bundled, every file from Shelf (/try's question: are the bundled files needed?).
 // --engine NAME: the TeX program (pdflatex by default; xelatex: make-formats.sh's XeLaTeX format).
 // --minted: \write18 runs latexminted in Pyodide (PhiTeX's
 // tools/minted-pyodide runner, Pyodide from node_modules, minted's wheels
@@ -131,7 +132,7 @@ const core = Core.start(module, {
     wants++;
     if (!kpse) {
       // (by name only the bundled texmf/: the project's own were given before)
-      const b = await readFile(new URL(name, bundledDir)).catch(() => null);
+      const b = flag("--no-bundled") ? null : await readFile(new URL(name, bundledDir)).catch(() => null);
       if (b) read.push(name);
       return b ? { path: name, bytes: new Uint8Array(b) } : null;
     }
@@ -156,7 +157,7 @@ const core = Core.start(module, {
 });
 const main = file ? file.split("/").pop()! : "plain.tex";
 if (!kpse) {
-  core.setIndex(gunzipSync(await readFile("shelf-index.tsv.gz")), await readFile("shelf-release.json"), gunzipSync(await readFile("shelf-packs.tsv.gz")), (await readdir(bundledDir)).filter((n) => n !== "names.txt"));
+  core.setIndex(gunzipSync(await readFile("shelf-index.tsv.gz")), await readFile("shelf-release.json"), gunzipSync(await readFile("shelf-packs.tsv.gz")), flag("--no-bundled") ? [] : (await readdir(bundledDir)).filter((n) => n !== "names.txt"));
   // (the document's directory, given before the build: a project's files)
   const dir = file ? file.slice(0, file.lastIndexOf("/") + 1) || "./" : null;
   for (const n of dir ? await readdir(dir) : []) if (n !== main && /\.(tex|sty|cls|bib|bst|cfg|def|png|pdf|jpg)$/.test(n)) core.provide(n, { path: "./" + n, bytes: new Uint8Array(await readFile(dir + n)) });
