@@ -1065,6 +1065,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     },
     // (the last build's log: the core's transcript)
     onLog: () => shown()?.log() ?? Promise.resolve(null),
+    onBoxes: (file, start, end) => shown()?.boxesOf(file, start, end) ?? Promise.resolve([]),
   }, prefs, { host: "overleaf", fileUrl: (p) => chrome.runtime.getURL(p) });
   // (off in the popup: nothing at all, not even the project fetched; on again, live)
   let { enabled } = await chrome.storage.local.get("enabled");
