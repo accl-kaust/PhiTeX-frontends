@@ -134,9 +134,9 @@ const titleOf = (v: Version) => v.label || "Autosaved";
 const BAR = `
 <div class="phx-bar">
   <span class="phx-logo">PhiTeX</span>
-  <label class="phx-proj"><span class="sr">Project</span><select id="phx-proj" title="Your projects, kept in this browser"></select></label>
+  <label class="phx-proj" title="Your projects, kept in this browser: pick one to open it"><span class="cap">Project</span><select id="phx-proj"></select></label>
   <div class="phx-menu"><button type="button" data-menu="new" aria-haspopup="menu" aria-expanded="false">New ▾</button><div class="phx-pop" data-pop="new" role="menu" hidden></div></div>
-  <div class="phx-menu"><button type="button" data-menu="project" aria-haspopup="menu" aria-expanded="false">Project ▾</button><div class="phx-pop" data-pop="project" role="menu" hidden></div></div>
+  <div class="phx-menu"><button type="button" data-menu="project" aria-haspopup="menu" aria-expanded="false" title="This project: its ZIP, name, versions, cache; delete">Manage ▾</button><div class="phx-pop" data-pop="project" role="menu" hidden></div></div>
   <span class="grow"></span>
   <label class="phx-engine" title="This project's TeX engine">Engine <select id="phx-engine"></select></label>
   <button type="button" id="phx-files" class="phx-narrow" aria-pressed="false">Files</button>

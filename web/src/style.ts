@@ -27,6 +27,10 @@ export const CSS = `
 .phx-bar > button:hover, .phx-menu > button:hover, .phx-menu > button[aria-expanded="true"] { background: var(--hover); }
 .phx-bar > button[aria-pressed="true"] { background: var(--sel); box-shadow: inset 0 -2px var(--current); font-weight: 600; }
 .phx-bar select { height: 28px; max-width: 200px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); padding: 0 4px; }
+.phx-proj { display: inline-flex; align-items: center; gap: 6px; margin-right: 6px; }
+.phx-proj .cap { color: var(--fg2); font-size: 12px; }
+.phx-proj select { min-width: 150px; height: 30px; padding: 0 8px; font-weight: 600; border-color: var(--fg2); cursor: pointer; }
+.phx-proj select:hover { background: var(--bg2); }
 .phx-engine { display: inline-flex; align-items: center; gap: 4px; color: var(--fg2); }
 :root[data-theme="dark"] .phx-web { ${DARK} }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .phx-web { ${DARK} } }
