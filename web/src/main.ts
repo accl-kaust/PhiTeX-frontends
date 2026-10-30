@@ -511,7 +511,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     const id = `sample-${d.name}`;
     const kept = await loadProjectById(id).catch(() => undefined);
     const p = kept ?? fromDoc(d, id);
-    if (!kept) await saveProject(p).catch(() => undefined);
+    // (a new copy saved with a version of it as it came, "As opened": an edit can be compared at once, no version to save first)
+    if (!kept) await saveProject(p).then(() => saveVersion(p, "As opened")).catch(() => undefined);
     await openProject(p);
   }
 

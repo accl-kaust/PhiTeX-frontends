@@ -43,16 +43,17 @@ export const CSS = `
 .phx-tip .acts .primary { background: var(--accent); color: #fff; font-weight: 600; }
 .phx-tip .acts .primary:hover { background: var(--accent-hover); }
 /* (the demo: the picker opens, the highlight walks the examples, lands on one, closes) */
-.phx-tip .demo { position: relative; height: 120px; margin-bottom: 10px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg2); overflow: hidden; font-size: 11px; }
+.phx-tip .demo { position: relative; height: 136px; margin-bottom: 10px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg2); overflow: hidden; font-size: 11px; }
 .phx-tip .pick { display: inline-flex; gap: 18px; align-items: center; padding: 3px 8px; border: 1px solid var(--fg2); border-radius: 4px; background: var(--bg); animation: phx-tip-press 5s infinite; }
 .phx-tip .list { position: absolute; left: 8px; top: 32px; width: 150px; padding: 3px 0; display: flex; flex-direction: column; background: var(--bg);
   border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 3px 10px rgb(27 34 44 / 18%); opacity: 0; transform-origin: top; animation: phx-tip-open 5s infinite; }
-.phx-tip .list small { padding: 1px 8px; color: var(--fg2); font-size: 9px; text-transform: uppercase; letter-spacing: .04em; }
-.phx-tip .list span { position: relative; z-index: 1; padding: 1px 14px; line-height: 13px; }
-.phx-tip .list .hi { position: absolute; left: 2px; right: 2px; top: 17px; height: 13px; border-radius: 2px; background: var(--sel); animation: phx-tip-walk 5s infinite; }
+/* (every row a fixed height, so the highlight's steps land on rows exactly: 3px padding, a 14px heading, then 16px rows) */
+.phx-tip .list small { height: 14px; padding: 0 8px; line-height: 14px; color: var(--fg2); font-size: 9px; text-transform: uppercase; letter-spacing: .04em; }
+.phx-tip .list span { position: relative; z-index: 1; height: 16px; padding: 0 14px; line-height: 16px; }
+.phx-tip .list .hi { position: absolute; left: 2px; right: 2px; top: 17px; height: 16px; border-radius: 2px; background: var(--sel); animation: phx-tip-walk 5s infinite; }
 @keyframes phx-tip-press { 0%, 8% { background: var(--bg); } 12%, 80% { background: var(--hover); } 86%, 100% { background: var(--bg); } }
 @keyframes phx-tip-open { 0%, 10% { opacity: 0; transform: scaleY(.9); } 16%, 78% { opacity: 1; transform: none; } 84%, 100% { opacity: 0; } }
-@keyframes phx-tip-walk { 0%, 22% { transform: translateY(0); } 34% { transform: translateY(13px); } 46% { transform: translateY(26px); } 58%, 78% { transform: translateY(39px); background: var(--current); } 100% { transform: translateY(39px); } }
+@keyframes phx-tip-walk { 0%, 22% { transform: translateY(0); } 30%, 34% { transform: translateY(16px); } 42%, 46% { transform: translateY(32px); } 54% { transform: translateY(48px); background: var(--sel); } 58%, 78% { transform: translateY(48px); background: var(--current); } 100% { transform: translateY(48px); } }
 @media (prefers-reduced-motion: reduce) { .phx-tip .demo * { animation: none !important; } .phx-tip .list { opacity: 1; } }
 .phx-engine { display: inline-flex; align-items: center; gap: 4px; color: var(--fg2); }
 :root[data-theme="dark"] .phx-web { ${DARK} }
