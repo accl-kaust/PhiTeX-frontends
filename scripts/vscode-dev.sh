@@ -18,7 +18,7 @@ repo=$PWD
 
 phitex=${2:-}
 [ -n "$phitex" ] || { [ -x target/native/phitex ] && phitex=$repo/target/native/phitex; } || phitex=$(command -v phitex || true)
-[ -n "$phitex" ] && "$phitex" watch --help 2>/dev/null | grep -q -- --lsp || { echo "no phitex with watch --lsp (give its path as the second argument)" >&2; exit 1; }
+[ -n "$phitex" ] && "$phitex" watch --help-all 2>/dev/null | grep -q -- --lsp || { echo "no phitex with watch --lsp (give its path as the second argument)" >&2; exit 1; }
 
 folder=${1:-}
 if [ -z "$folder" ]; then
