@@ -34,8 +34,6 @@ for d in pyodide minted; do
   cp -r "overleaf/dist/$d" "vscode/dist/$d"
 done
 cp overleaf/shelf-index.tsv.gzdata overleaf/shelf-packs.tsv.gzdata overleaf/shelf-release.json overleaf/LICENSE.txt overleaf/NOTICE.txt vscode/
-# (the Marketplace's icon: the browser extension's)
-cp overleaf/icons/icon128.png vscode/icon.png
 
 if [ "${1:-}" = --package ]; then
   # (no source maps in the package)

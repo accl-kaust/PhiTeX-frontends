@@ -5,7 +5,6 @@
   "version": "0.7.0",
   "publisher": "accl-kaust",
   "license": "AGPL-3.0-only",
-  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/accl-kaust/PhiTeX-frontends"
