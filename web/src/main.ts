@@ -470,6 +470,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     };
     const sink = gate(panel, () => compare.showing !== "diff");
     session = new PreviewSession(host, pages, sink, sessionOptions());
+    // (the session shown, for tests to read its trace: web/test's, as the extension's content script keeps it)
+    (globalThis as unknown as { __phitexSession?: PreviewSession }).__phitexSession = session;
     editor.file = "";
     openFile(p.main in p.files ? p.main : Object.keys(p.files)[0]);
     $<HTMLSelectElement>("#phx-engine").value = p.engine;

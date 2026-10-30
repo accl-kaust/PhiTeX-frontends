@@ -9,7 +9,8 @@ await new Promise((r) => setTimeout(r, 400));
 const home = process.cwd() + "/web/test/.one";
 const b = await chromium.launch({ executablePath: "/usr/bin/chromium", args: ["--no-sandbox", "--disable-crashpad", "--disable-crash-reporter"], env: { ...process.env, HOME: home, XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home } });
 const p = await b.newPage({ viewport: { width: 1360, height: 820 } });
-p.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && console.log(`[error] ${m.text().slice(0, 300)}`));
+p.on("console", (m) => (m.type() === "error" || process.env.LOG) && !/Failed to load resource/.test(m.text()) && console.log(`[${m.type()}] ${m.text().slice(0, 300)}`));
+p.on("worker", (w) => w.on("console", (m) => process.env.LOG && console.log(`[worker ${m.type()}] ${m.text().slice(0, 300)}`)));
 await p.goto(`http://127.0.0.1:${port}/`);
 await p.waitForFunction(() => window.phitex);
 const index = (w) => p.evaluate((w) => [...document.querySelectorAll("#phx-proj optgroup[label=Examples] option")].findIndex((o) => o.textContent === w), w);
@@ -36,6 +37,7 @@ for (const [n, want] of names.entries()) {
   }
   const done = !st.up && st.pages > 0;
   ok &&= done;
+  if (!done) for (const t of await p.evaluate(() => (globalThis.__phitexSession?.trace ?? []).slice(-30))) console.log("  trace:", JSON.stringify(t).slice(0, 300));
   console.log(`${want}: ${done ? `first page in ${((Date.now() - t) / 1000).toFixed(1)} s` : "NO PAGE in 240 s"} ${JSON.stringify(st)}`);
   await p.screenshot({ path: `web/shots/one-${n}-${want.toLowerCase()}.png` });
 }
