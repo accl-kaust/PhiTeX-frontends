@@ -175,7 +175,12 @@ const range = pick?.params.selection;
 const selectOk = !!range && (range.start.line !== range.end.line || range.start.character !== range.end.character);
 console.log(`select: ${sel.ok ? "ok" : "failed " + sel.error}; showDocument ${pick ? `${pick.params.uri.split("/").pop()} ${range?.start.line}:${range?.start.character}-${range?.end.line}:${range?.end.character} takeFocus ${pick.params.takeFocus}` : "NOT SENT"}`);
 // (the last build's .log, as the panel's View log asks for it)
-const log = await session.request({ op: "log" } as never);
+// (made when asked: `pending` until the document has made it, asked again)
+let log = await session.request({ op: "log" } as never);
+for (let i = 0; i < 100 && log.ok && (log as any).json?.pending; i++) {
+  await new Promise((r) => setTimeout(r, 100));
+  log = await session.request({ op: "log" } as never);
+}
 const logText = String((log as any).json?.text ?? "");
 const logOk = log.ok && /^This is |\(\.\/[^)]*\.tex/m.test(logText);
 console.log(`log: ${log.ok ? `${logText.length} chars, ${JSON.stringify(logText.split("\n")[0].slice(0, 60))}` : "failed " + log.error}`);
