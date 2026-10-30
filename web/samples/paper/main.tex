@@ -1,0 +1,109 @@
+% try: cite another entry of refs.bib, say \cite{lamport94}, or add a \section: numbers and references follow in one build
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=0.75in,top=0.8in]{geometry}
+\usepackage{amsmath,amsthm}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\title{\bfseries Keystroke-Speed Typesetting\\[2pt] \large with Exact Output}
+\author{Ada Writer \and Ben Reader\\[2pt] \small Department of Typography, Example University}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A writer changes one word, and a typesetter reads the whole document again.
+We describe how an engine can instead keep what it built, find what an edit
+can reach, and typeset only that, while every page it shows is the page a
+full run would make. Section~\ref{sec:method} gives the method,
+Theorem~\ref{thm:exact} its guarantee, and Table~\ref{tab:cost} where the
+time goes.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+TeX~\cite{knuth84} and \LaTeX~\cite{lamport94} treat a document as a program
+run from its first line to its last. Line breaking~\cite{knuthplass81} and
+page building look only backwards, so most of a run repeats the last one
+exactly. Incremental computation~\cite{acar05} suggests reusing it.
+
+\section{Method}
+\label{sec:method}
+\begin{definition}
+A \emph{cut} is a point in the source after which the engine's state is
+determined by the state before it and the text after it.
+\end{definition}
+Every paragraph end is a cut. An edit between two cuts invalidates the work
+from the first cut until the state agrees with the previous run again.
+
+\begin{algorithm}[h]
+\caption{Rebuild after an edit}
+\label{alg:rebuild}
+\begin{algorithmic}[1]
+\Require cuts $c_1<\dots<c_n$, an edit at position $p$
+\State $i \gets \max\{\, j : c_j \le p \,\}$
+\Repeat
+  \State typeset from $c_i$ to $c_{i+1}$
+  \State $i \gets i + 1$
+\Until{the state at $c_i$ equals the last run's}
+\State reuse every page after $c_i$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{lemma}
+\label{lem:agree}
+If the state at a cut agrees with the last run's, so does everything after it.
+\end{lemma}
+\begin{proof}
+TeX is deterministic: equal states and equal input give equal output.
+\end{proof}
+
+\begin{theorem}[Exactness]
+\label{thm:exact}
+The output of Algorithm~\ref{alg:rebuild} is identical, byte for byte, to a
+full run on the edited source.
+\end{theorem}
+\begin{proof}
+Up to $c_i$ the source is unchanged; from there it is typeset again until a
+cut agrees, and Lemma~\ref{lem:agree} gives the rest.
+\end{proof}
+
+\section{Where the time goes}
+\label{sec:cost}
+\begin{table}[h]
+\centering
+\caption{Work per keystroke, illustrative.}
+\label{tab:cost}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Step & Full run & After an edit \\
+\midrule
+Read the source   & 100\% & one paragraph \\
+Break into lines  & 100\% & one paragraph \\
+Build the pages   & 100\% & one page \\
+Write the PDF     & 100\% & one page \\
+\bottomrule
+\end{tabular}
+\end{table}
+The cost of an edit is set by what it reaches, not by the length of the
+document: a word in chapter one of a thesis costs as much as a word in a
+letter. The equation of the cost is simply
+\begin{equation}
+  T_{\text{edit}} = \sum_{k=i}^{j} t(c_k, c_{k+1}), \qquad j - i \ll n.
+\end{equation}
+
+\section{Conclusion}
+Keep what is built, rebuild what an edit reaches, and prove that the result is
+the full run's. The writer sees the page follow every keystroke.
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}

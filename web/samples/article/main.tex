@@ -1,0 +1,60 @@
+% try: change any word; only the paragraph you touch is typeset again. Then compare versions, as Section 2 says.
+\documentclass[11pt]{article}
+\usepackage[margin=.9in,top=.7in]{geometry}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\definecolor{navy}{HTML}{1D3E72}
+\usepackage[colorlinks,urlcolor=navy,linkcolor=navy]{hyperref}
+
+\title{\includegraphics[height=1.7cm]{phitex-logo.pdf}\\[8pt]
+  \bfseries Typesetting as You Type}
+\author{Ammar Seliaman \qquad Suhaib Fahmy\\[2pt]
+  \small Accelerated Connected Computing Lab, KAUST}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document is typeset in your browser by PhiTeX, an incremental TeX engine
+compiled to WebAssembly. Change any word on the left: only the paragraph you
+touch is typeset again, and the page on the right follows. The PDF is exactly
+the one pdfLaTeX would make.
+\end{abstract}
+
+\section{Introduction}
+TeX reads a whole document from the top every time it runs. PhiTeX keeps
+what it built last time and reuses everything an edit cannot change, so a
+keystroke costs a paragraph, not a document. The Gaussian integral is a
+classic test of any typesetter:
+\begin{equation}
+  \int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}.
+\end{equation}
+Try changing the exponent, or add a second equation below it.
+
+\section{See what you changed}
+\label{sec:compare}
+PhiTeX has latexdiff built in. To try it:
+\begin{enumerate}
+  \item Change a few words in the paragraphs above, and delete a sentence.
+  \item In the toolbar above the page, click \textbf{Compare versions} and choose
+        \emph{As opened}. The page shows both versions at once, as latexdiff marks them:
+        \textcolor{blue}{\underline{additions in blue}}, deletions
+        \textcolor{red}{struck out in red}. Keep typing: the comparison follows.
+\end{enumerate}
+
+\section{Get PhiTeX}
+\begin{itemize}
+  \item \textbf{On your computer} (Linux, macOS):
+        \href{https://phitex.org/install.html}{phitex.org/install}, or in a terminal\\
+        \texttt{curl -fsSL https://phitex.org/install.sh | sh}
+  \item \textbf{In Overleaf}, a browser extension:
+        \href{https://chromewebstore.google.com/detail/phitex-instant-for-overle/joimneigjammmhdbgaonlepnlllceajl}{Chrome},
+        \href{https://addons.mozilla.org/en-US/firefox/addon/phitex-for-overleaf-unofficial/}{Firefox},
+        \href{https://microsoftedge.microsoft.com/addons/detail/phitex-instant-for-overle/gkcnpagkdjaefnnpkoogdpacdmgpihpd}{Edge}
+  \item \textbf{In VS Code}: the PhiTeX extension, coming soon
+  \item \textbf{The source}: \href{https://github.com/accl-kaust/PhiTeX}{github.com/accl-kaust/PhiTeX}
+\end{itemize}
+
+\end{document}

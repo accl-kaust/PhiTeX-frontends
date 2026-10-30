@@ -1,0 +1,51 @@
+% try: change a question's points, say \question[10]: the total and the grade table follow in one build
+\documentclass[11pt,addpoints,answers]{exam}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+
+\pagestyle{headandfoot}
+\firstpageheader{Calculus I}{Midterm}{Autumn}
+\runningheader{Calculus I}{Midterm, page \thepage\ of \numpages}{}
+\firstpagefooter{}{}{}
+\runningfooter{}{}{}
+\renewcommand{\solutiontitle}{\noindent\textbf{Solution.}\enspace}
+
+\begin{document}
+\begin{center}
+  {\Large\bfseries Midterm Examination}\\[4pt]
+  Answer every question. Show your working. \numquestions\ questions, \numpoints\ points.
+\end{center}
+\vspace{4pt}
+\begin{center}\gradetable[h][questions]\end{center}
+
+\begin{questions}
+
+\question[6] Differentiate $f(x) = x^2 e^{3x}$.
+\begin{solution}
+By the product rule, $f'(x) = 2x e^{3x} + 3x^2 e^{3x} = x e^{3x}(2 + 3x)$.
+\end{solution}
+
+\question Evaluate the integrals.
+\begin{parts}
+  \part[4] $\displaystyle\int_0^1 x^3\,dx$
+  \begin{solution} $\left[\tfrac{x^4}{4}\right]_0^1 = \tfrac14$. \end{solution}
+  \part[5] $\displaystyle\int_0^{\pi} \sin^2 x\,dx$
+  \begin{solution} With $\sin^2 x = \tfrac12(1-\cos 2x)$, the integral is $\tfrac{\pi}{2}$. \end{solution}
+\end{parts}
+
+\question[3] Which limit equals $e$?
+\begin{choices}
+  \choice $\lim_{n\to\infty} (1 + n)^{1/n}$
+  \CorrectChoice $\lim_{n\to\infty} \left(1 + \tfrac1n\right)^{n}$
+  \choice $\lim_{n\to\infty} \tfrac{n}{n+1}$
+  \choice $\lim_{n\to\infty} n^{1/n}$
+\end{choices}
+
+\question[7] Find the area enclosed by $y = x^2$ and $y = 2x$.
+\begin{solution}
+They meet at $x = 0$ and $x = 2$, so the area is
+$\int_0^2 (2x - x^2)\,dx = \left[x^2 - \tfrac{x^3}{3}\right]_0^2 = \tfrac43$.
+\end{solution}
+
+\end{questions}
+\end{document}

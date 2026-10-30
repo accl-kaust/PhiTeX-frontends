@@ -1,0 +1,39 @@
+% try: change a bond in the caffeine molecule, or balance another reaction with \ce{...}
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{chemfig}
+\usepackage{amsmath}
+\usepackage[version=4]{mhchem}
+\setchemfig{atom sep=2em, bond style={line width=.8pt}}
+
+\begin{document}
+\begin{center}{\LARGE\bfseries Chemistry}\\[3pt]{\large molecules and reactions, typeset}\end{center}
+
+\section*{Molecules}
+\begin{center}
+\begin{tabular}{ccc}
+  \chemfig{*6((=O)-N(-CH_3)-*5(-N=-N(-CH_3)-=)--(=O)-N(-H_3C)-)} &
+  \chemfig{*6(-=-=-=)} &
+  \chemfig{H_3C-CH_2-OH} \\[6pt]
+  caffeine & benzene & ethanol
+\end{tabular}
+\end{center}
+
+\section*{A reaction}
+\begin{center}
+\schemestart
+  \chemfig{*6(-=-=-=)}
+  \arrow{->[\ce{HNO3}][\ce{H2SO4}]}
+  \chemfig{*6(-=-(-NO_2)=-=)}
+\schemestop
+\end{center}
+
+\section*{Equations}
+\begin{align*}
+  &\ce{2 H2 + O2 -> 2 H2O} \\
+  &\ce{CO2 + H2O <=> H2CO3 <=> H+ + HCO3-} \\
+  &\ce{CaCO3 ->[\Delta] CaO + CO2 ^} \\
+  &\ce{Cu^{2+} + 4 NH3 -> [Cu(NH3)4]^{2+}}
+\end{align*}
+
+\end{document}

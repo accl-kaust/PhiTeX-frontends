@@ -1,0 +1,54 @@
+% try: edit the Python on the page, or change the style to friendly: the highlighting is redone as you type
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{minted}
+\usemintedstyle{tango}
+\setminted{fontsize=\small, linenos, frame=lines, framesep=6pt, numbersep=8pt}
+
+\begin{document}
+\begin{center}{\LARGE\bfseries Code, highlighted}\\[3pt]{\large by Pygments, inside the build}\end{center}
+
+\section*{Python}
+\begin{minted}{python}
+def knuth_plass(words, width):
+    """Break a paragraph into lines, minimising the total badness."""
+    best = {0: (0, None)}
+    for j in range(1, len(words) + 1):
+        best[j] = min(
+            (best[i][0] + badness(words[i:j], width), i)
+            for i in range(j) if fits(words[i:j], width)
+        )
+    return lines_from(best, len(words))
+\end{minted}
+
+\section*{Rust}
+\begin{minted}{rust}
+/// The pages after an edit: rebuilt until they agree with the last run.
+fn rebuild(cuts: &[Cut], edit: usize, last: &Run) -> Vec<Page> {
+    let mut i = cuts.partition_point(|c| c.pos <= edit) - 1;
+    let mut pages = Vec::new();
+    loop {
+        let (state, page) = typeset(&cuts[i], &cuts[i + 1]);
+        pages.push(page);
+        i += 1;
+        if state == last.state_at(i) { break; }
+    }
+    pages
+}
+\end{minted}
+
+\section*{C}
+\begin{minted}{c}
+#include <stdio.h>
+
+static unsigned long factorial(unsigned n) {
+    return n <= 1 ? 1 : n * factorial(n - 1);
+}
+
+int main(void) {
+    for (int n = 1; n <= 5; n++)
+        printf("%d! = %lu\n", n, factorial(n));
+    return 0;
+}
+\end{minted}
+\end{document}

@@ -40,5 +40,7 @@ vscode/formats/
 web/dist/
 web/shots/
 web/test/.cache/
+web/test/.home/
+web/test/.one/
 web/build/
 web/test/node_modules

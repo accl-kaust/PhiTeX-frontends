@@ -1,0 +1,46 @@
+% try: add a job under Experience: the page lays itself out again as you type
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=.75in]{geometry}
+\usepackage{xcolor}
+\definecolor{navy}{HTML}{1D3E72}
+\definecolor{accent}{HTML}{F58F2D}
+\definecolor{gray}{HTML}{5F6B7A}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\renewcommand{\familydefault}{\sfdefault}
+
+\newcommand{\cvsection}[1]{\vspace{14pt}{\color{navy}\large\bfseries\MakeUppercase{#1}}\par\vspace{3pt}{\color{accent}\rule{\linewidth}{1.2pt}}\par\vspace{6pt}}
+\newcommand{\entry}[4]{% what, where, when, details
+  {\bfseries #1}\hfill{\color{gray}#3}\par
+  {\itshape\color{navy}#2}\par\vspace{2pt}
+  {\small #4}\par\vspace{8pt}}
+
+\begin{document}
+{\color{navy}\fontsize{30}{34}\selectfont\bfseries Ada Writer}\par\vspace{4pt}
+{\color{gray}Typesetting engineer \quad\textbullet\quad ada@example.org \quad\textbullet\quad example.org/ada}
+
+\cvsection{Profile}
+Builds tools that make documents fast to write and exact to print. Ten years
+of \TeX, five of compilers, one of making them meet.
+
+\cvsection{Experience}
+\entry{Lead engineer}{Example Press}{2022 -- now}{%
+  Rebuilt the house style as a \LaTeX\ class used for 400 books a year;
+  cut a book's build from minutes to seconds.}
+\entry{Compiler engineer}{Example Systems}{2018 -- 2022}{%
+  Incremental compilation for a domain-specific language; caching and
+  dependency tracking across a million-line codebase.}
+\entry{Research assistant}{Example University}{2015 -- 2018}{%
+  Paragraph and page breaking; a study of how writers edit long documents.}
+
+\cvsection{Education}
+\entry{PhD, Computer Science}{Example University}{2018}{Thesis: \emph{Incremental Typesetting}.}
+\entry{BSc, Mathematics}{Example College}{2014}{First-class honours.}
+
+\cvsection{Skills}
+\begin{tabular}{@{}p{.22\linewidth}p{.72\linewidth}@{}}
+  \bfseries Typesetting & \TeX, \LaTeX, METAPOST, PDF internals \\
+  \bfseries Languages   & Rust, C, OCaml, Python \\
+  \bfseries Spoken      & English, French, Arabic
+\end{tabular}
+\end{document}

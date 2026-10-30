@@ -31,7 +31,7 @@ echo 'export declare const parser: import("@lezer/lr").LRParser;' > web/build/la
 rm -rf web/dist
 mkdir -p web/dist/dist
 es=(node_modules/.bin/esbuild --bundle --minify --log-level=warning --platform=browser --format=esm --target=es2022)
-"${sandbox[@]}" "${es[@]}" web/src/main.ts --loader:.tex=text --outfile=web/dist/dist/web.js
+"${sandbox[@]}" "${es[@]}" web/src/main.ts --loader:.tex=text --loader:.bib=text --loader:.pdf=binary --outfile=web/dist/dist/web.js
 "${sandbox[@]}" "${es[@]}" overleaf/src/worker.ts --outfile=web/dist/dist/worker.js
 "${sandbox[@]}" "${es[@]}" overleaf/src/thread.ts --outfile=web/dist/dist/thread.js
 # (a page imports web.js (mount); the bundles sit in dist/, the platform's root one up, as in the extension)
@@ -59,7 +59,7 @@ done
 while read -r stem; do
   engine=${stem%%-*}
   case $engine in
-    pdflatex) doc=web/samples/article.tex ;;
+    pdflatex) doc=web/samples/article/main.tex ;;
     xelatex) doc=test/scenarios/fontspec/main.tex ;;
     *) echo "no first build to record for $engine's format" >&2; exit 1 ;;
   esac

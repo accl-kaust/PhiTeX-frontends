@@ -1,0 +1,57 @@
+% try: XeLaTeX, any script: add a line in your own language, or a word in Arabic inside an English sentence
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{english}
+\setotherlanguages{french,german,greek,russian,arabic,hebrew,hindi}
+
+% fonts from TeX Live, by file: Libertinus (Latin, Greek, Cyrillic, Hebrew), Amiri (Arabic),
+% Shobhika (Devanagari), Fandol (Chinese)
+\setmainfont{LibertinusSerif}[Extension=.otf, UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-Italic]
+\newfontfamily\hebrewfont{LibertinusSerif}[Script=Hebrew, Extension=.otf, UprightFont=*-Regular]
+\newfontfamily\arabicfont{Amiri}[Script=Arabic, Extension=.ttf, UprightFont=*-Regular]
+\newfontfamily\hindifont{Shobhika}[Script=Devanagari, Extension=.otf, UprightFont=*-Regular]
+\newfontfamily\chinesefont{FandolSong}[Extension=.otf, UprightFont=*-Regular]
+
+\newcommand{\langhead}[1]{\par\medskip\noindent{\small\scshape #1}\par\nopagebreak\smallskip}
+
+\begin{document}
+\begin{center}
+  {\LARGE\bfseries One Sentence, Nine Scripts}\\[4pt]
+  {\itshape Article 1 of the Universal Declaration of Human Rights, set by XeLaTeX}
+\end{center}
+\vspace{6pt}
+
+\langhead{English}
+All human beings are born free and equal in dignity and rights.
+
+\langhead{Français}
+\begin{french}Tous les êtres humains naissent libres et égaux en dignité et en droits.\end{french}
+
+\langhead{Deutsch}
+\begin{german}Alle Menschen sind frei und gleich an Würde und Rechten geboren.\end{german}
+
+\langhead{Ελληνικά}
+\begin{greek}Όλοι οι άνθρωποι γεννιούνται ελεύθεροι και ίσοι στην αξιοπρέπεια και τα δικαιώματα.\end{greek}
+
+\langhead{Русский}
+\begin{russian}Все люди рождаются свободными и равными в своём достоинстве и правах.\end{russian}
+
+\langhead{\textarabic{العربية}}
+\begin{Arabic}يولد جميع الناس أحرارًا متساوين في الكرامة والحقوق.\end{Arabic}
+
+\langhead{\texthebrew{עברית}}
+\begin{hebrew}כל בני האדם נולדו בני חורין ושווים בערכם ובזכויותיהם.\end{hebrew}
+
+\langhead{\texthindi{हिन्दी}}
+\begin{hindi}सभी मनुष्यों को गौरव और अधिकारों के मामले में जन्मजात स्वतन्त्रता और समानता प्राप्त है।\end{hindi}
+
+\langhead{{\chinesefont 中文}}
+{\chinesefont 人人生而自由，在尊严和权利上一律平等。}
+
+\vspace{14pt}
+\noindent\rule{\linewidth}{.4pt}\par\smallskip
+\noindent OpenType, too: ligatures (\emph{ffi, fl, ffl}), \textsc{small capitals},
+old-style figures ({\addfontfeatures{Numbers=OldStyle}0123456789}) and lining ones (0123456789).
+\end{document}

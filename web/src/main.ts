@@ -31,9 +31,21 @@ import { Tree, validPath } from "./tree.ts";
 import { writeZip } from "./zipwrite.ts";
 import { autoVersion, deleteProject, newId, project as loadProjectById, projects, saveProject, saveVersion, versions, type Project, type Version } from "./store.ts";
 import { CSS } from "./style.ts";
-import article from "../samples/article.tex";
-import beamer from "../samples/beamer.tex";
-import tikz from "../samples/tikz.tex";
+// (the examples, web/samples/<name>/: text files as text, figures as their bytes)
+import article_main from "../samples/article/main.tex";
+import article_phitex_logo from "../samples/article/phitex-logo.pdf";
+import paper_main from "../samples/paper/main.tex";
+import paper_refs from "../samples/paper/refs.bib";
+import slides_main from "../samples/slides/main.tex";
+import maths_main from "../samples/maths/main.tex";
+import plots_main from "../samples/plots/main.tex";
+import tikz_main from "../samples/tikz/main.tex";
+import chemistry_main from "../samples/chemistry/main.tex";
+import book_main from "../samples/book/main.tex";
+import exam_main from "../samples/exam/main.tex";
+import cv_main from "../samples/cv/main.tex";
+import code_main from "../samples/code/main.tex";
+import languages_main from "../samples/languages/main.tex";
 
 export interface Doc {
   name: string;
@@ -62,9 +74,18 @@ export interface Web {
 }
 
 export const SAMPLES: Doc[] = [
-  { name: "Article", files: { "main.tex": article } },
-  { name: "Beamer", files: { "main.tex": beamer } },
-  { name: "TikZ", files: { "main.tex": tikz } },
+  { name: "Article", files: { "main.tex": article_main, "phitex-logo.pdf": article_phitex_logo } },
+  { name: "Paper", files: { "main.tex": paper_main, "refs.bib": paper_refs } },
+  { name: "Slides", files: { "main.tex": slides_main } },
+  { name: "Maths", files: { "main.tex": maths_main } },
+  { name: "Plots", files: { "main.tex": plots_main } },
+  { name: "TikZ", files: { "main.tex": tikz_main } },
+  { name: "Chemistry", files: { "main.tex": chemistry_main } },
+  { name: "Book", files: { "main.tex": book_main } },
+  { name: "Exam", files: { "main.tex": exam_main } },
+  { name: "CV", files: { "main.tex": cv_main } },
+  { name: "Code", files: { "main.tex": code_main } },
+  { name: "Languages", files: { "main.tex": languages_main } },
 ];
 
 /** Why PhiTeX can't run here: `code` says which (the page shows its own words). */

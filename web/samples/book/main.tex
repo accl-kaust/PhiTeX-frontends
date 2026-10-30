@@ -1,0 +1,42 @@
+% try: add a \section, or an \index{...} entry: the contents and the index follow in one build
+\documentclass[11pt]{book}
+\usepackage[paperwidth=6in,paperheight=9in,inner=.7in,outer=1.45in,top=.8in,bottom=.8in,marginparwidth=1in,marginparsep=.15in]{geometry}
+\usepackage{lettrine}
+\usepackage{makeidx}
+\makeindex
+
+\newcommand{\epigraph}[2]{\begin{flushright}\begin{minipage}{.7\textwidth}\itshape\small #1\par\vspace{2pt}\upshape\hfill--- #2\end{minipage}\end{flushright}\vspace{1.5em}}
+
+\begin{document}
+\frontmatter
+\tableofcontents
+
+\mainmatter
+\chapter{The Shape of a Page}
+\epigraph{Beauty is our business.}{Donald E. Knuth}
+
+\lettrine[lines=3]{T}{he page} is the oldest interface we have. Long before
+screens, typographers\index{typography} learned how the eye moves down a
+column, how far apart lines should sit, and where a word may break. A
+typesetter\index{typesetter} keeps all of that in its rules, so the writer
+does not have to.\marginpar{\footnotesize Try editing this paragraph: only it is set again.}
+
+\section{Lines}
+TeX breaks a paragraph into lines by looking at the whole paragraph at
+once\index{line breaking}, weighing every possible break against the
+others. The result is even spacing with few hyphens\index{hyphenation}, at
+the cost of reading the paragraph to its end before setting its first line.
+
+\section{Pages}
+Pages are built\index{page building} from the lines, with floats and
+footnotes\footnote{Like this one.} placed where they fit. An edit early in a
+book can move every page after it; PhiTeX sets them again only until they
+match what it built before.
+
+\section{The Index}
+This short chapter has an index\index{index} at the back, made by
+\texttt{makeindex} inside the build.
+
+\backmatter
+\printindex
+\end{document}

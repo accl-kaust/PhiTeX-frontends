@@ -1,0 +1,90 @@
+% try: add \pause between two items, or change the accent colour on line 6: every slide follows
+\documentclass[aspectratio=169]{beamer}
+\usepackage{tikz}
+\definecolor{navy}{HTML}{1D3E72}
+\definecolor{tealx}{HTML}{00A8A4}
+\definecolor{accent}{HTML}{F58F2D}
+\definecolor{lime}{HTML}{D3C72A}
+\definecolor{gold}{HTML}{F0B225}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamercolor{structure}{fg=tealx}
+\setbeamercolor{frametitle}{fg=navy}
+\setbeamercolor{title}{fg=white}
+\setbeamercolor{alerted text}{fg=accent}
+\setbeamercolor{block title}{fg=white,bg=navy}
+\setbeamercolor{block body}{bg=navy!6}
+\setbeamerfont{frametitle}{series=\bfseries,size=\Large}
+\setbeamertemplate{itemize item}{\color{accent}\rule[.2ex]{.9ex}{.9ex}}
+% four stripes under every frame title
+\setbeamertemplate{frametitle}{%
+  \vskip1.2ex\usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle\par\vskip.6ex
+  \begin{tikzpicture}
+    \foreach \c [count=\i] in {tealx,lime,gold,accent} \fill[\c] (0,-\i*.09) rectangle (3.2,-\i*.09+.05);
+  \end{tikzpicture}\par}
+\setbeamertemplate{footline}{\hfill\color{navy!50}\scriptsize\insertframenumber\hspace*{1.2em}\vskip1ex}
+
+\title{Slides as You Type}
+\subtitle{Every frame, rebuilt the moment you change it}
+\author{A PhiTeX demo}
+\date{}
+
+\begin{document}
+
+{\setbeamertemplate{background}{%
+  \begin{tikzpicture}
+    \fill[navy] (0,0) rectangle (\paperwidth,\paperheight);
+    \foreach \c [count=\i] in {tealx,lime,gold,accent}
+      \fill[\c] (0,.30\paperheight-\i*7pt) rectangle (\paperwidth,.30\paperheight-\i*7pt+4pt);
+  \end{tikzpicture}}
+\begin{frame}[plain]
+  \vfill
+  {\color{white}\fontsize{34}{38}\selectfont\bfseries\inserttitle\par}
+  \vskip1ex
+  {\color{white!75}\Large\insertsubtitle\par}
+  \vskip3ex
+  {\color{gold}\insertauthor}
+  \vskip10ex
+\end{frame}}
+
+\begin{frame}{Why it feels instant}
+  \begin{columns}[T]
+    \begin{column}{.48\textwidth}
+      \begin{itemize}
+        \item<1-> A deck is usually rebuilt from scratch.
+        \item<2-> PhiTeX rebuilds only the frame you edit.
+        \item<3-> The others are kept, page for page.
+      \end{itemize}
+    \end{column}
+    \begin{column}{.48\textwidth}
+      \begin{block}{Exact}
+        The PDF is byte for byte the one a full \texttt{pdflatex} run makes.
+      \end{block}
+      \begin{alertblock}{Fast}
+        A keystroke costs a frame, not a deck.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{A picture of it}
+  \centering
+  \begin{tikzpicture}[node distance=2.6cm, every node/.style={rounded corners=3pt, minimum width=2.2cm, minimum height=.9cm, font=\bfseries}]
+    \node[fill=navy, text=white] (edit) {Edit};
+    \node[fill=tealx, text=white, right of=edit] (frame) {Frame 3};
+    \node[fill=gold, right of=frame] (pdf) {Page 3};
+    \node[fill=accent, text=white, right of=pdf] (eye) {You};
+    \draw[->, very thick, navy] (edit) -- (frame);
+    \draw[->, very thick, navy] (frame) -- (pdf);
+    \draw[->, very thick, navy] (pdf) -- (eye);
+  \end{tikzpicture}
+  \vskip2em
+  \[ e^{i\pi} + 1 = \alert{0} \]
+  Edit the formula: only this slide changes.
+\end{frame}
+
+\begin{frame}{Your turn}
+  \Large Add a frame below this one, and watch the page count follow.
+\end{frame}
+
+\end{document}
