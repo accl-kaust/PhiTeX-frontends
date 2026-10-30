@@ -21,7 +21,7 @@ import { h } from "./dom.ts";
 import { filesAt, type Version } from "./history.ts";
 import { Compare, gate, LATEXDIFF_LOOK } from "./common/viewer/compare.ts";
 import { SUPPORT, unseen, type News } from "./news.ts";
-import { Panel, type DiffLook, type PanelPrefs, type Prefs } from "./common/viewer/panel.ts";
+import { Panel, type DiffLook, type PanelPrefs, type Prefs, type ViewState } from "./common/viewer/panel.ts";
 import { channel, follow, tee, type Ask } from "./mirror.ts";
 import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
 import { StripPages } from "./common/strippages.ts";
@@ -606,24 +606,18 @@ function dockInOverleaf(panel: Panel): Dock {
   }
 
   /**
-   * The panel's status ("Built · 42 ms", "Built with 1 error"), as its own
-   * bar says it, copied into the toolbar's on each change (the panel's bar is
+   * The panel's status ("Built · 42 ms", "Built with 1 error"), from its
+   * state (ViewState.status), shown in the toolbar's (the panel's own bar is
    * hidden here, Overleaf's toolbar being the bar).
    */
-  let statusWatched = false;
-  function mirrorStatus(): void {
-    const st = document.querySelector("phitex-preview")?.shadowRoot?.getElementById("st");
-    if (!st) return;
-    const copy = () => {
-      const b = document.getElementById("phitex-status");
-      if (!b) return;
-      b.querySelector(".phitex-st-text")!.textContent = st.querySelector("#sttext")?.textContent ?? "";
-      b.querySelector(".phitex-st-more")!.textContent = st.querySelector("#stmore")?.textContent ?? "";
-      b.classList.toggle("err", st.classList.contains("err"));
-    };
-    if (!statusWatched) new MutationObserver(copy).observe(st, { subtree: true, childList: true, characterData: true, attributes: true });
-    statusWatched = true;
-    copy();
+  let statusNow: ViewState["status"] | null = null;
+  function mirrorStatus(st: ViewState["status"] | null = statusNow): void {
+    statusNow = st;
+    const b = document.getElementById("phitex-status");
+    if (!b || !st) return;
+    b.querySelector(".phitex-st-text")!.textContent = st.text;
+    b.querySelector(".phitex-st-more")!.textContent = st.more ? `· ${st.more}` : "";
+    b.classList.toggle("err", st.err);
   }
 
   /** In Overleaf's left toolbar, where its logs and download are: ours (PhiTeX's diagnostics and PDF). */
@@ -691,7 +685,7 @@ function dockInOverleaf(panel: Panel): Dock {
   }
 
   panel.onState((s) => {
-    mirrorStatus();
+    mirrorStatus(s.status);
     const c = document.getElementById("phitex-controls");
     if (c) {
       const input = c.querySelector<HTMLInputElement>("#phitex-page")!;
