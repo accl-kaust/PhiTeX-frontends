@@ -25,7 +25,9 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onLanguage:latex"
+    "onLanguage:latex",
+    "onWebviewPanel:phitex.preview",
+    "onWebviewPanel:phitex.watch"
   ],
   "contributes": {
     "commands": [
