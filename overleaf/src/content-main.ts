@@ -973,6 +973,8 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     onShortcut: () => dock?.toggle() ?? false,
     onTour: () => dock?.tour(),
     onNews: () => dock?.news(),
+    // (the contents opened: the outline of the session shown, asked for now)
+    onContents: () => void shown()?.outline(),
   }, prefs, { fileUrl: (p) => chrome.runtime.getURL(p) });
   // (off in the popup: nothing at all, not even the project fetched; on again, live)
   let { enabled } = await chrome.storage.local.get("enabled");

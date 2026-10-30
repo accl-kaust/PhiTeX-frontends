@@ -94,6 +94,8 @@ const panel = new Panel(
     onGoto: (file, line) => void relay.request({ op: "source", file, line, col: 1 }),
     onSyncSource: (k, x, y) => void session.toSource(k, x, y),
     onFind: (q) => pages.find(q),
+    // (the contents opened: the outline asked for now)
+    onContents: () => void session.outline(),
   },
   // (the panel's settings: kept in the webview's own state)
   {
