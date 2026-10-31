@@ -19,7 +19,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: PhiTeX (the submodule; the viewer's sources are its; public, over HTTPS)
-        run: git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --depth 1 phitex
+        run: |
+          git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --depth 1 phitex
       - uses: actions/setup-node@v4
         with:
           node-version: 24
