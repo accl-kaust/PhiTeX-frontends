@@ -40,7 +40,7 @@ defaults in `links.ts` are used. The Pages project is `phitex-org`.
 - **No AI antitheses.** Avoid "X, not Y", "not just", "more than just". Write
   the plain claim.
 - Write like a person. Short, declarative, confident. Match the existing
-  headings (e.g. "Errors that point at the line.", "Questions.").
+  headings (e.g. "Errors that show in the PDF itself.", "Questions.").
 
 ## Facts to keep accurate
 
