@@ -221,16 +221,24 @@ impl Files {
         self.shelf(engine)?.key(name)
     }
 
-    fn by_name(&self, mut s: MutexGuard<'_, State>, name: &str) -> Option<Kept> {
+    fn by_name<'a>(&'a self, mut s: MutexGuard<'a, State>, name: &str) -> Option<Kept> {
         if !s.by_name.contains_key(name) {
             s.by_name.insert(name.to_owned(), Entry::Asked);
             if let Some(h) = self.host.get() {
+                // (the lock let go: a host without threads answers inside the call)
+                drop(s);
                 h.want(name);
+                s = self.lock();
             }
         }
         loop {
             if let Some(Entry::Given(f)) = s.by_name.get(name) {
                 return f.clone();
+            }
+            if !crate::THREADED {
+                // (no thread to answer later: not answered in the call, nowhere)
+                s.by_name.insert(name.to_owned(), Entry::Given(None));
+                return None;
             }
             s = self.wait(s);
         }
@@ -271,15 +279,19 @@ impl PackSource for HostPacks {
     fn packs(&self, ids: &[&str]) -> Vec<Result<Vec<u8>, String>> {
         let f = &self.0;
         let mut s = f.lock();
-        for id in ids {
-            if !s.asked.contains(*id) && !s.arrived.contains_key(*id) {
-                s.asked.insert((*id).to_owned());
-                if let Some(h) = f.host.get() {
-                    h.fetch(id);
-                }
+        let new: Vec<&str> = ids.iter().copied().filter(|id| !s.asked.contains(*id) && !s.arrived.contains_key(*id)).collect();
+        for id in &new {
+            s.asked.insert((*id).to_owned());
+        }
+        // (the lock let go: a host without threads answers inside the call)
+        drop(s);
+        if let Some(h) = f.host.get() {
+            for id in &new {
+                h.fetch(id);
             }
         }
-        while !ids.iter().all(|id| s.arrived.contains_key(*id)) {
+        s = f.lock();
+        while crate::THREADED && !ids.iter().all(|id| s.arrived.contains_key(*id)) {
             s = f.wait(s);
         }
         ids.iter()

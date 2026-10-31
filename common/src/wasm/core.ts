@@ -20,6 +20,7 @@
 // its WebSocket.
 
 import { type Spawn, type ThreadData, type ThreadMsg, imports, newMemory } from "./threads.ts";
+import { unsigned, wasi } from "./wasi.ts";
 import type { CoreEvent, CoreReq, CoreRes, CoreTransport } from "../viewer/session.ts";
 
 /**
@@ -52,6 +53,21 @@ export type Shell = (command: string, files: [string, Uint8Array][]) => Promise<
 export interface Store {
   get(key: string): Promise<Uint8Array | null>;
   put(key: string, bytes: Uint8Array): void | Promise<void>;
+}
+
+/**
+ * A single-threaded core's host (wasm32-wasip1, `Core.startSingle`: Firefox
+ * gives an extension no shared memory): each ask answered inside its
+ * call, as nothing else runs while the core waits. A worker's synchronous
+ * reads (sync XHR), and what was fetched or read ahead.
+ */
+export interface SyncHost {
+  /** A file by name (`Resolve`, at once). */
+  resolve(name: string): { path: string; bytes: Uint8Array } | null;
+  /** Pack `id` as Shelf serves it (`Fetch`, at once); `downloading` called when it goes to the network. */
+  fetch(id: string, downloading?: () => void): Uint8Array | null;
+  /** The store's bytes under `key` (`Store.get`, at once: read ahead). */
+  stored(key: string): Uint8Array | null;
 }
 
 export interface CoreOptions {
@@ -95,6 +111,7 @@ interface Exports {
   ph_file(p: number, n: number): number;
   ph_strips(p: number, n: number): number;
   ph_frame(p: number, n: number): number;
+  ph_step(): number;
 }
 
 /** A document to open (core/src/main.rs's `ph_open`). */
@@ -117,7 +134,7 @@ export class Core {
   private x: Exports;
   private memory: WebAssembly.Memory;
   /** (heard on one, posted on the other: a BroadcastChannel never hears its own posts) */
-  private channels: [hear: BroadcastChannel, post: BroadcastChannel];
+  private channels: [hear: BroadcastChannel, post: BroadcastChannel] | [];
   private o: CoreOptions;
   /** What every thread's worker is started with, less its id and argument. */
   private shared: Omit<ThreadData, "tid" | "arg">;
@@ -125,13 +142,16 @@ export class Core {
   private listeners: ((e: any) => void)[] = [];
   private lspListeners: ((m: any) => void)[] = [];
 
-  private constructor(shared: Omit<ThreadData, "tid" | "arg">, inst: WebAssembly.Instance, channels: [BroadcastChannel, BroadcastChannel], o: CoreOptions) {
+  /** Single-threaded (`startSingle`): no threads, the document stepped here (`ph_step`). */
+  private single = false;
+
+  private constructor(shared: Omit<ThreadData, "tid" | "arg">, inst: WebAssembly.Instance, channels: [BroadcastChannel, BroadcastChannel] | [], o: CoreOptions) {
     [this.shared, this.memory, this.channels, this.o] = [shared, shared.memory, channels, o];
     if (o.event) this.listeners.push(o.event);
     if (o.lsp) this.lspListeners.push(o.lsp);
     this.x = inst.exports as unknown as Exports;
     this.x._initialize();
-    channels[0].onmessage = (ev: MessageEvent<ThreadMsg>) => this.heard(ev.data);
+    if (channels[0]) channels[0].onmessage = (ev: MessageEvent<ThreadMsg>) => this.heard(ev.data);
   }
 
   /** The core from its compiled module. */
@@ -144,6 +164,64 @@ export class Core {
     const shared = { module, memory, ids, channel, env: o.env ?? [] };
     const inst = new WebAssembly.Instance(module, imports(shared, o.spawn, (m) => out.postMessage(m)));
     return new Core(shared, inst, [new BroadcastChannel(channel), out], o);
+  }
+
+  /**
+   * The single-threaded core (wasm32-wasip1: its own memory, no threads;
+   * Firefox, which gives an extension no shared memory), on this thread (a
+   * worker: a build runs here to its end). Its asks are answered inside
+   * their calls (`sync`); what it is asked to do is stepped here, a step a
+   * task, so requests are answered between them.
+   */
+  static startSingle(module: WebAssembly.Module, o: Omit<CoreOptions, "spawn"> & { sync: SyncHost }): Core {
+    let core: Core | null = null;
+    const memory = { get buffer() { return core!.memory.buffer; } } as WebAssembly.Memory;
+    const text = (p: number, n: number) => new TextDecoder().decode(new Uint8Array(memory.buffer).slice(p, p + n));
+    const tell = (e: any) => core!.listeners.forEach((f) => f(e));
+    const inst = new WebAssembly.Instance(module, {
+      wasi_snapshot_preview1: wasi(memory, (s) => o.log?.(s), o.env ?? []),
+      // (each ask answered before it returns: the core waits for nothing)
+      phitex: {
+        want: unsigned((p: number, n: number) => {
+          const name = text(p, n);
+          core!.provide(name, o.sync.resolve(name));
+        }),
+        fetch: unsigned((p: number, n: number) => {
+          const id = text(p, n);
+          let told = false;
+          const b = o.sync.fetch(id, () => ((told = true), tell({ event: "pack", id, state: "fetching" })));
+          if (b) told && tell({ event: "pack", id, state: "done", bytes: b.length });
+          else tell({ event: "pack", id, state: "failed" });
+          core!.given.add(id);
+          core!.givePack(id, b);
+        }),
+        // (no \write18 runner without threads: the open says so, none is asked)
+        shell: () => {},
+        store_get: unsigned((p: number, n: number) => {
+          const key = text(p, n);
+          core!.giveStored(key, o.sync.stored(key));
+        }),
+        store_put: unsigned((p: number, n: number, b: number, m: number) => void core!.keep(text(p, n), new Uint8Array(memory.buffer).slice(b, b + m))),
+        event: unsigned((p: number, n: number) => core!.heard({ t: "event", json: text(p, n) })),
+        lsp: unsigned((p: number, n: number) => core!.heard({ t: "lsp", json: text(p, n) })),
+      },
+    });
+    // (no shared counter: Firefox has no SharedArrayBuffer here at all)
+    const shared = { module, memory: inst.exports.memory as WebAssembly.Memory, ids: new ArrayBuffer(0) as unknown as SharedArrayBuffer, channel: "", env: o.env ?? [] };
+    core = new Core(shared, inst, [], { ...o, spawn: () => {} });
+    core.single = true;
+    return core;
+  }
+
+  /** Single-threaded: the document stepped, a step a task, until nothing is asked. */
+  private stepping = false;
+  private stepSoon(): void {
+    if (!this.single || this.stepping) return;
+    this.stepping = true;
+    setTimeout(() => {
+      this.stepping = false;
+      if (this.x.ph_step()) this.stepSoon();
+    }, 0);
   }
 
   private heard(m: ThreadMsg): void {
@@ -212,6 +290,11 @@ export class Core {
     if (!b && !asked) return void this.packs.delete(id);
     this.given.add(id);
     this.packs.delete(id);
+    this.givePack(id, b);
+  }
+
+  /** Pack `id`'s bytes as Shelf serves them given to the core (null: it could not be had). */
+  private givePack(id: string, b: Uint8Array | null): void {
     const n = new TextEncoder().encode(id);
     const d = b ?? new Uint8Array();
     const [pn, pd] = [this.put(n), this.put(d)];
@@ -232,6 +315,11 @@ export class Core {
     } catch (e) {
       this.o.log?.(`store ${key}: ${e}\n`);
     }
+    this.giveStored(key, b);
+  }
+
+  /** The store's bytes under `key` given to the core (null: nothing under it). */
+  private giveStored(key: string, b: Uint8Array | null): void {
     const k = new TextEncoder().encode(key);
     const d = b ?? new Uint8Array();
     const [pk, pd] = [this.put(k), this.put(d)];
@@ -308,13 +396,17 @@ export class Core {
     const r = this.call((p, n) => this.x.ph_open(p, n), JSON.stringify(req));
     if (r === 3) throw new Error(new TextDecoder().decode(this.output()));
     if (r !== 0) throw new Error(`ph_open: ${r}`);
+    this.stepSoon();
   }
 
   /** A viewer's request (`{id, op, ...}`, session.ts's CoreReq), answered at once from the document's state: its reply. */
   request(req: object): any {
     const r = this.call((p, n) => this.x.ph_request(p, n), JSON.stringify(req));
     if (r !== 0) return { ...req, ok: false, error: r === 2 ? "no document open" : "not a request" };
-    return JSON.parse(new TextDecoder().decode(this.output()));
+    const reply = JSON.parse(new TextDecoder().decode(this.output()));
+    // (what it asked of the document, an edit: stepped)
+    this.stepSoon();
+    return reply;
   }
 
   /** Listens to the language server's messages too, until the returned function is called. */
@@ -327,6 +419,7 @@ export class Core {
   lsp(m: object): boolean {
     const r = this.call((p, n) => this.x.ph_lsp(p, n), JSON.stringify(m));
     if (r === 1 || r === 2) throw new Error(r === 2 ? "no document open" : "ph_lsp: not JSON");
+    this.stepSoon();
     return r !== 3;
   }
 

@@ -71,7 +71,10 @@ impl Kept {
                 // (not asked yet, or handed over to another asker)
                 None => {
                     s.insert(key.to_owned(), Slot::Asked);
+                    // (the lock let go: a host without threads answers inside the call)
+                    drop(s);
                     (self.ask)(key);
+                    s = self.lock();
                 }
                 Some(Slot::Given(b)) if keep => return b.clone(),
                 Some(Slot::Given(_)) => {
@@ -79,6 +82,11 @@ impl Kept {
                         unreachable!("given above")
                     };
                     return b;
+                }
+                // (no thread to answer later: not answered in the call, nothing kept)
+                _ if !crate::THREADED => {
+                    s.remove(key);
+                    return None;
                 }
                 _ => s = self.answered.wait(s).unwrap_or_else(PoisonError::into_inner),
             }

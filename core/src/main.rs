@@ -50,6 +50,12 @@ mod live;
 mod shell;
 mod store;
 
+/// Whether the module has threads (wasm32-wasip1-threads: one shared
+/// memory, a worker a thread). Without (wasm32-wasip1, Firefox: no shared
+/// memory for an extension) the document has no session thread: the host
+/// steps it (`ph_step`), and answers every ask inside its call.
+pub const THREADED: bool = cfg!(target_feature = "atomics");
+
 use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 
@@ -427,15 +433,21 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
         server.select(file, from, to);
     }));
     let output = Arc::new(Output::default());
-    let (w, o) = (wake.clone(), output.clone());
-    // (the document runs here, as on a native main thread: its stack as
-    // large; a stack has no guard page in wasm, an overflow writes over
-    // the heap)
-    let started = std::thread::Builder::new()
-        .stack_size(STACK)
-        .spawn(move || run(doc, &w, &o));
-    if started.is_err() {
-        return 2;
+    if THREADED {
+        let (w, o) = (wake.clone(), output.clone());
+        // (the document runs here, as on a native main thread: its stack as
+        // large; a stack has no guard page in wasm, an overflow writes over
+        // the heap)
+        let started = std::thread::Builder::new()
+            .stack_size(STACK)
+            .spawn(move || run(doc, &w, &o));
+        if started.is_err() {
+            return 2;
+        }
+    } else {
+        // (no threads: kept for the host to step, the cold build its first step)
+        wake.set(false);
+        *lock(&STEPPED) = Some(doc);
     }
     *lock(&OPEN) = Some(Open {
         viewer,
@@ -453,13 +465,7 @@ pub extern "C" fn ph_open(p: *const u8, n: usize) -> i32 {
 /// for a quiet moment.)
 fn run(mut doc: Document, wake: &Wake, output: &Output) {
     loop {
-        let events = doc.step();
-        if events.iter().any(|e| e["event"] == "build" || e["event"] == "failed") {
-            *lock(output) = doc.output();
-        }
-        for e in &events {
-            event(e);
-        }
+        step(&mut doc, output);
         let mut s = lock(&wake.state);
         while !s.0 && !s.1 {
             s = wake.cv.wait(s).unwrap_or_else(PoisonError::into_inner);
@@ -471,6 +477,47 @@ fn run(mut doc: Document, wake: &Wake, output: &Output) {
     }
 }
 
+/// One step of the document (phitex-live's `Document::step`): what was
+/// asked taken, built if anything changed, its events to the host.
+fn step(doc: &mut Document, output: &Output) {
+    let events = doc.step();
+    if events.iter().any(|e| e["event"] == "build" || e["event"] == "failed") {
+        *lock(output) = doc.output();
+    }
+    for e in &events {
+        event(e);
+    }
+}
+
+/// The open document, without threads: stepped by the host (`ph_step`).
+static STEPPED: Mutex<Option<Document>> = Mutex::new(None);
+
+/// Without threads (wasm32-wasip1), the host's turn of the session thread:
+/// the open document stepped once if something was asked since (its first
+/// step the cold build), its events told. 1: stepped (step again until
+/// 0); 0: nothing asked, or no document; with threads, always 0 (the
+/// session thread steps it).
+#[unsafe(no_mangle)]
+pub extern "C" fn ph_step() -> i32 {
+    let Some((wake, output)) = lock(&OPEN).as_ref().map(|o| (o.wake.clone(), o.output.clone())) else {
+        return 0;
+    };
+    {
+        let mut s = lock(&wake.state);
+        if !s.0 || s.1 {
+            return 0;
+        }
+        s.0 = false;
+    }
+    // (taken out while it runs: an ask the host answers in its call may lock the rest)
+    let Some(mut doc) = lock(&STEPPED).take() else {
+        return 0;
+    };
+    step(&mut doc, &output);
+    *lock(&STEPPED) = Some(doc);
+    1
+}
+
 /// The open document closed: its session thread ends after the step it
 /// is in (a build runs to its end).
 #[unsafe(no_mangle)]
@@ -478,6 +525,7 @@ pub extern "C" fn ph_close() {
     if let Some(o) = lock(&OPEN).take() {
         o.wake.set(true);
     }
+    lock(&STEPPED).take();
 }
 
 /// A viewer's request (JSON, `{"id","op",...}`), answered: the reply
@@ -598,6 +646,10 @@ const STACK: usize = 8 << 20;
 /// the host's workers (set before the first build; a reactor runs no
 /// `main`).
 fn spawn_workers() {
+    // (none without threads: the engine runs its work in place)
+    if !THREADED {
+        return;
+    }
     phitex_tex::set_spawn_worker(Box::new(|f| {
         std::thread::Builder::new()
             .stack_size(STACK)
