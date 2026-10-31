@@ -218,6 +218,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   let paints = 0;
   const stripPanel = {
     pixelsPerPoint: () => panel.pixelsPerPoint(),
+    pageView: (k: number) => panel.pageView(k),
     painted: (ms: number) => {
       panel.painted(ms);
       const first = paints++ === 0;
@@ -430,7 +431,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       const t = (diffCore = new WorkerCore(`web-diff/${P().id}`));
       for (const [p, b] of Object.entries(P().binaries)) await t.binary(p, b);
       // (its pages as strips too; closing them ends its core)
-      return new StripPages(t, stripPanel);
+      return new StripPages(t, stripPanel, panel.stripsChip());
     },
     sink: (on) => gate(panel, on, ["goto"]),
     goto: (file, from, to) => void (openFile(file) && editor.select(from, to, false)),
@@ -476,7 +477,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     local.set("open", p.id);
     await core.request({ op: "hello", project: p.id });
     for (const [f, b] of Object.entries(p.binaries)) await core.binary(f, b);
-    pages = new StripPages(core, stripPanel);
+    pages = new StripPages(core, stripPanel, panel.stripsChip());
     const host: EditorHost = {
       loadProject: async () => ({ ...P().files }),
       mainFile: () => P().main,

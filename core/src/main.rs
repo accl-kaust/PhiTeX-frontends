@@ -558,8 +558,9 @@ pub extern "C" fn ph_strips(p: *const u8, n: usize) -> i32 {
 }
 
 /// Page `page`'s frame at `scale` pixels a point with the strips the
-/// viewer lacks (JSON `{page, scale, have}`, `have` the keys it holds,
-/// comma-separated: phitex-live's Viewer::frame_with) in the answer's
+/// viewer lacks (JSON `{page, scale, have, win?}`, `have` the keys it holds,
+/// comma-separated, `win` the part of the page: phitex-live's
+/// Viewer::frame_with_in) in the answer's
 /// bytes: the frame JSON's length (little-endian u32), the JSON (its
 /// `sent` the strips' keys), the strips as ph_strips gives them. 1, or 0
 /// (no such page, no document, not JSON).
@@ -574,7 +575,13 @@ pub extern "C" fn ph_frame(p: *const u8, n: usize) -> i32 {
     let page = req["page"].as_u64().and_then(|k| usize::try_from(k).ok()).unwrap_or(0);
     #[allow(clippy::cast_possible_truncation, reason = "a scale: pixels a point")]
     let scale = req["scale"].as_f64().unwrap_or(1.0) as f32;
-    match viewer.frame_with(page, scale, req["have"].as_str().unwrap_or("")) {
+    // (`win`: only that part of the page, fractions: left, top, right, bottom)
+    #[allow(clippy::cast_possible_truncation, reason = "fractions of a page")]
+    let win = req["win"].as_array().filter(|w| w.len() == 4).and_then(|w| {
+        let f = |i: usize| w[i].as_f64().map(|x| x as f32);
+        Some([f(0)?, f(1)?, f(2)?, f(3)?])
+    });
+    match viewer.frame_with_in(page, scale, req["have"].as_str().unwrap_or(""), win) {
         Some(b) => {
             *lock(&OUTPUT) = b;
             1

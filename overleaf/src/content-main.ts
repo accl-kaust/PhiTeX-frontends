@@ -676,7 +676,9 @@ function dockInOverleaf(panel: Panel): Dock {
       `<li><button type="button" class="dropdown-item" data-dl="compiled">Compiled PDF <span class="text-muted small">Overleaf</span></button></li></ul></div>`;
     l.querySelector<HTMLElement>("#phitex-clean")!.onclick = () => panel.clean();
     l.querySelector<HTMLElement>("#phitex-logs")!.onclick = () => panel.diagnostics();
-    l.querySelector<HTMLElement>("#phitex-status")!.onclick = (e) => (e.stopPropagation(), panel.sheet());
+    // (the last build's times under the button, as the panel's own status opens them; the settings are the zoom menu's)
+    const stBtn = l.querySelector<HTMLElement>("#phitex-status")!;
+    stBtn.onclick = (e) => (e.stopPropagation(), panel.timingAt(stBtn));
     const menu = l.querySelector<HTMLElement>("#phitex-dlmenu")!,
       more = l.querySelector<HTMLElement>("#phitex-dlmore")!;
     const instant = () => {
@@ -1147,7 +1149,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
         await t.connect();
         for (const [p, b] of Object.entries(lastBinaries)) await t.request({ op: "binary", file: p, b64: b64of(b) } as never);
         // (the diff's pages as strips too, composed here)
-        return new StripPages(t, panel);
+        return new StripPages(t, panel, panel.stripsChip());
       },
       sink: (on) => gate(tee(panel, ch, () => mirrored), on, ["goto"]),
       goto: (file, from, to) => window.postMessage({ src: "phitex-content", type: "gotoRange", file, from, to, focus: false }, location.origin),
@@ -1242,7 +1244,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   const transport = new ChromeTransport();
   // (the pages as strips: the core draws them, this tab composes them; MuPDF
   // can't run here, overleaf.com's policy forbids the tab WebAssembly)
-  pages = new StripPages(transport, panel);
+  pages = new StripPages(transport, panel, panel.stripsChip());
   // (Shelf's release, release.ts: an extension older than it needs asks for
   // an update, and its notice shows; both once per page, and it keeps working)
   let releaseShown = false;

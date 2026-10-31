@@ -105,14 +105,14 @@ export class WatchLink implements CoreTransport {
     }
     // (the pages as strips, over the watch's HTTP: a page's frame, the strips' pixels)
     if (o.op === "frame") {
-      const { page, scale } = req as { page?: number; scale: number };
-      const r = await fetch(new URL(`frame/${page ?? 0}/${Math.round(scale * 1000)}`, this.base), { cache: "no-store" });
+      const { page, scale, win } = req as { page?: number; scale: number; win?: number[] };
+      const r = await fetch(new URL(`frame/${page ?? 0}/${Math.round(scale * 1000)}${part(win)}`, this.base), { cache: "no-store" });
       return r.ok ? { ok: true, json: await r.json() } : { ok: false, error: `frame: ${r.status}` };
     }
     // (frame_with, as the core answers it: the frame, then the strips the viewer lacks, in one buffer)
     if (o.op === "frame_with") {
-      const { page, scale, have } = req as { page?: number; scale: number; have: string[] };
-      const r = await fetch(new URL(`frame/${page ?? 0}/${Math.round(scale * 1000)}`, this.base), { cache: "no-store" });
+      const { page, scale, have, win } = req as { page?: number; scale: number; have: string[]; win?: number[] };
+      const r = await fetch(new URL(`frame/${page ?? 0}/${Math.round(scale * 1000)}${part(win)}`, this.base), { cache: "no-store" });
       if (!r.ok) return { ok: false, error: `frame: ${r.status}` };
       const f = (await r.json()) as { bands: [string, number, number][]; sent?: string[] };
       const held = new Set(have);
@@ -148,4 +148,9 @@ export class WatchLink implements CoreTransport {
     this.wake();
     this.ws?.close();
   }
+}
+
+/** A page's part in the watch's frame URL (`frame/K/S/L,T,R,B`; none: the whole page). */
+function part(win?: number[]): string {
+  return win ? `/${win.map((x) => x.toFixed(5)).join(",")}` : "";
 }

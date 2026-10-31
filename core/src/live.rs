@@ -78,6 +78,7 @@ fn dpx_format(format: phitex_live::dvipdf::Format) -> &'static str {
         F::Tex => "tex",
         F::ProgramText => "other text files",
         F::ProgramBinary => "other binary files",
+        F::Pk => "pk",
     }
 }
 
@@ -95,7 +96,8 @@ fn dpx_suffix(format: phitex_live::dvipdf::Format) -> &'static str {
         F::Sfd => ".sfd",
         F::Ofm => ".ofm",
         F::Ovf => ".ovf",
-        F::Cmap | F::Pict | F::Tex | F::ProgramText | F::ProgramBinary => "",
+        // (a PK font's request names its resolution: cmr10.600pk)
+        F::Cmap | F::Pict | F::Tex | F::ProgramText | F::ProgramBinary | F::Pk => "",
     }
 }
 
@@ -126,6 +128,10 @@ impl Host for Shelf {
                 phitex_tex::ToolSearch::BibStyle => ".bst",
                 phitex_tex::ToolSearch::BibData => ".bib",
                 phitex_tex::ToolSearch::IndexStyle => ".ist",
+                // (Ghostscript's base 35 by its names, NimbusRoman-Regular:
+                // Shelf has TeX Live's URW fonts only by TeX's names, so the
+                // EPS converter says which it lacks; asked of Phi)
+                phitex_tex::ToolSearch::GsFont => return None,
             };
             let name = if name.ends_with(ext) { name.to_owned() } else { format!("{name}{ext}") };
             let p = f.locate(&name, e)?;

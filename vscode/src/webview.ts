@@ -110,9 +110,6 @@ class Relay implements CoreTransport {
 const watch = (window as unknown as { PHITEX_ENGINE?: string }).PHITEX_ENGINE === "watch";
 const relay = new Relay();
 // (the last frame's numbers, in the corner, with phitex.trace's trace too)
-const chip = document.createElement("div");
-chip.style.cssText = "position:fixed;right:8px;bottom:28px;z-index:30;font:11px monospace;opacity:.6;pointer-events:none";
-const pages = new StripPages(relay, { pixelsPerPoint: () => panel.pixelsPerPoint(), painted: (ms) => panel.painted(ms) }, chip);
 
 const panel = new Panel(
   {
@@ -168,6 +165,8 @@ const panel = new Panel(
     },
   },
 );
+// (the pages as strips; each frame's numbers under the panel's ⚡ chip)
+const pages = new StripPages(relay, { pixelsPerPoint: () => panel.pixelsPerPoint(), pageView: (k) => panel.pageView(k), painted: (ms) => panel.painted(ms) }, panel.stripsChip());
 // (the engine lost, as the extension host says: the last pages dimmed, a banner saying why)
 addEventListener("message", (m: MessageEvent<Down>) => m.data.t === "connection" && panel.connection(m.data.up, m.data.why));
 // (docked in a pane that fills the webview)
@@ -176,7 +175,6 @@ pane.style.cssText = "position:fixed;inset:0";
 document.body.append(pane);
 panel.dock(pane);
 panel.shown(true);
-document.body.append(chip);
 
 const host: EditorHost = { loadProject: async () => ({}), onOpen() {}, onChanges() {} };
 // (a double-click: the engine opens the source in the editor, window/showDocument;
@@ -220,7 +218,7 @@ const compare = new Compare<string>({
     up({ t: "cmp-open" });
     const error = await opened;
     if (error) throw new Error(error);
-    return new StripPages(new Relay(2), { pixelsPerPoint: () => panel.pixelsPerPoint(), painted: (ms) => panel.painted(ms) });
+    return new StripPages(new Relay(2), { pixelsPerPoint: () => panel.pixelsPerPoint(), pageView: (k) => panel.pageView(k), painted: (ms) => panel.painted(ms) }, panel.stripsChip());
   },
   sink: (on) => gate(panel, on, ["goto"]),
   goto: (file, start, end) => void relay.request({ op: "select", file, start, end }),

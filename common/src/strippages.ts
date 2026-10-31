@@ -6,13 +6,15 @@
 // after each build); every other request the transport's. As the CLI's
 // page does it (crates/cli/viewer/cli.ts's Pages).
 
-import { Strips, type Frame, type StripSource } from "./viewer/strips.ts";
+import { Strips, type Frame, type StripSource, type Win } from "./viewer/strips.ts";
 import { composeLine, search, type Hit, type TextLine } from "./viewer/text.ts";
 import type { CoreEvent, CoreRes, CoreTransport } from "./viewer/session.ts";
 
 /** What StripPages needs of the panel: its pixels a point, and the ⚡ chip told how long a change took to the screen. */
 export interface StripPanel {
   pixelsPerPoint(): number;
+  /** The part of page `k` on screen (the viewer's `view`): a page zoomed past what it is drawn whole at is drawn sharp around it. */
+  pageView(k: number): Win | null;
   painted?(ms: number): void;
 }
 
@@ -29,13 +31,13 @@ export class StripPages implements CoreTransport {
   constructor(t: CoreTransport, panel: StripPanel, chip: HTMLElement | null = null) {
     [this.t, this.panel] = [t, panel];
     const src: StripSource = {
-      frame: async (k, scale) => {
-        const r = await t.request({ op: "frame", page: k, scale } as never);
+      frame: async (k, scale, win) => {
+        const r = await t.request({ op: "frame", page: k, scale, win } as never);
         return r.ok ? (r.json as Frame) : null;
       },
       // (one round trip: the frame with the strips this viewer lacks)
-      frameWith: async (k, scale, have) => {
-        const r = (await t.request({ op: "frame_with", page: k, scale, have } as never)) as CoreRes & { bytes?: Uint8Array };
+      frameWith: async (k, scale, have, win) => {
+        const r = (await t.request({ op: "frame_with", page: k, scale, have, win } as never)) as CoreRes & { bytes?: Uint8Array };
         return r.ok && r.bytes ? buffer(r.bytes) : null;
       },
       strips: async (keys) => {
@@ -55,7 +57,7 @@ export class StripPages implements CoreTransport {
   async request(op: object): Promise<CoreRes> {
     const o = op as { op: string; page?: number };
     if (o.op === "png") {
-      const p = await this.strips.page(o.page ?? 0, this.panel.pixelsPerPoint()).catch((e) => (console.warn("[phitex] page", e), null));
+      const p = await this.strips.page(o.page ?? 0, this.panel.pixelsPerPoint(), this.panel.pageView(o.page ?? 0)).catch((e) => (console.warn("[phitex] page", e), null));
       if (!p) return { ok: false, json: { error: "no such page" } };
       this.painted();
       return { ok: true, canvas: p.el, size: [p.w, p.h], links: p.links };

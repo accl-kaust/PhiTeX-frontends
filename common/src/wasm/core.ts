@@ -353,10 +353,11 @@ export class Core {
   /**
    * Page `k`'s frame at `scale` with the strips of its bands not in `have`
    * (phitex-live's Viewer::frame_with): the frame JSON's length (LE u32),
-   * the JSON, the strips; null: no such page.
+   * the JSON, the strips; null: no such page. `win`: only that part of the
+   * page (fractions: left, top, right, bottom; Viewer::frame_in).
    */
-  frame(k: number, scale: number, have: string[]): Uint8Array | null {
-    return this.call((p, n) => this.x.ph_frame(p, n), JSON.stringify({ page: k, scale, have: have.join(",") })) ? this.output() : null;
+  frame(k: number, scale: number, have: string[], win?: number[]): Uint8Array | null {
+    return this.call((p, n) => this.x.ph_frame(p, n), JSON.stringify({ page: k, scale, have: have.join(","), win })) ? this.output() : null;
   }
 
   /** A file the build wrote (`.aux`, ...); null: not written. */
@@ -439,8 +440,8 @@ export class CoreSession implements CoreTransport {
     // (the pages are the viewer's Strips' (viewer/src/strips.ts): a page's
     // `frame` is the core's own op, its strips' pixels these bytes)
     if (req.op === "frame_with") {
-      const f = req as unknown as { page?: number; scale: number; have: string[] };
-      const bytes = this.core.frame(f.page ?? 0, f.scale, f.have ?? []);
+      const f = req as unknown as { page?: number; scale: number; have: string[]; win?: number[] };
+      const bytes = this.core.frame(f.page ?? 0, f.scale, f.have ?? [], f.win);
       return bytes ? ({ ok: true, bytes } as CoreRes) : { ok: false, error: "no such page" };
     }
     if (req.op === "strips") {

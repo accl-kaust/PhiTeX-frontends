@@ -709,6 +709,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "phitex-ps"
+version = "0.0.0"
+dependencies = [
+ "libm",
+ "phitex-codecs",
+]
+
+[[package]]
 name = "phitex-render"
 version = "0.0.0"
 dependencies = [
@@ -742,6 +750,7 @@ dependencies = [
  "phitex-makeindex",
  "phitex-otf",
  "phitex-pdf",
+ "phitex-ps",
  "phitex-source",
  "phitex-tfm",
  "phitex-typeset",
@@ -763,6 +772,7 @@ version = "0.0.0"
 dependencies = [
  "libm",
  "phitex-codecs",
+ "phitex-ps",
 ]
 
 [[package]]
