@@ -11,6 +11,8 @@
 #
 # Settings (environment):
 #   PHITEX_VERSION=1.6     a version instead of the latest release
+#   PHITEX_CHANNEL=nightly the nightly (dev's, rebuilt each night) instead;
+#                          `phitex upgrade` then follows the nightly
 #   PHITEX_PREFIX=DIR      install into DIR/bin (default ~/.local)
 #
 # `phitex upgrade` updates an install made by this script.
@@ -19,9 +21,13 @@ set -eu
 REPO=accl-kaust/PhiTeX
 PREFIX=${PHITEX_PREFIX:-$HOME/.local}
 VERSION=${PHITEX_VERSION:-}
+CHANNEL=${PHITEX_CHANNEL:-stable}
 # The releases' signing key (minisign; PhiTeX's ci/minisign.pub). With
 # minisign installed, SHA256SUMS's signature is checked against it.
 PUBKEY="RWS/tPWBRVVf0Y9h/ODPiO2EgZi1labeCog3siaCfIdaC9HJkDJZ8k4u"
+# The nightly's own key (PhiTeX's ci/nightly.pub): a nightly is never
+# checked against the releases' key.
+NIGHTLY_PUBKEY="RWT5jA+G82gT+bMpGqolUeaWPm6OYkLC4m6lI8G5HbUnyL3yY5UpGCYD"
 
 say() { printf 'phitex: %s\n' "$*" >&2; }
 die() { say "$*"; exit 1; }
@@ -38,7 +44,15 @@ case "$(uname -m)" in
 esac
 asset="phitex-$arch-$os.tar.gz"
 
-if [ -n "$VERSION" ]; then
+case $CHANNEL in
+  stable) ;;
+  nightly) [ -z "$VERSION" ] || die "PHITEX_VERSION and PHITEX_CHANNEL=nightly: one or the other" ;;
+  *) die "PHITEX_CHANNEL is stable or nightly, not $CHANNEL" ;;
+esac
+if [ "$CHANNEL" = nightly ]; then
+  base="https://github.com/$REPO/releases/download/nightly"
+  PUBKEY=$NIGHTLY_PUBKEY
+elif [ -n "$VERSION" ]; then
   base="https://github.com/$REPO/releases/download/v${VERSION#v}"
 else
   base="https://github.com/$REPO/releases/latest/download"
@@ -92,7 +106,7 @@ mv -f "$PREFIX/bin/.phitex.new" "$PREFIX/bin/phitex"
 installed=$("$PREFIX/bin/phitex" --version 2>/dev/null | head -1 || true)
 data=${XDG_DATA_HOME:-$HOME/.local/share}/phitex
 mkdir -p "$data"
-printf '{"method": "script", "prefix": "%s", "asset": "%s"}\n' "$PREFIX" "$asset" > "$data/install.json"
+printf '{"method": "script", "prefix": "%s", "asset": "%s", "channel": "%s"}\n' "$PREFIX" "$asset" "$CHANNEL" > "$data/install.json"
 
 say "installed ${installed:-phitex} in $PREFIX/bin"
 case ":$PATH:" in
