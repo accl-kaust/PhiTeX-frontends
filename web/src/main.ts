@@ -281,7 +281,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
         reading: "Your files stay in this browser.",
         keptIn: "this browser",
         preparing: "",
-        steps: ["Starting", "Packages", "Typesetting"],
+        steps: ["Starting", "Fetching packages", "Typesetting"],
       },
     },
   );
@@ -337,7 +337,10 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   function projectsTip(): void {
     if (tipShown) return;
     tipShown = true;
-    if (local.get("tip.projects")) return panel.tour();
+    // (skipped: the tour skipped with it, now and on later visits; "Got it": the panel's tips next)
+    const was = local.get("tip.projects");
+    if (was === "skip") return;
+    if (was) return panel.tour();
     const at = $("#phx-proj").getBoundingClientRect();
     const tip = document.createElement("div");
     tip.className = "phx-tip";
@@ -356,11 +359,12 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     tip.style.setProperty("--ax", `${Math.min(at.width / 2, 60)}px`);
     $("#phx-proj").classList.add("ringed");
     tip.onclick = (e) => {
-      if (!(e.target as HTMLElement).closest("[data-t]")) return;
-      local.set("tip.projects", "1");
+      const a = (e.target as HTMLElement).closest<HTMLElement>("[data-t]")?.dataset.t;
+      if (!a) return;
+      local.set("tip.projects", a === "skip" ? "skip" : "1");
       tip.remove();
       $("#phx-proj").classList.remove("ringed");
-      panel.tour();
+      if (a !== "skip") panel.tour();
     };
   }
 

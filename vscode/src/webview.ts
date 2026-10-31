@@ -164,7 +164,7 @@ const panel = new Panel(
       reading: watch ? "Reading the document from phitex watch." : "Reading the project.",
       keptIn: "this machine",
       preparing: "",
-      steps: ["Starting", "Packages", "Typesetting"],
+      steps: ["Starting", "Fetching packages", "Typesetting"],
     },
   },
 );
