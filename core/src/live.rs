@@ -59,6 +59,16 @@ fn font_suffix(format: phitex_tex::KpseFormat) -> &'static str {
     }
 }
 
+/// Ghostscript's font `name` (a file name, no directory: `NimbusRoman-Regular`)
+/// where Shelf serves Ghostscript 10.08.0's own ([`phitex_shelf::GS_FONTS`]),
+/// the bytes the EPS converter embeds as gs does; none before a release has them.
+fn gs_font(files: &Arc<Files>, name: &str, engine: &'static str) -> Option<(String, Arc<Vec<u8>>)> {
+    if name.is_empty() || name.contains('/') {
+        return None;
+    }
+    files.shelf_find(&format!("{}/{name}", phitex_shelf::GS_FONTS), None, engine)
+}
+
 /// dvipdfmx's kpathsea format name for `format`, as Shelf's index has it.
 fn dpx_format(format: phitex_live::dvipdf::Format) -> &'static str {
     use phitex_live::dvipdf::Format as F;
@@ -128,10 +138,8 @@ impl Host for Shelf {
                 phitex_tex::ToolSearch::BibStyle => ".bst",
                 phitex_tex::ToolSearch::BibData => ".bib",
                 phitex_tex::ToolSearch::IndexStyle => ".ist",
-                // (Ghostscript's base 35 by its names, NimbusRoman-Regular:
-                // Shelf has TeX Live's URW fonts only by TeX's names, so the
-                // EPS converter says which it lacks; asked of Phi)
-                phitex_tex::ToolSearch::GsFont => return None,
+                // (Ghostscript's fonts by their file names, where Shelf serves them)
+                phitex_tex::ToolSearch::GsFont => return gs_font(&f, name, e).map(|(p, b)| (p, b.to_vec())),
             };
             let name = if name.ends_with(ext) { name.to_owned() } else { format!("{name}{ext}") };
             let p = f.locate(&name, e)?;
@@ -148,7 +156,7 @@ impl Host for Shelf {
     /// Shelf's by name in its format (its suffix added where the name has
     /// none).
     fn dpx_finder(&self) -> Option<Arc<phitex_live::dvipdf::DpxFinder>> {
-        let (f1, f2, e) = (self.files.clone(), self.files.clone(), self.engine);
+        let (f1, f2, f3, e) = (self.files.clone(), self.files.clone(), self.files.clone(), self.engine);
         Some(Arc::new(phitex_live::dvipdf::DpxFinder::new(
             Box::new(move |name, format, _prog| {
                 let n = String::from_utf8_lossy(name).into_owned();
@@ -167,7 +175,9 @@ impl Host for Shelf {
                     None => None,
                 }
             }),
-        )))
+        )
+        // (the `D` line's distiller: Ghostscript's fonts, where Shelf serves them)
+        .with_gs_font(Box::new(move |name| gs_font(&f3, std::str::from_utf8(name).ok()?, e).map(|(_, b)| Arc::from(b.as_slice()))))))
     }
 
     /// XeTeX's fonts: the release's font index ([`font_index`]), the faces
