@@ -242,7 +242,9 @@ export async function warmDiff(ix: CoreIndex, engine: string): Promise<void> {
   const bundled = new Set(ix.names);
   const e = shelfEngine(engine);
   const ids = new Set<string>();
-  for (const name of ["ulem.sty", "xcolor.sty", "footmisc.sty", "changebar.sty"]) {
+  // (and what a diff's build asked for beyond the project's, measured on the demo's
+  // Article: atbegshi, grfext, the sans italic its markup sets added text in)
+  for (const name of ["ulem.sty", "xcolor.sty", "footmisc.sty", "changebar.sty", "atbegshi.sty", "grfext.sty", "cmssi10.tfm", "cmssi10.pfb"]) {
     if (bundled.has(name)) continue;
     const path = lookup.resolve(name, formatOf(name), e);
     if (path) for (const id of lookup.packs(path, e)) ids.add(id);
