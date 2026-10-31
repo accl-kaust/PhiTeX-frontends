@@ -178,7 +178,7 @@ bubblewrap (for `scripts/sandbox`, which runs every build step without
 network access or `$HOME`):
 
     scripts/sandbox --net npm ci --ignore-scripts   # TypeScript and @types/chrome (dev only)
-    scripts/build.sh                                # wasm core, LaTeX format, TypeScript → overleaf/
+    scripts/build/build.sh                                # wasm core, LaTeX format, TypeScript → overleaf/
 
 Then go to `chrome://extensions`, turn on *Developer mode*, choose *Load
 unpacked*, and pick `overleaf/`.
@@ -199,23 +199,23 @@ The repository holds the frontends of one engine:
   `overleaf/src/common` links to `common/src`, so the extension's `dist/`
   holds both (`dist/common/…`).
 - `vscode/`: the VS Code extension over the same engine and `common/`
-  (`vscode/README.md`; `scripts/build-vscode.sh`).
+  (`vscode/README.md`; `scripts/build/build-vscode.sh`).
 
 Development:
 
-    scripts/build.sh --dev                          # also runs on the local mock
-    scripts/sandbox scripts/mock-editor.sh          # the mock's editor (once): CodeMirror 6 + Overleaf's LaTeX grammar → mock/build/
+    scripts/build/build.sh --dev                          # also runs on the local mock
+    scripts/sandbox scripts/build/mock-editor.sh          # the mock's editor (once): CodeMirror 6 + Overleaf's LaTeX grammar → mock/build/
     scripts/sandbox --net node mock/server.mjs      # mock Overleaf at http://localhost:8123/project/mock
-    scripts/chrome.sh [url]                         # Chromium with the extension, DevTools on :9222
+    scripts/dev/chrome.sh [url]                         # Chromium with the extension, DevTools on :9222
     scripts/sandbox node --test test/               # TypeScript and wasm tests
 
 Debug runs, scripted (no clicking through the terms, the tour or "Next":
-both runners write the onboarded state first, `scripts/onboarded.mjs`, via
+both runners write the onboarded state first, `scripts/dev/onboarded.mjs`, via
 a content-script hook that listens on `localhost` only):
 
-    scripts/sandbox --net node scripts/mock-run.mjs test/scenarios/sync.json   # Chromium, headless: steps, trace, screenshots → target/mock-run/<name>/
-    PHITEX_RUN=1 scripts/sandbox --net node scripts/mock-run.mjs ...           # a second run beside the first (own ports and profile)
-    scripts/package.sh && node scripts/fx-run.mjs                              # Firefox: the store package as a temporary add-on, on the mock
+    scripts/sandbox --net node scripts/dev/mock-run.mjs test/scenarios/sync.json   # Chromium, headless: steps, trace, screenshots → target/mock-run/<name>/
+    PHITEX_RUN=1 scripts/sandbox --net node scripts/dev/mock-run.mjs ...           # a second run beside the first (own ports and profile)
+    scripts/build/package.sh && node scripts/dev/fx-run.mjs                              # Firefox: the store package as a temporary add-on, on the mock
 
 `mock-run.mjs` steps (see its header): `type`, `replace`, `idle`, `shot`,
 `dblpage`, `dbltext`, `cursor`, `select`, `pagesel`, `eval` (`"page": true`
@@ -226,7 +226,7 @@ scripts).
 
 The mock imitates the parts of Overleaf the extension reads: the CodeMirror
 editor, the file tree, the project endpoints, and the split PDF pane. After
-a change to the core, restart the browser (`scripts/chrome.sh`), because
+a change to the core, restart the browser (`scripts/dev/chrome.sh`), because
 the offscreen document keeps the loaded wasm across page reloads.
 
 ### How it works
@@ -264,7 +264,7 @@ Overleaf page                                            extension
 - `session.ts` knows neither Overleaf nor Chrome (`EditorHost`,
   `CoreTransport`, `PreviewSink`), so other editors could reuse it.
 
-Store kit: `scripts/package.sh` builds the upload zips (Chrome Web Store
+Store kit: `scripts/build/package.sh` builds the upload zips (Chrome Web Store
 and Edge; Firefox: a background page instead of the offscreen document),
 `STORE.md` has the listing text, and `store/` has the screenshots and icons.
 

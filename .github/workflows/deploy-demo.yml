@@ -1,7 +1,7 @@
 # demo.phitex.org on each push to main: the whole web frontend built from
-# this commit, the wasm core with it (scripts/build.sh: PhiTeX's pinned
+# this commit, the wasm core with it (scripts/build/build.sh: PhiTeX's pinned
 # commit, the phitex submodule, to wasm; the formats made by that core), then
-# scripts/build-web.sh, deployed to Cloudflare Pages project phitex-demo.
+# scripts/build/build-web.sh, deployed to Cloudflare Pages project phitex-demo.
 #
 # Secret: CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit).
 name: deploy-demo
@@ -38,10 +38,10 @@ jobs:
           pip download --no-deps --only-binary=:all: -d target/minted latexminted==0.7.1 latexrestricted==0.6.2 latex2pydata==0.5.0 pygments==2.19.1
       - name: Build
         run: |
-          MINTED_WHEELS=target/minted scripts/build.sh
-          scripts/build-web.sh
+          MINTED_WHEELS=target/minted scripts/build/build.sh
+          scripts/build/build-web.sh
       - uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: 2925ae0c4cb07a33b3ab848a3a4c6c99
-          command: pages deploy web/dist --project-name=phitex-demo --branch=main
+          command: pages deploy build/web --project-name=phitex-demo --branch=main

@@ -1,4 +1,4 @@
-// web/dist/ served as phitex.org serves /try: COOP same-origin and COEP
+// build/web/ served as phitex.org serves /try: COOP same-origin and COEP
 // credentialless, so the core's threads may share memory.
 //   node web/test/serve.mjs [port] [dir]
 import http from "node:http";
@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const port = +(process.argv[2] ?? 8790);
-const root = path.resolve(process.argv[3] ?? path.join(path.dirname(new URL(import.meta.url).pathname), "../dist"));
+const root = path.resolve(process.argv[3] ?? path.join(path.dirname(new URL(import.meta.url).pathname), "../../build/web"));
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm", ".json": "application/json", ".txt": "text/plain", ".css": "text/css" };
 http
   .createServer((req, res) => {

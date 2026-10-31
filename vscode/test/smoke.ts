@@ -11,7 +11,7 @@
 // touched: not committed), so the pointers the round trip passes are at or
 // above 2 GiB, where JS sees wasm's i32 as negative.
 //
-//   scripts/build-vscode.sh && scripts/sandbox --net node vscode/dist/smoke.mjs FOLDER [MAIN] [--high]
+//   scripts/build/build-vscode.sh && scripts/sandbox --net node vscode/dist/smoke.mjs FOLDER [MAIN] [--high]
 
 import { readdirSync, readFileSync, statSync, mkdtempSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";

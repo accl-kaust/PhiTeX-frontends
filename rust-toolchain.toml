@@ -1,5 +1,5 @@
 [toolchain]
 channel = "nightly-2026-08-08"
 components = ["rustfmt", "clippy"]
-# (the wasm core and latexdiff: scripts/build.sh)
+# (the wasm core and latexdiff: scripts/build/build.sh)
 targets = ["wasm32-wasip1-threads", "wasm32-unknown-unknown"]

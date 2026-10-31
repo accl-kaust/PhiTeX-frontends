@@ -19,7 +19,7 @@ const gunzip = async (s: ReadableStream) => new Uint8Array(await new Response(s.
 const KV = "core.kv";
 
 /**
- * A format's state the extension ships (formats/, scripts/make-formats.sh:
+ * A format's state the extension ships (formats/, scripts/build/make-formats.sh:
  * pdfLaTeX's, made by this very core.wasm, gzipped): `format/NAME` is
  * `formats/NAME.gzdata`, `format/NAME/pkgrec` `formats/NAME.pkgrec.gzdata`.
  * NAME holds the engine's identity, so a core.wasm other than the one that
@@ -49,7 +49,7 @@ function warm(path: string): void {
 
 /**
  * pdfLaTeX's shipped format (`formats/list.txt`: the web frontend's, one per
- * engine, scripts/build-web.sh) fetched now, while the core compiles,
+ * engine, scripts/build/build-web.sh) fetched now, while the core compiles,
  * instead of once it asks: a first visit's 5 MB beside its 22; and the
  * bundled texmf/ files a first build on each reads (`NAME.texmf.txt`,
  * recorded by build-web.sh), all at once instead of one by one as TeX
@@ -64,7 +64,7 @@ export async function warmFormats(): Promise<void> {
     warm(`formats/${name}.gzdata`);
     warm(`formats/${name}.pkgrec.gzdata`);
     const t = await platform().asset(`formats/${name}.texmf.txt`);
-    if (!t.ok) throw new Error(`formats/${name}.texmf.txt: ${t.status} (scripts/build-web.sh writes it)`);
+    if (!t.ok) throw new Error(`formats/${name}.texmf.txt: ${t.status} (scripts/build/build-web.sh writes it)`);
     for (const f of (await t.text()).split("\n").filter(Boolean)) warm(`texmf/${f}`);
   }
 }

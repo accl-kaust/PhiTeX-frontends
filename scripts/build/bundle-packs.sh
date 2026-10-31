@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # The Shelf packs the extension ships (data/bundled-packs.txt; empty since
 # 0.5.2: the packs arXiv papers use most are fetched in the background after
-# install, prefetch.ts, data/ahead.txt; scripts/bundle-packs.py still makes a
-# list from the survey in data/arxiv-*.tsv) into overleaf/packs/, with
+# install, prefetch.ts, data/ahead.txt) into overleaf/packs/, with
 # list.txt, and the list fetched ahead (packs/ahead.txt). From a Shelf
 # checkout's releases (SHELF_RELEASES; default SHELF_REPO/releases, e.g.
 # SHELF_RELEASES=$SHELF_REPO/releases-s3 for a local schema-3 release; the
@@ -10,7 +9,7 @@
 # (needs --net). Writes Shelf's keep-packs.txt too (SHELF_REPO/keep-packs.txt):
 # release.py's GC keeps the packs a shipped extension bundles.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 repo="${SHELF_REPO:-$HOME/code/flinner/shelf.PhiTeX.org}"
 # (by the names the shipped index gives them: content-named, under h/)
 src="${SHELF_RELEASES:-$repo/releases}/tl2026/h"

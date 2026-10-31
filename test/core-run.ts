@@ -10,10 +10,10 @@
 //   scripts/sandbox --net node test/core-run.ts [FILE.tex] [--threads N] [--ini] [--cold] [--kpse] [--timeline] [--minted]
 //
 // --cold: the store's formats not given (built again, and stored).
-// --store DIR: the store there (scripts/make-formats.sh: the formats shipped).
+// --store DIR: the store there (scripts/build/make-formats.sh: the formats shipped).
 // --packs FILE: the ids of the packs the build fetched, written there.
 // --names FILE: the bundled texmf/ files the build read, by name, written there
-// (scripts/build-web.sh: a format's first build's, fetched ahead by the web frontend).
+// (scripts/build/build-web.sh: a format's first build's, fetched ahead by the web frontend).
 // --texmf DIR: the bundled texmf/ read from there (default: the repo's texmf/).
 // --wasm PATH: the core built elsewhere (e.g. with --features profile).
 // --env NAME=value (repeatable): the core's environment, e.g. PHITEX_TEX_TIME=1.

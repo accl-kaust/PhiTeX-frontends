@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Every frontend, built here: the browser extension (scripts/package.sh:
-# store/phitex-instant-<version>.zip), the web frontend (web/dist), VS Code's
-# (vscode/phitex-instant-<version>.vsix). (demo.phitex.org is built and
+# Every frontend, built here: the browser extension (scripts/build/package.sh:
+# build/phitex-instant-<version>.zip), the web frontend (build/web), VS Code's
+# (build/phitex-instant-<version>.vsix): all of it in build/. (demo.phitex.org is built and
 # deployed by CI on each push to main: .github/workflows/deploy-demo.yml.)
 # Always the branch's latest on GitHub, here: the branch checked out and
 # fast-forwarded to github/BRANCH, its PhiTeX checked out, its packages
@@ -27,9 +27,10 @@ if [ -z "${BUILD_ALL_FETCHED:-}" ]; then
 fi
 # (each step said as it begins: what the build is doing now)
 step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
-step "The browser extension and the web demo (scripts/package.sh)"
-scripts/package.sh
-step "The VS Code extension (scripts/build-vscode.sh --package)"
-scripts/build-vscode.sh --package
+step "The browser extension and the web demo (scripts/build/package.sh)"
+scripts/build/package.sh
+step "The VS Code extension (scripts/build/build-vscode.sh --package)"
+scripts/build/build-vscode.sh --package
 step "Done"
-ls -1 store/phitex-instant-*.zip vscode/phitex-instant-*.vsix 2>/dev/null | tail -2
+ls -1t build/phitex-instant-*.zip build/phitex-instant-*.vsix 2>/dev/null | head -2
+echo "build/web (the web demo, as CI deploys it)"

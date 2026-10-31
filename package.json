@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "scripts/build.sh",
+    "build": "scripts/build/build.sh",
     "//": "run through scripts/sandbox: scripts/sandbox npm test",
     "test": "node --test test/",
     "typecheck": "tsc --noEmit -p overleaf"

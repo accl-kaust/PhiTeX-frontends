@@ -13,9 +13,9 @@
 # for, so build them together (build.sh). Its packs from
 # target/shelf-cache/, else Shelf (needs the network then).
 #
-#   scripts/make-formats.sh [CORE_WASM] [OUT_DIR]   # default: target/core's core.wasm, target/formats
+#   scripts/build/make-formats.sh [CORE_WASM] [OUT_DIR]   # default: target/core's core.wasm, target/formats
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 wasm=${1:-target/core/wasm32-wasip1-threads/release/core.wasm}
 out=${2:-target/formats}
 rm -rf "$out"

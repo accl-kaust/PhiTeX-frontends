@@ -9,7 +9,7 @@ store/0.*/
 store/beta*/
 mock/build/
 diff-wasm/target/
-# (the browser extension's build: scripts/build.sh)
+# (the browser extension's build: scripts/build/build.sh)
 overleaf/dist/
 overleaf/manifest.json
 overleaf/LICENSE.txt
@@ -24,7 +24,7 @@ overleaf/shims/
 overleaf/shelf-index.tsv.gzdata
 overleaf/shelf-packs.tsv.gzdata
 overleaf/shelf-release.json
-# (VS Code's: scripts/build-vscode.sh)
+# (VS Code's: scripts/build/build-vscode.sh)
 vscode/dist/
 vscode/texmf/
 vscode/packs/
@@ -36,8 +36,9 @@ vscode/shelf-index.tsv.gzdata
 vscode/shelf-packs.tsv.gzdata
 vscode/shelf-release.json
 vscode/formats/
-# (the web frontend: scripts/build-web.sh)
-web/dist/
+# (what scripts/build-all.sh makes: the extensions' packages, the web demo (build/web))
+/build/
+# (the web frontend's own: scripts/build/build-web.sh)
 web/shots/
 web/test/.cache/
 web/test/.home/

@@ -9,9 +9,9 @@
 # shelf-release.json. Downloaded from Shelf (needs the network; SHELF_URL,
 # default Shelf v1: its Cloudflare Pages address where phitex.org is not
 # reachable, https://shelf-phitex-v1.pages.dev/tl2026/, serves the same).
-#   scripts/shelf-index.sh
+#   scripts/build/shelf-index.sh
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 url="${SHELF_URL:-https://v1.shelf.phitex.org/tl2026/}"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

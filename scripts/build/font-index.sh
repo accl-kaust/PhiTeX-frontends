@@ -6,9 +6,9 @@
 # bwrap mounts over fonts/opentype and fonts/truetype while otf-index runs
 # fc-list over them. Writes target/fmt-xe/fontindex.pxfi (and drops
 # xelatex.fmt, made with it, so build.sh makes it again).
-#   scripts/font-index.sh [path/to/shelf.PhiTeX.org] [label]
+#   scripts/build/font-index.sh [path/to/shelf.PhiTeX.org] [label]
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 shelf="${1:-$HOME/code/flinner/shelf.PhiTeX.org}"
 label="${2:-tl2026}"
 phitex_root=$(sed -n 's|^phitex-core = { package = "partex-core", path = "\(.*\)/crates/partex-core" }|\1|p' core/Cargo.toml)

@@ -2,9 +2,9 @@
 # Download the LaTeX packages the extension bundles, from TeX Live's
 # package archive (ready .sty/.cls files, no .dtx unpacking), into texmf/, flat
 # by name (the offscreen document looks them up there before Shelf).
-# Run: scripts/sandbox --net scripts/fetch-texmf.sh
+# Run: scripts/sandbox --net scripts/build/fetch-texmf.sh
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 MIRROR=${TL_MIRROR:-https://mirror.ctan.org/systems/texlive/tlnet/archive}
 PKGS=(
   latex latex-fonts l3kernel l3packages

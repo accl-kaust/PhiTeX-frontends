@@ -1,7 +1,7 @@
 // Dev: the live preview's state as JSON, no screenshot: the session (files,
 // main, pages, the package loop) and the core's status (history, missing,
 // the last build's kind and time, the terminal's tail).
-//   node scripts/state.mjs <url-substring> [--term | --log]
+//   node scripts/debug/state.mjs <url-substring> [--term | --log]
 // (--log: the whole terminal of the last build and the job's .log)
 import { execFileSync } from "node:child_process";
 const [match, flag] = process.argv.slice(2);

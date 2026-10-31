@@ -2,14 +2,14 @@
 # The VS Code extension (vscode/): its bundles (esbuild: the extension
 # host's, the core's threads' entry, the webview's; and test/smoke.ts's),
 # and the browser build's files the shared code reads (overleaf/:
-# run scripts/build.sh first): the core and latexdiff modules, the shipped
+# run scripts/build/build.sh first): the core and latexdiff modules, the shipped
 # formats, texmf/, the packs, the fonts.
 #
-#   scripts/build-vscode.sh            # vscode/dist/, vscode/texmf/, ...
-#   scripts/build-vscode.sh --package  # and vscode/phitex-instant-<v>.vsix
+#   scripts/build/build-vscode.sh            # vscode/dist/, vscode/texmf/, ...
+#   scripts/build/build-vscode.sh --package  # and build/phitex-instant-<v>.vsix
 set -euo pipefail
-cd "$(dirname "$0")/.."
-[ -s overleaf/dist/core.wasm ] || { echo "no overleaf/dist/core.wasm: scripts/build.sh first" >&2; exit 1; }
+cd "$(dirname "$0")/../.."
+[ -s overleaf/dist/core.wasm ] || { echo "no overleaf/dist/core.wasm: scripts/build/build.sh first" >&2; exit 1; }
 
 scripts/sandbox bash -c 'cd vscode && ../node_modules/.bin/tsc -p .'
 es=(node_modules/.bin/esbuild --bundle --log-level=warning --sourcemap=inline)
@@ -38,6 +38,6 @@ cp overleaf/shelf-index.tsv.gzdata overleaf/shelf-packs.tsv.gzdata overleaf/shel
 if [ "${1:-}" = --package ]; then
   # (no source maps in the package)
   scripts/sandbox bash -c 'cd vscode && for f in extension thread webview; do ../node_modules/.bin/esbuild --bundle --log-level=warning src/$f.ts $([ $f = webview ] && echo --platform=browser --format=iife --target=es2022 || echo --platform=node --format=cjs --target=node20 --external:vscode) --outfile=dist/$f.js; done'
-  scripts/sandbox --net bash -c 'cd vscode && npx --yes @vscode/vsce@3 package --no-dependencies --allow-missing-repository'
+  scripts/sandbox --net bash -c 'cd vscode && npx --yes @vscode/vsce@3 package --no-dependencies --allow-missing-repository --out ../build/'
 fi
 du -sh vscode/dist vscode/texmf vscode/packs vscode/fonts 2>/dev/null

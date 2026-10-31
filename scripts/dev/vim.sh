@@ -3,7 +3,7 @@
 # (`phitex watch --lsp`, the native engine), on a folder: your own config
 # left out (nvim --clean), this file alone loaded, `phitex` the one given.
 #
-#   scripts/vim.sh [FOLDER] [PHITEX]
+#   scripts/dev/vim.sh [FOLDER] [PHITEX]
 #
 # FOLDER: the project (default: a demo with an amsmath article, made in
 # target/vim-demo/). PHITEX: the phitex binary (default: target/native/phitex
@@ -13,7 +13,7 @@
 # :PhiTeXCaches, ... (the file's header). PHITEX_SETTINGS: a Lua table for
 # PhitexSettings, e.g. '{ follow = "selection" }'.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 repo=$PWD
 
 phitex=${2:-}

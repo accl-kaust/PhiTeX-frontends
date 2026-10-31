@@ -2,7 +2,7 @@
 // welcome tip, the tour and the release notes seen, the Instant view on.
 // Debug scripts write this before opening a project, so no run clicks
 // through "Try it", the terms' checkbox and "Enable", or the tour's "Next":
-//   scripts/mock-run.mjs (Chromium), scripts/fx-run.mjs (Firefox).
+//   scripts/dev/mock-run.mjs (Chromium), scripts/dev/fx-run.mjs (Firefox).
 // They post it to the content script from the mock's page (a hook that
 // listens on localhost only, content-main.ts "phitex-dev"), then reload:
 // the browsers' automation can't open the extension's own pages.

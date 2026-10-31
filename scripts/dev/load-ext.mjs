@@ -1,15 +1,15 @@
 // Load overleaf/ into a running Chromium, unpacked, over the DevTools
 // protocol: Chromium 153 ignores --load-extension, but Extensions.loadUnpacked
 // works when the browser runs with --enable-unsafe-extension-debugging
-// (scripts/chrome.sh starts it so). The extension is loaded from
+// (scripts/dev/chrome.sh starts it so). The extension is loaded from
 // target/ext-dev/: overleaf/'s files copied, its manifest matching the local
 // mock (http://localhost/project/*) as a --dev build's does, so a store
 // build in overleaf/ runs on the mock too.
-//   node scripts/load-ext.mjs PORT
+//   node scripts/dev/load-ext.mjs PORT
 import fs from "node:fs";
 import path from "node:path";
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const port = process.argv[2] ?? "9222";
 const src = path.join(root, "overleaf"), dev = path.join(root, "target/ext-dev");
 fs.rmSync(dev, { recursive: true, force: true });

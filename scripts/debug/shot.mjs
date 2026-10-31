@@ -1,4 +1,4 @@
-// Screenshot a tab (dev): node scripts/shot.mjs <url-substring> <out.png>
+// Screenshot a tab (dev): node scripts/debug/shot.mjs <url-substring> <out.png>
 import fs from "node:fs";
 const [match, file] = process.argv.slice(2);
 const t = (await (await fetch(`http://localhost:${process.env.PHITEX_CDP_PORT ?? 9222}/json`)).json()).find((t) => t.type === "page" && t.url.includes(match));

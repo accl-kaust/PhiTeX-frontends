@@ -53,7 +53,7 @@ const DETACHED = /^\/project\/[0-9a-f]{24}\/detached\/?$/.test(location.pathname
 
 // (debug scripts, on the local mock only, never overleaf.com: the storage
 // as after the onboarding, so no run clicks through the terms and the tour;
-// scripts/onboarded.mjs posts it, then reloads)
+// scripts/dev/onboarded.mjs posts it, then reloads)
 // ("trace": the session's last events and this script's errors, for a
 // browser whose automation can't reach content scripts: Firefox)
 const devErrors: string[] = [];

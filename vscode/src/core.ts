@@ -22,7 +22,7 @@ import { spawner } from "./thread.ts";
 /**
  * `\write18`'s allowed commands (minted's latexminted) in Pyodide, as the
  * Overleaf extension runs them: Pyodide, PhiTeX's runner and TeX Live's
- * wheels, the extension's own (scripts/build-vscode.sh), loaded at the
+ * wheels, the extension's own (scripts/build/build-vscode.sh), loaded at the
  * first call.
  */
 function shellOf(root: string, log: (s: string) => void) {

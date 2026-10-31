@@ -1,6 +1,6 @@
 # phitex-diff (PhiTeX's latexdiff) as a small wasm module of its own, for the
 # extension: two versions' files in, the marked-up .tex and the changes out
-# (diff.ts). Built by scripts/build.sh into dist/diff.wasm, from the phitex/
+# (diff.ts). Built by scripts/build/build.sh into dist/diff.wasm, from the phitex/
 # submodule's commit like everything else of PhiTeX's.
 [package]
 name = "phitex-diff-wasm"

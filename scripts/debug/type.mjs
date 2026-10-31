@@ -1,6 +1,6 @@
 // Type into a tab as a user (dev): real key input through the DevTools
 // protocol, one character every `ms`, at the editor's cursor.
-//   node scripts/type.mjs <url-substring> <text> [ms]
+//   node scripts/debug/type.mjs <url-substring> <text> [ms]
 const [match, text, ms = "40"] = process.argv.slice(2);
 const t = (await (await fetch(`http://localhost:${process.env.PHITEX_CDP_PORT ?? 9222}/json`)).json()).find((t) => t.type === "page" && t.url.includes(match));
 const ws = new WebSocket(t.webSocketDebuggerUrl);

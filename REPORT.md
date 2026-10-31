@@ -65,7 +65,7 @@ would make it usable.)
      registration spins forever in `__pthread_key_delete`, so `ph_open`
      hung. `-Zwasi-exec-model=reactor` applies to binaries only. The fix is
      linking the toolchain's `crt1-reactor.o` and exporting `_initialize`
-     (`scripts/build.sh`).
+     (`scripts/build/build.sh`).
    - The alternative, for wasm-bindgen, is the `web-time` patch
      (`patches/0001`, tested).
 2. **Offscreen document, not a Worker from the page.** A Worker started

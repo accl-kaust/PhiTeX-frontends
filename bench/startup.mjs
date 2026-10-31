@@ -24,7 +24,7 @@
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { onboarded } from "../scripts/onboarded.mjs";
+import { onboarded } from "../scripts/dev/onboarded.mjs";
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const argv = process.argv.slice(2);

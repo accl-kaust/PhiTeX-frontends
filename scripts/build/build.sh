@@ -3,18 +3,18 @@
 # its TypeScript (overleaf/src, and common/src through overleaf/src/common)
 # to overleaf/dist, the engine and its assets beside it.
 #
-#   scripts/build.sh          # release
-#   scripts/build.sh --dev    # also match the local mock (http://localhost:<any port>/project/*)
+#   scripts/build/build.sh          # release
+#   scripts/build/build.sh --dev    # also match the local mock (http://localhost:<any port>/project/*)
 #
 # The wasm core: core/ (PhiTeX's live document, phitex-live) for
 # wasm32-wasip1-threads, a WASI reactor whose threads are the browser's
 # workers on one shared memory (common/src/wasm/); cargo in the sandbox
 # (PhiTeX read-only), its target directory inside this repo; with it, the
-# formats it ships (scripts/make-formats.sh: pdfLaTeX's, made by that very
+# formats it ships (scripts/build/make-formats.sh: pdfLaTeX's, made by that very
 # core.wasm). PHITEX_WASM_DIR: a directory with core.wasm, diff.wasm and
 # formats/ built elsewhere (a build machine's, together), copied instead.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 # (each step said as it begins: what the build is doing now)
 step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 
@@ -38,7 +38,7 @@ else
   core=target/core/wasm32-wasip1-threads/release/core.wasm
   # (its formats, made by it: a first open reads pdfLaTeX's instead of building it)
   step "Making the formats (pdfLaTeX, XeLaTeX) with that core"
-  scripts/sandbox --net scripts/make-formats.sh "$core" target/formats
+  scripts/sandbox --net scripts/build/make-formats.sh "$core" target/formats
   formats=target/formats
   # PhiTeX's latexdiff (phitex-diff) as its own small wasm module, for the
   # compare: diff-wasm/, on phitex/'s phitex-diff
@@ -53,15 +53,15 @@ cp "$formats"/* overleaf/formats/
 # (the full license, shipped in the extension, where its links point)
 # (packs/: the list fetched ahead, and any Shelf packs shipped: data/bundled-packs.txt, none now)
 step "The extension's files (packs, texmf/, Shelf's index)"
-scripts/bundle-packs.sh
+scripts/build/bundle-packs.sh
 cp LICENSE overleaf/LICENSE.txt
 cp NOTICE overleaf/NOTICE.txt
-# The bundled packages (scripts/fetch-texmf.sh), flat by name: shelf.ts reads
+# The bundled packages (scripts/build/fetch-texmf.sh), flat by name: shelf.ts reads
 # them before asking Shelf.
 rm -rf overleaf/texmf && cp -r texmf overleaf/texmf
 # Shelf's index (texmf path -> pack), its pack table (each pack's SHA-256
 # and size) and its release.json (how names
-# resolve per engine), made by Shelf's release.py: scripts/shelf-index.sh
+# resolve per engine), made by Shelf's release.py: scripts/build/shelf-index.sh
 # (named .gzdata: Edge's store refuses archives inside a package)
 # (SHELF_INDEX, SHELF_PACKS, SHELF_RELEASE: another release's, a local Shelf's for a --dev build)
 cp "${SHELF_INDEX:-shelf-index.tsv.gz}" overleaf/shelf-index.tsv.gzdata

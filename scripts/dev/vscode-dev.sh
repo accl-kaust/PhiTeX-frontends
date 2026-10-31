@@ -2,7 +2,7 @@
 # VS Code with the extension as it is in vscode/src (bundled again first),
 # on a folder, the preview by `phitex watch --lsp` (the native engine).
 #
-#   scripts/vscode-dev.sh [FOLDER] [PHITEX]
+#   scripts/dev/vscode-dev.sh [FOLDER] [PHITEX]
 #
 # FOLDER: the project (default: a demo with an amsmath article, made in
 # target/vscode-demo/). PHITEX: the phitex binary (default: target/native/
@@ -13,7 +13,7 @@
 # .vscode/ are left as they are. Then: open a .tex file, Ctrl+Alt+P.
 # PHITEX_CODE_FLAGS: more flags for code (e.g. --disable-gpu).
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 repo=$PWD
 
 phitex=${2:-}
@@ -28,9 +28,9 @@ if [ -z "$folder" ]; then
 fi
 folder=$(cd "$folder" && pwd)
 
-# (the extension as scripts/build-vscode.sh makes it: its bundles, MuPDF, and
-# the builtin engine's files from overleaf/, which scripts/build.sh makes)
-scripts/build-vscode.sh > /dev/null
+# (the extension as scripts/build/build-vscode.sh makes it: its bundles, MuPDF, and
+# the builtin engine's files from overleaf/, which scripts/build/build.sh makes)
+scripts/build/build-vscode.sh > /dev/null
 
 profile=$repo/target/vscode-dev
 mkdir -p "$profile/user/User" "$profile/extensions"

@@ -1,7 +1,7 @@
 # Chrome Web Store: listing kit
 
 Everything the Developer Dashboard asks for, ready to paste. Build the
-upload with `scripts/package.sh` (→ `store/phitex-instant-<version>.zip`).
+upload with `scripts/build/package.sh` (→ `store/phitex-instant-<version>.zip`).
 
 ## Store listing
 

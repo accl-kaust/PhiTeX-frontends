@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# The web frontend's build (web/dist/, scripts/build-web.sh) to
+# The web frontend's build (build/web/, scripts/build/build-web.sh) to
 # demo.phitex.org: Cloudflare Pages project phitex-demo, its whole site
 # replaced by this build. wrangler authenticates with an API token (Cloudflare
 # Pages: Edit) read from TOKEN_FILE (default ~/code/login/cloudflare-token,
 # the user's, mode 600; never printed): a copied `wrangler login` stops
 # working once either copy refreshes its token. The project once:
-#   scripts/deploy-web.sh --create
+#   scripts/build/deploy-web.sh --create
 # (demo.phitex.org is the project's custom domain, set in Cloudflare's dashboard once.)
 #
-#   scripts/deploy-web.sh [--create]
+#   scripts/build/deploy-web.sh [--create]
 set -euo pipefail
-cd "$(dirname "$0")/.."
-[ -s web/dist/dist/web.js ] && [ -s web/dist/_headers ] || { echo "no web/dist: scripts/build-web.sh first" >&2; exit 1; }
+cd "$(dirname "$0")/../.."
+[ -s build/web/dist/web.js ] && [ -s build/web/_headers ] || { echo "no build/web: scripts/build/build-web.sh first" >&2; exit 1; }
 # (Pages takes 25 MiB a file and 20000 files)
-big=$(find web/dist -type f -size +25M)
+big=$(find build/web -type f -size +25M)
 [ -z "$big" ] || { echo "over Pages' 25 MiB a file: $big" >&2; exit 1; }
-dist="$PWD/web/dist"
+dist="$PWD/build/web"
 token="${TOKEN_FILE:-$HOME/code/login/cloudflare-token}"
 [ -s "$token" ] || { echo "no API token in $token (Cloudflare Pages: Edit)" >&2; exit 1; }
 home="${WRANGLER_HOME:-$HOME/code/tmp/phitex-demo-wrangler}"

@@ -1,5 +1,5 @@
 // Dev: a Chrome Web Store screenshot, exactly 1280×800: the tab's viewport
-// emulated at that size, captured, restored.  node scripts/store-shot.mjs <url-substring> <out.png> [ms to settle]
+// emulated at that size, captured, restored.  node scripts/debug/store-shot.mjs <url-substring> <out.png> [ms to settle]
 import fs from "node:fs";
 const [match, file, settle = "1200"] = process.argv.slice(2);
 const t = (await (await fetch(`http://localhost:${process.env.PHITEX_CDP_PORT ?? 9222}/json`)).json()).find((t) => t.type === "page" && t.url.includes(match));

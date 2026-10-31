@@ -12,7 +12,7 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-# (Shelf's checkout, read-only: scripts/bundle-packs.sh takes the bundled
+# (Shelf's checkout, read-only: scripts/build/bundle-packs.sh takes the bundled
 # packs from its releases; keep-packs.txt is written outside the sandbox)
 shelf="${SHELF_REPO:-$HOME/code/flinner/shelf.PhiTeX.org}"
 cargo_home="${CARGO_HOME:-$HOME/.cargo}"

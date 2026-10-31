@@ -1,5 +1,5 @@
 // Evaluate JS in a Chromium tab over the DevTools protocol (dev/test only).
-//   node scripts/cdp.mjs <url-substring> '<js expression>'   (awaits promises)
+//   node scripts/debug/cdp.mjs <url-substring> '<js expression>'   (awaits promises)
 const [match, expr] = process.argv.slice(2);
 const tabs = await (await fetch(`http://localhost:${process.env.PHITEX_CDP_PORT ?? 9222}/json`)).json();
 const tab = tabs.find((t) => (t.type === "page" || t.type === "background_page") && t.url.includes(match));

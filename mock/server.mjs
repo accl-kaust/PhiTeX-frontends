@@ -1,5 +1,5 @@
 // A local stand-in for Overleaf: the editor page (overleaf.html, a mock of
-// its DOM, with CodeMirror 6 itself: mock/editor/, scripts/mock-editor.sh) at /project/mock, and
+// its DOM, with CodeMirror 6 itself: mock/editor/, scripts/build/mock-editor.sh) at /project/mock, and
 // the endpoints the extension reads: /entities, /doc/:id/download,
 // /download/zip. Edits made in the mock are kept in memory (as a server).
 //   node mock/server.mjs [port]
@@ -109,10 +109,10 @@ http.createServer((req, res) => {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": `script-src 'nonce-${nonce}' 'unsafe-inline' 'strict-dynamic' https: 'report-sample'` });
     return res.end(fs.readFileSync(path.join(dir, "overleaf.html"), "utf8").replaceAll("<script", `<script nonce="${nonce}"`));
   }
-  // (the editor: CodeMirror 6 and Overleaf's grammar, scripts/mock-editor.sh)
+  // (the editor: CodeMirror 6 and Overleaf's grammar, scripts/build/mock-editor.sh)
   if (u.pathname === "/project/mock/editor.js") {
     const f = path.join(dir, "build/editor.js");
-    if (!fs.existsSync(f)) return send(404, "text/plain", "mock/build/editor.js: run scripts/sandbox scripts/mock-editor.sh");
+    if (!fs.existsSync(f)) return send(404, "text/plain", "mock/build/editor.js: run scripts/sandbox scripts/build/mock-editor.sh");
     return send(200, "text/javascript; charset=utf-8", fs.readFileSync(f));
   }
   if (u.pathname === "/project/mock/entities")

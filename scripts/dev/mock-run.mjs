@@ -9,7 +9,7 @@
 //   target/mock-run/<name>/core-log.txt  the core's build log (with rebuild traces: a "trace" step)
 // and prints the timeline and a summary (builds, worst build, final status).
 //
-//   node scripts/mock-run.mjs SCENARIO.json [--fresh] [--keep]
+//   node scripts/dev/mock-run.mjs SCENARIO.json [--fresh] [--keep]
 //
 // SCENARIO.json:
 //   { "project": "path/to/dir-or.zip", "name": "circuitikz",
@@ -28,7 +28,7 @@
 //       { "dbltext": "Every writer" }, // double-click the editor at that text: the page's highlight boxes after
 //       { "dbloutline": "Section 3" } // double-click that heading in the file outline
 //     ] }
-//   "storage": { "toured": false } // (top level) over the onboarded settings (scripts/onboarded.mjs)
+//   "storage": { "toured": false } // (top level) over the onboarded settings (scripts/dev/onboarded.mjs)
 // --fresh: the package cache (IndexedDB) emptied first, as a new install.
 // --keep: Chromium and the mock left running after.
 import { spawn, execFileSync } from "node:child_process";
@@ -36,7 +36,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { onboardScript } from "./onboarded.mjs";
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const args = process.argv.slice(2);
 const sc = JSON.parse(fs.readFileSync(args.find((a) => !a.startsWith("--")), "utf8"));
 const fresh = args.includes("--fresh"), keep = args.includes("--keep");
@@ -55,7 +55,7 @@ const mock = spawn("node", ["mock/server.mjs", String(MOCK)], { cwd: root, env: 
 await new Promise((r) => mock.stdout.once("data", r));
 // Chromium with the extension
 if (fresh) fs.rmSync(path.join(root, PROFILE, "Default/IndexedDB"), { recursive: true, force: true });
-execFileSync("bash", ["scripts/chrome.sh", `http://localhost:${MOCK}/project/mock`], { cwd: root, env: { ...process.env, PHITEX_CDP_PORT: String(PORT), PHITEX_PROFILE: PROFILE, PHITEX_HEADLESS: "1" } });
+execFileSync("bash", ["scripts/dev/chrome.sh", `http://localhost:${MOCK}/project/mock`], { cwd: root, env: { ...process.env, PHITEX_CDP_PORT: String(PORT), PHITEX_PROFILE: PROFILE, PHITEX_HEADLESS: "1" } });
 
 // the tab, over the DevTools protocol: page world (the editor) and the content script's
 let tab;
@@ -221,7 +221,7 @@ try {
   console.log("worker console: not attached:", String(e));
 }
 
-// the onboarded state (scripts/onboarded.mjs: no welcome tip, terms or
+// the onboarded state (scripts/dev/onboarded.mjs: no welcome tip, terms or
 // tour over the page in a fresh profile), then the project again
 {
   const version = JSON.parse(fs.readFileSync(path.join(root, "overleaf/manifest.json"), "utf8")).version;
@@ -356,7 +356,7 @@ for (const s of sc.steps ?? []) {
   }
   else if (s.dumpview !== undefined) {
     // (`{"dumpview": "name"}`: the ⚡ view as a standalone page, <out>/<name>.html (its styles,
-    // the glyph and image store, the stage with every page drawn), for scripts/scrollbench.mjs)
+    // the glyph and image store, the stage with every page drawn), to time its scrolling apart)
     const html = await evalIn(`(() => { const r = document.querySelector("phitex-preview").shadowRoot; const css = [...r.querySelectorAll("style")].map((s) => s.textContent).join("\\n") + [...(r.adoptedStyleSheets ?? [])].map((sh) => [...sh.cssRules].map((c) => c.cssText).join("\\n")).join("\\n"); const store = r.getElementById("phx-glyphs")?.closest("svg")?.outerHTML ?? ""; const st = r.getElementById("stage"); return "<!doctype html><meta charset=utf-8><style>html,body{margin:0;height:100%} " + css + " #stage{height:100vh;overflow:auto}</style>" + store + st.outerHTML; })()`, true);
     fs.writeFileSync(path.join(out, `${s.dumpview}.html`), html ?? "");
     console.log(`dumpview → ${path.join(out, s.dumpview + ".html")}: ${(html ?? "").length} chars`);

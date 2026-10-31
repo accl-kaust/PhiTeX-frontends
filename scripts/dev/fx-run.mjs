@@ -1,10 +1,10 @@
 // The extension in Firefox, on the local mock, for debugging the Firefox
 // build: installs it as a temporary add-on over WebDriver BiDi, writes the
-// onboarded state (scripts/onboarded.mjs: no clicking through the terms or
+// onboarded state (scripts/dev/onboarded.mjs: no clicking through the terms or
 // the tour), opens the mock project, waits for the ⚡ pages, screenshots.
 //
-//   scripts/package.sh                      # store/phitex-instant-<v>-firefox.zip
-//   scripts/fx-run.mjs [--wait 30] [--url http://localhost:8123/project/mock] [--shot out.png]
+//   scripts/build/package.sh                      # store/phitex-instant-<v>-firefox.zip
+//   scripts/dev/fx-run.mjs [--wait 30] [--url http://localhost:8123/project/mock] [--shot out.png]
 //
 // Needs: Firefox (128+) on PATH, the mock running
 // (scripts/sandbox --net node mock/server.mjs). The add-on is the Firefox
@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { onboardScript, traceScript } from "./onboarded.mjs";
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const args = process.argv.slice(2);
 const opt = (k, d) => (args.includes(k) ? args[args.indexOf(k) + 1] : d);
 const url = opt("--url", "http://localhost:8123/project/mock");
@@ -32,7 +32,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // the Firefox package, with the mock's address
 const version = JSON.parse(fs.readFileSync(path.join(root, "overleaf/manifest.json"))).version;
 const zip = path.join(root, `store/phitex-instant-${version}-firefox.zip`);
-if (!fs.existsSync(zip)) throw new Error(`${zip}: run scripts/package.sh first`);
+if (!fs.existsSync(zip)) throw new Error(`${zip}: run scripts/build/package.sh first`);
 const dev = path.join(root, `target/fx-dev${tag}`);
 fs.rmSync(dev, { recursive: true, force: true });
 fs.mkdirSync(dev, { recursive: true });
@@ -93,7 +93,7 @@ try {
   const ctx = (await send("browsingContext.getTree", {})).contexts[0].context;
   const ev = async (expression) => (await send("script.evaluate", { expression, target: { context: ctx }, awaitPromise: true })).result?.value;
 
-  // the onboarded state (scripts/onboarded.mjs), then the project again
+  // the onboarded state (scripts/dev/onboarded.mjs), then the project again
   await send("browsingContext.navigate", { context: ctx, url, wait: "complete" });
   await sleep(1500);
   console.log("storage:", await ev(onboardScript(version)));
