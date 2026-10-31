@@ -4,13 +4,10 @@
   "shape": "3683020385d32b35"
  },
  "settings": {
-  "format": 1,
+  "format": 2,
   "keys": [
    "accepted",
    "ahead",
-   "cmpTipNext",
-   "cmpTipOff",
-   "cmpUsed",
    "diffLook",
    "dlExplained",
    "enabled",
@@ -28,6 +25,7 @@
    "speedOff",
    "statusColumn",
    "tipOff",
+   "tipsSeen",
    "toured",
    "view"
   ]
@@ -35,6 +33,7 @@
  "databases": {
   "shelf": 3,
   "release": 1,
-  "core": 1
+  "core": 1,
+  "web": 1
  }
 }

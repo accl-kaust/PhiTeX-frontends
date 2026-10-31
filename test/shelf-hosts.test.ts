@@ -1,33 +1,49 @@
-// Shelf's hosts (shelf.ts HOSTS, as PhiTeX's shelf::HOSTS): the first that answers is the answer.
+// Shelf's hosts (shelf.ts HOSTS, as PhiTeX's shelf::HOSTS): asked in the order
+// a race of release.json decides, once a visit; any answer is the answer.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setPlatform, type Platform } from "../common/src/platform.ts";
-import { HOSTS, shelfFetch } from "../common/src/shelf.ts";
+import { HOSTS } from "../common/src/shelf.ts";
 
-test("a host that answers is the answer, an error included; one unreachable is skipped from then on", async () => {
-  const asked: string[] = [];
-  let down = new Set<string>();
-  setPlatform({
-    fetch: async (url: string) => {
-      asked.push(url);
-      if ([...down].some((h) => url.startsWith(h))) throw new TypeError("Failed to fetch");
-      return new Response("", { status: 404 });
-    },
-  } as unknown as Platform);
-  const [first, second] = HOSTS;
+const [first, second] = HOSTS;
+let asked: string[] = [];
+let down = new Set<string>();
+setPlatform({
+  fetch: async (url: string) => {
+    asked.push(url);
+    if ([...down].some((h) => url.startsWith(h))) throw new TypeError("Failed to fetch");
+    return new Response("", { status: 404 });
+  },
+} as unknown as Platform);
+// (a visit: shelf.ts anew, its order not yet decided)
+let visits = 0;
+const visit = async (): Promise<typeof import("../common/src/shelf.ts")> => import(`../common/src/shelf.ts?visit=${++visits}`);
 
-  // (an HTTP error from the first host: no other asked)
+test("every host reachable: HOSTS' order, an HTTP error the answer", async () => {
+  const { shelfFetch } = await visit();
+  asked = [];
+  down = new Set();
   assert.equal((await shelfFetch("h/x.pack")).status, 404);
-  assert.deepEqual(asked, [first + "h/x.pack"]);
+  assert.deepEqual(asked, [first + "release.json", second + "release.json", first + "h/x.pack"]);
+});
 
-  // (the first unreachable: the second asked, and the first never again)
+test("the first unreachable: the second first for the whole visit, the first asked only in the race", async () => {
+  const { shelfFetch } = await visit();
+  asked = [];
   down = new Set([first]);
-  asked.length = 0;
-  await shelfFetch("release.json");
+  await shelfFetch("h/x.pack");
   await shelfFetch("h/y.pack");
-  assert.deepEqual(asked, [first + "release.json", second + "release.json", second + "h/y.pack"]);
+  assert.deepEqual(asked, [first + "release.json", second + "release.json", second + "h/x.pack", second + "h/y.pack"]);
+});
 
-  // (none reachable: fetch's error)
+test("a host lost after the race: the next asked; none reachable: fetch's error", async () => {
+  const { shelfFetch } = await visit();
+  down = new Set();
+  await shelfFetch("release.json");
+  asked = [];
+  down = new Set([first]);
+  assert.equal((await shelfFetch("h/z.pack")).status, 404);
+  assert.deepEqual(asked, [first + "h/z.pack", second + "h/z.pack"]);
   down = new Set([first, second]);
   await assert.rejects(shelfFetch("h/z.pack"), TypeError);
 });
