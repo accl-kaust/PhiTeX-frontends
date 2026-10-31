@@ -468,8 +468,9 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       onOpen: (cb) => void (openCb = cb),
       onChanges: (cb) => void (changedCb = cb),
     };
-    const sink = gate(panel, () => compare.showing !== "diff");
-    session = new PreviewSession(host, pages, sink, sessionOptions());
+    // (only while it is the project's: a stopped session's late answers never reach the panel)
+    const s: PreviewSession = new PreviewSession(host, pages, gate(panel, () => session === s && compare.showing !== "diff"), sessionOptions());
+    session = s;
     // (the session shown, for tests to read its trace: web/test's, as the extension's content script keeps it)
     (globalThis as unknown as { __phitexSession?: PreviewSession }).__phitexSession = session;
     editor.file = "";
