@@ -378,6 +378,22 @@ const DOCK_CSS = `
   @keyframes phitex-caret { 0% { left: 7ch; } 33.3% { left: 14ch; } 66.6% { left: 19ch; } }
   @keyframes phitex-blink { 50% { opacity: .3; } }
   @keyframes phitex-hl { 0% { background: rgb(255 214 0 / 70%); } 33.3% { background: transparent; } }
+  .phitex-cmp-demo { position: relative; margin: 10px 0 2px; padding: 10px 12px 30px; border-radius: 6px; background: #fff; color: #1b222c; font: 13px/1.5 "Noto Serif", Georgia, serif; }
+  .phitex-cmp-demo .del { animation: phitex-cmp-del 6s ease-in-out infinite; }
+  .phitex-cmp-demo .add { display: inline-block; max-width: 0; overflow: hidden; vertical-align: bottom; white-space: nowrap; color: #1d4ed8;
+    text-decoration: underline wavy #1d4ed8; text-underline-offset: 3px; animation: phitex-cmp-add 6s ease-in-out infinite; }
+  .phitex-cmp-demo .tag { position: absolute; right: 8px; bottom: 7px; padding: 3px 8px; border-radius: 9px; font: 600 11px/1 "Noto Sans", sans-serif;
+    color: #fff; background: #1d3e72; opacity: 0; animation: phitex-cmp-tag 6s ease-in-out infinite; }
+  .phitex-cmp-demo .ver { position: absolute; left: 12px; right: 76px; bottom: 9px; height: 12px; font: 11px/12px "Noto Sans", sans-serif; color: #6b7280; }
+  .phitex-cmp-demo .ver i { position: absolute; left: 0; font-style: normal; white-space: nowrap; }
+  .phitex-cmp-demo .v0 { animation: phitex-cmp-v0 6s steps(1) infinite; }
+  .phitex-cmp-demo .v1 { opacity: 0; animation: phitex-cmp-v1 6s steps(1) infinite; }
+  @keyframes phitex-cmp-del { 0%, 30% { color: #1b222c; text-decoration: none; } 40%, 92% { color: #b91c1c; text-decoration: line-through 2px #b91c1c; } 100% { color: #1b222c; } }
+  @keyframes phitex-cmp-add { 0%, 45% { max-width: 0; } 60%, 92% { max-width: 6em; } 100% { max-width: 0; } }
+  @keyframes phitex-cmp-tag { 0%, 62% { opacity: 0; transform: translateY(6px); } 70%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+  @keyframes phitex-cmp-v0 { 0% { opacity: 1; } 31% { opacity: 0; } }
+  @keyframes phitex-cmp-v1 { 0% { opacity: 0; } 31% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .phitex-cmp-demo * { animation: none !important; } .phitex-cmp-demo .add { max-width: 6em; } .phitex-cmp-demo .del { color: #b91c1c; text-decoration: line-through 2px #b91c1c; } .phitex-cmp-demo .v0 { opacity: 0; } .phitex-cmp-demo .v1, .phitex-cmp-demo .tag { opacity: 1; } }
   #phitex-tour .phitex-choice { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
   #phitex-tour .phitex-choice small { opacity: .8; }
   .phitex-dots { display: flex; gap: 5px; justify-content: center; margin-top: 10px; }
@@ -798,7 +814,7 @@ function dockInOverleaf(panel: Panel): Dock {
    * what it does, each once (tipsSeen); What's new shows them all again.
    */
   const TIPS: { id: string; at: () => Element | null; title: string; body: string; isNew?: boolean }[] = [
-    { id: "compare", at: () => document.getElementById("phitex-cmp"), isNew: true, title: "Compare versions", body: "See what changed since any version in the project's history, marked on the page as <code>latexdiff</code> marks it: additions in blue, deletions struck out. It follows your edits." },
+    { id: "compare", at: () => document.getElementById("phitex-cmp"), isNew: true, title: "Compare versions", body: "See what changed since any version in the project's history, marked on the page as <code>latexdiff</code> marks it: additions in blue, deletions struck out. It follows your edits.<div class=\"phitex-cmp-demo\" aria-hidden=\"true\">The results are <span class=\"del\">good</span><span class=\"add\">&nbsp;excellent</span>.<span class=\"ver\"><i class=\"v0\">Submitted v1</i><i class=\"v1\">Submitted v1 vs current</i></span><span class=\"tag\">‹ 1 / 1 ›</span></div>" },
     { id: "timing", at: () => document.getElementById("phitex-status"), title: "How long it took", body: "The last build, and how long a keystroke takes to reach the page. Click it for the details." },
     { id: "clean", at: () => document.getElementById("phitex-clean"), title: "Clean rebuild", body: "Builds already run as you type. This one reads the project again and typesets it from the start." },
     { id: "dark", at: () => document.querySelector("#toolbar-pdf-controls .theme-toggle-btn"), title: "Dark PDF", body: "Overleaf's dark PDF switch darkens ⚡ Instant's pages too. Off by default: it inverts figures and photos as well." },
