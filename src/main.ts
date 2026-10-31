@@ -121,22 +121,38 @@ function layRibbon() {
   if (!ribbon || !bannerFrame || !ribbon.getBoundingClientRect().width) return;
   logos = null; clip = null;
   const main = ribbon.parentElement as HTMLElement, box = main.getBoundingClientRect(), f = bannerFrame.getBoundingClientRect();
-  const sc = f.width / 1600, ox = f.left - box.left, oy = f.top - box.top, W = box.width, rel = (r: DOMRect) => r.top - box.top;
-  // its runs down the page keep close to the text's column (1240 wide), however wide the window
-  const cy = oy + BANNER.mid * sc, gutter = Math.max(28, (W - Math.min(W, 1240)) / 2 - 36);
-  const L = gutter, R = W - gutter, r = 70 * Math.max(0.6, sc);
+  const ox = f.left - box.left, oy = f.top - box.top, W = box.width, rel = (r: DOMRect) => r.top - box.top;
   const half = Math.max(...BANNER.stripes.map(([y, w]) => Math.abs(BANNER.mid - y) + w / 2));   // stage units
+  // the banner's logo in this page's px: k per stage unit, from (lx, ly). Under 640 px the banner is in portrait
+  // (anim/banner.html: an 800 wide stage, the logo at 1.4 times, moved by (-31, -58))
+  const portrait = f.width < 640, u = f.width / (portrait ? 800 : 1600), k = portrait ? 1.4 * u : u;
+  const lx = ox + (portrait ? -31 * u : 0), ly = oy + (portrait ? -58 * u : 0);
+  // On a narrow screen the page's margins are only its sections' padding (style.css: 4vw, 16 to 48 px): the ribbon
+  // runs down the middle of it, half as wide.
+  const narrow = W < 1000, pad = Math.min(48, Math.max(16, innerWidth * 0.04));
+  const sc = narrow ? Math.min(k, pad / 2 / (2 * half)) : k;   // the page's ribbon, per stage unit
+  // its runs down the page keep close to the text's column (1240 wide), however wide the window
+  const cy = ly + BANNER.mid * k, gutter = narrow ? pad / 2 : Math.max(28, (W - Math.min(W, 1240)) / 2 - 36);
+  const L = gutter, R = W - gutter, r = narrow ? 16 : 70 * Math.max(0.6, sc);
   // across the page in the empty band above a plain (unshaded) section's first line, where there is room; down the
   // margins between, behind the shaded sections (they sit above it)
   const across = [...document.querySelectorAll<HTMLElement>("main > section:not(.band):not(.banner-hero)")].flatMap((e) => {
     const top = rel(e.getBoundingClientRect()), head = rel((e.firstElementChild as HTMLElement).getBoundingClientRect()) - top - 16;
     return head > 2 * half * sc + 24 ? [{ y: top + head / 2, room: head - 2 * half * sc }] : [];
   });
-  const pts: Pt[] = [[ox + BANNER.endX * sc - 2, cy], [R, cy]], wavy = new Map<number, number>();
+  const x0 = lx + BANNER.endX * k - 2, pts: Pt[] = [[x0, cy], [R, cy]], wavy = new Map<number, number>();
   across.forEach(({ y, room }, k) => {   // every other crossing waves, as high as its room allows
     const [a, b] = k % 2 ? [L, R] : [R, L]; pts.push([a, y], [b, y]);
     if (k % 2 && room > 24) wavy.set(pts.length - 2, Math.min(16, room / 2 - 4));
   });
+  // There it leaves the logo as wide as the logo's stripes, straight on off the screen's right edge; out of sight it
+  // turns down and narrows (`taper`, between lengths along it), and it comes back in at the first crossing
+  let taper: { from: number; l0: number; l1: number } | undefined;
+  if (narrow && k > sc && across.length) {
+    const off = W + 2 * half * k + r;
+    pts[1][0] = pts[2][0] = off;
+    taper = { from: k, l0: off - x0, l1: off - x0 + pts[2][1] - cy - 2 * r };
+  }
   // The page's ribbon ends out of sight, behind the last shaded section (the FAQ). The footer has a ribbon of its own:
   // in from the page's right edge, straight into the PhiTeX logo's right end (teal on top, as the logo has it); the
   // logo's stripes carry it to the Φ's foot; from there straight on, down along the slant, into the top of ACCL's
@@ -144,9 +160,8 @@ function layRibbon() {
   // its own colour (the footer ribbon's stripes are in the other order of travel, so `flip`), and both ends tuck a few
   // px under the logos, which sit above it.
   let H = box.height;
-  // (on a narrow screen, only the footer's: the page's columns leave the ribbon no margins to run down)
-  type Leg = { pts: Pt[]; r: number; wavy: Map<number, number>; scale: number; after: number; flip?: boolean; page?: boolean; lanes?: (t: number) => [number, number][] };
-  const narrow = W < 1000;
+  // (`taper`: its scale goes from `from` to `scale` between lengths l0 and l1 along it)
+  type Leg = { pts: Pt[]; r: number; wavy: Map<number, number>; scale: number; after: number; flip?: boolean; page?: boolean; lanes?: (t: number) => [number, number][]; taper?: { from: number; l0: number; l1: number } };
   const legs: Leg[] = [];
   const last = [...document.querySelectorAll<HTMLElement>("main > section.band")].pop();
   // the logos are painted at whole pixels: put their box on one, so that where they are drawn is where they are measured
@@ -155,7 +170,7 @@ function layRibbon() {
   const stripes = footLogo instanceof SVGSVGElement ? logoStripes(footLogo, box) : null;
   if (stripes && acclBox && last) {
     pts.push([pts[pts.length - 1][0], rel(last.getBoundingClientRect()) + last.offsetHeight * 0.6]);
-    if (!narrow) legs.push({ pts, r, wavy, after: 0, scale: sc, page: true });
+    legs.push({ pts, r, wavy, after: 0, scale: sc, page: true, taper });
     // The footer's ribbon is the logos' stripes (theirs are hidden, style.css): in from beyond the right edge along
     // the PhiTeX logo's stripes, round their corner and out of the Φ's foot, its stripes moving over to ACCL's spacing
     // on the way down to ACCL's top, and through where ACCL's stripes are, cut off where they are (`clip`, the mark's
@@ -179,9 +194,9 @@ function layRibbon() {
     const S: Pt = [W + 20, E[1]], dist = (p: Pt, q: Pt) => Math.hypot(q[0] - p[0], q[1] - p[1]);
     const toFoot = dist(S, C) + dist(C, F0), toAccl = toFoot + dist(F0, A0), all = toAccl + dist(A0, B);
     const lanes = (t: number) => { const e = smooth((t * all - toFoot) / (toAccl - toFoot)); return from.map(([o, w], j): [number, number] => [o + (to[j][0] - o) * e, w + (to[j][1] - w) * e]); };
-    legs.push({ pts: [S, C, F0, A0, B], r: rc, wavy: new Map(), after: narrow ? 0 : 400, scale: 1, lanes });
+    legs.push({ pts: [S, C, F0, A0, B], r: rc, wavy: new Map(), after: 400, scale: 1, lanes });
     logos = { acclAt: toAccl, at: 0 };
-  } else if (!narrow) { pts.push([pts[pts.length - 1][0], H - 40]); legs.push({ pts, r, wavy, after: 0, scale: sc, page: true }); }
+  } else { pts.push([pts[pts.length - 1][0], H - 40]); legs.push({ pts, r, wavy, after: 0, scale: sc, page: true, taper }); }
   if (!legs.length) { ribbon.innerHTML = ""; pieces = []; return; }
   // the runs down the margins wave too, a little (the margin is narrow)
   const down = Math.min(10, gutter - half * sc - 8);
@@ -203,18 +218,21 @@ function layRibbon() {
     const { ps, wave } = centreSamples(leg.pts, leg.r, leg.wavy, 4), cum = [0];
     for (let j = 1; j < ps.length; j++) cum.push(cum[j - 1] + Math.hypot(ps[j][0] - ps[j - 1][0], ps[j][1] - ps[j - 1][1]));
     const len = cum[cum.length - 1];
+    const tp = leg.taper ?? null;   // (linear, as the run moves out: so its outer edge is straight)
+    const scaleAt = (i: number) => tp ? tp.from + (leg.scale - tp.from) * Math.max(0, Math.min(1, (cum[i] - tp.l0) / (tp.l1 - tp.l0))) : leg.scale;
     const lane = (j: number, i: number): [number, number] => leg.lanes ? leg.lanes(cum[i] / len)[j]
-      : [(leg.flip ? -1 : 1) * (BANNER.mid - BANNER.stripes[j][0]) * leg.scale, BANNER.stripes[j][1] * leg.scale];
+      : [(leg.flip ? -1 : 1) * (BANNER.mid - BANNER.stripes[j][0]) * scaleAt(i), BANNER.stripes[j][1] * scaleAt(i)];
     const cuts = [0];
-    // (a long wave in pieces of 40 samples, so that only the pieces on screen are made again each frame)
+    // (a long wave in pieces of 40 samples, so that only the pieces on screen are made again each frame; a taper in
+    // pieces of 6, each as wide as at its middle: a step of about 0.2 px)
     for (let i = 1; i < ps.length - 1; i++)
-      if (!!wave[i] !== !!wave[i - 1] || (wave[i] && i - cuts[cuts.length - 1] >= 40)) cuts.push(i);
+      if (!!wave[i] !== !!wave[i - 1] || (wave[i] && i - cuts[cuts.length - 1] >= 40) || (tp && cum[i] > tp.l0 && cum[i] < tp.l1 && i - cuts[cuts.length - 1] >= 6)) cuts.push(i);
     cuts.push(ps.length - 1);
     for (let c = 0; c < cuts.length - 1; c++) {
       const i0 = Math.max(0, cuts[c] - 1), i1 = Math.min(ps.length - 1, cuts[c + 1] + 1), im = Math.round((i0 + i1) / 2);
       if (i1 <= i0) continue;
       const l0 = cum[i0], l1 = cum[i1], sub = ps.slice(i0, i1 + 1);
-      const waving = wave.slice(i0, i1 + 1).some(Boolean);
+      const waving = wave.slice(cuts[c], cuts[c + 1]).some(Boolean);   // its own samples (the ends it shares with the next do not count)
       const y0 = Math.min(...sub.map((p) => p[1])) - 40, y1 = Math.max(...sub.map((p) => p[1])) + 40;
       if (waving) waves.push({ ps: sub, wave: wave.slice(i0, i1 + 1), offs: BANNER.stripes.map((_, j) => lane(j, im)[0]), l0: base + l0, y0, y1 });
       BANNER.stripes.forEach(([, , colour], j) => {
@@ -376,7 +394,7 @@ function acclReady() {
     const A = (window as unknown as { ACCL: { mount(e: HTMLElement, o: object): SVGSVGElement; intro(s: SVGSVGElement, o: object): { play(): void; progress(p: number): void } } }).ACCL;
     const svg = A.mount(acclBox, { logo: "wordmark", theme: "dark", background: false });
     const tl = A.intro(svg, { style: "launch", from: "top" });
-    // no motion wanted, or no ribbon to arrive by (narrow screens): it is there from the start
+    // no motion wanted, or no ribbon to arrive by: it is there from the start
     if (still || !ribbon?.getBoundingClientRect().width) { tl.progress(1); acclBox!.style.opacity = "1"; }
     return { tl };   // wrapped: a GSAP timeline is thenable, and a promise would wait for it to finish
   });

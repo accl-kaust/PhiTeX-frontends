@@ -488,9 +488,10 @@ p.where b { color: var(--text); }
 .anim { width: 100%; margin: 0 auto; }
 .anim iframe { display: block; width: 100%; border: 0; background: transparent; }
 .anim-banner iframe, .anim-cli iframe { aspect-ratio: 1600 / 600; }
-/* under 640 px the banner stacks its words over its window (anim/banner.html, body.portrait) */
-.anim-banner { container-type: inline-size; }
-@container (max-width: 639.98px) { .anim-banner iframe { aspect-ratio: 800 / 1100; } }
+/* under 640 px the banner stacks its words over its window, and the CLI its terminal over its browser (anim/*.html,
+   body.portrait) */
+.anim-banner, .anim-cli { container-type: inline-size; }
+@container (max-width: 639.98px) { .anim-banner iframe { aspect-ratio: 800 / 1100; } .anim-cli iframe { aspect-ratio: 840 / 1120; } }
 .anim-everywhere iframe { aspect-ratio: 1600 / 640; }
 
 .banner-hero { max-width: 1440px !important; margin: 0 auto; padding-top: 96px !important; padding-bottom: 48px !important; gap: 24px !important; }
@@ -562,6 +563,8 @@ p.where b { color: var(--text); }
    behind the editor, and winds down the margins and across between sections as far as you have read */
 main { position: relative; }
 .ribbon { position: absolute; left: 0; top: 0; width: 100%; z-index: 1; pointer-events: none; overflow: visible; }
+/* (on a narrow screen it runs off the right edge and back: nothing of it beyond the edge, to scroll to) */
+@media (max-width: 999px) { .ribbon { overflow: hidden; } }
 .ribbon path { fill: none; stroke-linecap: butt; }
 .banner-hero, main > section.band { z-index: 2; }
 
