@@ -19,7 +19,7 @@ import "./platform.ts";
 import { platform } from "./common/platform.ts";
 import { Core, CoreSession, WASM_THREADS } from "./common/wasm/core.ts";
 import { mintedShell } from "./common/wasm/minted.ts";
-import { coreIndex, coreStore, pack, prefetch, texmfFile, warmFormats } from "./common/wasm/host.ts";
+import { coreIndex, coreStore, pack, prefetch, texmfFile, warmDiff, warmFormats } from "./common/wasm/host.ts";
 import { spawnThread } from "./thread.ts";
 import { order } from "./common/shelf.ts";
 
@@ -49,6 +49,8 @@ let threads: Worker[] = [];
 /** Why the core is gone (a thread trapped): a request then says so, and an open starts a new one. */
 let dead: string | undefined;
 let stderr = "";
+/** A compare's packs kept ahead (warmDiff): asked at the first open, done at its first build. */
+let diffWarm: false | "asked" | "done" = false;
 
 const module = WebAssembly.compileStreaming(fetch(at("dist/core.wasm")));
 const index = coreIndex();
@@ -109,6 +111,12 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
     }
     const { core, session } = await started;
     if (m.op === "open") prefetch(core, await index, (m.files ?? {}) as Record<string, string>, String(m.engine ?? "pdflatex"));
+    // (a compare's packs kept ahead, once, when the first build is in: its own packs first)
+    if (m.op === "open" && !diffWarm) {
+      diffWarm = "asked";
+      const [ix, engine] = [await index, String(m.engine ?? "pdflatex")];
+      core.onEvent((e: { event?: string }) => void (e.event === "settled" && diffWarm === "asked" && ((diffWarm = "done"), warmDiff(ix, engine))));
+    }
     // (the pages are strips: `frame`, `text` and `outline` the core's ops,
     // `strips` their pixels, passed on without a copy)
     const r = (await session.request(m as never)) as { bytes?: Uint8Array };

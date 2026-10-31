@@ -227,3 +227,25 @@ export function prefetch(core: Core, ix: CoreIndex, files: Record<string, string
   }
   for (const id of ids) core.prefetch(id);
 }
+
+/**
+ * The packs a compare's marked-up document loads besides the project's
+ * (latexdiff's preambles, phitex-diff's: ulem and xcolor for its default
+ * markup, footmisc and changebar for the others), and those their loading
+ * reads, kept on this machine ahead of the first compare: its build then
+ * waits on no download. Asked once a session, after the project's first
+ * build (its own packs first).
+ */
+export async function warmDiff(ix: CoreIndex, engine: string): Promise<void> {
+  let lookup = lookups.get(ix);
+  if (!lookup) lookups.set(ix, (lookup = new Index(new TextDecoder().decode(ix.tsv), ix.meta)));
+  const bundled = new Set(ix.names);
+  const e = shelfEngine(engine);
+  const ids = new Set<string>();
+  for (const name of ["ulem.sty", "xcolor.sty", "footmisc.sty", "changebar.sty"]) {
+    if (bundled.has(name)) continue;
+    const path = lookup.resolve(name, formatOf(name), e);
+    if (path) for (const id of lookup.packs(path, e)) ids.add(id);
+  }
+  for (const id of ids) await packRaw(id).catch(() => undefined);
+}
