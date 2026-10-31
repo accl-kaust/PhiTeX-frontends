@@ -160,7 +160,8 @@ if (!kpse) {
   core.setIndex(gunzipSync(await readFile("shelf-index.tsv.gz")), await readFile("shelf-release.json"), gunzipSync(await readFile("shelf-packs.tsv.gz")), flag("--no-bundled") ? [] : (await readdir(bundledDir)).filter((n) => n !== "names.txt"));
   // (the document's directory, given before the build: a project's files)
   const dir = file ? file.slice(0, file.lastIndexOf("/") + 1) || "./" : null;
-  for (const n of dir ? await readdir(dir) : []) if (n !== main && /\.(tex|sty|cls|bib|bst|cfg|def|png|pdf|jpg)$/.test(n)) core.provide(n, { path: "./" + n, bytes: new Uint8Array(await readFile(dir + n)) });
+  // (its subdirectories too, as the hosts give them: a paper's figures/)
+  for (const n of dir ? ((await readdir(dir, { recursive: true })) as string[]).filter((n) => !n.split("/").some((d) => d.startsWith("."))) : []) if (n !== main && /\.(tex|sty|cls|bib|bst|cfg|def|png|pdf|jpg)$/.test(n)) core.provide(n, { path: "./" + n, bytes: new Uint8Array(await readFile(dir + n)) });
 }
 let first: any;
 /** The first build in: its output written, what it took said, the stores awaited, the harness done. */
