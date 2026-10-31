@@ -18,6 +18,7 @@
 //       { "type": "\\usepackage{}\n", "before": "\\begin{document}" },      // one edit (a paste)
 //       { "replace": "Intro", "with": "Introduction" },
 //       { "idle": 1500 },            // until nothing happens for 1.5 s (and no package in flight)
+//       { "cpu": 3000 },             // the main thread over 3 s: busy, long tasks, hottest functions (on a "type" step: from its first key)
 //       { "wait": 2000 },
 //       { "shot": "after-package" },
 //       { "clean": true },           // ⟳ Clean recompile
@@ -84,7 +85,8 @@ const evalIn = async (expr, cs = false) => {
   const r = await call("Runtime.evaluate", { expression: expr, contextId: ctx.id, awaitPromise: true, returnByValue: true });
   return r.result?.result?.value;
 };
-const state = () => evalIn(`(() => { const s = globalThis.__phitexSession; if (!s) return null; return { n: s.trace.length, last: s.trace.at(-1)?.t ?? 0, now: Math.round(performance.now()), loading: s.pkg.loading.length, building: s.pkg.building, inflight: s.inflight, pages: s.pages } })()`, true);
+// (a remote session building: its watch's build under way; its pkg.building is not cleared there)
+const state = () => evalIn(`(() => { const s = globalThis.__phitexSession; if (!s) return null; return { n: s.trace.length, last: s.trace.at(-1)?.t ?? 0, now: Math.round(performance.now()), loading: s.pkg.loading.length, building: s.o?.remote ? s.watchBuilding : s.pkg.building, inflight: s.inflight, pages: s.pages, remote: !!s.o?.remote, built: !!s.trace.findLast((e) => e.k === "← status")?.d?.history } })()`, true);
 /** Until nothing new for `quiet` ms and no package in flight (or `max`). */
 async function idle(quiet = 1500, max = 900_000) {
   const t = Date.now();
@@ -256,10 +258,11 @@ try {
 // the first page
 // (a long project's first build may take a minute or more: waited for
 // while the session is building, up to 10 minutes; given up after 30 s
-// only when it builds nothing)
+// only when it builds nothing; a remote session's cold build shows in none
+// of those flags while it fetches: it is waited for until a build is in)
 for (let i = 0; i < 2000; i++) {
   const st = await state();
-  if (st?.pages || (i >= 100 && !st?.building && !st?.inflight && !st?.loading)) break;
+  if (st?.pages || st?.built || (i >= 100 && !st?.remote && !st?.building && !st?.inflight && !st?.loading)) break;
   await sleep(300);
 }
 // (none: why, from the page, not after the idle's 15 minutes)
@@ -275,6 +278,37 @@ if (!(await state())?.pages) {
   process.exit(1);
 }
 // ("noidle": the steps start at the first page, while the core readies its rebuilds)
+/**
+ * The tab's main thread over `wall` ms: CPU time by kind (Performance
+ * metrics), its long tasks (over 50 ms: start and length, ms from the
+ * measure's start) and the hottest functions (a sampled CPU profile), page
+ * and content script alike.
+ */
+async function cpu(wall) {
+  const metrics = async () => Object.fromEntries((await call("Performance.getMetrics")).result.metrics.map((m) => [m.name, m.value]));
+  await call("Performance.enable");
+  await call("Profiler.enable");
+  await call("Profiler.setSamplingInterval", { interval: 1000 });
+  await evalIn(`(() => { globalThis.__phxLong = []; const t0 = performance.now(); new PerformanceObserver((l) => { for (const e of l.getEntries()) __phxLong.push([Math.round(e.startTime - t0), Math.round(e.duration)]); }).observe({ type: "longtask" }); })()`);
+  const m0 = await metrics();
+  await call("Profiler.start");
+  await sleep(wall);
+  const prof = (await call("Profiler.stop")).result.profile;
+  const m1 = await metrics();
+  const d = (k) => ((m1[k] ?? 0) - (m0[k] ?? 0)) * 1000;
+  const r = { busy: `${((d("TaskDuration") / wall) * 100).toFixed(1)}% of ${wall} ms`, script: Math.round(d("ScriptDuration")), layout: Math.round(d("LayoutDuration")), style: Math.round(d("RecalcStyleDuration")), layouts: (m1.LayoutCount ?? 0) - (m0.LayoutCount ?? 0), styles: (m1.RecalcStyleCount ?? 0) - (m0.RecalcStyleCount ?? 0), long: await evalIn("globalThis.__phxLong") };
+  const per = (prof.endTime - prof.startTime) / 1000 / Math.max(1, prof.samples.length);
+  const self = new Map();
+  for (const n of prof.nodes) {
+    const f = n.callFrame;
+    if (!n.hitCount || f.functionName === "(idle)" || f.functionName === "(program)") continue;
+    const k = `${f.functionName || "(anon)"} ${f.url.replace(/^.*\//, "")}:${f.lineNumber + 1}`;
+    self.set(k, (self.get(k) ?? 0) + n.hitCount * per);
+  }
+  r.top = [...self].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => `${Math.round(v)} ms ${k}`);
+  return r;
+}
+
 if (!sc.noidle) await idle();
 const steps = [];
 // (PHITEX_PARITY=pct: every scenario checked against poppler at its end)
@@ -289,40 +323,20 @@ for (const s of sc.steps ?? []) {
       steps.push({ t, k: "STEP FAILED", d: s });
       continue;
     }
+    // (with `"cpu": ms`: the main thread measured from the first key over ms, as the cpu step)
+    const measuring = s.cpu !== undefined && cpu(s.cpu);
     if (s.keys) {
       // (key by key, as typing: each its own transaction)
       await evalIn(`(async () => { let at = ${at}; for (const c of ${JSON.stringify(s.type)}) { mockEditor.type(at, c); at += c.length; await new Promise((r) => setTimeout(r, ${s.keys})); } })()`);
     } else await evalIn(`mockEditor.type(${at}, ${JSON.stringify(s.type)})`);
+    if (measuring) console.log("cpu while typing:", JSON.stringify((s.result = await measuring), null, 1));
   } else if (s.replace !== undefined) {
     await evalIn(`(() => { const t = mockEditor.text(), i = t.indexOf(${JSON.stringify(s.replace)}); if (i >= 0) mockEditor.replace(i, i + ${JSON.stringify(s.replace)}.length, ${JSON.stringify(s.with ?? "")}); })()`);
   } else if (s.idle !== undefined) await idle(s.idle);
   // ({"cpu": ms}: the tab's main thread over ms with nothing typed: CPU
   // time by kind (Performance metrics) and the hottest functions (a
   // sampled CPU profile), page and content script alike)
-  else if (s.cpu !== undefined) {
-    const metrics = async () => Object.fromEntries((await call("Performance.getMetrics")).result.metrics.map((m) => [m.name, m.value]));
-    await call("Performance.enable");
-    await call("Profiler.enable");
-    await call("Profiler.setSamplingInterval", { interval: 1000 });
-    const m0 = await metrics();
-    await call("Profiler.start");
-    await sleep(s.cpu);
-    const prof = (await call("Profiler.stop")).result.profile;
-    const m1 = await metrics();
-    const d = (k) => ((m1[k] ?? 0) - (m0[k] ?? 0)) * 1000;
-    const wall = s.cpu;
-    s.result = { busy: `${((d("TaskDuration") / wall) * 100).toFixed(1)}% of ${wall} ms`, script: Math.round(d("ScriptDuration")), layout: Math.round(d("LayoutDuration")), style: Math.round(d("RecalcStyleDuration")), layouts: (m1.LayoutCount ?? 0) - (m0.LayoutCount ?? 0), styles: (m1.RecalcStyleCount ?? 0) - (m0.RecalcStyleCount ?? 0) };
-    const per = (prof.endTime - prof.startTime) / 1000 / Math.max(1, prof.samples.length);
-    const self = new Map();
-    for (const n of prof.nodes) {
-      const f = n.callFrame;
-      if (!n.hitCount || f.functionName === "(idle)" || f.functionName === "(program)") continue;
-      const k = `${f.functionName || "(anon)"} ${f.url.replace(/^.*\//, "")}:${f.lineNumber + 1}`;
-      self.set(k, (self.get(k) ?? 0) + n.hitCount * per);
-    }
-    s.result.top = [...self].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => `${Math.round(v)} ms ${k}`);
-    console.log("cpu:", JSON.stringify(s.result, null, 1));
-  }
+  else if (s.cpu !== undefined) console.log("cpu:", JSON.stringify((s.result = await cpu(s.cpu)), null, 1));
   else if (s.scrollbench !== undefined) {
     // (`{"scrollbench": ms, "px": n}`: the ⚡ view scrolled n px a frame, down then back up, for ms;
     // the frames' times as the page saw them, and where the main thread went)
