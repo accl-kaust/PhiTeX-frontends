@@ -360,9 +360,21 @@ const DOCK_CSS = `
   #phitex-tour .phitex-hl-caret { position: absolute; top: 1px; left: 7ch; width: 2px; height: 1.2em; background: currentColor;
     animation: phitex-caret 3.6s steps(1) infinite, phitex-blink .6s steps(1) infinite; }
   #phitex-tour .phitex-hl-page { font-family: "Noto Serif", serif; color: #1b222c; background: #fff; border-radius: 3px; padding: 4px 8px; box-shadow: 0 2px 6px rgb(0 0 0 / 30%); }
-  #phitex-tour .phitex-hl-page span { border-radius: 2px; animation: phitex-hl 3.6s steps(1) infinite; }
-  #phitex-tour .phitex-hl-page .w2 { animation-delay: -2.4s; }
-  #phitex-tour .phitex-hl-page .w3 { animation-delay: -1.2s; }
+  #phitex-tour .phitex-hl-page { position: relative; }
+  #phitex-tour .phitex-hl-page span, #phitex-tour .phitex-hl-ed span { border-radius: 2px; }
+  #phitex-tour [data-mode="cursor"] .phitex-hl-page span { animation: phitex-hl 3.6s steps(1) infinite; }
+  #phitex-tour [data-mode="cursor"] .phitex-hl-page .w2 { animation-delay: -2.4s; }
+  #phitex-tour [data-mode="cursor"] .phitex-hl-page .w3 { animation-delay: -1.2s; }
+  #phitex-tour .phitex-hl-click { display: none; position: absolute; font-style: normal; font-size: 14px; color: #1b222c; }
+  #phitex-tour [data-mode="select"] .phitex-hl-caret, #phitex-tour [data-mode="dblclick"] .phitex-hl-caret { display: none; }
+  #phitex-tour [data-mode="select"] .e2, #phitex-tour [data-mode="select"] .e3 { animation: phitex-sel 3.6s steps(1) infinite; }
+  #phitex-tour [data-mode="select"] .w2, #phitex-tour [data-mode="select"] .w3 { animation: phitex-selpage 3.6s steps(1) infinite; }
+  @keyframes phitex-sel { 0% { background: transparent; } 30%, 85% { background: rgb(91 143 214 / 55%); } }
+  @keyframes phitex-selpage { 0% { background: transparent; } 30%, 85% { background: rgb(255 214 0 / 70%); } }
+  #phitex-tour [data-mode="dblclick"] .phitex-hl-click { display: block; left: 5.2em; top: 1.1em; animation: phitex-dbl 3.6s ease-out infinite; }
+  #phitex-tour [data-mode="dblclick"] .w2 { animation: phitex-selpage 3.6s steps(1) infinite; animation-delay: .4s; }
+  #phitex-tour [data-mode="dblclick"] .e2 { animation: phitex-sel 3.6s steps(1) infinite; animation-delay: .4s; }
+  @keyframes phitex-dbl { 0%, 20% { opacity: 0; transform: translate(10px, 8px); } 30% { opacity: 1; transform: none; } 34%, 42% { transform: scale(.8); } 38%, 46% { transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
   @keyframes phitex-caret { 0% { left: 7ch; } 33.3% { left: 14ch; } 66.6% { left: 19ch; } }
   @keyframes phitex-blink { 50% { opacity: .3; } }
   @keyframes phitex-hl { 0% { background: rgb(255 214 0 / 70%); } 33.3% { background: transparent; } }
@@ -828,9 +840,10 @@ function dockInOverleaf(panel: Panel): Dock {
   /** The highlight step's choice: the "follow" setting's values, the first recommended. */
   const FOLLOW: [string, string][] = [["cursor", "Cursor"], ["select", "Selection"], ["dblclick", "Double-click only"]];
   // (a mini editor line, its caret going word to word, and a mini page whose same word turns yellow in step)
-  const HIGHLIGHT_DEMO = `<div class="phitex-hl-demo" aria-hidden="true">
-      <div class="phitex-hl-ed"><span>Instant typing here</span><i class="phitex-hl-caret"></i></div>
-      <div class="phitex-hl-page"><span class="w1">Instant</span> <span class="w2">typing</span> <span class="w3">here</span></div></div>`;
+  // (each choice its own: Cursor the caret walking, Selection a range selected, Double-click a click on the page sending the editor there)
+  const HIGHLIGHT_DEMO = `<div class="phitex-hl-demo" data-mode="cursor" aria-hidden="true">
+      <div class="phitex-hl-ed"><span class="e1">Instant</span> <span class="e2">typing</span> <span class="e3">here</span><i class="phitex-hl-caret"></i></div>
+      <div class="phitex-hl-page"><span class="w1">Instant</span> <span class="w2">typing</span> <span class="w3">here</span><i class="phitex-hl-click">⇱</i></div></div>`;
   const STEPS: { at: () => Element | null; title: string; body: string; inside?: boolean; choice?: boolean }[] = [
     { at: () => document.getElementById("phitex-switch"), title: "Two previews, one click", body: "<b>PDF</b> is Overleaf's compiler, as always. <b>⚡ Instant</b> is added by the unofficial PhiTeX extension (not part of Overleaf), live. Switch any time, or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>." },
     { at: () => document.querySelector("phitex-preview"), inside: true, title: "Type, and watch", body: "Edit anything in the editor: this page repaints as you type, usually in a few milliseconds. The status in the toolbar says how fast. No Recompile." },
@@ -860,18 +873,28 @@ function dockInOverleaf(panel: Panel): Dock {
       body: {
         html: `${step.body}
         <div class="phitex-dots">${STEPS.map((_, i) => `<span class="${i === k ? "on" : ""}"></span>`).join("")}</div>
-        ${step.choice ? `<div class="phitex-choice">${FOLLOW.map(([v, l], i) => `<button type="button" class="btn ${i ? "btn-secondary" : "btn-primary"} btn-sm" data-f="${v}">${l}${i ? "" : " <small>(recommended)</small>"}</button>`).join("")}</div>` : ""}`,
+        ${step.choice ? `<div class="phitex-choice" role="radiogroup" aria-label="When the highlight moves">${FOLLOW.map(([v, l], i) => `<button type="button" role="radio" class="btn btn-secondary btn-sm" data-f="${v}">${l}${i ? "" : " <small>(recommended)</small>"}</button>`).join("")}</div>` : ""}`,
       },
       actions: [
         button("skip", "btn-link phitex-callout-never", "Skip"),
         ...(k ? [button("back", "btn-secondary", "Back")] : []),
-        ...(step.choice ? [] : [button("next", "btn-primary", k === STEPS.length - 1 ? "Done" : "Next")]),
+        button("next", "btn-primary", k === STEPS.length - 1 ? "Done" : "Next"),
       ],
     });
+    // (the highlight step: a choice picked is saved and shown in the demo; Next goes on)
+    const pick = (f: string) => {
+      t.querySelectorAll<HTMLElement>("[data-f]").forEach((b) => {
+        const on = b.dataset.f === f;
+        b.classList.toggle("btn-primary", on);
+        b.classList.toggle("btn-secondary", !on);
+        b.setAttribute("aria-checked", String(on));
+      });
+      t.querySelector<HTMLElement>(".phitex-hl-demo")?.setAttribute("data-mode", f);
+    };
+    if (step.choice) void chrome.storage.local.get("follow").then(({ follow }) => pick(FOLLOW.some(([v]) => v === follow) ? (follow as string) : FOLLOW[0][0]));
     t.onclick = (e) => {
-      // (the highlight step: the choice saved, then on)
       const f = (e.target as HTMLElement).closest<HTMLElement>("[data-f]")?.dataset.f;
-      if (f) return void chrome.storage.local.set({ follow: f }).then(() => tour(k + 1));
+      if (f) return void (pick(f), chrome.storage.local.set({ follow: f }));
       const a = (e.target as HTMLElement).closest<HTMLElement>("[data-t]")?.dataset.t;
       if (a === "next") void tour(k + 1);
       if (a === "back") void tour(k - 1);
