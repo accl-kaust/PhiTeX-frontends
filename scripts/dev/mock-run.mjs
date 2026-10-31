@@ -298,11 +298,15 @@ async function cpu(wall) {
   const d = (k) => ((m1[k] ?? 0) - (m0[k] ?? 0)) * 1000;
   const r = { busy: `${((d("TaskDuration") / wall) * 100).toFixed(1)}% of ${wall} ms`, script: Math.round(d("ScriptDuration")), layout: Math.round(d("LayoutDuration")), style: Math.round(d("RecalcStyleDuration")), layouts: (m1.LayoutCount ?? 0) - (m0.LayoutCount ?? 0), styles: (m1.RecalcStyleCount ?? 0) - (m0.RecalcStyleCount ?? 0), long: await evalIn("globalThis.__phxLong") };
   const per = (prof.endTime - prof.startTime) / 1000 / Math.max(1, prof.samples.length);
-  const self = new Map();
+  const self = new Map(), parent = new Map();
+  for (const n of prof.nodes) for (const c of n.children ?? []) parent.set(c, n);
+  const name = (f) => `${f.functionName || "(anon)"} ${f.url.replace(/^.*\//, "")}:${f.lineNumber + 1}`;
   for (const n of prof.nodes) {
     const f = n.callFrame;
     if (!n.hitCount || f.functionName === "(idle)" || f.functionName === "(program)") continue;
-    const k = `${f.functionName || "(anon)"} ${f.url.replace(/^.*\//, "")}:${f.lineNumber + 1}`;
+    // (a native's time by its caller: which script forced a layout)
+    const up = !f.url && parent.get(n.id)?.callFrame;
+    const k = name(f) + (up?.url ? ` ← ${name(up)}` : "");
     self.set(k, (self.get(k) ?? 0) + n.hitCount * per);
   }
   r.top = [...self].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => `${Math.round(v)} ms ${k}`);
