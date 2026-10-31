@@ -18,7 +18,7 @@ import "../../overleaf/src/platform.ts";
 import { platform } from "../../common/src/platform.ts";
 import { Panel, type DiffLook, type PanelPrefs, type Prefs } from "../../common/src/viewer/panel.ts";
 import { PreviewSession, guessMain, type EditorHost, type Options } from "../../common/src/viewer/session.ts";
-import type { Edit } from "../../common/src/viewer/edits.ts";
+import { charOffset, type Edit } from "../../common/src/viewer/edits.ts";
 import { Compare, DiffControls, gate, type CompareHost } from "../../common/src/viewer/compare.ts";
 import { ENGINES, approximable, resolve, shimTexts, type Engine, type EngineChoice } from "../../common/src/viewer/engines.ts";
 import { ago } from "../../common/src/viewer/commits.ts";
@@ -450,6 +450,9 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
 
   // ---- the project ----
 
+  /** The open session's "settled" listener, ended with it. */
+  let stopSettled: (() => void) | undefined;
+
   async function openProject(p: Project): Promise<void> {
     if (controls.active) controls.stop();
     // (another project in the panel: a cold build's opening over the last one's pages, not its "last complete render")
@@ -469,14 +472,38 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       onChanges: (cb) => void (changedCb = cb),
     };
     // (only while it is the project's: a stopped session's late answers never reach the panel)
-    const s: PreviewSession = new PreviewSession(host, pages, gate(panel, () => session === s && compare.showing !== "diff"), sessionOptions());
+    const s: PreviewSession = new PreviewSession(host, pages, gate(panel, () => session === s && compare.showing !== "diff"), {
+      ...sessionOptions(),
+      // (the core runs a live document, as the extension's: the session in its
+      // remote mode, the document's events its own, its problems among them;
+      // a double-click's or a selection's source (bytes of the file as the
+      // session has it) put in the editor)
+      remote: {
+        source: (file, start, end) => sourceAt(file, start, end, true),
+        select: (file, start, end) => sourceAt(file, start, end, false),
+      },
+    });
+    const sourceAt = (file: string, start: number, end: number, focus: boolean) => {
+      const t = s.text(file);
+      if (t !== undefined && openFile(file)) editor.select(charOffset(t, start), charOffset(t, end), focus);
+    };
     session = s;
+    // (a build in: its fetch round closed, as a build request's answer closes
+    // it; the remote mode has none, so the last pack fetched would stay "loading")
+    stopSettled?.();
+    stopSettled = core.onEvent((e) => void (e.event === "settled" && session === s && pages?.request({ op: "status" })));
     // (the session shown, for tests to read its trace: web/test's, as the extension's content script keeps it)
     (globalThis as unknown as { __phitexSession?: PreviewSession }).__phitexSession = session;
     editor.file = "";
     openFile(p.main in p.files ? p.main : Object.keys(p.files)[0]);
     $<HTMLSelectElement>("#phx-engine").value = p.engine;
-    void session.start();
+    // (opened as the extension opens it: the files given, then the main file opened;
+    // the remote mode's start() only joins a document the core already has)
+    const main = p.main in p.files ? p.main : guessMain(p.files);
+    s.refresh({ ...p.files });
+    panel.mains(Object.keys(p.files).filter((f) => f.endsWith(".tex")), main);
+    if (main) void s.setMain(main);
+    else panel.error("no main .tex file found");
     await listProjects();
   }
 
