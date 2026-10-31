@@ -35,7 +35,7 @@ export function news(text) {
   for (const l of text.split("\n")) {
     if (l.startsWith("## ")) {
       flush();
-      const m = /^## (\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)/.exec(l);
+      const m = /^## (\d+\.\d+(?:\.\d+)?) \((\d{4}-\d{2}-\d{2})\)/.exec(l);
       cur = m ? { version: m[1], date: m[2], lines: [] } : null;
     } else if (cur) cur.lines.push(l);
   }
