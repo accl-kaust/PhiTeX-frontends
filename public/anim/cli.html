@@ -228,6 +228,17 @@ body { font-family: var(--sans); overflow: hidden; -webkit-font-smoothing: antia
 #page .folio { position: absolute; left: 0; right: 0; bottom: 18px; text-align: center; }
 #veil { position: absolute; inset: 0; background: #fff; }   /* covers the page until it is built, top down */
 
+/* ── portrait (a phone, under 640 px wide): the terminal on top, the browser below ── */
+body.portrait #stage { width: 840px; height: 1120px; }
+body.portrait #stage::before {
+  background:
+    radial-gradient(560px 460px at 420px 300px, var(--bg-glow), transparent 70%),
+    radial-gradient(560px 460px at 420px 840px, var(--bg-glow), transparent 70%),
+    radial-gradient(var(--dot) 1px, transparent 1.2px) 0 0 / 22px 22px;
+}
+body.portrait #term { left: 20px; top: 20px; }
+body.portrait #pdf { left: 70px; top: 570px; }
+
 /* ── controls (preview only) ─────────────────────────────── */
 #controls {
   position: fixed; left: 0; right: 0; bottom: 0; height: 52px; display: flex; align-items: center; gap: 12px;
@@ -450,9 +461,13 @@ if (embed) {
 }
 if (params.get('theme')) document.documentElement.dataset.theme = params.get('theme');
 function fit() {
-  const s = renderMode ? 1 : embed ? innerWidth / 1600 : Math.min(innerWidth / 1600, (innerHeight - 52) / 600);
+  // phitex.org's frame takes the portrait stage's shape at the same width (style.css, .anim-cli)
+  const portrait = !renderMode && innerWidth < 640;
+  document.body.classList.toggle('portrait', portrait);
+  const W = portrait ? 840 : 1600, H = portrait ? 1120 : 600;
+  const s = renderMode ? 1 : embed ? innerWidth / W : Math.min(innerWidth / W, (innerHeight - 52) / H);
   $('viewport').style.transform = `scale(${s})`;
-  if (!renderMode && !embed) $('viewport').style.marginTop = `${Math.max(0, (innerHeight - 52 - 600 * s) / 2)}px`;
+  if (!renderMode && !embed) $('viewport').style.marginTop = `${Math.max(0, (innerHeight - 52 - H * s) / 2)}px`;
 }
 addEventListener('resize', fit);
 let playing = !renderMode && !params.has('t'), t0 = performance.now(), cur = Number(params.get('t')) || 0;
