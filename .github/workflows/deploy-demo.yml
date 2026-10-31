@@ -1,8 +1,7 @@
-# demo.phitex.org on each push to main: the web frontend (scripts/build-web.sh)
-# on the core scripts/build-all.sh built and uploaded for this commit (release
-# "cores", core-KEY.tar.gz, scripts/core-key.sh), deployed to Cloudflare
-# Pages project phitex-demo. No core for this commit's key: the deploy fails
-# (run scripts/build-all.sh, then the workflow again).
+# demo.phitex.org on each push to main: the whole web frontend built from
+# this commit, the wasm core with it (scripts/build.sh: PhiTeX's pinned
+# commit, the phitex submodule, to wasm; the formats made by that core), then
+# scripts/build-web.sh, deployed to Cloudflare Pages project phitex-demo.
 #
 # Secret: CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit).
 name: deploy-demo
@@ -10,7 +9,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-concurrency: deploy-demo
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: true
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -25,17 +26,19 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
-      - name: The core built for this commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          key=$(scripts/core-key.sh)
-          gh release download cores -p "core-$key.tar.gz" -D target ||
-            { echo "::error::no core-$key in release cores: scripts/build-all.sh on this commit first"; exit 1; }
-          mkdir -p target/core-prebuilt && tar -xzf "target/core-$key.tar.gz" -C target/core-prebuilt
+      # (the toolchain rust-toolchain.toml pins, its wasm targets with it)
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            core -> ../target/core
+            diff-wasm -> target
+      # (minted's wheels, the versions TeX Live ships, which build.sh takes from it locally)
+      - run: |
+          pip download --no-deps --only-binary=:all: -d target/minted latexminted==0.7.1 latexrestricted==0.6.2 latex2pydata==0.5.0 pygments==2.19.1
       - name: Build
         run: |
-          PHITEX_WASM_DIR=target/core-prebuilt MINTED_WHEELS=target/core-prebuilt/minted scripts/build.sh
+          MINTED_WHEELS=target/minted scripts/build.sh
           scripts/build-web.sh
       - uses: cloudflare/wrangler-action@v3
         with:
