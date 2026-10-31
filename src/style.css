@@ -762,8 +762,9 @@ kbd { font: 12.5px var(--mono); padding: 1px 6px; border: 1px solid var(--line-2
 .ol-tools { display: flex; gap: 6px; align-items: center; margin-bottom: 12px; }
 .ol-search { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; border: 1px solid var(--ol-faint); border-radius: 6px; background: var(--ol-tbl); white-space: nowrap; overflow: hidden; animation: ol-focus var(--t) infinite; }
 .ol-mag { font-size: 15px; line-height: 1; }
-.ol-ph { color: var(--ol-faint); overflow: hidden; text-overflow: ellipsis; animation: ol-ph var(--t) infinite steps(1); }
-.ol-q { display: none; overflow: hidden; max-width: 4.9em; border-right: 1.5px solid var(--ol-ink); animation: ol-type var(--t) infinite; animation-timing-function: steps(9, end); }
+/* the placeholder gives way to the query as it is typed (by max-width: a keyframed display is too new for many browsers) */
+.ol-ph { max-width: 40em; color: var(--ol-faint); overflow: hidden; text-overflow: ellipsis; animation: ol-ph var(--t) infinite steps(1); }
+.ol-q { display: inline-block; overflow: hidden; max-width: 0; border-right: 1.5px solid transparent; animation: ol-type var(--t) infinite; animation-timing-function: steps(9, end); }
 .ol-help { margin-left: auto; flex: none; width: 15px; height: 15px; border-radius: 50%; background: var(--ol-faint); color: var(--ol-tbl); font: 700 10px/15px var(--sans); text-align: center; }
 .ol-btn { flex: none; display: inline-flex; align-items: center; height: 30px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--ol-ink); font-weight: 600; white-space: nowrap; }
 .ol-btn.go { background: var(--ol-green); border-color: var(--ol-green); color: #fff; }
@@ -793,8 +794,8 @@ kbd { font: 12.5px var(--mono); padding: 1px 6px; border: 1px solid var(--line-2
 @keyframes ol-drop { 0%, 15% { background: transparent; box-shadow: none; } 19%, 31% { background: rgb(9 136 66 / 18%); box-shadow: inset 0 0 0 1.5px var(--ol-green); } 36%, 100% { background: transparent; box-shadow: none; } }
 @keyframes ol-n { 0% { content: "(4)"; } 31% { content: "(5)"; } }
 @keyframes ol-focus { 0%, 40% { box-shadow: none; } 43%, 94% { box-shadow: 0 0 0 2px #97b6e5; } 97%, 100% { box-shadow: none; } }
-@keyframes ol-ph { 0% { display: inline; } 44% { display: none; } 96% { display: inline; } }
-@keyframes ol-type { 0%, 44% { display: inline-block; max-width: 0; } 58%, 95% { display: inline-block; max-width: 4.9em; } 96%, 100% { display: none; max-width: 0; } }
+@keyframes ol-ph { 0% { max-width: 40em; } 44% { max-width: 0; } 96% { max-width: 40em; } }
+@keyframes ol-type { 0%, 44% { max-width: 0; border-right-color: transparent; } 44.1% { max-width: 0; border-right-color: var(--ol-ink); } 58%, 95% { max-width: 4.9em; border-right-color: var(--ol-ink); } 96%, 100% { max-width: 0; border-right-color: transparent; } }
 @keyframes ol-browse { 0%, 56% { opacity: 1; } 60%, 93% { opacity: 0; } 98%, 100% { opacity: 1; } }
 @keyframes ol-found { 0%, 57% { opacity: 0; transform: translateY(6px); } 62%, 93% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; transform: translateY(6px); } }
 @media (max-width: 560px) { .fd-ol { grid-template-columns: minmax(0, 1fr); } .ol-side { display: none; } .ol-main { margin: 0; border-radius: 0; } .ol-btn:not(.go) { display: none; } .ol-r { grid-template-columns: minmax(0, 1fr) 76px; } .ol-r > span:nth-child(2) { display: none; } }
