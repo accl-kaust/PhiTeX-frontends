@@ -33,7 +33,8 @@ export const WASM_THREADS = 4;
 /** A file by name: its path as the build should report it, and its bytes; null if it is nowhere. */
 export type Resolve = (name: string) => Promise<{ path: string; bytes: Uint8Array } | null>;
 /** A Shelf pack by id, as Shelf serves it (gzip); null if it could not be had. */
-export type Fetch = (id: string) => Promise<Uint8Array | null>;
+/** Pack `id`, as Shelf serves it; `downloading` called when it goes to the network (not when kept on this machine). */
+export type Fetch = (id: string, downloading?: () => void) => Promise<Uint8Array | null>;
 /** What a `\write18` command did (PhiTeX's ShellRan, without `read`). */
 export interface Ran {
   status: number;
@@ -188,17 +189,18 @@ export class Core {
     if (!p) {
       // (each fetch told as an event, its start and its end: the viewer's "Fetching packages", the time a first build spends on them)
       const tell = (e: { state: "fetching" | "done" | "failed"; bytes?: number }) => this.listeners.forEach((f) => f({ event: "pack", id, ...e }));
-      tell({ state: "fetching" });
+      // (told only when it is downloaded: one kept on this machine is no fetch, and the viewer says "Fetching packages" only for real downloads)
+      let told = false;
       p = (async () => {
         try {
           // (as Shelf serves it: the core checks it against the release's pack table and gunzips it, phitex-shelf)
-          return (await this.o.fetch?.(id)) ?? null;
+          return (await this.o.fetch?.(id, () => ((told = true), tell({ state: "fetching" })))) ?? null;
         } catch (e) {
           this.o.log?.(`fetch ${id}: ${e}\n`);
           return null;
         }
       })();
-      void p.then((b) => tell(b ? { state: "done", bytes: b.length } : { state: "failed" }));
+      void p.then((b) => (b ? told && tell({ state: "done", bytes: b.length }) : tell({ state: "failed" })));
       this.packs.set(id, p);
     }
     const b = await p;

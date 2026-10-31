@@ -281,7 +281,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
         reading: "Your files stay in this browser.",
         keptIn: "this browser",
         preparing: "",
-        steps: ["Starting", "Fetching packages", "Typesetting"],
+        steps: ["Loading the PhiTeX compiler", "Fetching packages", "Typesetting"],
       },
     },
   );

@@ -158,8 +158,9 @@ export async function fetchPack(id: string, priority: RequestPriority = "auto"):
  * Shelf's, kept, and the cache kept under its cap (never evicting a pack
  * this document has read). Also what VS Code's workers read mid-build.
  */
-export async function packRaw(id: string): Promise<{ raw: Uint8Array; from: "cache" | "shelf" }> {
+export async function packRaw(id: string, downloading?: () => void): Promise<{ raw: Uint8Array; from: "cache" | "shelf" }> {
   const kept = await getPack(id).catch(() => undefined);
+  if (!kept) downloading?.();
   const raw = kept ?? (await fetchPack(id));
   if (!kept) await putPack(id, raw).then(() => evict(new Set([...packs.keys(), id]))).catch(() => undefined);
   return { raw, from: kept ? "cache" : "shelf" };

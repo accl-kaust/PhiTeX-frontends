@@ -111,9 +111,9 @@ export function coreStore(project: () => string, core: () => Promise<Core>): Sto
  * else kept on this machine, else Shelf's. (The session tells what it
  * fetches: its progress, `{event: "progress", phase: "fetching"}`.)
  */
-export async function pack(id: string): Promise<Uint8Array> {
+export async function pack(id: string, downloading?: () => void): Promise<Uint8Array> {
   if ((await shipped()).has(id)) return new Uint8Array(await (await platform().asset(`packs/${id}.pack`)).arrayBuffer());
-  const { raw, from } = await packRaw(id);
+  const { raw, from } = await packRaw(id, downloading);
   used.packages[from === "cache" ? "hits" : "misses"]++;
   return raw;
 }
