@@ -155,6 +155,10 @@ export class Core {
     else if (m.t === "store_put") void this.keep(m.key, m.bytes);
     else if (m.t === "event") {
       const e = JSON.parse(m.json);
+      // (the core's "fetching" progress is its ask for a pack, kept here or not: the
+      // downloads are this host's to tell (fetch's pack events), so a warm build's
+      // packs read from this machine never say "Fetching packages")
+      if (e.event === "progress" && e.phase === "fetching") return;
       for (const f of this.listeners) f(e);
     } else if (m.t === "lsp") {
       const v = JSON.parse(m.json);

@@ -69,6 +69,8 @@ export interface MountOptions {
 export interface Web {
   /** Opens sample `i` (the visitor's copy of it, kept). */
   setDoc(i: number): void;
+  /** The panel's tour, every tip from the first (a page's own "Take the tour", a film's). */
+  tour(): void;
   /** Everything gone: the engine's worker ended, the elements removed. */
   destroy(): void;
 }
@@ -446,7 +448,13 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   function sessionOptions(): Partial<Options> {
     return {
       checkEveryMs: 0,
-      engine: (main) => resolve(proj?.engine ?? "auto", undefined, main),
+      engine: (main) => {
+        const e = resolve(proj?.engine ?? "auto", undefined, main);
+        // (Auto says what it chose: "Auto (XeLaTeX)", from this main file's preamble)
+        const auto = root.querySelector<HTMLOptionElement>("#phx-engine option[value=auto]");
+        if (auto) auto.textContent = `Auto (${ENGINES[e].label})`;
+        return e;
+      },
       // (a XeLaTeX project the core can't run: approximated with pdfLaTeX's stand-ins)
       shims: async (main) => (proj?.engine !== "auto" || !approximable(main) || ENGINES.xelatex.ready ? null : shimTexts((p) => platform().asset(p))),
     };
@@ -838,6 +846,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
 
   return {
     setDoc: (i) => void openSample(i),
+    tour: () => panel.tour(true),
     destroy() {
       if (controls.active) controls.stop();
       session?.stop();
