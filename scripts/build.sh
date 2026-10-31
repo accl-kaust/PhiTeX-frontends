@@ -25,6 +25,10 @@ else
   # stack and exports are core/build.rs's. SIMD on: hayro, vello_cpu and
   # zlib take their scalar paths without it; every browser the extension
   # runs in, and Node, has wasm SIMD)
+  # (the toolchain rust-toolchain.toml pins, with its wasm targets, installed here once:
+  # rustup writes ~/.rustup, read-only in the sandbox; cargo itself, running crates'
+  # build scripts, stays in it)
+  rustup toolchain install
   (cd core && CARGO_TARGET_DIR="$PWD/../target/core" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_THREADS_RUSTFLAGS="-Zwasi-exec-model=reactor -C target-feature=+simd128" \
     cargo build --release --target wasm32-wasip1-threads)
   core=target/core/wasm32-wasip1-threads/release/core.wasm
