@@ -20,5 +20,7 @@ headless=(); [ -n "${PHITEX_HEADLESS:-}" ] && headless=(--headless=new "--window
 # cache's writes stalled the browser; the profile itself, its logins, stays)
 cache="/dev/shm/phitex-chrome-cache-$port"
 nohup chromium "${headless[@]}" --user-data-dir="$profile" --disk-cache-dir="$cache" --remote-debugging-port="$port" --no-first-run \
-  --disable-features=DisableLoadExtensionCommandLineSwitch --load-extension="$PWD/overleaf" \
-  "${1:-http://localhost:8123/project/mock}" > /dev/null 2>&1 &
+  --enable-unsafe-extension-debugging about:blank > /dev/null 2>&1 &
+# (the extension loaded over the protocol: Chromium 153 ignores --load-extension; then the page)
+node scripts/load-ext.mjs "$port" > /dev/null
+node -e 'fetch(`http://localhost:${process.argv[1]}/json/new?${encodeURIComponent(process.argv[2])}`, { method: "PUT" }).then((r) => r.ok || process.exit(1))' "$port" "${1:-http://localhost:8123/project/mock}"
