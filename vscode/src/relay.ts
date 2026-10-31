@@ -23,10 +23,20 @@ export function viewHtml(view: vscode.Webview, ext: vscode.Uri, engine: "builtin
 <body style="margin:0;height:100vh"><script nonce="${nonce}">window.PHITEX_ROOT=${JSON.stringify(root)};window.PHITEX_FONTS=${JSON.stringify(root + "fonts/")};window.PHITEX_ENGINE=${JSON.stringify(engine)};</script><script nonce="${nonce}" src="${root}dist/webview.js"></script></body></html>`;
 }
 
-/** What the webview of `view` asks, answered by `core`; `pdf`: its download asked; `folder`: the project's, its files' names from it. */
-export function relay(view: vscode.WebviewPanel, core: CoreTransport, folder: string, pdf: () => void, log?: (s: string) => void): vscode.Disposable {
-  core.onEvent?.((e: CoreEvent) => void view.webview.postMessage({ t: "event", e } satisfies Down));
-  return view.webview.onDidReceiveMessage(async (m: Up) => {
+/** A core a preview's relay can stop hearing: `onEvent` gives back the call that stops its events. */
+export type Relayed = Omit<CoreTransport, "onEvent"> & { onEvent(cb: (e: CoreEvent) => void): () => void };
+
+/**
+ * What the webview of `view` asks, answered by `core`; `pdf`: its download
+ * asked; `folder`: the project's, its files' names from it. Disposed, it
+ * stops hearing the core's events too: the builtin core outlives its
+ * previews, and a closed preview's webview throws on postMessage ("Webview
+ * is disposed"), which kept every later preview from hearing an event (no
+ * build, no page: the opening sheet for ever).
+ */
+export function relay(view: vscode.WebviewPanel, core: Relayed, folder: string, pdf: () => void, log?: (s: string) => void): vscode.Disposable {
+  const off = core.onEvent((e: CoreEvent) => void view.webview.postMessage({ t: "event", e } satisfies Down));
+  const asks = view.webview.onDidReceiveMessage(async (m: Up) => {
     // (the webview's trace: errors and blocks always, the rest with phitex.trace)
     if (m.t === "log") {
       if (log && (vscode.workspace.getConfiguration("phitex").get<boolean>("trace") || /^ *\d+ ms {2}(error|rejected|blocked|draw:)/.test(m.s))) log("webview: " + m.s);
@@ -49,6 +59,7 @@ export function relay(view: vscode.WebviewPanel, core: CoreTransport, folder: st
             : await core.request(m.op as never).catch((e): CoreRes => ({ ok: false, error: String(e) }));
     void view.webview.postMessage({ t: "res", id: m.id, r } satisfies Down);
   });
+  return { dispose: () => (off(), asks.dispose()) };
 }
 
 /** A project file's text (Copy for an AI assistant): its editor's, unsaved edits in, else the disk's; a file of the project only, at most 2 MB. */
@@ -185,8 +196,10 @@ export class WatchLink implements CoreTransport {
     });
   }
 
-  onEvent(cb: (e: CoreEvent) => void): void {
+  /** Listens to the watch's events until the call it gives back. */
+  onEvent(cb: (e: CoreEvent) => void): () => void {
     this.events.push(cb);
+    return () => void this.events.splice(this.events.indexOf(cb) >>> 0, 1);
   }
 
   close(): void {
