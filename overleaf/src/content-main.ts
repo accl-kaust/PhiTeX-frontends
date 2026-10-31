@@ -886,6 +886,19 @@ function dockInOverleaf(panel: Panel): Dock {
     if (done) void chrome.storage.local.set({ toured: true });
   }
   addEventListener("keydown", (e) => e.key === "Escape" && document.getElementById("phitex-tour") && endTour(true));
+  // (Ctrl/⌘+S or Ctrl/⌘+Enter, a writer's habit, in ⚡ Instant: a note that there is
+  // nothing to do; once in a while, not each press; Overleaf's own keys as they were)
+  let habitSaid = -Infinity;
+  addEventListener(
+    "keydown",
+    (e) => {
+      if (mode !== "phitex" || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || !(e.key === "s" || e.key === "S" || e.key === "Enter")) return;
+      if (performance.now() - habitSaid < 10_000) return;
+      habitSaid = performance.now();
+      panel.msg("No need to save or compile: ⚡ Instant typesets as you type, and Overleaf saves by itself.", false, true);
+    },
+    true,
+  );
 
   function tick(): void {
     // (a hidden tab: nothing to place; the next visible tick does it)
