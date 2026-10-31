@@ -201,7 +201,7 @@ function addStyle() {
   .phitex-folders-row { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; color: #1b222c; background: #fff;
     box-shadow: 0 2px 6px rgb(0 0 0 / 30%); animation: phitex-folders-drag 3s cubic-bezier(.5,0,.3,1) 1s infinite; }
   .phitex-folders-row .material-symbols { font-size: 16px; color: #5a6578; }
-  .phitex-folders-into { position: relative; display: inline-flex; width: 26px; height: 26px; margin-left: 42px; color: #53b57f;
+  .phitex-folders-into { position: relative; display: inline-flex; width: 26px; height: 26px; margin-left: 42px; color: #5b8fd6;
     animation: phitex-folders-gulp 3s ease-out 1s infinite; }
   .phitex-folders-into .material-symbols { position: absolute; inset: 0; font-size: 26px; font-variation-settings: "FILL" 1; }
   .phitex-folders-into .material-symbols:first-child { animation: phitex-folders-shut 3s steps(1) 1s infinite; }
@@ -217,7 +217,7 @@ function addStyle() {
   .phitex-search-box { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; background: #fff; color: #1b222c; }
   .phitex-search-box .material-symbols { font-size: 16px; color: #5a6578; }
   .phitex-search-hit { display: flex; align-items: center; gap: 6px; margin-top: 8px; opacity: 0; animation: phitex-search-show 2.4s steps(1) 1s infinite; }
-  .phitex-search-hit .material-symbols { font-size: 18px; color: #53b57f; font-variation-settings: "FILL" 1; }
+  .phitex-search-hit .material-symbols { font-size: 18px; color: #5b8fd6; font-variation-settings: "FILL" 1; }
   .phitex-search-hit mark { padding: 0 2px; border-radius: 3px; color: inherit; background: rgb(255 199 0 / 45%); }
   .phitex-search-owner { margin-left: auto; font-size: 12px; color: #afb5c0; }
   .phitex-search-keys { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin: 6px 0 0; padding: 0; font-size: 12px; color: #afb5c0; }
@@ -226,39 +226,39 @@ function addStyle() {
   /* the terms: their header, the stage (the list, its folders saved to the project, the project read by each browser) */
   #${CONSENT} .modal { z-index: 1070; } #${CONSENT} .modal-backdrop { z-index: 1065; }
   #${CONSENT} .form-check { margin-top: 12px; }
-  #${CONSENT} code { font-size: .92em; color: #098842; background: rgb(9 136 66 / 8%); padding: 0 4px; border-radius: 4px; }
+  #${CONSENT} code { font-size: .92em; color: #1d3e72; background: rgb(9 136 66 / 8%); padding: 0 4px; border-radius: 4px; }
   #${CONSENT} .btn code { color: inherit; background: rgb(255 255 255 / 18%); }
-  #${CONSENT} .phitex-folders-head { border: 0; color: #fff; background: linear-gradient(135deg, #098842, #1e6b41); }
+  #${CONSENT} .phitex-folders-head { border: 0; color: #fff; background: linear-gradient(135deg, #1d3e72, #16325d); }
   #${CONSENT} .phitex-folders-head .modal-title { display: flex; align-items: center; gap: 8px; color: #fff; }
   .phitex-folders-stage { display: grid; grid-template-columns: auto 1fr auto 1fr auto; align-items: center; gap: 8px; margin: 0 0 16px; padding: 16px;
     border-radius: 10px; color: #f4f5f6; background: radial-gradient(120% 140% at 0% 0%, #2f3a4c, #1b222c); position: relative; overflow: hidden; }
   .phitex-folders-stage::after { content: ""; position: absolute; inset: 0; pointer-events: none;
     background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 10%) 50%, transparent 65%); transform: translateX(-120%);
     animation: phitex-callout-shimmer 3.6s ease-in-out 1s infinite; }
-  .phitex-folders-wire { position: relative; height: 2px; background: rgb(83 181 127 / 35%); border-radius: 2px; }
-  .phitex-folders-wire i { position: absolute; top: -3px; left: 0; width: 8px; height: 8px; border-radius: 50%; background: #53b57f;
-    box-shadow: 0 0 10px #53b57f; opacity: 0; }
+  .phitex-folders-wire { position: relative; height: 2px; background: rgb(91 143 214 / 35%); border-radius: 2px; }
+  .phitex-folders-wire i { position: absolute; top: -3px; left: 0; width: 8px; height: 8px; border-radius: 50%; background: #5b8fd6;
+    box-shadow: 0 0 10px #5b8fd6; opacity: 0; }
   .phitex-folders-wire.w1 i { animation: phitex-folders-travel 3s ease-in-out 1s infinite; }
   .phitex-folders-wire.w2 i { animation: phitex-folders-travel 3s ease-in-out 1.9s infinite; }
-  .phitex-folders-store { display: grid; justify-items: center; gap: 1px; padding: 8px 14px; border-radius: 10px; border: 1.5px solid #53b57f;
-    background: rgb(9 136 66 / 18%); box-shadow: 0 0 24px rgb(83 181 127 / 30%); animation: phitex-folders-save 3s ease-out 1s infinite; }
-  .phitex-folders-store .material-symbols { font-size: 28px; color: #53b57f; font-variation-settings: "FILL" 1; }
+  .phitex-folders-store { display: grid; justify-items: center; gap: 1px; padding: 8px 14px; border-radius: 10px; border: 1.5px solid #5b8fd6;
+    background: rgb(9 136 66 / 18%); box-shadow: 0 0 24px rgb(91 143 214 / 30%); animation: phitex-folders-save 3s ease-out 1s infinite; }
+  .phitex-folders-store .material-symbols { font-size: 28px; color: #5b8fd6; font-variation-settings: "FILL" 1; }
   .phitex-folders-store b { font-family: "DM Mono", monospace; font-size: 13px; }
   .phitex-folders-store small { font-family: "DM Mono", monospace; font-size: 11px; color: #afb5c0; }
   .phitex-folders-dots { display: flex; gap: 5px; margin-top: 4px; }
-  .phitex-folders-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgb(83 181 127 / 40%); }
-  .phitex-folders-dots i.now { background: #53b57f; animation: phitex-folders-blink 3s steps(1) 1s infinite; }
-  .phitex-folders-devices { display: grid; gap: 4px; color: #86caa5; }
+  .phitex-folders-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgb(91 143 214 / 40%); }
+  .phitex-folders-dots i.now { background: #5b8fd6; animation: phitex-folders-blink 3s steps(1) 1s infinite; }
+  .phitex-folders-devices { display: grid; gap: 4px; color: #a9c4f0; }
   .phitex-folders-devices .material-symbols { font-size: 22px; animation: phitex-folders-lit 3s ease-out 2.2s infinite; }
   .phitex-folders-devices .material-symbols:nth-child(2) { animation-delay: 2.35s; }
   .phitex-folders-devices .material-symbols:nth-child(3) { animation-delay: 2.5s; }
   .phitex-folders-points { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
   .phitex-folders-points li { display: flex; gap: 10px; align-items: flex-start; }
-  .phitex-folders-points .material-symbols { color: #098842; font-size: 20px; }
+  .phitex-folders-points .material-symbols { color: #1d3e72; font-size: 20px; }
   @keyframes phitex-folders-travel { 0%, 50% { left: 0; opacity: 0; } 55% { opacity: 1; } 80% { left: calc(100% - 8px); opacity: 1; } 85%, 100% { left: calc(100% - 8px); opacity: 0; } }
-  @keyframes phitex-folders-save { 0%, 78% { transform: none; } 84% { transform: scale(1.07); box-shadow: 0 0 36px rgb(83 181 127 / 60%); } 92%, 100% { transform: none; } }
+  @keyframes phitex-folders-save { 0%, 78% { transform: none; } 84% { transform: scale(1.07); box-shadow: 0 0 36px rgb(91 143 214 / 60%); } 92%, 100% { transform: none; } }
   @keyframes phitex-folders-blink { 0%, 80% { opacity: .2; } 81%, 100% { opacity: 1; } }
-  @keyframes phitex-folders-lit { 0%, 20% { color: #86caa5; transform: none; } 6% { color: #fff; transform: scale(1.2); } }
+  @keyframes phitex-folders-lit { 0%, 20% { color: #a9c4f0; transform: none; } 6% { color: #fff; transform: scale(1.2); } }
   @media (max-width: 575px) { .phitex-folders-stage { grid-template-columns: 1fr; justify-items: center; } .phitex-folders-wire { width: 2px; height: 18px; } }
   @media (prefers-reduced-motion: reduce) {
     .phitex-folders-demo *, .phitex-search-hit, .phitex-folders-stage *, .phitex-folders-stage::after { animation: none !important; }

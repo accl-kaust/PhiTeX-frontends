@@ -1,6 +1,6 @@
 // One popover for everything the extension points out: the first-run tips
 // (⚡ Instant's, Compare's, the folders', the search's), what's new, the
-// tour's steps. Overleaf's popover markup in PhiTeX's green, pointing at
+// tour's steps. Overleaf's popover markup in PhiTeX's blue, pointing at
 // what it is about (below it, or over it near its top), placed again as
 // the window resizes; a first-run tip shines (a glow, a sweep of light,
 // its icon wiggling, what it points at ringed). Its styles are put in the
@@ -85,18 +85,18 @@ export function calloutStyle() {
   const s = h("style", { id: "phitex-callout-style" });
   s.textContent = `
   .phitex-callout { position: fixed; z-index: 1060; width: 320px; max-width: calc(100vw - 16px); overflow: visible; color: #f4f5f6; background: #1b222c;
-    border: 1.5px solid #53b57f; border-radius: 12px; box-shadow: 0 0 0 4px rgb(83 181 127 / 18%), 0 18px 48px rgb(0 0 0 / 45%);
+    border: 1.5px solid #5b8fd6; border-radius: 12px; box-shadow: 0 0 0 4px rgb(91 143 214 / 18%), 0 18px 48px rgb(0 0 0 / 45%);
     animation: phitex-callout-in .35s cubic-bezier(.2,1.3,.4,1); font-size: 14px; }
   .phitex-callout::before { content: ""; position: absolute; top: -8px; left: var(--arrow, 50%); width: 14px; height: 14px; transform: translateX(-50%) rotate(45deg);
-    background: #098842; border-left: 1.5px solid #53b57f; border-top: 1.5px solid #53b57f; }
+    background: #1d3e72; border-left: 1.5px solid #5b8fd6; border-top: 1.5px solid #5b8fd6; }
   .phitex-callout.inside::before { display: none; }
   .phitex-callout .phitex-callout-clip { position: relative; overflow: hidden; border-radius: 11px; }
   .phitex-callout .popover-header { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border: 0; font-size: 15px; font-weight: 700;
-    color: #fff; background: linear-gradient(135deg, #098842, #1e6b41); }
+    color: #fff; background: linear-gradient(135deg, #1d3e72, #16325d); }
   .phitex-callout .popover-body { color: #f4f5f6; padding: 12px 14px; }
   .phitex-callout .popover-body .text-muted, .phitex-callout .phitex-callout-muted { color: #afb5c0 !important; }
-  .phitex-callout .popover-body code { color: #86caa5; background: rgb(0 0 0 / 22%); padding: 0 4px; border-radius: 4px; }
-  .phitex-callout .popover-body a:not(.btn) { color: #86caa5; }
+  .phitex-callout .popover-body code { color: #a9c4f0; background: rgb(0 0 0 / 22%); padding: 0 4px; border-radius: 4px; }
+  .phitex-callout .popover-body a:not(.btn) { color: #a9c4f0; }
   .phitex-callout kbd { font-size: 11px; padding: 1px 4px; }
   .phitex-callout .phitex-callout-step { margin-left: auto; font-size: 11px; font-weight: 600; opacity: .8; white-space: nowrap; }
   .phitex-callout .phitex-callout-icon { display: inline-flex; font-size: 20px; }
@@ -110,7 +110,7 @@ export function calloutStyle() {
     color: #8d96a5; text-decoration: none; font-size: 12px; }
   .phitex-callout-actions .phitex-callout-never:hover { color: #f4f5f6; text-decoration: underline; }
   /* a first-run tip: it bounces in, glows, a light sweeps it, its icon wiggles */
-  .phitex-callout.shiny { box-shadow: 0 0 0 4px rgb(83 181 127 / 18%), 0 18px 48px rgb(0 0 0 / 45%), 0 0 32px rgb(83 181 127 / 35%);
+  .phitex-callout.shiny { box-shadow: 0 0 0 4px rgb(91 143 214 / 18%), 0 18px 48px rgb(0 0 0 / 45%), 0 0 32px rgb(91 143 214 / 35%);
     animation: phitex-callout-in .6s cubic-bezier(.18,1.5,.4,1), phitex-callout-glow 2.4s ease-in-out .6s infinite; }
   .phitex-callout.shiny .phitex-callout-clip::after { content: ""; position: absolute; inset: 0; pointer-events: none;
     background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 22%) 50%, transparent 65%); transform: translateX(-120%);
@@ -119,16 +119,16 @@ export function calloutStyle() {
   /* what a shiny tip points at, ringed */
   .phitex-pulse { position: relative; }
   .phitex-pulse::after { content: ""; position: absolute; inset: -3px; border-radius: 9999px; pointer-events: none;
-    box-shadow: 0 0 0 0 rgb(83 181 127 / 90%); animation: phitex-callout-ring 1.3s ease-out infinite; }
+    box-shadow: 0 0 0 0 rgb(91 143 214 / 90%); animation: phitex-callout-ring 1.3s ease-out infinite; }
   /* a demo's typed text: --n characters, typed again and again */
   .phitex-callout-typed { display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom; border-right: 2px solid currentColor; width: 0;
     font-family: "DM Mono", monospace; animation: phitex-callout-type 2.4s steps(var(--n, 9)) 1s infinite; }
   @keyframes phitex-callout-type { 0% { width: 0; } 55%, 100% { width: calc(var(--n, 9) * 1ch); } }
   @keyframes phitex-callout-in { 0% { opacity: 0; transform: translateY(18px) scale(.85); } 60% { opacity: 1; } }
   @keyframes phitex-callout-shimmer { 0% { transform: translateX(-120%); } 45%, 100% { transform: translateX(120%); } }
-  @keyframes phitex-callout-glow { 50% { box-shadow: 0 0 0 6px rgb(83 181 127 / 10%), 0 18px 48px rgb(0 0 0 / 45%), 0 0 44px rgb(83 181 127 / 55%); } }
+  @keyframes phitex-callout-glow { 50% { box-shadow: 0 0 0 6px rgb(91 143 214 / 10%), 0 18px 48px rgb(0 0 0 / 45%), 0 0 44px rgb(91 143 214 / 55%); } }
   @keyframes phitex-callout-wiggle { 0%, 100% { transform: rotate(0); } 10%, 30%, 50% { transform: rotate(-14deg) scale(1.15); } 20%, 40% { transform: rotate(14deg) scale(1.15); } 60% { transform: rotate(0); } }
-  @keyframes phitex-callout-ring { 70% { box-shadow: 0 0 0 14px rgb(83 181 127 / 0%); } 100% { box-shadow: 0 0 0 0 rgb(83 181 127 / 0%); } }
+  @keyframes phitex-callout-ring { 70% { box-shadow: 0 0 0 14px rgb(91 143 214 / 0%); } 100% { box-shadow: 0 0 0 0 rgb(91 143 214 / 0%); } }
   @media (prefers-reduced-motion: reduce) {
     .phitex-callout, .phitex-callout *, .phitex-callout .phitex-callout-clip::after, .phitex-pulse::after { animation: none !important; }
     .phitex-callout-typed { width: calc(var(--n, 9) * 1ch); }

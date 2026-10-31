@@ -354,9 +354,9 @@ const DOCK_CSS = `
   #phitex-news li { margin-bottom: 4px; }
   label.phitex-dot-new { position: relative; }
   label.phitex-dot-new::before { content: ""; position: absolute; top: 2px; right: 4px; width: 7px; height: 7px; border-radius: 50%;
-    background: var(--green-40, #53b57f); box-shadow: 0 0 0 2px var(--bg-dark-primary, #1b222c); }
+    background: #5b8fd6; box-shadow: 0 0 0 2px var(--bg-dark-primary, #1b222c); }
   #phitex-tour .phitex-hl-demo { margin: 10px 0; padding: 8px; border-radius: 8px; background: rgb(0 0 0 / 22%); display: grid; gap: 8px; font-size: 12px; }
-  #phitex-tour .phitex-hl-ed { position: relative; font-family: "DM Mono", monospace; color: var(--green-30, #86caa5); }
+  #phitex-tour .phitex-hl-ed { position: relative; font-family: "DM Mono", monospace; color: #a9c4f0; }
   #phitex-tour .phitex-hl-caret { position: absolute; top: 1px; left: 7ch; width: 2px; height: 1.2em; background: currentColor;
     animation: phitex-caret 3.6s steps(1) infinite, phitex-blink .6s steps(1) infinite; }
   #phitex-tour .phitex-hl-page { font-family: "Noto Serif", serif; color: #1b222c; background: #fff; border-radius: 3px; padding: 4px 8px; box-shadow: 0 2px 6px rgb(0 0 0 / 30%); }
@@ -370,23 +370,23 @@ const DOCK_CSS = `
   #phitex-tour .phitex-choice small { opacity: .8; }
   .phitex-dots { display: flex; gap: 5px; justify-content: center; margin-top: 10px; }
   .phitex-dots span { width: 6px; height: 6px; border-radius: 50%; background: rgb(255 255 255 / 25%); transition: all .2s; }
-  .phitex-dots span.on { width: 16px; border-radius: 3px; background: var(--green-40, #53b57f); }
-  .phitex-ring { position: relative; outline: 2px solid var(--green-40, #53b57f) !important; outline-offset: 2px; border-radius: 6px;
+  .phitex-dots span.on { width: 16px; border-radius: 3px; background: #5b8fd6; }
+  .phitex-ring { position: relative; outline: 2px solid #5b8fd6 !important; outline-offset: 2px; border-radius: 6px;
     animation: phitex-ringo 1.3s ease-out infinite; }
   phitex-preview.phitex-ring { outline-offset: -4px; }
-  @keyframes phitex-ringo { 50% { outline-color: rgb(83 181 127 / 30%); } }
+  @keyframes phitex-ringo { 50% { outline-color: rgb(91 143 214 / 30%); } }
   #phitex-tip .phitex-demo { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin: 10px 0 4px; padding: 8px;
     border-radius: 8px; background: rgb(0 0 0 / 22%); font-size: 12px; }
-  #phitex-tip .phitex-demo code { color: var(--green-30, #86caa5); white-space: nowrap; overflow: hidden; border-right: 2px solid currentColor;
+  #phitex-tip .phitex-demo code { color: #a9c4f0; white-space: nowrap; overflow: hidden; border-right: 2px solid currentColor;
     width: 0; animation: phitex-type 2.4s steps(9) 1s infinite; font-family: "DM Mono", monospace; }
-  #phitex-tip .phitex-demo .phitex-arrow { color: var(--green-30, #86caa5); animation: phitex-zip 2.4s ease-in 1s infinite; }
+  #phitex-tip .phitex-demo .phitex-arrow { color: #a9c4f0; animation: phitex-zip 2.4s ease-in 1s infinite; }
   #phitex-tip .phitex-demo .phitex-mini { justify-self: end; font-family: "Noto Serif", serif; color: #1b222c; background: #fff; border-radius: 3px;
     padding: 2px 8px; box-shadow: 0 2px 6px rgb(0 0 0 / 30%); opacity: .25; animation: phitex-paint 2.4s steps(1) 1s infinite; }
   @keyframes phitex-type { 0% { width: 0; } 55%, 100% { width: 9ch; } }
   @keyframes phitex-zip { 0%, 55% { transform: translateX(-4px); opacity: .3; } 62% { transform: translateX(6px); opacity: 1; } 100% { opacity: .3; } }
   @keyframes phitex-paint { 0%, 60% { opacity: .25; } 61%, 100% { opacity: 1; } }
   /* (the switch's ⚡ label, ringed by the tip (callout.ts's .phitex-pulse): lit, round) */
-  label.phitex-pulse { border-radius: 9999px; background: rgb(83 181 127 / 25%); color: #fff !important; }
+  label.phitex-pulse { border-radius: 9999px; background: rgb(91 143 214 / 25%); color: #fff !important; }
   @media (prefers-reduced-motion: reduce) {
     .phitex-ring, #phitex-tip .phitex-demo *, #phitex-tour .phitex-hl-demo * { animation: none !important; }
     #phitex-tip .phitex-demo code { width: 9ch; } #phitex-tip .phitex-demo .phitex-mini { opacity: 1; }

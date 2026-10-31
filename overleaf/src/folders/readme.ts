@@ -26,7 +26,7 @@ export const README_TEX = String.raw`% This project keeps the folders of PhiTeX 
 % Overleaf's own colours
 \definecolor{ink}{HTML}{1B222C}
 \definecolor{ink2}{HTML}{2F3A4C}
-\definecolor{leaf}{HTML}{098842}
+\definecolor{leaf}{HTML}{1D3E72}
 \definecolor{leaflight}{HTML}{53B57F}
 \definecolor{mist}{HTML}{F4F5F6}
 \definecolor{slate}{HTML}{5A6578}
@@ -48,7 +48,7 @@ export const README_TEX = String.raw`% This project keeps the folders of PhiTeX 
 % an Overleaf tag, as its badge
 \newcommand{\tagchip}[1]{\tikz[baseline=(t.base)]\node[rounded corners=3pt, fill=mist, draw=line, line width=0.4pt, inner xsep=5pt, inner ysep=2.5pt, font=\footnotesize\color{ink2}] (t) {\textcolor{leaf}{\tiny\faCircle}\,#1};}
 
-% a card: icon in a green disc, a title, a body
+% a card: icon in a blue disc, a title, a body
 \newtcolorbox{card}[2]{enhanced, colback=white, colframe=line, boxrule=0.6pt, arc=6pt,
   left=14pt, right=14pt, top=12pt, bottom=12pt, valign=top,
   fontupper=\small\color{ink2}\raggedright, before upper={%
