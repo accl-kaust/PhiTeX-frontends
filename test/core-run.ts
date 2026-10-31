@@ -37,6 +37,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { Core, type Store } from "../common/src/wasm/core.ts";
 import { mintedShell } from "../common/src/wasm/minted.ts";
+import { HOSTS } from "../common/src/shelf.ts";
 import { spawner } from "../vscode/src/thread.ts";
 
 const run = promisify(execFile);
@@ -77,8 +78,22 @@ let stderr = "";
 const timeline: [string, number, number][] = [];
 let packs = 0;
 let fetched = 0;
-// (SHELF_URL: the same release at another address, e.g. its Pages one where phitex.org is not reachable)
-const SHELF = process.env.SHELF_URL ?? "https://v1.shelf.phitex.org/tl2026/";
+// (Shelf's hosts in order, as the extensions ask them (shelf.ts HOSTS): one that cannot be
+// reached (KAUST resets v1.shelf.phitex.org) passed over, and asked last from then on;
+// SHELF_URL: that address alone)
+const shelfHosts = process.env.SHELF_URL ? [process.env.SHELF_URL] : [...HOSTS];
+async function fromShelf(path: string): Promise<Response> {
+  let why: unknown;
+  for (const h of [...shelfHosts]) {
+    try {
+      return await fetch(h + path);
+    } catch (e) {
+      why = e;
+      shelfHosts.push(...shelfHosts.splice(shelfHosts.indexOf(h), 1));
+    }
+  }
+  throw why;
+}
 const bundledDir = value("--texmf") ? new URL(pathToFileURL(resolvePath(value("--texmf")!)).href + "/") : new URL("../texmf/", import.meta.url);
 /** The bundled files the build read, in the order it asked (--names). */
 const read: string[] = [];
@@ -89,7 +104,7 @@ async function fetchPack(id: string): Promise<Uint8Array | null> {
   const kept = `target/shelf-cache/${id}.pack`;
   if (existsSync(kept)) return new Uint8Array(await readFile(kept));
   fetched++;
-  const r = await fetch(SHELF + "h/" + encodeURIComponent(id) + ".pack");
+  const r = await fromShelf("h/" + encodeURIComponent(id) + ".pack");
   const b = new Uint8Array(await r.arrayBuffer());
   if (!r.ok || b[0] !== 0x1f) return null;
   await mkdir("target/shelf-cache", { recursive: true });
