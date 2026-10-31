@@ -9,9 +9,12 @@
 
 import { NewerFormat, upgrade, type Steps } from "./common/format.ts";
 
-export const FORMAT = 1;
-/** `steps[n]`: all of format n's settings to format n + 1's (none yet: 1 is the first). */
-export const STEPS: Steps = {};
+export const FORMAT = 2;
+/** `steps[n]`: all of format n's settings to format n + 1's. */
+export const STEPS: Steps = {
+  // (format 2: the compare tip's settings went with the tip, 12e89f1)
+  1: ({ cmpTipNext: _n, cmpTipOff: _o, cmpUsed: _u, ...s }: Record<string, unknown>) => s,
+};
 
 /** `all` (chrome.storage.local's) in this extension's format: what to set and what to remove; null if as it is, or newer. */
 export function upgradeSettings(all: Record<string, unknown>, steps = STEPS, format = FORMAT): { set: Record<string, unknown>; remove: string[] } | null {

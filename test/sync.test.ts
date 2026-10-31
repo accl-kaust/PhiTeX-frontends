@@ -4,9 +4,23 @@ import assert from "node:assert/strict";
 import { boxes, from, glyphs, lineAt, nearest } from "../common/src/viewer/sync.ts";
 import { byteOffset, charOffset } from "../common/src/viewer/edits.ts";
 
-// "main" (the job's name for main.tex) and a file not in the project; one glyph with no source.
+// (the origins as phitex-live answers them: base64 columns of little-endian words, one synthesized bit a glyph)
+const b64 = (words: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(words)));
+const u32 = (xs: number[]) => b64(new Uint32Array(xs).buffer);
+const f32 = (xs: number[]) => b64(new Float32Array(xs).buffer);
+
+// "main" (the job's name for main.tex) and a file not in the project; one glyph with no source (file 2^32-1).
 const gs = glyphs(
-  { files: ["main", "article.cls"], g: [[100, 200, 0, 10, 11, 0], [105, 200, 0, 11, 12, 0], [100, 212, 0, 20, 21, 0], [130, 200, 1, 0, 5, 1], [140, 200, -1, 0, 0, 1]] },
+  {
+    files: ["main", "article.cls"],
+    n: 5,
+    file: u32([0, 0, 0, 1, 0xffffffff]),
+    start: u32([10, 11, 20, 0, 0]),
+    end: u32([11, 12, 21, 5, 0]),
+    synth: u32([0b11000]),
+    x: f32([100, 105, 100, 130, 140]),
+    y: f32([200, 200, 212, 200, 200]),
+  },
   (n) => (n === "main" ? "main.tex" : null),
 );
 

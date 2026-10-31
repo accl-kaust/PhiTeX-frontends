@@ -72,6 +72,8 @@ test("settings: no format yet is format 1, kept; a newer one left as it is; a st
   assert.equal(upgradeSettings({ enabled: true, format: SETTINGS_FORMAT + 1 }), null);
   const steps = { 1: ({ tipOff, ...s }: any) => ({ ...s, tipsOff: tipOff }) };
   assert.deepEqual(upgradeSettings({ tipOff: true, format: 1 }, steps, 2), { set: { tipsOff: true, format: 2 }, remove: ["tipOff"] });
+  // (format 1 to 2: the compare tip's settings removed, the rest kept)
+  assert.deepEqual(upgradeSettings({ enabled: true, cmpTipOff: true, cmpUsed: 2, format: 1 }), { set: { enabled: true, format: 2 }, remove: ["cmpTipOff", "cmpUsed"] });
 });
 
 /** The State type's declaration, comments and spacing aside: what folders.json holds. */
