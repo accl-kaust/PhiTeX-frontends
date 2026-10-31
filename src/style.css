@@ -488,6 +488,9 @@ p.where b { color: var(--text); }
 .anim { width: 100%; margin: 0 auto; }
 .anim iframe { display: block; width: 100%; border: 0; background: transparent; }
 .anim-banner iframe, .anim-cli iframe { aspect-ratio: 1600 / 600; }
+/* under 640 px the banner stacks its words over its window (anim/banner.html, body.portrait) */
+.anim-banner { container-type: inline-size; }
+@container (max-width: 639.98px) { .anim-banner iframe { aspect-ratio: 800 / 1100; } }
 .anim-everywhere iframe { aspect-ratio: 1600 / 640; }
 
 .banner-hero { max-width: 1440px !important; margin: 0 auto; padding-top: 96px !important; padding-bottom: 48px !important; gap: 24px !important; }
