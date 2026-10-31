@@ -26,6 +26,9 @@ if [ "${1:-}" = "--net" ]; then
   shift
 fi
 [ $# -gt 0 ] || { echo "usage: $0 [--net] <command> [args...]" >&2; exit 2; }
+# (a CI runner is a throwaway machine of its own, and GitHub's refuse
+# bubblewrap's namespaces: the command run as is)
+[ -n "${CI:-}" ] && exec "$@"
 
 mkdir -p "$cargo_home/registry" "$cargo_home/git"
 

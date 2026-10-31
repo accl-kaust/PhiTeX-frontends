@@ -31,6 +31,6 @@ echo "$out ($(du -h "$out" | cut -f1))"
 
 unzip -l "$out" | tail -n +4 | head -n -2 | awk '{print "  " $4}'
 
-# (the web frontend from the same build: phitex.org's /try, scripts/deploy-web.sh)
+# (the web frontend from the same build: demo.phitex.org, scripts/deploy-web.sh)
 scripts/build-web.sh > /dev/null
 echo "web/dist ($(du -sh web/dist | cut -f1))"

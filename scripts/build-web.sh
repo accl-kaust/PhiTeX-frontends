@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The web frontend (web/): PhiTeX in a browser tab, nothing installed (the
-# demo phitex.org serves at /try, scripts/deploy-web.sh). Its bundles
+# demo at demo.phitex.org: scripts/deploy-web.sh, or CI's deploy-demo.yml). Its bundles
 # (esbuild: the app, and the Overleaf extension's own core worker and its
 # threads), the mock's editor's grammar, and the browser build's files the
 # shared code reads (overleaf/: scripts/build.sh first, as for

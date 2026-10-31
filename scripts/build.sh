@@ -66,14 +66,16 @@ scripts/sandbox node_modules/.bin/esbuild overleaf/src/folders/main.ts --bundle 
 scripts/sandbox node_modules/.bin/esbuild overleaf/src/dashboard.ts --bundle --log-level=warning --format=iife --target=chrome116 --outfile=overleaf/dist/dashboard.js --allow-overwrite
 rm -rf overleaf/dist/folders
 # Latin Modern (GUST Font License), the fonts the pages are drawn in (page2.ts):
-# common/fonts (kept up to date from TeX Live here), and the XeLaTeX stand-ins
-# (common/shims, engines.ts), each frontend's copy
+# common/fonts (kept up to date from TeX Live here; CI, which has none, takes
+# them as committed), and the XeLaTeX stand-ins (common/shims, engines.ts),
+# each frontend's copy
 lm=/usr/share/texmf-dist/fonts/opentype/public
-cp $lm/lm/lmroman10-{regular,bold,italic,bolditalic}.otf $lm/lm/lmmono10-regular.otf $lm/lm-math/latinmodern-math.otf common/fonts/
+[ -n "${CI:-}" ] || cp $lm/lm/lmroman10-{regular,bold,italic,bolditalic}.otf $lm/lm/lmmono10-regular.otf $lm/lm-math/latinmodern-math.otf common/fonts/
 rm -rf overleaf/fonts overleaf/shims && cp -r common/fonts common/shims overleaf/
 rm -rf overleaf/dist/mupdf
 # minted: Pyodide (Python in wasm), the engine's latexminted runner, and TeX
-# Live's four wheels (latexminted, latexrestricted, latex2pydata, Pygments);
+# Live's four wheels (latexminted, latexrestricted, latex2pydata, Pygments;
+# MINTED_WHEELS: another directory of them, CI's from the prebuilt core);
 # bundled, loaded by the core's worker at a project's first \write18
 mkdir -p overleaf/dist/pyodide overleaf/dist/minted overleaf/minted
 cp node_modules/pyodide/{pyodide.mjs,pyodide.asm.mjs,pyodide.asm.wasm,pyodide-lock.json,package.json} overleaf/dist/pyodide/
@@ -82,7 +84,9 @@ cp node_modules/pyodide/python_stdlib.zip overleaf/dist/pyodide/python_stdlib.da
 rm -f overleaf/minted/*.whl
 cp phitex/tools/minted-pyodide/runner.mjs overleaf/dist/minted/
 : > overleaf/minted/wheels.txt
-for w in /usr/share/texmf-dist/scripts/minted/*.whl; do cp "$w" "overleaf/minted/$(basename "$w").data"; basename "$w" >> overleaf/minted/wheels.txt; done
+wheels=(${MINTED_WHEELS:-/usr/share/texmf-dist/scripts/minted}/*.whl)
+[ -e "${wheels[0]}" ] || { echo "no minted wheels in ${MINTED_WHEELS:-/usr/share/texmf-dist/scripts/minted}" >&2; exit 1; }
+for w in "${wheels[@]}"; do cp "$w" "overleaf/minted/$(basename "$w").data"; basename "$w" >> overleaf/minted/wheels.txt; done
 echo "minted: $(du -sh overleaf/dist/pyodide | cut -f1) Pyodide, $(wc -l < overleaf/minted/wheels.txt) wheels"
 
 # The manifest: manifest.base.json, plus (--dev) the local mock's origin.

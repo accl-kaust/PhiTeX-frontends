@@ -1,0 +1,47 @@
+# demo.phitex.org on each push to main: the web frontend (scripts/build-web.sh)
+# on the core scripts/build-all.sh built and uploaded for this commit (release
+# "cores", core-KEY.tar.gz, scripts/core-key.sh), deployed to Cloudflare
+# Pages project phitex-demo. No core for this commit's key: the deploy fails
+# (run scripts/build-all.sh, then the workflow again).
+#
+# Secrets: PHITEX_DEPLOY_KEY (as ci.yml), CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit).
+name: deploy-demo
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency: deploy-demo
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: PhiTeX (the submodule; the viewer's sources are its)
+        env:
+          KEY: ${{ secrets.PHITEX_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh && echo "$KEY" > ~/.ssh/phitex && chmod 600 ~/.ssh/phitex
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/phitex -o StrictHostKeyChecking=accept-new" git submodule update --init --depth 1 phitex
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: The core built for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          key=$(scripts/core-key.sh)
+          gh release download cores -p "core-$key.tar.gz" -D target ||
+            { echo "::error::no core-$key in release cores: scripts/build-all.sh on this commit first"; exit 1; }
+          mkdir -p target/core-prebuilt && tar -xzf "target/core-$key.tar.gz" -C target/core-prebuilt
+      - name: Build
+        run: |
+          PHITEX_WASM_DIR=target/core-prebuilt MINTED_WHEELS=target/core-prebuilt/minted scripts/build.sh
+          scripts/build-web.sh
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 2925ae0c4cb07a33b3ab848a3a4c6c99
+          command: pages deploy web/dist --project-name=phitex-demo --branch=main
