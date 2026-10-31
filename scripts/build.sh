@@ -15,6 +15,8 @@
 # formats/ built elsewhere (a build machine's, together), copied instead.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# (each step said as it begins: what the build is doing now)
+step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 
 # (the slow part first, the engine and its formats, into target/: an
 # extension loaded from overleaf/ keeps working until they're copied in)
@@ -28,15 +30,19 @@ else
   # (the toolchain rust-toolchain.toml pins, with its wasm targets, installed here once:
   # rustup writes ~/.rustup, read-only in the sandbox; cargo itself, running crates'
   # build scripts, stays in it)
+  step "Rust toolchain (rust-toolchain.toml)"
   rustup toolchain install
+  step "Building the wasm core (core/, PhiTeX to wasm32-wasip1-threads)"
   (cd core && CARGO_TARGET_DIR="$PWD/../target/core" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_THREADS_RUSTFLAGS="-Zwasi-exec-model=reactor -C target-feature=+simd128" \
     cargo build --release --target wasm32-wasip1-threads)
   core=target/core/wasm32-wasip1-threads/release/core.wasm
   # (its formats, made by it: a first open reads pdfLaTeX's instead of building it)
+  step "Making the formats (pdfLaTeX, XeLaTeX) with that core"
   scripts/sandbox --net scripts/make-formats.sh "$core" target/formats
   formats=target/formats
   # PhiTeX's latexdiff (phitex-diff) as its own small wasm module, for the
   # compare: diff-wasm/, on phitex/'s phitex-diff
+  step "Building latexdiff (diff-wasm/)"
   (cd diff-wasm && CARGO_TARGET_DIR="$PWD/target" ../scripts/sandbox cargo build --release --target wasm32-unknown-unknown)
   diff=diff-wasm/target/wasm32-unknown-unknown/release/phitex_diff_wasm.wasm
 fi
@@ -46,6 +52,7 @@ cp "$diff" overleaf/dist/diff.wasm
 cp "$formats"/* overleaf/formats/
 # (the full license, shipped in the extension, where its links point)
 # (packs/: the list fetched ahead, and any Shelf packs shipped: data/bundled-packs.txt, none now)
+step "The extension's files (packs, texmf/, Shelf's index)"
 scripts/bundle-packs.sh
 cp LICENSE overleaf/LICENSE.txt
 cp NOTICE overleaf/NOTICE.txt
@@ -62,6 +69,7 @@ cp "${SHELF_RELEASE:-shelf-release.json}" overleaf/shelf-release.json
 cp "${SHELF_PACKS:-shelf-packs.tsv.gz}" overleaf/shelf-packs.tsv.gzdata
 # The extension's TypeScript, as the modules it loads (dist/: the content
 # script's, the offscreen document's, the core's worker and its threads')
+step "The extension's TypeScript (overleaf/)"
 scripts/sandbox npx tsc -p overleaf
 # The dashboard's content scripts, the folders (overleaf/src/folders/, in the
 # page's world) and their settings bridge (dashboard.ts): a content script
@@ -69,6 +77,7 @@ scripts/sandbox npx tsc -p overleaf
 scripts/sandbox node_modules/.bin/esbuild overleaf/src/folders/main.ts --bundle --log-level=warning --format=iife --target=chrome116 --outfile=overleaf/dist/folders.js
 scripts/sandbox node_modules/.bin/esbuild overleaf/src/dashboard.ts --bundle --log-level=warning --format=iife --target=chrome116 --outfile=overleaf/dist/dashboard.js --allow-overwrite
 rm -rf overleaf/dist/folders
+step "Fonts and minted (Pyodide)"
 # Latin Modern (GUST Font License), the fonts the pages are drawn in (page2.ts):
 # common/fonts (kept up to date from TeX Live here; CI, which has none, takes
 # them as committed), and the XeLaTeX stand-ins (common/shims, engines.ts),
@@ -93,6 +102,7 @@ wheels=(${MINTED_WHEELS:-/usr/share/texmf-dist/scripts/minted}/*.whl)
 for w in "${wheels[@]}"; do cp "$w" "overleaf/minted/$(basename "$w").data"; basename "$w" >> overleaf/minted/wheels.txt; done
 echo "minted: $(du -sh overleaf/dist/pyodide | cut -f1) Pyodide, $(wc -l < overleaf/minted/wheels.txt) wheels"
 
+step "The manifest"
 # The manifest: manifest.base.json, plus (--dev) the local mock's origin.
 dev=false; for a in "$@"; do [ "$a" = "--dev" ] && dev=true; done
 # (the engine's commit, the phitex/ submodule's, as version_name: debug reports name it)

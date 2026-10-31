@@ -8,7 +8,10 @@
 # runs (no sources, tests or maps), the wasm core and the license in.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# (each step said as it begins: what the build is doing now)
+step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 scripts/build.sh
+step "Packaging the browser extension (store/)"
 version=$(scripts/sandbox node -p 'require("./overleaf/manifest.json").version')
 out="store/phitex-instant-$version.zip"
 mkdir -p store
@@ -32,5 +35,6 @@ echo "$out ($(du -h "$out" | cut -f1))"
 unzip -l "$out" | tail -n +4 | head -n -2 | awk '{print "  " $4}'
 
 # (the web frontend from the same build: demo.phitex.org, scripts/deploy-web.sh)
+step "Building the web demo (web/dist)"
 scripts/build-web.sh > /dev/null
 echo "web/dist ($(du -sh web/dist | cut -f1))"

@@ -25,5 +25,11 @@ if [ -z "${BUILD_ALL_FETCHED:-}" ]; then
   # (the branch's own build-all.sh, read anew: bash reads a script as it runs it)
   exec env BUILD_ALL_FETCHED=1 scripts/build-all.sh
 fi
+# (each step said as it begins: what the build is doing now)
+step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+step "The browser extension and the web demo (scripts/package.sh)"
 scripts/package.sh
+step "The VS Code extension (scripts/build-vscode.sh --package)"
 scripts/build-vscode.sh --package
+step "Done"
+ls -1 store/phitex-instant-*.zip vscode/phitex-instant-*.vsix 2>/dev/null | tail -2

@@ -1,0 +1,4 @@
+{
+  "//": "The sources as ES modules, as Node reads them (test/core-run.ts loads thread.ts): the extension itself is dist/'s CommonJS bundle, this file not shipped (.vscodeignore).",
+  "type": "module"
+}
