@@ -215,6 +215,11 @@ export async function coreIndex(): Promise<CoreIndex> {
  */
 const lookups = new WeakMap<CoreIndex, Index>();
 export function prefetch(core: Core, ix: CoreIndex, files: Record<string, string>, engine: string): void {
+  for (const id of packsOf(ix, files, engine)) core.prefetch(id);
+}
+
+/** The packs `prefetch` fetches: those a project's sources load, and what their loading reads. */
+export function packsOf(ix: CoreIndex, files: Record<string, string>, engine: string): Set<string> {
   let lookup = lookups.get(ix);
   if (!lookup) lookups.set(ix, (lookup = new Index(new TextDecoder().decode(ix.tsv), ix.meta)));
   const bundled = new Set(ix.names);
@@ -225,7 +230,7 @@ export function prefetch(core: Core, ix: CoreIndex, files: Record<string, string
     const path = lookup.resolve(name, formatOf(name), e);
     if (path) for (const id of lookup.packs(path, e)) ids.add(id);
   }
-  for (const id of ids) core.prefetch(id);
+  return ids;
 }
 
 /**

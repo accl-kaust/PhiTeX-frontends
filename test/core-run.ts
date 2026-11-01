@@ -19,6 +19,9 @@
 // --env NAME=value (repeatable): the core's environment, e.g. PHITEX_TEX_TIME=1.
 // --no-bundled: no texmf/ bundled, every file from Shelf (/try's question: are the bundled files needed?).
 // --engine NAME: the TeX program (pdflatex by default; xelatex: make-formats.sh's XeLaTeX format).
+// --single: the single-threaded core (wasm32-wasip1, Firefox's: target/core's
+// core.wasm for that target), every ask answered inside its call (the
+// packs from target/shelf-cache/, else Shelf by curl).
 // --minted: \write18 runs latexminted in Pyodide (PhiTeX's
 // tools/minted-pyodide runner, Pyodide from node_modules, minted's wheels
 // from TeX Live's scripts/minted).
@@ -28,9 +31,9 @@
 // the harness ends after it (the records the build changed are stored as it
 // settles, before its event).
 
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -50,7 +53,8 @@ const kpse = flag("--kpse");
 const text = file ? await readFile(file, "utf8") : "\\catcode`\\{=1 \\catcode`\\}=2 \\font\\x=cmr10 \\x \\shipout\\hbox{Hello}\\end\n";
 
 // (--wasm PATH: another build, e.g. target/core-profile's)
-const wasm = value("--wasm") ?? new URL("../target/core/wasm32-wasip1-threads/release/core.wasm", import.meta.url);
+const single = flag("--single");
+const wasm = value("--wasm") ?? new URL(`../target/core/${single ? "wasm32-wasip1" : "wasm32-wasip1-threads"}/release/core.wasm`, import.meta.url);
 const module = await WebAssembly.compile(await readFile(wasm));
 // (the session's store kept between runs, as the hosts' stores keep it;
 // kpsewhich's answers too, as the hosts' Shelf index answers at once)
@@ -124,7 +128,26 @@ const shell = flag("--minted")
     })
   : undefined;
 let shellCalls = 0;
-const core = Core.start(module, {
+/** Shelf's pack `id` at once (--single): kept in target/shelf-cache/, else Shelf's by curl, kept. */
+function packNow(id: string): Uint8Array | null {
+  packs++;
+  const kept = `target/shelf-cache/${id}.pack`;
+  if (existsSync(kept)) return new Uint8Array(readFileSync(kept));
+  fetched++;
+  for (const h of shelfHosts) {
+    try {
+      const b = new Uint8Array(execFileSync("curl", ["-fsS", "--max-time", "60", h + "h/" + encodeURIComponent(id) + ".pack"], { maxBuffer: 1 << 30 }));
+      if (b[0] !== 0x1f) continue;
+      mkdirSync("target/shelf-cache", { recursive: true });
+      writeFileSync(kept, b);
+      return b;
+    } catch {
+      /* (the next host) */
+    }
+  }
+  return null;
+}
+const options = {
   // (--env NAME=value, repeatable: the engine's switches)
   env: args.flatMap((a, i) => (args[i - 1] === "--env" ? [a] : [])),
   shell: shell && (async (command, files) => {
@@ -162,14 +185,43 @@ const core = Core.start(module, {
     stderr += s;
     process.stderr.write(s);
   },
-  async trap(tid, error) {
+  async trap(tid: number, error: string) {
     // (the whole of it kept: a panic's message is what the core wrote before it)
     const f = `target/core-trap-${Date.now()}.txt`;
     await writeFile(f, `thread ${tid} trapped\n${stderr}\n${error}\n`);
     console.error(`thread ${tid} trapped (all of it in ${f}): ${stderr.split("\n").filter(Boolean).slice(-3).join(" | ")}`);
     process.exit(2);
   },
-});
+} satisfies Parameters<typeof Core.start>[1];
+const core = single
+  ? Core.startSingle(module, {
+      ...options,
+      sync: {
+        resolve: (name) => {
+          wants++;
+          const b = flag("--no-bundled") ? null : (() => { try { return readFileSync(new URL(name, bundledDir)); } catch { return null; } })();
+          if (b) read.push(name);
+          return b ? { path: name, bytes: new Uint8Array(b) } : null;
+        },
+        fetch: (id) => {
+          const t = performance.now() - t0;
+          try {
+            return packNow(id);
+          } finally {
+            timeline.push([id, t, performance.now() - t0]);
+          }
+        },
+        stored: (key) => {
+          if (flag("--cold") && key.startsWith("format/")) return null;
+          try {
+            return new Uint8Array(readFileSync(storeDir + encodeURIComponent(key)));
+          } catch {
+            return null;
+          }
+        },
+      },
+    })
+  : Core.start(module, options);
 const main = file ? file.split("/").pop()! : "plain.tex";
 if (!kpse) {
   core.setIndex(gunzipSync(await readFile("shelf-index.tsv.gz")), await readFile("shelf-release.json"), gunzipSync(await readFile("shelf-packs.tsv.gz")), flag("--no-bundled") ? [] : (await readdir(bundledDir)).filter((n) => n !== "names.txt"));

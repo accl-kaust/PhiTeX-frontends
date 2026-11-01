@@ -1,4 +1,5 @@
-// The offscreen document: an extension page, cross-origin isolated by the
+// The offscreen document (in Firefox, the background page, firefox-bg.html,
+// which has no offscreen documents): an extension page, cross-origin isolated by the
 // manifest (SharedArrayBuffer: the core's memory is shared with its
 // threads), that relays each tab's port to a core of its own: a worker
 // (worker.ts, the core's thread 0), started when the tab connects and
@@ -34,7 +35,9 @@ function b64(b: Uint8Array): string {
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "phitex") return;
   ports.add(port);
-  const core = new Worker(new URL("worker.js", import.meta.url), { type: "module", name: "phitex-core" });
+  // (Chrome's offscreen page is cross-origin isolated: the threaded core;
+  // Firefox's background page cannot be: the single-threaded one, worker1.ts)
+  const core = new Worker(new URL(globalThis.crossOriginIsolated ? "worker.js" : "worker1.js", import.meta.url), { type: "module", name: "phitex-core" });
   const say = (m: any) => {
     try {
       port.postMessage(m);
@@ -52,6 +55,8 @@ chrome.runtime.onConnect.addListener((port) => {
   core.onerror = (e) => say({ event: "console", item: { kind: "error", text: `core worker: ${e.message}` } });
   if (release) say({ event: "release", release });
   port.onMessage.addListener((m) => {
+    // (the tab's every 20 s: an event, so Firefox keeps this page and its core)
+    if (m.op === "keepalive") return;
     if (m.op === "latexdiff") {
       (diffRun ??= platform().asset("dist/diff.wasm").then(async (r) => loadDiff(await r.arrayBuffer()))).then(
         (run) => say({ id: m.id, ok: true, json: run(m.req) }),

@@ -3,7 +3,7 @@
 // onboarded state (scripts/dev/onboarded.mjs: no clicking through the terms or
 // the tour), opens the mock project, waits for the ⚡ pages, screenshots.
 //
-//   scripts/build/package.sh                      # store/phitex-instant-<v>-firefox.zip
+//   scripts/build/package.sh                      # build/phitex-instant-<v>-firefox.zip
 //   scripts/dev/fx-run.mjs [--wait 30] [--url http://localhost:8123/project/mock] [--shot out.png]
 //
 // Needs: Firefox (128+) on PATH, the mock running
@@ -31,7 +31,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // the Firefox package, with the mock's address
 const version = JSON.parse(fs.readFileSync(path.join(root, "overleaf/manifest.json"))).version;
-const zip = path.join(root, `store/phitex-instant-${version}-firefox.zip`);
+const zip = path.join(root, `build/phitex-instant-${version}-firefox.zip`);
 if (!fs.existsSync(zip)) throw new Error(`${zip}: run scripts/build/package.sh first`);
 const dev = path.join(root, `target/fx-dev${tag}`);
 fs.rmSync(dev, { recursive: true, force: true });

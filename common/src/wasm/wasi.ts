@@ -17,8 +17,17 @@ export class Exit extends Error {
   }
 }
 
-/** A sleep's wait (poll_oneoff): on a flag nobody sets. */
-const sleeper = new Int32Array(new SharedArrayBuffer(4));
+/**
+ * A sleep's wait (poll_oneoff): on a flag nobody sets; made at the first
+ * sleep, and none where there is no shared memory (Firefox's single-threaded
+ * core): there a sleep waits on the clock.
+ */
+let sleeper: Int32Array | null | undefined;
+function sleep(ms: number): void {
+  sleeper ??= typeof SharedArrayBuffer === "function" ? new Int32Array(new SharedArrayBuffer(4)) : null;
+  if (sleeper) return void Atomics.wait(sleeper, 0, 0, ms);
+  for (const end = performance.now() + ms; performance.now() < end; );
+}
 
 /** WASI on `memory`; `environ` as `NAME=value` (the engine's switches, e.g. PHITEX_TEX_TIME=1). */
 export function wasi(memory: WebAssembly.Memory, stderr: (s: string) => void, environ: string[] = []): Record<string, (...a: any[]) => number> {
@@ -87,7 +96,7 @@ export function wasi(memory: WebAssembly.Memory, stderr: (s: string) => void, en
           ns = i === 0 || t < ns ? t : ns;
         }
       }
-      if (ns > 0n) Atomics.wait(sleeper, 0, 0, Number(ns / 1_000_000n));
+      if (ns > 0n) sleep(Number(ns / 1_000_000n));
       v.setBigUint64(events, v.getBigUint64(subs, true), true);
       v.setUint16(events + 8, 0, true);
       v.setUint8(events + 10, 0);

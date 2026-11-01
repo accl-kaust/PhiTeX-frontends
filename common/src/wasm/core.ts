@@ -173,7 +173,7 @@ export class Core {
    * their calls (`sync`); what it is asked to do is stepped here, a step a
    * task, so requests are answered between them.
    */
-  static startSingle(module: WebAssembly.Module, o: Omit<CoreOptions, "spawn"> & { sync: SyncHost }): Core {
+  static startSingle(module: WebAssembly.Module, o: Omit<CoreOptions, "spawn" | "resolve"> & { sync: SyncHost }): Core {
     let core: Core | null = null;
     const memory = { get buffer() { return core!.memory.buffer; } } as WebAssembly.Memory;
     const text = (p: number, n: number) => new TextDecoder().decode(new Uint8Array(memory.buffer).slice(p, p + n));
@@ -208,7 +208,7 @@ export class Core {
     });
     // (no shared counter: Firefox has no SharedArrayBuffer here at all)
     const shared = { module, memory: inst.exports.memory as WebAssembly.Memory, ids: new ArrayBuffer(0) as unknown as SharedArrayBuffer, channel: "", env: o.env ?? [] };
-    core = new Core(shared, inst, [], { ...o, spawn: () => {} });
+    core = new Core(shared, inst, [], { ...o, spawn: () => {}, resolve: async (name) => o.sync.resolve(name) });
     core.single = true;
     return core;
   }

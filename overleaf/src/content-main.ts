@@ -247,6 +247,18 @@ class ChromeTransport implements CoreTransport {
     this.port = chrome.runtime.connect({ name: "phitex" });
     // (the project: the core keeps the document's records under it)
     this.port.postMessage({ id: 0, op: "hello", project: project() });
+    // (Firefox stops an add-on's background page, and the core's worker on
+    // it, after 30 s without an event, an open port or not: a cold build
+    // there runs longer, so a message every 20 s keeps it)
+    const port = this.port;
+    const alive = setInterval(() => {
+      try {
+        port.postMessage({ op: "keepalive" });
+      } catch {
+        clearInterval(alive);
+      }
+    }, 20_000);
+    port.onDisconnect.addListener(() => clearInterval(alive));
     this.port.onMessage.addListener(async (r: any) => {
       if (r.event) return this.events.forEach((f) => f(r));
       // (bytes base64: the PDF for a download, a page's strips' pixels)
@@ -1248,6 +1260,11 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   // (Shelf's release, release.ts: an extension older than it needs asks for
   // an update, and its notice shows; both once per page, and it keeps working)
   let releaseShown = false;
+  // (the core's worker's own words, its failures: in the dev trace)
+  transport.onEvent((e) => {
+    const c = e as unknown as { event: string; item?: { text?: string } };
+    if (c.event === "console") devMark(`core: ${c.item?.text}`);
+  });
   transport.onEvent((e) => {
     if (e.event !== "release" || !e.release || releaseShown) return;
     const min = e.release.min_extension;

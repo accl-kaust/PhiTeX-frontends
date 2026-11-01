@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # The store uploads: a release build of the browser extension (overleaf/), zipped.
 #   scripts/build/package.sh        → build/phitex-instant-<version>.zip (Chrome Web Store, Edge Add-ons)
-# (Firefox: none for now; the core runs on threads, workers on shared memory,
-# which Firefox's extension pages don't give it: its single-threaded build
-# is still to come)
+#                                     build/phitex-instant-<version>-firefox.zip (Firefox Add-ons)
+# (Firefox's extension pages have no shared memory: its package runs the
+# single-threaded core, dist/core1.wasm, on its background page, firefox-bg.html)
 # Checks: the release manifest (no localhost), only what the extension
 # runs (no sources, tests or maps), the wasm core and the license in.
 set -euo pipefail
@@ -29,10 +29,31 @@ if find overleaf/dist overleaf/minted overleaf/packs overleaf/texmf -name "*.zip
 if grep -q localhost overleaf/dist/common/shelf.js; then echo "shelf.js points at localhost: not a release build" >&2; exit 1; fi
 if find overleaf/dist -name '*.map' | grep -q .; then echo "source maps in dist" >&2; exit 1; fi
 
-(cd overleaf && scripts_zip=1 zip -q -r -X "../$out" "${files[@]}")
+# (Firefox's core and its worker are Firefox's package's only)
+(cd overleaf && scripts_zip=1 zip -q -r -X "../$out" "${files[@]}" -x dist/core1.wasm dist/worker1.js)
 echo "$out ($(du -h "$out" | cut -f1))"
 
 unzip -l "$out" | tail -n +4 | head -n -2 | awk '{print "  " $4}'
+
+step "Packaging for Firefox (build/firefox/)"
+fx="build/phitex-instant-$version-firefox.zip" stage=build/firefox
+rm -rf "$stage" "$fx" && mkdir -p "$stage"
+[ -s overleaf/dist/core1.wasm ] || { echo "no core1.wasm (the single-threaded core: scripts/build/build.sh)" >&2; exit 1; }
+# (the threaded core and its threads, the offscreen page, the threaded core's
+# formats and minted's Pyodide out: no shared memory, no \write18 runner)
+for f in "${files[@]}" firefox-bg.html; do case $f in offscreen.html|formats|minted) ;; *) cp -r "overleaf/$f" "$stage/" ;; esac; done
+rm -rf "$stage"/dist/{core.wasm,worker.js,thread.js,pyodide,minted}
+scripts/sandbox node -e '
+  const fs = require("fs"), f = process.argv[1] + "/manifest.json", m = JSON.parse(fs.readFileSync(f));
+  // (in Firefox an MV3 background is a page: the core runs there, offscreen.ts in it)
+  m.background = { page: "firefox-bg.html" };
+  m.permissions = m.permissions.filter((p) => p !== "offscreen");
+  for (const k of ["minimum_chrome_version", "cross_origin_embedder_policy", "cross_origin_opener_policy"]) delete m[k];
+  // (128: content scripts in the page world; nothing collected, as AMO asks it said)
+  m.browser_specific_settings = { gecko: { id: "phitex-instant@phitex.org", strict_min_version: "128.0", data_collection_permissions: { required: ["none"] } } };
+  fs.writeFileSync(f, JSON.stringify(m, null, 2) + "\n");' "$stage"
+(cd "$stage" && zip -q -r -X "../$(basename "$fx")" .)
+echo "$fx ($(du -h "$fx" | cut -f1))"
 
 # (the web frontend from the same build: demo.phitex.org, scripts/build/deploy-web.sh)
 step "Building the web demo (build/web)"

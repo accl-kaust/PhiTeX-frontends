@@ -21,7 +21,7 @@ step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 # (the slow part first, the engine and its formats, into target/: an
 # extension loaded from overleaf/ keeps working until they're copied in)
 if [ -n "${PHITEX_WASM_DIR:-}" ]; then
-  core="$PHITEX_WASM_DIR/core.wasm" diff="$PHITEX_WASM_DIR/diff.wasm" formats="$PHITEX_WASM_DIR/formats"
+  core="$PHITEX_WASM_DIR/core.wasm" core1="$PHITEX_WASM_DIR/core1.wasm" diff="$PHITEX_WASM_DIR/diff.wasm" formats="$PHITEX_WASM_DIR/formats"
 else
   # (a reactor binary: its `_initialize` run once by thread 0; the memory,
   # stack and exports are core/build.rs's. SIMD on: hayro, vello_cpu and
@@ -36,6 +36,12 @@ else
   (cd core && CARGO_TARGET_DIR="$PWD/../target/core" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_THREADS_RUSTFLAGS="-Zwasi-exec-model=reactor -C target-feature=+simd128" \
     cargo build --release --target wasm32-wasip1-threads)
   core=target/core/wasm32-wasip1-threads/release/core.wasm
+  # (Firefox's: the same core single-threaded, wasm32-wasip1, its own memory;
+  # Firefox gives an extension no shared memory between threads)
+  step "Building the single-threaded wasm core (core/ to wasm32-wasip1, Firefox)"
+  (cd core && CARGO_TARGET_DIR="$PWD/../target/core" ../scripts/sandbox env CARGO_TARGET_WASM32_WASIP1_RUSTFLAGS="-Zwasi-exec-model=reactor -C target-feature=+simd128" \
+    cargo build --release --target wasm32-wasip1)
+  core1=target/core/wasm32-wasip1/release/core.wasm
   # (its formats, made by it: a first open reads pdfLaTeX's instead of building it)
   step "Making the formats (pdfLaTeX, XeLaTeX) with that core"
   scripts/sandbox --net scripts/build/make-formats.sh "$core" target/formats
@@ -48,6 +54,7 @@ else
 fi
 rm -rf overleaf/dist overleaf/formats && mkdir -p overleaf/dist overleaf/formats
 cp "$core" overleaf/dist/core.wasm
+cp "$core1" overleaf/dist/core1.wasm
 cp "$diff" overleaf/dist/diff.wasm
 cp "$formats"/* overleaf/formats/
 # (the full license, shipped in the extension, where its links point)

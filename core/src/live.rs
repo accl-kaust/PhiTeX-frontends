@@ -140,6 +140,16 @@ impl Host for Shelf {
                 phitex_tex::ToolSearch::IndexStyle => ".ist",
                 // (Ghostscript's fonts by their file names, where Shelf serves them)
                 phitex_tex::ToolSearch::GsFont => return gs_font(&f, name, e).map(|(p, b)| (p, b.to_vec())),
+                // (METAFONT's inputs and web2c's files for a font the engine
+                // makes, mktex: in their formats whatever the suffix, mf.ini,
+                // cp227.tcx; METAFONT's with the project's own first)
+                phitex_tex::ToolSearch::Mf => {
+                    if let Some(p) = f.given(name) {
+                        return f.read(&p).map(|b| (p, b.to_vec()));
+                    }
+                    return f.shelf_find(name, Some("mf"), e).map(|(p, b)| (p, b.to_vec()));
+                }
+                phitex_tex::ToolSearch::Web2c => return f.shelf_find(name, Some("web2c"), e).map(|(p, b)| (p, b.to_vec())),
             };
             let name = if name.ends_with(ext) { name.to_owned() } else { format!("{name}{ext}") };
             let p = f.locate(&name, e)?;
