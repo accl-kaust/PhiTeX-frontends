@@ -40,7 +40,9 @@
         <h1 class="display install-title"><span class="get-line">Get <img width="286" height="102.4" class="h-logo th-light" src="/logo/phitex-logo.svg" alt="PhiTeX"><img width="286.1" height="102.4" class="h-logo th-dark" src="/logo/phitex-logo-dark.svg" alt="" aria-hidden="true"></span><em>One line, one binary.</em></h1>
         <p class="lede">For Linux and macOS, on x86-64 and ARM. It puts <code>phitex</code> in <code>~/.local/bin</code>, checks it against the release's SHA-256 sums (and their minisign signature, if you have minisign), and touches nothing else.</p>
         <div class="cmd"><pre><code>curl -fsSL https://phitex.org/install.sh | sh</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
-        <p class="then">Then, in your paper's folder:</p>
+        <p class="then">v1.0 is coming; until then, use the nightly build: dev's head, rebuilt each night once its checks pass, signed like releases.</p>
+        <div class="cmd"><pre><code>curl -fsSL https://phitex.org/install.sh | PHITEX_CHANNEL=nightly sh</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+        <p class="then"><code>phitex upgrade</code> then follows the nightly; run the installer without <code>PHITEX_CHANNEL</code> to go back to releases. Then, in your paper's folder:</p>
         <div class="cmd"><pre><code>phitex watch paper.tex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
         <ul class="facts">
           <li><b>Update</b><span><code>phitex upgrade</code>; <code>phitex news</code> says what it brings.</span></li>

@@ -10,7 +10,7 @@
 # sent but the downloads themselves.
 #
 # Settings (environment):
-#   PHITEX_VERSION=1.6     a version instead of the latest release
+#   PHITEX_VERSION=1.0     a version instead of the latest release
 #   PHITEX_CHANNEL=nightly the nightly (dev's, rebuilt each night) instead;
 #                          `phitex upgrade` then follows the nightly
 #   PHITEX_PREFIX=DIR      install into DIR/bin (default ~/.local)
