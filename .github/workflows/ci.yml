@@ -3,7 +3,12 @@
 # (test/formats.test.ts: a stored shape changed without a new format fails).
 # The engine (wasm) is built elsewhere: scripts/build/build.sh, on a build machine.
 name: ci
-on: [push, pull_request]
+# (site/ is checked by its deploy, deploy-site.yml)
+on:
+  push:
+    paths-ignore: ["site/**", ".github/workflows/deploy-site.yml"]
+  pull_request:
+    paths-ignore: ["site/**", ".github/workflows/deploy-site.yml"]
 jobs:
   check:
     runs-on: ubuntu-latest

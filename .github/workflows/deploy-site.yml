@@ -1,0 +1,52 @@
+# phitex.org (site/, merged from the PhiTeX.org repository): the static site
+# built and deployed to Cloudflare Pages project phitex-org on each push to
+# main that changes site/, and each day (news.json follows PhiTeX's
+# CHANGELOG.md on its main: a release is seen within a day; run the workflow
+# by hand to publish one at once). The demo (deploy-demo.yml) is deployed
+# apart, on the rest.
+#
+# Secret: CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit), the demo's. The
+# VITE_* repository variables are optional: site/src/links.ts has defaults.
+name: deploy-site
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/deploy-site.yml"]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+concurrency:
+  group: deploy-site
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm test
+      # (news.json from PhiTeX's CHANGELOG.md on main, served at /news.json)
+      - run: node scripts/news.mjs https://raw.githubusercontent.com/accl-kaust/PhiTeX/main/CHANGELOG.md public/news.json
+      - run: npm run build
+        env:
+          VITE_REPO_URL: ${{ vars.VITE_REPO_URL }}
+          VITE_EXT_URL: ${{ vars.VITE_EXT_URL }}
+          VITE_CHROME_URL: ${{ vars.VITE_CHROME_URL }}
+          VITE_EDGE_URL: ${{ vars.VITE_EDGE_URL }}
+          VITE_FIREFOX_URL: ${{ vars.VITE_FIREFOX_URL }}
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 2925ae0c4cb07a33b3ab848a3a4c6c99
+          workingDirectory: site
+          command: pages deploy dist --project-name=phitex-org --branch=main

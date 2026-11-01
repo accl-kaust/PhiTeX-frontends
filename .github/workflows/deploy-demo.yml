@@ -3,11 +3,13 @@
 # commit, the phitex submodule, to wasm; the formats made by that core), then
 # scripts/build/build-web.sh, deployed to Cloudflare Pages project phitex-demo.
 #
-# Secret: CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit).
+# Secret: CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit). (site/ is phitex.org,
+# deploy-site.yml: a push that changes only it deploys only it)
 name: deploy-demo
 on:
   push:
     branches: [main]
+    paths-ignore: ["site/**", ".github/workflows/deploy-site.yml"]
   workflow_dispatch:
 concurrency:
   group: deploy-demo
