@@ -68,6 +68,8 @@ export interface SyncHost {
   fetch(id: string, downloading?: () => void): Uint8Array | null;
   /** The store's bytes under `key` (`Store.get`, at once: read ahead). */
   stored(key: string): Uint8Array | null;
+  /** `\write18`'s allowed command run at once (minted's runner, loaded ahead); none: refused. */
+  shell?(command: string, files: [string, Uint8Array][]): Ran;
 }
 
 export interface CoreOptions {
@@ -195,8 +197,18 @@ export class Core {
           core!.given.add(id);
           core!.givePack(id, b);
         }),
-        // (no \write18 runner without threads: the open says so, none is asked)
-        shell: () => {},
+        // (\write18's allowed command run at once: minted's runner, loaded before the open)
+        shell: unsigned((id: number, p: number, n: number) => {
+          let ran: Ran = { status: 127 << 8, wrote: [], removed: [] };
+          try {
+            const r = reader(new Uint8Array(memory.buffer).slice(p, p + n));
+            const command = new TextDecoder().decode(r.bytes());
+            if (o.sync.shell) ran = o.sync.shell(command, r.files());
+          } catch (e) {
+            o.log?.(`\\write18: ${e}\n`);
+          }
+          core!.shellDone(id, ran);
+        }),
         store_get: unsigned((p: number, n: number) => {
           const key = text(p, n);
           core!.giveStored(key, o.sync.stored(key));
@@ -348,6 +360,11 @@ export class Core {
     } catch (e) {
       this.o.log?.(`\\write18: ${e}\n`);
     }
+    this.shellDone(id, ran);
+  }
+
+  /** What `\write18` call `id` did, given to the core. */
+  private shellDone(id: number, ran: Ran): void {
     const out = framed([i32(ran.status), files(ran.wrote), files(ran.removed.map((n) => [n, new Uint8Array()]))]);
     const p = this.put(out);
     this.x.ph_shell_done(id, p, out.length);

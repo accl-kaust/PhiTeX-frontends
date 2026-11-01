@@ -10,7 +10,7 @@
 
 import type { Ran, Shell } from "./core.ts";
 
-interface Runner {
+export interface Runner {
   system(command: string, files: [string, Uint8Array][]): { status: number; wrote: Map<string, Uint8Array>; removed: string[] };
   pyodide: { FS: any };
 }
@@ -31,16 +31,22 @@ export function mintedShell(load: LoadRunner): Shell {
   let runner: Promise<Runner> | undefined;
   let queue: Promise<unknown> = Promise.resolve();
   return (command, files) => {
-    const run = async (): Promise<Ran> => {
-      const r = await (runner ??= load());
-      clear(r.pyodide.FS, new Set(files.map(([n]) => n.replace(/^\.\//, ""))));
-      const { status, wrote, removed } = r.system(command, files);
-      return { status, wrote: [...wrote], removed };
-    };
+    const run = async (): Promise<Ran> => runOn(await (runner ??= load()), command, files);
     const p = queue.then(run, run);
     queue = p.catch(() => undefined);
     return p;
   };
+}
+
+/**
+ * `command` run on a loaded runner, at once (its Python runs synchronously;
+ * only loading Pyodide waits): Firefox's single-threaded core answers its
+ * `\write18` inside the call with it.
+ */
+export function runOn(r: Runner, command: string, files: [string, Uint8Array][]): Ran {
+  clear(r.pyodide.FS, new Set(files.map(([n]) => n.replace(/^\.\//, ""))));
+  const { status, wrote, removed } = r.system(command, files);
+  return { status, wrote: [...wrote], removed };
 }
 
 /** /work holding only the names in `keep` (and the directories they need). */

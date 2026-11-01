@@ -62,12 +62,23 @@ impl ShellHook for Hook {
         let mut frame = Vec::new();
         put(&mut frame, command.as_bytes());
         put_files(&mut frame, files.iter().map(|(n, b)| (n.as_str(), &**b)));
-        let mut a = self.answers.lock().unwrap_or_else(PoisonError::into_inner);
-        a.insert(id, None);
+        self.answers.lock().unwrap_or_else(PoisonError::into_inner).insert(id, None);
+        // (the lock let go: a host without threads answers inside the call)
         (self.post)(id, &frame);
+        let mut a = self.answers.lock().unwrap_or_else(PoisonError::into_inner);
         loop {
             if let Some(Some(_)) = a.get(&id) {
                 return a.remove(&id).flatten().expect("answered");
+            }
+            if !crate::THREADED {
+                // (no thread to answer later: not answered in the call, not found)
+                a.remove(&id);
+                return ShellRan {
+                    status: 127 << 8,
+                    wrote: Vec::new(),
+                    removed: Vec::new(),
+                    read: None,
+                };
             }
             a = self.answered.wait(a).unwrap_or_else(PoisonError::into_inner);
         }

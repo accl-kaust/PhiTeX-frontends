@@ -19,6 +19,7 @@ import "./platform.ts";
 import { platform } from "./common/platform.ts";
 import { Core, CoreSession, WASM_THREADS } from "./common/wasm/core.ts";
 import { mintedShell } from "./common/wasm/minted.ts";
+import { loadMinted } from "./pyodide.ts";
 import { coreIndex, coreStore, pack, prefetch, texmfFile, warmDiff, warmFormats } from "./common/wasm/host.ts";
 import { spawnThread } from "./thread.ts";
 import { order } from "./common/shelf.ts";
@@ -30,17 +31,7 @@ let project = "";
 const store = coreStore(() => project, async () => (await started).core);
 
 const at = (p: string) => platform().assetUrl(p);
-const shell = mintedShell(async () => {
-  const t0 = performance.now();
-  const { loadPyodide } = await import(/* @vite-ignore */ at("dist/pyodide/pyodide.mjs"));
-  const { createMintedRunner } = await import(/* @vite-ignore */ at("dist/minted/runner.mjs"));
-  const names = (await (await platform().asset("minted/wheels.txt")).text()).split("\n").filter(Boolean);
-  // (stdlib and wheels named .data: Edge's store refuses archives in a package)
-  const wheels = await Promise.all(names.map(async (n) => [n, new Uint8Array(await (await platform().asset("minted/" + n + ".data")).arrayBuffer())]));
-  const r = await createMintedRunner({ loadPyodide, pyodideOptions: { indexURL: at("dist/pyodide/"), stdLibURL: at("dist/pyodide/python_stdlib.data") }, wheels });
-  console.info(`[phitex core] minted: Pyodide loaded in ${Math.round(performance.now() - t0)} ms`);
-  return r;
-});
+const shell = mintedShell(loadMinted);
 
 /** The project's binary files (figures), given again to a core started after a trap. */
 const binaries = new Map<string, Uint8Array>();

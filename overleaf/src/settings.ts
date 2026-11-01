@@ -9,11 +9,13 @@
 
 import { NewerFormat, upgrade, type Steps } from "./common/format.ts";
 
-export const FORMAT = 2;
+export const FORMAT = 3;
 /** `steps[n]`: all of format n's settings to format n + 1's. */
 export const STEPS: Steps = {
   // (Compare's own tip gone, the panel's animated tip in its place: 12e89f1)
   1: ({ cmpTipNext: _n, cmpTipOff: _o, cmpUsed: _u, ...s }) => s,
+  // (the ⚡ chip over the pages gone, its numbers in the status's popover: its switch with it)
+  2: ({ speedOff: _s, ...s }) => s,
 };
 
 /** `all` (chrome.storage.local's) in this extension's format: what to set and what to remove; null if as it is, or newer. */

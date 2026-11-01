@@ -27,7 +27,7 @@ function seg(id: string, value: string, onPick: (v: string) => void): void {
 }
 
 async function render(): Promise<void> {
-  const s = await chrome.storage.local.get(["enabled", "view", "panel", "tipOff", "newsOff", "speedOff", "othersOff", "accepted", "engine", "engines", "follow", "folders", "statusColumn", "hideData", "foldersTipOff"]);
+  const s = await chrome.storage.local.get(["enabled", "view", "panel", "tipOff", "newsOff", "othersOff", "accepted", "engine", "engines", "follow", "folders", "statusColumn", "hideData", "foldersTipOff"]);
   const accepted = s.accepted === TERMS;
   $<HTMLElement>("version").textContent = chrome.runtime.getManifest().version;
   const enabled = $<HTMLInputElement>("enabled");
@@ -69,9 +69,6 @@ async function render(): Promise<void> {
   hideData.onchange = () => chrome.storage.local.set({ hideData: hideData.checked });
   foldersTip.checked = !s.foldersTipOff;
   foldersTip.onchange = () => chrome.storage.local.set({ foldersTipOff: !foldersTip.checked });
-  const speed = $<HTMLInputElement>("speed");
-  speed.checked = !s.speedOff;
-  speed.onchange = () => chrome.storage.local.set({ speedOff: !speed.checked });
   const others = $<HTMLInputElement>("others");
   others.checked = !s.othersOff;
   others.onchange = () => chrome.storage.local.set({ othersOff: !others.checked });

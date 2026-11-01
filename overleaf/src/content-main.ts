@@ -1028,9 +1028,7 @@ function dockInOverleaf(panel: Panel): Dock {
     document.querySelector(".phitex-on")?.classList.remove("phitex-on");
     panel.shown(false);
   }
-  void chrome.storage.local.get("speedOff").then(({ speedOff }) => panel.speedChip(!speedOff));
   chrome.storage.onChanged.addListener((c) => {
-    if (c.speedOff) panel.speedChip(!c.speedOff.newValue);
     // (a reset removes the keys: newValue undefined is the default)
     if (c.view && (c.view.newValue ?? "pdf") !== mode) void set(c.view.newValue === "phitex" ? "phitex" : "pdf");
     if (c.tipOff) {

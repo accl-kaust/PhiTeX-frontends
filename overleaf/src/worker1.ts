@@ -10,8 +10,9 @@
 // worker.ts fetches them ahead), the rest read at once (sync XHR: the
 // extension's own packs/ and texmf/, else Shelf, the hosts in the order
 // found); the session's store read before the core starts (IndexedDB is
-// asynchronous only), its writes kept as they come. No `\write18` runner
-// (minted's Pyodide is asynchronous): the core refuses those commands.
+// asynchronous only), its writes kept as they come; minted's runner loaded
+// before a project that uses minted opens (only loading Pyodide waits: its
+// Python then runs `\write18` at once).
 
 import "./platform.ts";
 import { platform } from "./common/platform.ts";
@@ -19,6 +20,8 @@ import { Core, CoreSession } from "./common/wasm/core.ts";
 import { coreIndex, packsOf, pack } from "./common/wasm/host.ts";
 import { order, shipped } from "./common/shelf.ts";
 import { putPack } from "./common/packstore.ts";
+import { type Runner, runOn, usesMinted } from "./common/wasm/minted.ts";
+import { loadMinted } from "./pyodide.ts";
 
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
 /** Said to the tab (its console; a dev trace on the mock). */
@@ -51,6 +54,9 @@ const ready = new Map<string, Uint8Array>();
 let kept = new Map<string, Uint8Array>();
 let hosts: string[] = [];
 let ours = new Set<string>();
+/** minted's runner, loaded at the open of a project that uses it. */
+let minted: Promise<Runner> | undefined;
+let runner: Runner | undefined;
 
 const module = WebAssembly.compileStreaming(fetch(at("dist/core1.wasm")));
 const index = coreIndex();
@@ -77,6 +83,8 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
         return null;
       },
       stored: (key) => kept.get(scoped(key)) ?? null,
+      // (refused, as "not found", until minted's runner is loaded)
+      shell: (command, files) => (runner ? runOn(runner, command, files) : { status: 127 << 8, wrote: [], removed: [] }),
     },
     store: {
       get: async (key) => kept.get(scoped(key)) ?? null,
@@ -91,8 +99,8 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
   const ix = await index;
   core.setIndex(ix.tsv, ix.release, ix.table, ix.names);
   say("info", `single-threaded core started in ${Math.round(performance.now() - t0)} ms`);
-  // (one thread, no \write18 runner)
-  return { core, session: new CoreSession(core, { shell: false, threads: 1 }) };
+  // (one thread)
+  return { core, session: new CoreSession(core, { shell: true, threads: 1 }) };
 }
 
 let started: ReturnType<typeof start> | undefined;
@@ -113,7 +121,10 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
     // (the packs the project loads, fetched before it opens: all at once, from this browser or Shelf)
     if (m.op === "open") {
       const ids = packsOf(await index, (m.files ?? {}) as Record<string, string>, String(m.engine ?? "pdflatex"));
-      await Promise.all([...ids].map((id) => pack(id).then((b) => void ready.set(id, b), () => undefined)));
+      const files = Object.values((m.files ?? {}) as Record<string, string>);
+      // (minted's runner too, beside the packs, for a project that uses it)
+      if (usesMinted(files)) minted ??= loadMinted();
+      await Promise.all([...[...ids].map((id) => pack(id).then((b) => void ready.set(id, b), () => undefined)), minted?.then((r) => void (runner = r), (e) => say("error", `minted: ${e}`))]);
     }
     const r = (await session.request(m as never)) as { bytes?: Uint8Array };
     if (r.bytes) return (self as unknown as Worker).postMessage({ ...r, id: m.id }, [r.bytes.buffer as ArrayBuffer]);

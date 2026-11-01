@@ -4,7 +4,7 @@
   "shape": "3683020385d32b35"
  },
  "settings": {
-  "format": 2,
+  "format": 3,
   "keys": [
    "accepted",
    "ahead",
@@ -22,7 +22,6 @@
    "othersOff",
    "panel",
    "searchTipSeen",
-   "speedOff",
    "statusColumn",
    "tipOff",
    "tipsSeen",

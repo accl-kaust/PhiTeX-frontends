@@ -39,10 +39,10 @@ step "Packaging for Firefox (build/firefox/)"
 fx="build/phitex-instant-$version-firefox.zip" stage=build/firefox
 rm -rf "$stage" "$fx" && mkdir -p "$stage"
 [ -s overleaf/dist/core1.wasm ] || { echo "no core1.wasm (the single-threaded core: scripts/build/build.sh)" >&2; exit 1; }
-# (the threaded core and its threads, the offscreen page, the threaded core's
-# formats and minted's Pyodide out: no shared memory, no \write18 runner)
-for f in "${files[@]}" firefox-bg.html; do case $f in offscreen.html|formats|minted) ;; *) cp -r "overleaf/$f" "$stage/" ;; esac; done
-rm -rf "$stage"/dist/{core.wasm,worker.js,thread.js,pyodide,minted}
+# (the threaded core and its threads, the offscreen page and the threaded
+# core's formats out: no shared memory there)
+for f in "${files[@]}" firefox-bg.html; do case $f in offscreen.html|formats) ;; *) cp -r "overleaf/$f" "$stage/" ;; esac; done
+rm -rf "$stage"/dist/{core.wasm,worker.js,thread.js}
 scripts/sandbox node -e '
   const fs = require("fs"), f = process.argv[1] + "/manifest.json", m = JSON.parse(fs.readFileSync(f));
   // (in Firefox an MV3 background is a page: the core runs there, offscreen.ts in it)
