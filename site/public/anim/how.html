@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhiTeX: How It Works</title>
+<!--
+  How PhiTeX builds a document, animated. One clock drives everything: render(t) draws the
+  picture at story time t (seconds, 0..D), so a renderer can step it frame by frame. The beats
+  live in T, the stages' captions in STAGES.
+
+  Story: paper.tex is cut at every paragraph end; every piece runs at once, and a wrong guess
+  reruns only its piece; ¶6 writes eq:main to paper.aux and only its reader, ¶2, runs again;
+  then lines, pages, the output routines and the PDF; a word edit in ¶3 runs ¶3 again, the
+  pieces after it are reused, and only page 1 is redrawn; the PDF is pdfLaTeX's, byte for byte.
+  Then it all clears, so the last frame equals the first and it loops.
+
+  URL parameters, as banner.html, cli.html and everywhere.html:
+    ?theme=light|dark   force a theme (default: the system's)
+    ?t=3.2              freeze at one time
+    ?render             no controls, no autoplay (for frame capture)
+    ?embed              playing, no controls, fitted to the frame's width; on phitex.org the page's
+                        background shows through and its theme is followed
+    ?side               the narrower layout (1100×700, no caption) for phitex.org, where the steps' text sits
+                        beside it; it waits, and plays one stage per message {howStage: k} as the reader scrolls
+-->
+<style>
+@font-face { font-family: "CMU Serif"; font-weight: 400; src: url("/fonts/cmu-serif-500-roman.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans"; font-weight: 400; src: url("/fonts/noto-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans"; font-weight: 600; src: url("/fonts/noto-sans-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans"; font-weight: 700; src: url("/fonts/noto-sans-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "DM Mono"; font-weight: 400; src: url("/fonts/dm-mono-latin-400-normal.woff2") format("woff2"); }
+
+:root {
+  --sans: "Noto Sans", system-ui, sans-serif;
+  --mono: "DM Mono", ui-monospace, Menlo, monospace;
+  --bg: #ffffff;               /* GitHub's page, light */
+  color-scheme: light;
+  --ink: #1b222c;
+  --muted: #495365;
+  --faint: #8d96a5;
+  --rule: #e7e9ee;
+  --accent: #366cbf;
+  --accent-soft: rgba(54, 108, 191, .12);
+  --green: #1e6b41;
+  --amber: #b97c00;
+  --amber-soft: rgba(224, 154, 0, .14);
+  --card: #ffffff;
+  --card-edge: #d0d5dd;
+  --card-shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 8px 22px rgb(16 24 40 / 8%);
+  --page: #ffffff;
+  --page-edge: #d0d5dd;
+  --line: rgba(27, 34, 44, .28);
+  --code: #f4f5f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1117;             /* GitHub's page, dark */
+    color-scheme: dark;
+    --ink: #ffffff;
+    --muted: #d0d5dd;
+    --faint: #8d96a5;
+    --rule: #2f3a4c;
+    --accent: #6597e0;
+    --accent-soft: rgba(101, 151, 224, .16);
+    --green: #53b57f;
+    --amber: #f2b83b;
+    --amber-soft: rgba(242, 184, 59, .14);
+    --card: #1b222c;
+    --card-edge: #3a4659;
+    --card-shadow: 0 1px 3px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 30%);
+    --page: #252e3c;
+    --page-edge: #3a4659;
+    --line: rgba(255, 255, 255, .30);
+    --code: #252e3c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1117;
+  color-scheme: dark;
+  --ink: #ffffff;
+  --muted: #d0d5dd;
+  --faint: #8d96a5;
+  --rule: #2f3a4c;
+  --accent: #6597e0;
+  --accent-soft: rgba(101, 151, 224, .16);
+  --green: #53b57f;
+  --amber: #f2b83b;
+  --amber-soft: rgba(242, 184, 59, .14);
+  --card: #1b222c;
+  --card-edge: #3a4659;
+  --card-shadow: 0 1px 3px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 30%);
+  --page: #252e3c;
+  --page-edge: #3a4659;
+  --line: rgba(255, 255, 255, .30);
+  --code: #252e3c;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--sans); overflow: hidden; -webkit-font-smoothing: antialiased; }
+#viewport { position: relative; transform-origin: 0 0; }
+#stage { position: relative; width: 1600px; height: 640px; overflow: hidden; background: var(--bg); }
+.abs { position: absolute; }
+.label { font: 600 13px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+
+/* the stage's caption */
+#cap { left: 0; right: 0; top: 22px; text-align: center; }
+#cap .t { font: 700 30px/40px var(--sans); color: var(--ink); }
+#cap .s { font: 400 17px/26px var(--sans); color: var(--muted); margin-top: 4px; }
+
+/* paper.tex */
+#src { left: 40px; top: 128px; width: 430px; height: 452px; background: var(--card); border: 1px solid var(--card-edge);
+  border-radius: 12px; box-shadow: var(--card-shadow); overflow: hidden; }
+#src .bar { height: 36px; display: flex; align-items: center; padding: 0 16px; gap: 8px; border-bottom: 1px solid var(--rule);
+  font: 400 14px var(--mono); color: var(--muted); }
+#src .bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); }
+#src .bar span { margin-left: 8px; }
+#code { position: relative; padding: 14px 18px; font: 400 14px/19px var(--mono); color: var(--ink); white-space: pre; }
+.para { position: relative; margin-bottom: 11px; border-radius: 6px; padding: 0 6px; margin-left: -6px; margin-right: -6px; }
+.para .n { position: absolute; left: -2px; top: 0; transform: translateX(-100%); color: var(--faint); font-size: 11px; }
+.cs { color: var(--accent); }
+.cut { position: absolute; left: 10px; right: 10px; height: 0; border-top: 1.5px dashed var(--accent); transform-origin: 0 50%; }
+.cut::before { content: "✂"; position: absolute; left: -2px; top: -11px; font-size: 13px; color: var(--accent); background: var(--card); padding-right: 3px; }
+#word { border-radius: 3px; }
+
+/* the pieces */
+.piece { width: 290px; height: 70px; background: var(--card); border: 1.5px solid var(--card-edge); border-radius: 10px;
+  box-shadow: var(--card-shadow); padding: 12px 14px; overflow: hidden; }
+.piece .id { font: 400 16px/20px var(--mono); color: var(--accent); }
+.piece .kind { font: 400 13px/20px var(--mono); color: var(--muted); margin-left: 8px; }
+.piece .st { position: absolute; right: 14px; top: 12px; font: 600 13px/20px var(--sans); }
+.piece .reads { margin-top: 6px; font: 400 12px/16px var(--mono); color: var(--faint); white-space: nowrap; }
+.piece .bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; transform-origin: 0 50%; background: var(--accent); }
+
+/* paper.aux and the layers */
+#aux { left: 646px; top: 470px; width: 300px; height: 44px; border-radius: 10px; border: 1.5px dashed var(--card-edge);
+  background: var(--card); display: flex; align-items: center; justify-content: center; gap: 10px; font: 400 14px var(--mono); color: var(--muted); }
+#aux b { font-weight: 400; color: var(--green); }
+#layers { left: 520px; top: 560px; width: 600px; display: flex; gap: 8px; align-items: center; }
+.layer { flex: 1; height: 40px; border-radius: 10px; border: 1.5px solid var(--card-edge); background: var(--card);
+  display: flex; align-items: center; justify-content: center; font: 600 14px var(--sans); color: var(--faint); white-space: nowrap; }
+.arrow { color: var(--faint); font-size: 16px; }
+/* eq:main, carried: from ¶6 into paper.aux, then from paper.aux to ¶2 */
+#tok { left: 0; top: 0; z-index: 5; padding: 6px 12px; border-radius: 8px; background: var(--card); border: 1.5px solid var(--green);
+  box-shadow: var(--card-shadow); font: 400 14px/18px var(--mono); color: var(--green); white-space: nowrap; }
+
+/* paper.pdf */
+#plabel { left: 520px; top: 128px; }
+#pdfl { left: 1166px; top: 128px; }
+.pg { top: 156px; width: 120px; height: 166px; background: var(--page); border: 1px solid var(--page-edge); border-radius: 3px;
+  box-shadow: var(--card-shadow); padding: 14px 12px; overflow: hidden; }
+.pg .l { height: 3px; border-radius: 1.5px; background: var(--line); margin-bottom: 5px; transform-origin: 0 50%; }
+.pg .l.t { height: 5px; width: 60%; margin: 0 auto 9px; }
+.pg .l.gap { background: none; height: 2px; }
+.pg .flash { position: absolute; left: 7px; right: 7px; background: var(--accent-soft); border: 2px solid var(--accent); border-radius: 3px; }
+.pg .no { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font: 400 9px var(--sans); color: var(--faint); }
+#pstat { left: 1166px; top: 338px; width: 390px; font: 400 14px/22px var(--sans); color: var(--muted); }
+#same { left: 1166px; top: 388px; padding: 10px 16px; border-radius: 10px; background: color-mix(in srgb, var(--green) 14%, transparent);
+  color: var(--green); font: 600 16px/22px var(--sans); }
+#hash { left: 1166px; top: 440px; width: 390px; font: 400 13px/20px var(--mono); color: var(--faint); }
+
+/* ── controls (preview only) ─────────────────────────────── */
+#controls {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 52px; display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; background: color-mix(in srgb, var(--bg) 88%, transparent); border-top: 1px solid var(--rule);
+  font-size: 13px; color: var(--muted); backdrop-filter: blur(6px);
+}
+#controls button {
+  font: inherit; font-weight: 600; color: var(--ink); background: var(--card); border: 1px solid var(--card-edge);
+  border-radius: 8px; padding: 6px 12px; cursor: pointer;
+}
+#controls input[type=range] { flex: 1; accent-color: var(--accent); }
+#clock { width: 92px; font-variant-numeric: tabular-nums; text-align: right; }
+body.render #controls { display: none; }
+/* ?side: paper.tex and the pieces side by side, paper.pdf and the verdict under them */
+body.side #stage { width: 1100px; height: 700px; }
+body.side #cap { display: none; }
+body.side #src { left: 20px; top: 20px; }
+body.side #plabel { left: 490px; top: 20px; }
+body.side #aux { left: 640px; top: 374px; }
+body.side #layers { left: 490px; top: 446px; width: 590px; }
+body.side #pdfl { left: 20px; top: 500px; }
+body.side .pg { top: 524px; }
+body.side #pstat { left: 490px; top: 524px; width: 590px; }
+body.side #same { left: 490px; top: 570px; }
+body.side #hash { left: 490px; top: 622px; width: 590px; }
+html:has(body.embed), body.embed, body.embed #stage { background: transparent; }
+/* on phitex.org (?embed) the cards are a step lighter than its page, as its own cards are */
+:root[data-site][data-theme="dark"] { --card: #252e3c; --card-edge: #3a4659; --page: #2f3a4c; --page-edge: #495365; }
+@media (prefers-color-scheme: dark) { :root[data-site]:not([data-theme="light"]) { --card: #252e3c; --card-edge: #3a4659; --page: #2f3a4c; --page-edge: #495365; } }
+</style>
+</head>
+<body>
+<div id="viewport">
+<div id="stage">
+  <div id="cap" class="abs"><div class="t" id="capT"></div><div class="s" id="capS"></div></div>
+
+  <div id="src" class="abs">
+    <div class="bar"><i></i><i></i><i></i><span>paper.tex</span></div>
+    <div id="code"></div>
+  </div>
+
+  <div class="abs label" id="plabel">pieces · every core</div>
+  <div id="pieces"></div>
+  <div id="tok" class="abs">eq:main = (1)</div>
+  <div id="aux" class="abs">paper.aux <span id="auxE"></span></div>
+  <div id="layers" class="abs"></div>
+
+  <div id="pdfl" class="abs label">paper.pdf</div>
+  <div id="pages"></div>
+  <div id="pstat" class="abs"></div>
+  <div id="same" class="abs">✓ same bytes as pdfLaTeX 1.40.29</div>
+  <div id="hash" class="abs">at 1, 8 and 16 threads, cold or after any edit</div>
+</div>
+</div>
+
+<div id="controls">
+  <button id="play">Pause</button>
+  <input id="scrub" type="range" min="0" step="0.01">
+  <span id="clock"></span>
+  <button id="theme">Theme</button>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ramp = (t, a, b) => clamp((t - a) / (b - a));
+const ease = x => x < .5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2;
+const params = new URLSearchParams(location.search);
+const SIDE = params.has('side'), W = SIDE ? 1100 : 1600, H = SIDE ? 700 : 640;
+if (SIDE) document.body.classList.add('side');
+
+// paper.tex, one entry per paragraph: its lines (markup: \cs is coloured), the piece's kind and what it reads
+const PARAS = [
+  { lines: ['\\section{Introduction}'], kind: '\\section', reads: 'defines \\thesection' },
+  { lines: ['We show in~\\eqref{eq:main} that', 'the page can follow the writer.'], kind: 'text', reads: 'reads eq:main' },
+  { lines: ['Typesetting is #WORD# when only', 'what changed runs again.'], kind: 'text', reads: 'reads \\baselineskip' },
+  { lines: ['Each paragraph is a piece', 'of the build.'], kind: 'text', reads: 'reads \\parindent' },
+  { lines: ['\\begin{figure}', '  \\includegraphics{flow}', '\\end{figure}'], kind: 'figure', reads: 'reads \\thefigure' },
+  { lines: ['\\begin{equation}\\label{eq:main}', '  t_{\\rm edit} \\ll t_{\\rm build}', '\\end{equation}'], kind: 'display', reads: 'writes eq:main' },
+  { lines: ['Pages are broken once the', 'lines are set.'], kind: 'text', reads: 'reads \\hsize' },
+  { lines: ['\\bibliography{refs}'], kind: '\\bibliography', reads: 'reads paper.bbl' },
+];
+const WORD = ['fast', 'faster'];
+
+// the beats, in seconds
+const T = {
+  cuts: .3, cutStep: .2, pieces: 1.6,      // the cut marks, one by one; the pieces come in
+  cold: 2.7, run: [.8, 1.0, .9, .7, 1.1, .8, 1.2, .7],   // every piece at once, each for its time
+  wrong: [4, .35, .6],                     // ¶5's guess was wrong: when, how long it shows, its rerun
+  write: 5.3, carry: .55, readBack: 6.3, rerun2: [6.45, .45],          // ¶6 writes eq:main; ¶2, its reader, runs again
+  layers: 7.2, layerStep: .4, pages: 7.6, pageStep: .35,   // lines, pages, output routines, PDF
+  edit: 9.7, key: .13, rerun3: [10.1, .45], scan: 10.65, scanStep: .12, redraw: 11.4,
+  same: 12.9, clear: 15.5, D: 16.6,
+};
+const STAGES = [
+  [0, 'Cut at every paragraph end', 'Each piece of paper.tex (a paragraph, a display, a figure) becomes a node of the build.'],
+  [2.5, 'Every piece runs at once', 'On every core, each from what the pieces before it are expected to define. A wrong guess reruns only its piece.'],
+  [5.2, 'References settle in one build', 'paper.aux is tracked entry by entry: ¶6 writes eq:main, and only ¶2, its reader, runs again.'],
+  [7.0, 'Then the pages', 'Line breaking, page breaking, a node per page for the output routine, then the PDF writer.'],
+  [9.4, 'An edit runs again only what it reaches', '¶3 runs again; the pieces after it read nothing that changed, so they are reused. On screen, only ¶3’s lines on page 1 are drawn again.'],
+  [12.7, 'Exactly pdfLaTeX’s output', 'The PDF is compared byte for byte with pdfTeX’s, object numbers included, at every thread count.'],
+];
+
+// ── build the stage ────────────────────────────────────────────────────────
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const mark = s => esc(s).replace(/\\[a-zA-Z]+/g, m => `<span class="cs">${m}</span>`).replace('#WORD#', '<span id="word"></span>');
+$('code').innerHTML = PARAS.map((p, i) => `<div class="para" id="para${i}"><span class="n">${i + 1}</span>${p.lines.map(mark).join('\n')}</div>`).join('')
+  + PARAS.slice(1).map((_, i) => `<div class="cut" id="cut${i}"></div>`).join('');
+const PX = SIDE ? [490, 790] : [520, 830], PY = i => (SIDE ? 48 : 156) + i * 76;
+$('pieces').innerHTML = PARAS.map((p, i) => `<div class="abs piece" id="pc${i}" style="left:${PX[i >> 2]}px;top:${PY(i & 3)}px">
+  <span class="id">¶${i + 1}</span><span class="kind">${esc(p.kind)}</span><span class="st" id="st${i}"></span>
+  <div class="reads">${esc(p.reads)}</div><div class="bar" id="bar${i}"></div></div>`).join('');
+const LAYERS = ['lines', 'pages', 'output routines', 'PDF'];
+$('layers').innerHTML = LAYERS.map((l, i) => `${i ? '<span class="arrow">→</span>' : ''}<div class="layer" id="ly${i}">${l}</div>`).join('');
+const CHUNK = [6, 9];   // page 1's lines that are ¶3's: on an edit, the only part of the PDF drawn again
+const PAGE_LINES = [
+  [0, 92, 100, 96, 70, 'g', 100, 94, 100, 88, 'g', 100, 97, 64, 'g', 90, 100, 76],
+  [100, 96, 100, 82, 'g', 60, 60, 60, 'g', 100, 98, 100, 90, 'g', 100, 100, 58, 'g'],
+  [100, 94, 70, 'g', 40, 40, 'g', 100, 96, 100, 84, 'g', 92, 88, 96, 90, 80],
+];
+$('pages').innerHTML = PAGE_LINES.map((ls, i) => `<div class="abs pg" id="pg${i}" style="left:${(SIDE ? 20 : 1166) + i * 136}px">
+  ${ls.map(w => w === 0 ? '<div class="l t"></div>' : w === 'g' ? '<div class="l gap"></div>' : `<div class="l" style="width:${w}%"></div>`).join('')}
+  <div class="flash" id="fl${i}"></div><div class="no">${i + 1}</div></div>`).join('');
+
+// the cut marks sit in the gaps between paragraphs; eq:main's stops: ¶6, paper.aux, ¶2 (the token's centre)
+let STOPS;
+function place() {
+  for (let i = 1; i < PARAS.length; i++) $(`cut${i - 1}`).style.top = `${$(`para${i}`).offsetTop - 6}px`;
+  const at = id => { const e = $(id); return [e.offsetLeft + e.offsetWidth / 2, e.offsetTop + e.offsetHeight / 2]; };
+  STOPS = [at('pc5'), at('aux'), at('pc1')];
+  const ls = $('pg0').querySelectorAll('.l'), a = ls[CHUNK[0]], b = ls[CHUNK[1]];
+  Object.assign($('fl0').style, { top: `${a.offsetTop - 4}px`, height: `${b.offsetTop + b.offsetHeight - a.offsetTop + 8}px` });
+}
+
+// a piece's state at t: its run (with progress), or done, wrong, waiting, reused
+function piece(i, t) {
+  const runs = [[T.cold, T.run[i], 'run']];
+  if (i === 4) runs[0][1] = T.wrong[0] - T.cold, runs.push([T.wrong[0], T.wrong[1], 'wrong'], [T.wrong[0] + T.wrong[1], T.wrong[2], 'rerun']);
+  if (i === 1) runs.push([T.readBack, T.rerun2[0] - T.readBack, 'changed'], [T.rerun2[0], T.rerun2[1], 'rerun']);
+  if (i === 2) runs.push([T.rerun3[0], T.rerun3[1], 'rerun']);
+  let s = { kind: 'idle', p: 0 };
+  for (const [a, d, kind] of runs) if (t >= a) s = t < a + d ? { kind, p: (t - a) / d } : { kind: kind === 'wrong' || kind === 'changed' ? kind : 'done', p: 1 };
+  if (i > 2 && t >= T.scan + (i - 3) * T.scanStep && t < T.clear) s = { kind: 'reused', p: 1 };
+  return s;
+}
+const ST = {
+  idle: ['', 'var(--faint)'], run: ['running', 'var(--accent)'], rerun: ['runs again', 'var(--amber)'],
+  wrong: ['guess was wrong', 'var(--amber)'], changed: ['eq:main changed', 'var(--amber)'], done: ['✓', 'var(--green)'], reused: ['✓ reused', 'var(--faint)'],
+};
+
+function render(t) {
+  const out = 1 - ramp(t, T.clear, T.clear + .7);           // everything clears at the end, so it loops
+  // the caption
+  let k = 0; while (k + 1 < STAGES.length && t >= STAGES[k + 1][0]) k++;
+  const st = STAGES[k], fade = Math.min(ramp(t, st[0], st[0] + .3), k + 1 < STAGES.length ? 1 - ramp(t, STAGES[k + 1][0] - .2, STAGES[k + 1][0]) : out);
+  $('capT').textContent = st[1]; $('capS').textContent = st[2];
+  $('cap').style.opacity = k === 0 && t < .3 ? Math.max(ramp(t, 0, .3), 1 - ramp(t, T.clear, T.clear + .7)) : fade;
+  // the cut marks, then the pieces
+  for (let i = 0; i < PARAS.length - 1; i++) {
+    const c = $(`cut${i}`); c.style.transform = `scaleX(${ease(ramp(t, T.cuts + i * T.cutStep, T.cuts + i * T.cutStep + .35))})`; c.style.opacity = out;
+  }
+  const editing = t >= T.edit - .3 && t < T.same;
+  for (let i = 0; i < PARAS.length; i++) {
+    const a = ramp(t, T.pieces + i * .08, T.pieces + i * .08 + .4), s = piece(i, t), [txt, col] = ST[s.kind], el = $(`pc${i}`);
+    el.style.opacity = a * out * (editing && i !== 2 && s.kind !== 'reused' ? .55 : 1);
+    el.style.transform = `translateX(${(1 - ease(a)) * -24}px)`;
+    el.style.borderColor = i === 5 && t >= T.write - .1 && t < T.write + T.carry ? 'var(--green)' : s.kind === 'run' || s.kind === 'rerun' ? col : s.kind === 'wrong' || s.kind === 'changed' ? 'var(--amber)' : (editing && i === 2 ? 'var(--accent)' : '');
+    $(`st${i}`).textContent = txt; $(`st${i}`).style.color = col;
+    const bar = $(`bar${i}`); bar.style.transform = `scaleX(${s.p})`;
+    bar.style.background = s.kind === 'rerun' || s.kind === 'wrong' || s.kind === 'changed' ? 'var(--amber)' : s.kind === 'run' ? 'var(--accent)' : 'var(--green)';
+    bar.style.opacity = s.kind === 'reused' ? .35 : s.kind === 'idle' ? 0 : 1;
+    // the paragraph in paper.tex, lit while its piece runs
+    $(`para${i}`).style.background = (s.kind === 'run' || s.kind === 'rerun') && t > 5 ? (s.kind === 'rerun' ? 'var(--amber-soft)' : 'var(--accent-soft)') : '';
+  }
+  // ¶6 → paper.aux → ¶2
+  // eq:main: ¶6 writes it, it is carried into paper.aux and kept there; then carried on to ¶2, its reader
+  const into = ramp(t, T.write, T.write + T.carry), on = ramp(t, T.readBack - T.carry, T.readBack);
+  const [a, b] = on > 0 ? [STOPS[1], STOPS[2]] : [STOPS[0], STOPS[1]], f = ease(on > 0 ? on : into);
+  const tok = $('tok'), x = a[0] + (b[0] - a[0]) * f, y = a[1] + (b[1] - a[1]) * f;
+  tok.style.transform = `translate(${x - tok.offsetWidth / 2}px, ${y - tok.offsetHeight / 2}px) scale(${1 + .08 * Math.sin(Math.PI * f)})`;
+  tok.style.opacity = t < T.write || t >= T.readBack + .15 ? 0 : on > 0 || into < 1 ? 1 : 0;
+  $('auxE').innerHTML = t >= T.write + T.carry && t < T.clear + .5 ? 'eq:main = <b>(1)</b>' : '';
+  $('aux').style.borderColor = t >= T.write + T.carry - .05 && t < T.readBack ? 'var(--green)' : '';
+  // the layers: lit in turn after the cold build, and again for the edit (lines and pages only, page 1 only)
+  for (let i = 0; i < LAYERS.length; i++) {
+    const a = T.layers + i * T.layerStep, b = T.rerun3[0] + T.rerun3[1] + .05 + i * .15;
+    const on = (t >= a && t < a + T.layerStep + .2) || (t >= b && t < b + .35);
+    const l = $(`ly${i}`); l.style.color = on ? 'var(--accent)' : ''; l.style.borderColor = on ? 'var(--accent)' : ''; l.style.background = on ? 'var(--accent-soft)' : '';
+  }
+  // the pages fill line by line; for the edit, only ¶3's lines on page 1 are drawn again
+  for (let p = 0; p < 3; p++) {
+    const lines = $(`pg${p}`).querySelectorAll('.l'), a = T.pages + p * T.pageStep;
+    lines.forEach((l, j) => {
+      const again = p === 0 && j >= CHUNK[0] && j <= CHUNK[1] && t >= T.redraw ? ramp(t, T.redraw + .1 + (j - CHUNK[0]) * .05, T.redraw + .3 + (j - CHUNK[0]) * .05) : 1;
+      l.style.transform = `scaleX(${ease(ramp(t, a + j * .025, a + j * .025 + .2)) * ease(again)})`; l.style.opacity = out;
+    });
+    $(`fl${p}`).style.opacity = p === 0 ? clamp(ramp(t, T.redraw, T.redraw + .15) - ramp(t, T.redraw + .9, T.redraw + 1.3)) : 0;
+  }
+  $('pstat').innerHTML = t >= T.redraw && t < T.clear ? 'only ¶3’s lines drawn again · the rest of the PDF reused'
+    : t >= T.pages + 1.2 && t < T.edit ? '3 pages · one build, no second run' : '';
+  $('pstat').style.opacity = out;
+  // the edit: “fast” → “faster”, typed; undone as it all clears
+  const typed = clamp(Math.floor((t - T.edit) / T.key) + 1, 0, 2), undo = t >= T.clear ? clamp(Math.floor((t - T.clear) / T.key) + 1, 0, 2) : 0;
+  $('word').textContent = WORD[1].slice(0, WORD[0].length + typed - undo);
+  $('word').style.background = t >= T.edit && t < T.same ? 'var(--accent-soft)' : '';
+  // same bytes
+  const same = ramp(t, T.same, T.same + .35) * out;
+  $('same').style.opacity = same; $('same').style.transform = `translateY(${(1 - same) * 8}px)`;
+  $('hash').style.opacity = ramp(t, T.same + .3, T.same + .65) * out;
+}
+window.render = render;
+
+// ── preview: fit, play, scrub ──────────────────────────────────────────────
+const D = T.D, renderMode = params.has('render'), embed = params.has('embed');
+if (renderMode || embed) document.body.classList.add('render');
+if (embed) {
+  // on phitex.org: the page's background shows through, and the page's theme (its toggle too) is followed
+  document.body.classList.add('embed');
+  document.documentElement.dataset.site = '';
+  try {
+    const host = parent.document.documentElement, follow = () => {
+      if (host.dataset.theme) document.documentElement.dataset.theme = host.dataset.theme;
+      else delete document.documentElement.dataset.theme;
+    };
+    if (parent !== window) { follow(); new MutationObserver(follow).observe(host, { attributes: true, attributeFilter: ['data-theme'] }); }
+  } catch { /* another origin's page: the system's theme */ }
+}
+if (params.get('theme')) document.documentElement.dataset.theme = params.get('theme');
+function fit() {
+  const s = renderMode ? 1 : embed ? innerWidth / W : Math.min(innerWidth / W, (innerHeight - 52) / H);
+  $('viewport').style.transform = `scale(${s})`;
+  if (!renderMode && !embed) $('viewport').style.marginTop = `${Math.max(0, (innerHeight - 52 - H * s) / 2)}px`;
+}
+addEventListener('resize', fit);
+let playing = !renderMode && !params.has('t') && !(SIDE && embed), t0 = performance.now(), cur = Number(params.get('t')) || 0;
+// ?side on phitex.org: the page says which step is in view; that stage plays once and holds on its last frame
+let seg = null;
+addEventListener('message', e => {
+  const k = e.data?.howStage;
+  if (!Number.isInteger(k) || !STAGES[k]) return;
+  seg = [STAGES[k][0], (STAGES[k + 1]?.[0] ?? T.clear) - .05]; t0 = performance.now(); playing = false;
+});
+const scrub = $('scrub'); scrub.max = D;
+// off screen (scrolled away, or a hidden tab) it draws nothing: an iframe's observer sees the top page's viewport
+let onScreen = true;
+new IntersectionObserver(es => { onScreen = es[es.length - 1].isIntersecting; }).observe($('stage'));
+function frame(now) {
+  if (!onScreen || document.hidden) { requestAnimationFrame(frame); return; }
+  if (seg) cur = Math.min(seg[1], seg[0] + (now - t0) / 1000);
+  else if (playing) cur = ((now - t0) / 1000) % D;
+  render(cur);
+  scrub.value = cur; $('clock').textContent = `${cur.toFixed(2)} / ${D.toFixed(1)} s`;
+  requestAnimationFrame(frame);
+}
+$('play').onclick = () => { seg = null; playing = !playing; t0 = performance.now() - cur * 1000; $('play').textContent = playing ? 'Pause' : 'Play'; };
+scrub.oninput = () => { cur = Number(scrub.value); playing = false; seg = null; $('play').textContent = 'Play'; };
+$('theme').onclick = () => {
+  const dark = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() !== '#ffffff';
+  document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+};
+addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); $('play').click(); } });
+window.bannerReady = document.fonts.ready.then(() => {
+  place(); fit();
+  if (renderMode) render(cur); else requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>

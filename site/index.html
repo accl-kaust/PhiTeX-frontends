@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PhiTeX: a fast, modern TeX compiler</title>
+  <meta name="description" content="PhiTeX: a fast, modern TeX compiler. Write anywhere, the page follows: your PDF rebuilt as you type, exactly as pdfLaTeX and XeLaTeX make it, in Overleaf, VS Code, Neovim, Emacs or your browser." />
+  <meta name="color-scheme" content="dark light" />
+  <script>
+    // (before first paint: the saved theme, or the system's)
+    try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+  </script>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav" id="nav">
+    <div class="brandwrap">
+      <a class="brand" href="#top" aria-label="PhiTeX home"><img width="47.2" height="46" class="logo th-light" src="/logo/phitex-mark.svg" alt="PhiTeX"><img width="47.1" height="46" class="logo th-dark" src="/logo/phitex-mark-dark.svg" alt="" aria-hidden="true"></a>
+      <span class="byline"><span class="by">by</span><a class="accl" href="https://accl.kaust.edu.sa/" target="_blank" rel="noopener" aria-label="ACCL, the Accelerated Connected Computing Lab"><img width="128.7" height="22" class="th-light" src="/logo/accl-lockup-small-colour-tight.svg" alt=""><img width="129.4" height="22" class="th-dark" src="/logo/accl-lockup-small-colour-reverse-tight.svg" alt=""></a><span class="sep"></span><a class="kaust" href="https://www.kaust.edu.sa/" target="_blank" rel="noopener"><img width="24.9" height="24" src="/logo/kaust-seeds.svg" alt=""><span>KAUST</span></a></span>
+    </div>
+    <nav aria-label="Sections">
+      <a class="page" href="https://demo.phitex.org/" target="_blank" rel="noopener">Try it</a>
+      <a href="#how">How it works</a>
+      <a href="#everywhere">Editors</a>
+      <a href="#faq">FAQ</a>
+      <span class="nsep" aria-hidden="true"></span>
+      <a class="page" href="overleaf.html">Overleaf</a>
+    </nav>
+    <a class="gh" data-repo href="#" aria-label="PhiTeX on GitHub" target="_blank" rel="noopener"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.57.1.78-.25.78-.55v-2c-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.26.73-1.55-2.56-.3-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.2-3.1-.12-.3-.52-1.48.1-3.08 0 0 .98-.31 3.2 1.18a11.1 11.1 0 0 1 5.82 0c2.22-1.49 3.2-1.18 3.2-1.18.63 1.6.23 2.78.11 3.08.75.81 1.2 1.84 1.2 3.1 0 4.43-2.7 5.4-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .3.2.66.79.55A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg></a>
+    <button class="theme" id="theme" type="button" aria-label="Toggle dark and light theme">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path class="sun" d="M12 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10zM12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><path class="moon" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </header>
+
+  <main id="main">
+    <svg class="ribbon" aria-hidden="true"></svg>
+    <!-- ───────────── HERO ───────────── -->
+    <section class="hero banner-hero" id="top">
+      <h1 class="vh">PhiTeX. Write anywhere. The page follows.</h1>
+      <div class="anim anim-banner"><iframe src="anim/banner.html?embed" title="A paper's title retyped in an editor, and the PDF beside it following each key" scrolling="no" loading="eager"></iframe></div>
+      <div class="ctas">
+        <a class="btn primary" href="install.html" target="_blank" rel="noopener">Get PhiTeX locally&nbsp;↗</a>
+        <a class="btn ghost" href="https://demo.phitex.org/" target="_blank" rel="noopener">Try it in your browser&nbsp;↗</a>
+        <a class="btn ghost" href="overleaf.html">For Overleaf</a>
+      </div>
+    </section>
+
+    <!-- ───────────── WHY ───────────── -->
+    <section class="why" id="why">
+      <header class="sec-head">
+        <p class="eyebrow">Why PhiTeX</p>
+        <h2>A compiler you <em>never wait for.</em></h2>
+      </header>
+      <div class="why-grid">
+        <article class="tile reveal"><img class="th-light" src="img/edit.png" alt="A paragraph lit on a page; the edit lands in milliseconds" loading="lazy"><img class="th-dark" src="img/edit-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Edits in milliseconds</h3><p>Change a word and only what it touches is rebuilt. A 400-page thesis is as quick as a letter.</p></article>
+        <article class="tile reveal"><img class="th-light" src="img/exact.png" alt="Two PDFs, the same bytes" loading="lazy"><img class="th-dark" src="img/exact-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Exactly as {pdf,Xe}LaTeX</h3><p>Byte for byte the PDF pdfLaTeX makes, cold or after a thousand edits. Nothing changes but the wait.</p></article>
+        <article class="tile reveal"><img class="th-light" src="img/editors.png" alt="Overleaf, VS Code, Neovim and Emacs around one page" loading="lazy"><img class="th-dark" src="img/editors-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Any editor, Overleaf included</h3><p>Overleaf, VS Code, Neovim, Emacs, any LSP editor, or a browser tab.</p></article>
+        <article class="tile reveal"><img class="th-light" src="img/offline.png" alt="A laptop in flight mode, the page still building" loading="lazy"><img class="th-dark" src="img/offline-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Private and offline</h3><p>Your paper never leaves your machine or your browser. With TeX Live installed, the network is used only to check for updates, and only if you turn that on.</p></article>
+        <article class="tile reveal"><img class="th-light" src="img/texlive.png" alt="A shelf where only the packages a paper uses are filled in" loading="lazy"><img class="th-dark" src="img/texlive-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>TeX Live optional</h3><p>Without it, each package your paper uses is downloaded once, on first use, and kept.</p></article>
+        <article class="tile reveal"><img class="th-light" src="img/cores.png" alt="Lanes of work on every core, pages filling" loading="lazy"><img class="th-dark" src="img/cores-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Multi-threaded</h3><p>Paragraphs, pages and the PDF are built in parallel on every core, identical at any thread count.</p></article>
+      </div>
+    </section>
+
+    <!-- ───────────── EVERYWHERE ───────────── -->
+    <section class="band places" id="everywhere">
+      <header class="sec-head">
+        <p class="eyebrow"><span class="sect">§1</span> One engine, everywhere</p>
+        <h2>Works where <em>you write.</em></h2>
+        <p class="lede">The same compiler, the same instant page, in the editor you already use.</p>
+      </header>
+      <div class="anim anim-everywhere reveal"><iframe src="anim/everywhere.html?embed" title="The same paper edited in Overleaf, VS Code, Neovim and Emacs in turn, the page following each" scrolling="no" loading="lazy"></iframe></div>
+      <div class="where">
+        <div class="where-row"><b><svg width="24" height="24" class="ed-ico i-overleaf" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M22.3515.7484C19.1109-.5101 7.365-.982 7.3452 6.0266c-3.4272 2.194-5.6967 5.768-5.6967 9.598a8.373 8.373 0 0 0 13.1225 6.898 8.373 8.373 0 0 0-1.7668-14.7194c-.6062-.2339-1.9234-.6481-2.9753-.559-1.5007.9544-3.3308 2.9155-4.1949 4.8693 2.5894-3.082 7.5046-2.425 9.1937 1.2287 1.6892 3.6538-.9944 7.8237-5.0198 7.7998a5.4995 5.4995 0 0 1-4.1949-1.9328c-1.485-1.7483-1.8678-3.6444-1.5615-5.4975 1.057-6.4947 8.759-10.1894 14.486-11.6094-1.8677.989-5.2373 2.6134-7.5948 4.3837C18.015 9.1382 19.1308 3.345 22.3515.7484z"/></svg>Overleaf</b><span>A <b>PDF&nbsp;|&nbsp;⚡&nbsp;Instant</b> switch in Overleaf's toolbar. It compiles inside your browser: nothing to install.</span><a class="get setup-link" href="install.html#overleaf">Set up&nbsp;→</a></div>
+        <div class="where-row"><b><svg width="24" height="24" class="ed-ico i-vscode" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"/></svg>VS Code</b><span>A live page beside your editor, errors in the Problems panel, click-to-source both ways.</span><a class="get setup-link" href="install.html#vscode">Set up&nbsp;→</a></div>
+        <div class="where-row"><b><svg width="24" height="24" class="ed-ico i-neovim" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.214 4.954v13.615L7.655 24V10.314L3.312 3.845 2.214 4.954zm4.999 17.98l-4.557-4.548V5.136l.59-.596 3.967 5.908v12.485zm14.573-4.457l-.862.937-4.24-6.376V0l5.068 5.092.034 13.385zM7.431.001l12.998 19.835-3.637 3.637L3.787 3.683 7.43 0z"/></svg>Neovim</b><span><code>phitex.lua</code> (Neovim 0.11+): the page follows your cursor, diagnostics inline.</span><a class="get setup-link" href="install.html#neovim">Set up&nbsp;→</a></div>
+        <div class="where-row"><b><svg width="24" height="24" class="ed-ico i-emacs" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12,24C5.448,24,0.118,18.617,0.118,12S5.448,0,12,0c6.552,0,11.882,5.383,11.882,12S18.552,24,12,24z M12,0.661 C5.813,0.661,0.779,5.748,0.779,12S5.813,23.339,12,23.339c6.187,0,11.221-5.086,11.221-11.339S18.187,0.661,12,0.661z M8.03,20.197 c0,0,0.978,0.069,2.236-0.042c0.51-0.045,2.444-0.235,3.891-0.552c0,0,1.764-0.377,2.707-0.725c0.987-0.364,1.524-0.673,1.766-1.11 c-0.011-0.09,0.074-0.408-0.381-0.599c-1.164-0.488-2.514-0.4-5.185-0.457c-2.962-0.102-3.948-0.598-4.472-0.997 c-0.503-0.405-0.25-1.526,1.907-2.513c1.086-0.526,5.345-1.496,5.345-1.496c-1.434-0.709-4.109-1.955-4.659-2.224 c-0.482-0.236-1.254-0.591-1.421-1.021c-0.19-0.413,0.448-0.768,0.804-0.87c1.147-0.331,2.766-0.536,4.24-0.56 c0.741-0.012,0.861-0.059,0.861-0.059c1.022-0.17,1.695-0.869,1.414-1.976c-0.252-1.13-1.579-1.795-2.84-1.565 c-1.188,0.217-4.05,1.048-4.05,1.048c3.539-0.031,4.131,0.028,4.395,0.398c0.156,0.218-0.071,0.518-1.015,0.672 c-1.027,0.168-3.163,0.37-3.163,0.37c-2.049,0.122-3.492,0.13-3.925,1.046C6.202,7.564,6.787,8.094,7.043,8.425 c1.082,1.204,2.646,1.853,3.652,2.331c0.379,0.18,1.49,0.52,1.49,0.52c-3.265-0.18-5.619,0.823-7.001,1.977 c-1.562,1.445-0.871,3.168,2.33,4.228c1.891,0.626,2.828,0.921,5.648,0.667c1.661-0.09,1.923-0.036,1.939,0.1 c0.023,0.192-1.845,0.669-2.355,0.816C11.448,19.438,8.047,20.193,8.03,20.197z"/></svg>Emacs</b><span><code>phitex.el</code> (Emacs 29+): the same, beside eglot or lsp-mode.</span><a class="get setup-link" href="install.html#emacs">Set up&nbsp;→</a></div>
+        <div class="where-row"><b><svg width="24" height="24" class="ed-ico i-lsp" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1"/></svg>Any LSP editor</b><span><code>phitex watch --lsp</code>: your buffers built as you type, problems published, your cursor shown on the page.</span><a class="get setup-link" href="install.html#lsp">Set up&nbsp;→</a></div>
+        <div class="where-row"><b><svg width="24" height="24" class="ed-ico i-browser" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M2 9h20"/></g><circle cx="5.5" cy="6.5" r="1" fill="currentColor"/><circle cx="8.5" cy="6.5" r="1" fill="currentColor"/></svg>A browser tab</b><span><code>phitex watch paper.tex</code> serves the live page on <code>127.0.0.1</code>: open it in any browser, beside any editor. Double-click the page to reach the source.</span><a class="get setup-link" href="install.html#browser">Set up&nbsp;→</a></div>
+      </div>
+    </section>
+
+    <!-- ───────────── TRY IT (neutral editable editor) ───────────── -->
+    <section class="try" id="try">
+      <header class="sec-head">
+        <p class="eyebrow"><span class="sect">§2</span> Try it</p>
+        <h2>Type in it. <em>The page follows.</em></h2>
+        <p class="lede">A taste of writing with PhiTeX, below. The real engine, compiled to WebAssembly, runs in the demo: in your tab, nothing installed, nothing uploaded, your projects kept in the browser.</p>
+        <p class="ctas"><a class="btn primary" href="https://demo.phitex.org/" target="_blank" rel="noopener">Open the demo&nbsp;↗</a></p>
+      </header>
+
+      <figure class="replica live" id="replica" aria-label="Live demo: a plain editor with PhiTeX">
+        <div class="r-top">
+          <span class="r-title">main.tex — thesis</span>
+          <span class="r-menu">runs locally · WebAssembly</span>
+        </div>
+        <div class="r-body">
+          <aside class="r-tree" aria-label="Examples"><div class="r-tree-h">Files</div><button class="r-file on" data-preset="article">main.tex</button><button class="r-file" data-preset="book">thesis.tex</button><button class="r-file" data-preset="stress">long.tex <i>38 pp.</i></button><div class="r-file dim">refs.bib</div></aside>
+          <div class="r-editor">
+            <div class="r-etb"><span class="r-tab" id="r-tab">main.tex</span></div>
+            <div class="r-scroll" id="editor"><div class="gutter" id="gutter" aria-hidden="true"></div><div class="code"><pre class="hl" id="hl" aria-hidden="true"></pre><textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="LaTeX source: type here"></textarea></div></div>
+          </div>
+          <div class="r-pdf">
+            <div class="r-tb">
+              <span class="r-live"><span class="r-dot"></span>Live preview</span>
+              <span class="r-sp"></span><span class="r-zoom">Fit ▾</span>
+            </div>
+            <a class="r-real" id="r-real" href="https://demo.phitex.org/" target="_blank" rel="noopener">This page is a mock-up, not typeset. <b>Edit for real in the demo&nbsp;↗</b></a>
+            <div class="r-stage" id="viewer"><div class="r-page" id="r-page"></div><div class="r-chip" id="r-chip">⚡ <b id="lat">9</b> ms · <span id="s-chunks">1 of 12</span> chunks</div></div>
+          </div>
+        </div>
+      </figure>
+      <p class="r-caption"><b>A design preview.</b> PhiTeX's own editor, drawn in your browser: the page here is a mock-up, not typeset. To edit a real document, <a href="https://demo.phitex.org/" target="_blank" rel="noopener">open the demo&nbsp;↗</a>.</p>
+    </section>
+
+    <!-- ───────────── CLI ───────────── -->
+    <section class="band cli" id="cli">
+      <header class="sec-head">
+        <p class="eyebrow"><span class="sect">§3</span> In the terminal</p>
+        <h2>One binary. <em>One command.</em></h2>
+        <p class="lede"><code>phitex watch paper.tex</code> does what latexmk does, in one build: BibTeX or biber, makeindex and the reruns for references all happen inside it, and only when their input changes. No stale <code>??</code>: <em>every frame is perfect.</em></p>
+      </header>
+      <div class="anim anim-cli reveal"><iframe src="anim/cli.html?embed" title="phitex watch in a terminal: a cold build, an edit rebuilt, the page live in the browser" scrolling="no" loading="lazy"></iframe></div>
+    </section>
+
+    <!-- ───────────── DIAGNOSTICS ───────────── -->
+    <section class="diags" id="diagnostics">
+      <header class="sec-head">
+        <p class="eyebrow"><span class="sect">§4</span> Friendly errors</p>
+        <h2>Errors that show <em>in the PDF itself.</em></h2>
+        <p class="lede">No wall of log. The preview says why the page looks the way it does, at the line to look at, and it never breaks. Incomplete input doesn't trap: an open <code>{</code> just runs to the end, and the last good page stays up, dimmed, with a banner saying why.</p>
+      </header>
+      <div class="dg-grid">
+        <div class="dg-code vim reveal" aria-hidden="true">
+          <div class="vim-body"><pre class="vim-pre" id="vim-pre"><span class="ln">12</span> \def\title{<span class="sq">{</span>\bf PhiTeX}
+<span class="ln">13</span> Every keystroke, typeset.
+<span class="ln">14</span>
+<span class="ln">15</span> \input <span class="sq w">chapter2</span>
+<span class="ln">16</span> Café au lait, <span class="sq i">naïve</span> résumé.
+<span class="ln">17</span> as shown by \cite{<span class="sq e">knuth84</span>}.</pre></div>
+          <div class="vim-status"><b>NORMAL</b><span class="vf">main.tex</span><i></i><span>tex</span><span>utf-8</span><span>17:9</span></div>
+          <div class="vim-cmd">"main.tex" 17L, 412B</div>
+        </div>
+        <ul class="dg-list">
+          <li class="reveal warn"><span class="sev">warning</span><b>{ never closed: the group runs to the end of the file</b><span class="loc">main.tex:12 · unclosed-brace</span></li>
+          <li class="reveal warn"><span class="sev">warning</span><b>\input chapter2: no such file in the project</b><span class="loc">main.tex:15 · missing-file</span></li>
+          <li class="reveal info"><span class="sev">info</span><b>ï: this font has no glyph for it; using Latin Modern</b><span class="loc">main.tex:16 · font-fallback</span></li>
+          <li class="reveal err"><span class="sev">error</span><b>\cite{knuth84}: no such entry in refs.bib</b><span class="loc">main.tex:17 · missing-citation</span></li>
+        </ul>
+      </div>
+      <p class="fine">Every message comes from the compiler itself, with the exact place in your source. There's a <code>--json</code> mode for tools too.</p>
+    </section>
+
+    <!-- ───────────── WRITERS ───────────── -->
+    <section class="band writers" id="writers">
+      <header class="sec-head">
+        <p class="eyebrow"><span class="sect">§5</span> A better way to write</p>
+        <h2>Write. <em>PhiTeX handles the rest.</em></h2>
+        <p class="lede">The chores around LaTeX, done for you.</p>
+      </header>
+      <div class="wr-grid">
+        <div class="wr reveal"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></span><b>References settle themselves</b><p><code>\ref</code>, <code>\cite</code>, the table of contents, the index: no more “run it twice”. PhiTeX repeats what it must until nothing changes, and only that.</p></div>
+        <div class="wr reveal"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 6.5 16 2.2-6.8L20.5 10z"/><path d="M19 4.5 20.5 6M20 10h2M16 3.5V5"/></svg></span><b>Click the page, land in the source</b><p>Double-click any word on the page and your cursor jumps to it, and the page follows your cursor. With <code>--synctex</code>, your own PDF viewer jumps both ways too, as with pdflatex.</p></div>
+        <div class="wr reveal"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span><b>Easy on the eyes</b><p>Dark mode for the page as well as the editor, crisp at any zoom, and text you can select, copy and search, because the preview is vector, not an image.</p></div>
+        <div class="wr reveal"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.3 7 12 12 20.7 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg></span><b>Your packages, your fonts</b><p>pdfLaTeX and XeLaTeX with the packages you already use, BibTeX and biber, Unicode and OpenType fonts. LuaLaTeX is planned.</p></div>
+      </div>
+    </section>
+
+    <!-- ───────────── HOW IT WORKS ───────────── -->
+    <section class="how" id="how">
+      <header class="sec-head">
+        <p class="eyebrow"><span class="sect">§6</span> How it works</p>
+        <h2>An edit rebuilds <em>what it reaches.</em></h2>
+        <p class="lede">A TeX compiler reads your document from the top, every time. PhiTeX keeps the whole build as a graph instead, and an edit changes only what depends on it.</p>
+      </header>
+      <div class="how-scrolly">
+        <ol class="how-steps" id="how-steps">
+          <li><h3>Cut at every paragraph end</h3><p>Each piece of your document (a paragraph, a display, a table, a picture) becomes a node of the build, a node that runs TeX on its own text.</p><button class="replay" type="button" aria-label="Replay this step">↻ Replay</button></li>
+          <li><h3>Every piece runs at once</h3><p>On a cold build the pieces all run at once, on every core. Each starts from what the pieces before it are expected to define, and is checked when they finish. A wrong guess reruns only that piece.</p><button class="replay" type="button" aria-label="Replay this step">↻ Replay</button></li>
+          <li><h3>References settle in one build</h3><p>What the document writes and reads back (<code>.aux</code>, <code>.toc</code>, <code>.bbl</code>, <code>.ind</code>) is tracked entry by entry. When ¶6 writes <code>eq:main</code>, only ¶2, its reader, runs again. BibTeX, biber and makeindex run inside the build, only when their input changes.</p><button class="replay" type="button" aria-label="Replay this step">↻ Replay</button></li>
+          <li><h3>Then the pages</h3><p>Line breaking per paragraph, then page breaking, then a node per page for the output routine (headers, footnotes, floats), then the PDF writer.</p><button class="replay" type="button" aria-label="Replay this step">↻ Replay</button></li>
+          <li><h3>An edit runs again only what it reaches</h3><p>The piece you edited runs again. Pieces after it run again only if they read something whose value changed. A word that moves no line break leaves the other pages alone; a change that reflows text redoes only the pages that actually change. On screen, only the changed part of the page is drawn again, not the whole PDF.</p><button class="replay" type="button" aria-label="Replay this step">↻ Replay</button></li>
+          <li><h3>Exactly pdfLaTeX's output</h3><p>The engine follows pdfTeX's own specification, and the tests compare its PDF byte for byte with pdfTeX 1.40.29's, object numbers included, at every thread count. A cold build is an edit from nothing: one code path.</p><button class="replay" type="button" aria-label="Replay this step">↻ Replay</button></li>
+        </ol>
+        <div class="how-pin"><div class="anim anim-how"><iframe id="how-anim" src="anim/how.html?embed&amp;side" title="How PhiTeX builds paper.tex, one stage per step: the cuts, the pieces running at once, paper.aux, the pages, an edit, the same bytes" scrolling="no"></iframe></div></div>
+      </div>
+    </section>
+
+    <!-- ───────────── FAQ ───────────── -->
+    <section class="band faq" id="faq">
+      <header class="sec-head"><p class="eyebrow"><span class="sect">§7</span> FAQ</p><h2>Questions.</h2></header>
+      <div class="qs">
+        <details class="reveal"><summary>Is my document uploaded?</summary><p>No. On this page and in the browser extension, everything runs locally as WebAssembly; the <code>phitex</code> CLI runs on your own machine. The extension's requests go to overleaf.com, as you, for your own project's files, and to PhiTeX's package shelf for the packages your document uses. None of them carries your text, your file names or who you are. No analytics, no server, no remote code. This site makes no third-party requests either: its fonts and libraries are bundled.</p></details>
+        <details class="reveal"><summary>Does it compile my LaTeX thesis?</summary><p>Yes. pdfLaTeX and XeLaTeX with your packages, BibTeX, biber and makeindex, Unicode and OpenType fonts, and the PDF matches pdfLaTeX's byte for byte. LuaLaTeX is planned.</p></details>
+        <details class="reveal"><summary>What does “incremental = fresh build” mean?</summary><p>It's PhiTeX's core invariant: after any sequence of edits, the incremental program equals a fresh build of the same text. The tests check it after random edits, and the extension can check it live against a fresh build.</p></details>
+        <details class="reveal"><summary>Do I need TeX Live?</summary><p>No. Without it, PhiTeX downloads each package your document uses once, on first use, checks it, and keeps it for offline builds. With TeX Live installed, it uses yours.</p></details>
+        <details class="reveal"><summary>What does it cost?</summary><p>Nothing. PhiTeX is free and open source.</p></details>
+        <details class="reveal"><summary>Is it open source?</summary><p>Yes. The PhiTeX engine is free software under the GNU Affero General Public License v3.0 (<code>AGPL-3.0-only</code>).</p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="foot-cols">
+      <div class="foot-logo"><a class="accl-anim" href="https://accl.kaust.edu.sa/" target="_blank" rel="noopener" aria-label="ACCL, the Accelerated Connected Computing Lab"></a><img width="164.8" height="59" src="/logo/phitex-logo-dark.svg" alt="PhiTeX"></div>
+      <div class="foot-about">
+        <p><b>PhiTeX</b> is a fast, modern TeX compiler: your PDF rebuilt as you type, exactly as pdfLaTeX and XeLaTeX make it.</p>
+        <p>Made at the <a href="https://accl.kaust.edu.sa/" target="_blank" rel="noopener">Accelerated Connected Computing Lab</a>, <a href="https://www.kaust.edu.sa/" target="_blank" rel="noopener">KAUST</a>.</p>
+      </div>
+      <nav class="foot-links" aria-label="PhiTeX">
+        <h4>PhiTeX</h4>
+        <a href="https://demo.phitex.org/" target="_blank" rel="noopener">Try it&nbsp;↗</a>
+        <a href="#how">How it works</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <nav class="foot-links" aria-label="Elsewhere">
+        <h4>Elsewhere</h4>
+        <a data-repo href="#" target="_blank" rel="noopener">GitHub</a>
+        <a href="overleaf.html">For Overleaf</a>
+        <a href="https://accl.kaust.edu.sa/" target="_blank" rel="noopener">ACCL</a>
+      </nav>
+      <p class="foot-fine">Free software under the GNU AGPL v3.0 · Set in Computer Modern, the typeface Donald Knuth drew for TeX (CMU, SIL OFL) · Not affiliated with or endorsed by Overleaf · No analytics, no trackers</p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

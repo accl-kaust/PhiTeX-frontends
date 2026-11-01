@@ -1,0 +1,7 @@
+\count1=0
+\def\loop{\ifnum\count1<3 \advance\count1 by 1 \loop\fi}
+\loop
+\iftrue \def\x{yes}\fi
+\iffalse \def\y{a}\else \def\y{b}\fi
+\def\p{z}\def\q{z}
+\ifx\p\q same\else different\fi: \the\count1, \x, \y.

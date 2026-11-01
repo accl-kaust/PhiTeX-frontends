@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PhiTeX: byte-exact, and fast</title>
+  <meta name="description" content="PhiTeX's output compared byte for byte with Knuth's TeX, pdfTeX, XeTeX and LuaTeX, and its performance, measured." />
+  <script>try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <script type="module" src="/src/proof.ts"></script>
+</head>
+<body>
+  <header class="nav scrolled" id="nav">
+    <a class="brand" href="./" aria-label="PhiTeX home"><img width="47.2" height="46" class="logo th-light" src="/logo/phitex-mark.svg" alt="PhiTeX"><img width="47.1" height="46" class="logo th-dark" src="/logo/phitex-mark-dark.svg" alt="" aria-hidden="true"></a>
+    <nav aria-label="Pages"><a href="./">Home</a><a href="#exact">Byte-exact</a><a href="#perf">Performance</a><a href="#method">Method</a></nav>
+    <button class="theme" id="theme" type="button" aria-label="Toggle dark and light theme"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path class="sun" d="M12 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10zM12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><path class="moon" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </header>
+  <main id="main">
+    <section class="proof-hero">
+      <p class="placeholder-banner" role="note"><b>Placeholder data.</b> Every figure on this page is a stand-in until the benchmark runs land. The layout, charts and method are final.</p>
+      <h1 class="display">Byte-exact, <em>and fast.</em></h1>
+      <p class="lede">We don't ask you to trust the instant preview. We compare its PDF, byte for byte, with the engines you already use, and we publish how fast it is on real documents.</p>
+      <div class="hero-stats">
+        <div class="hs"><span class="big" data-ph>100%</span><span>of the corpus byte-identical to Knuth's TeX (DVI)</span></div>
+        <div class="hs"><span class="big" data-ph>12,480</span><span>documents compared, from TeX Live and arXiv</span></div>
+        <div class="hs"><span class="big" data-ph>9 ms</span><span>median keystroke → page, 400-page thesis</span></div>
+      </div>
+    </section>
+
+    <section class="band" id="exact">
+      <header class="sec-head">
+        <p class="eyebrow">Byte-exact</p>
+        <h2>The same bytes, <em>every time.</em></h2>
+        <p class="lede">Each document is built by PhiTeX and by the reference engine; the outputs are normalized only for the fields TeX itself varies (creation date, document ID) and then compared with <code>cmp</code>.</p>
+      </header>
+      <div class="matrix-wrap">
+        <table class="matrix">
+          <caption>Identical outputs, by engine and corpus <span class="ph">placeholder</span></caption>
+          <thead><tr><th scope="col">corpus</th><th scope="col">Knuth's TeX <small>DVI</small></th><th scope="col">pdfTeX</th><th scope="col">XeTeX</th><th scope="col">LuaTeX</th></tr></thead>
+          <tbody id="matrix"></tbody>
+        </table>
+      </div>
+      <div class="diffcard">
+        <div class="dc-h">One document, two engines <span class="ph">placeholder</span></div>
+        <pre id="shas"></pre>
+      </div>
+    </section>
+
+    <section id="perf">
+      <header class="sec-head">
+        <p class="eyebrow">Performance</p>
+        <h2>Instant stays instant <em>as documents grow.</em></h2>
+        <p class="lede">A full rebuild grows with the document. PhiTeX's edit grows with the change.</p>
+      </header>
+      <figure class="chart card" id="c-latency"></figure>
+      <figure class="chart card" id="c-cores"></figure>
+    </section>
+
+    <section class="band" id="method">
+      <header class="sec-head">
+        <p class="eyebrow">Method</p>
+        <h2>How we measure.</h2>
+      </header>
+      <div class="method">
+        <div class="card m"><b>Corpora</b><p>TeX Live's own documentation, the TRIP test, and a sample of arXiv sources, frozen by hash. The list is published with the results.</p></div>
+        <div class="card m"><b>Machines</b><p>Named hardware, a quiet machine, the median of 11 runs after 3 warm-ups. Browser figures in Chromium, on the same wasm the extensions ship.</p></div>
+        <div class="card m"><b>Keystroke → page</b><p>From the editor's transaction to the repainted page on screen, measured in the page, not in the core alone.</p></div>
+        <div class="card m"><b>Reproducible</b><p>One command runs it all in a sandbox; the scripts and raw numbers are in the repository.</p></div>
+      </div>
+    </section>
+  </main>
+  <footer class="foot"><div class="foot-cols simple"><span class="brand small"><img width="111.7" height="40" class="logo" src="/logo/phitex-logo-dark.svg" alt="PhiTeX"></span><p>A fast, modern TeX compiler.</p><p class="foot-fine">Free software under the GNU AGPL v3.0.</p></div></footer>
+</body>
+</html>

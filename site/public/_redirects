@@ -1,0 +1,4 @@
+# The demo (PhiTeX in the tab) lives on its own site, demo.phitex.org.
+/try        https://demo.phitex.org/  302
+/try/*      https://demo.phitex.org/  302
+/try.html   https://demo.phitex.org/  302
