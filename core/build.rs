@@ -9,11 +9,14 @@
 //! itself).
 //!
 //! The 4 GiB, decided (2026-11-04) and kept: it is a virtual reservation,
-//! not memory used. What a build touches is what the process holds: 0.9
-//! to 1.3 GB resident for a manual's build (the format, the fonts, the
-//! pages), the same as the native engine's, whatever the reservation. A
-//! smaller fixed size would cut off the larger documents the native
-//! engine builds in that much, and a size that grows is unsafe under
+//! not memory used. What a build touches is what the process holds: about
+//! 1.1 GiB before the text, then the engine's state a page (5 to 8 MiB a
+//! page of a dense manual, 1.5 of plain text): 3.1 GiB for the beamer
+//! user guide's 241 pages at 4 threads, less than the native engine's 3.7
+//! GB (PhiTeX docs/note-browser-memory.md). The allocator loses about 10%
+//! to fragmentation (`--features memstats` counts it). A smaller fixed
+//! size would cut off documents the native engine builds, and a size
+//! that grows is unsafe under
 //! threads (above). A 4 GiB reservation needs a 64-bit browser: 32-bit
 //! Chrome and Firefox refuse it (the extension's and the web page's
 //! single-threaded core, wasm32-wasip1, asks the same of its own
