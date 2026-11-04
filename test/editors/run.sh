@@ -20,6 +20,12 @@ printf 'Chapter one, its words on the page.\n' > "$tmp/project/chapters/ch1.tex"
 mkdir -p "$tmp/vscode"
 printf '\\documentclass{article}\n\\begin{document}\nSome text on the page.\n\\end{document}\n' > "$tmp/vscode/main.tex"
 export PATH="$tmp/bin:$PATH" PROJECT="$tmp/project" PROBE="$here/probe.mjs"
+# (a machine with no TeX Live, a CI runner: TeX's files from Shelf)
+if ! command -v kpsewhich > /dev/null; then
+  export XDG_CONFIG_HOME="$tmp/config"
+  mkdir -p "$XDG_CONFIG_HOME/phitex"
+  echo 'files = "shelf"' > "$XDG_CONFIG_HOME/phitex/phitex.toml"
+fi
 status=0
 for e in ${which[@]}; do
   echo "== $e"
