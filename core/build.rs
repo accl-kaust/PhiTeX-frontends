@@ -7,6 +7,21 @@
 //! (common/src/wasm/ names the same size), each thread's stack 8 MiB as a native process's, and the
 //! `ph_*` functions the host calls (a reactor's binary exports none by
 //! itself).
+//!
+//! The 4 GiB, decided (2026-11-04) and kept: it is a virtual reservation,
+//! not memory used. What a build touches is what the process holds: 0.9
+//! to 1.3 GB resident for a manual's build (the format, the fonts, the
+//! pages), the same as the native engine's, whatever the reservation. A
+//! smaller fixed size would cut off the larger documents the native
+//! engine builds in that much, and a size that grows is unsafe under
+//! threads (above). A 4 GiB reservation needs a 64-bit browser: 32-bit
+//! Chrome and Firefox refuse it (the extension's and the web page's
+//! single-threaded core, wasm32-wasip1, asks the same of its own
+//! memory), and each reservation costs the browser's address space only
+//! (V8 reserves its guard regions beside it). Where a browser refuses it
+//! the host says so before the first build (scripts/dev/mock-run.mjs,
+//! web/test/chrome-probe.mjs): a core that cannot start is told, never
+//! silently built with less.
 
 const EXPORTS: [&str; 18] = [
     "ph_alloc",

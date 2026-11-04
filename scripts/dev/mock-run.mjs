@@ -259,6 +259,39 @@ try {
   }
 }
 
+// cross-origin isolation, before the core's first page is waited for: the
+// tab's (the mock serves COOP and COEP as overleaf.com does) and the
+// offscreen document's (the manifest's), where the core's worker shares its
+// memory with its threads; and what that document's Chrome allows that
+// memory (the 4 GiB shared memory the threaded core asks for, core/build.rs,
+// and a second beside it: the two-worker start), so a core that cannot
+// start says why here
+async function inOffscreen(expr) {
+  const off = (await (await fetch(`http://localhost:${PORT}/json`)).json()).find((t) => t.url.endsWith("/offscreen.html"));
+  if (!off) return undefined;
+  const ow = new WebSocket(off.webSocketDebuggerUrl);
+  await new Promise((r) => ow.addEventListener("open", r));
+  const v = await new Promise((r) => {
+    ow.addEventListener("message", (m) => { const d = JSON.parse(m.data); if (d.id === 1) r(d.result?.result?.value ?? d.result?.exceptionDetails?.exception?.description); });
+    ow.send(JSON.stringify({ id: 1, method: "Runtime.evaluate", params: { expression: expr, awaitPromise: true, returnByValue: true } }));
+  });
+  ow.close();
+  return v;
+}
+{
+  const iso = { tab: await evalIn("globalThis.crossOriginIsolated", true), offscreen: await inOffscreen("globalThis.crossOriginIsolated") };
+  const mem = await inOffscreen(`(() => { const out = []; const one = (name, o) => { try { const m = new WebAssembly.Memory(o); out.push(name + ": ok"); return m; } catch (e) { out.push(name + ": " + e); return null; } }; const a = one("shared 65535 pages", { initial: 65535, maximum: 65535, shared: true }); const b = one("a second shared 65535", { initial: 65535, maximum: 65535, shared: true }); one("own 65535", { initial: 65535, maximum: 65535 }); return out.join("; "); })()`);
+  console.log(`cross-origin isolated: tab ${iso.tab}, offscreen ${iso.offscreen}; the offscreen document's memory: ${mem}`);
+  if (iso.offscreen !== true) {
+    console.log("FAIL the extension's offscreen document is not cross-origin isolated: the core cannot share its memory with its threads (the manifest's cross_origin_embedder_policy and cross_origin_opener_policy)");
+    process.exitCode = 1;
+  }
+  if (iso.tab !== true) {
+    console.log("FAIL the mock's page is not cross-origin isolated (COOP same-origin and COEP credentialless, mock/server.mjs)");
+    process.exitCode = 1;
+  }
+}
+
 // the first page
 // (a long project's first build may take a minute or more: waited for
 // while the session is building, up to 10 minutes; given up after 30 s
@@ -412,14 +445,7 @@ for (const s of sc.steps ?? []) {
     console.log("eval →", JSON.stringify(s.result));
   } else if (s.offscreen !== undefined) {
     // (an expression in the offscreen document: the extension's origin, its IndexedDB)
-    const off = (await (await fetch(`http://localhost:${PORT}/json`)).json()).find((t) => t.url.endsWith("/offscreen.html"));
-    const ow = new WebSocket(off.webSocketDebuggerUrl);
-    await new Promise((r) => ow.addEventListener("open", r));
-    s.result = await new Promise((r) => {
-      ow.addEventListener("message", (m) => { const d = JSON.parse(m.data); if (d.id === 1) r(d.result?.result?.value ?? d.result?.exceptionDetails?.exception?.description); });
-      ow.send(JSON.stringify({ id: 1, method: "Runtime.evaluate", params: { expression: s.offscreen, awaitPromise: true, returnByValue: true } }));
-    });
-    ow.close();
+    s.result = await inOffscreen(s.offscreen);
     console.log("offscreen →", JSON.stringify(s.result));
   } else if (s.extpage !== undefined) {
     // (an extension page, popup.html, opened in a tab of its own: its text after a moment, and a screenshot)
