@@ -1,7 +1,7 @@
 // What this machine's Chrome allows the core (printed before the browser
-// checks in CI, so a failure there says why): the shared 4 GiB memory the
-// threaded core asks for (common/src/wasm/threads.ts), a second one beside
-// it, the single-threaded core's own, and smaller ones; with the machine's
+// checks in CI, so a failure there says why): the shared memory the
+// threaded core starts with (2 GiB, grown to 4 if it can: common/src/wasm/threads.ts),
+// a 4 GiB one and a second beside it, the single-threaded core's own, and smaller ones; with the machine's
 // memory, its overcommit mode, its limits and its renderers' data limit. Exits 0 always.
 //   node web/test/chrome-probe.mjs      (PHITEX_CHROME: the browser)
 import { chromium } from "playwright-core";
@@ -39,7 +39,18 @@ const probe = await p.evaluate(() => {
   out.crossOriginIsolated = globalThis.crossOriginIsolated;
   out.cores = navigator.hardwareConcurrency;
   out.deviceMemory = navigator.deviceMemory;
-  const a = tryMem("shared 65535 pages (the threaded core's)", { initial: 65535, maximum: 65535, shared: true });
+  // (the threaded core's: made at 2 GiB, grown to 4 at its start if the browser gives it, else 3, else kept: threads.ts chooseSize)
+  const c = tryMem("shared 32768 pages to 65535 (the threaded core's start)", { initial: 32768, maximum: 65535, shared: true });
+  for (const [name, pages] of [["grown to 4 GiB", 32767], ["grown to 3 GiB", 16384]]) {
+    if (!c || out["the core's size"]) break;
+    try {
+      c.grow(pages);
+      out["the core's size"] = name;
+    } catch (e) {
+      out[name] = String(e);
+    }
+  }
+  const a = tryMem("shared 65535 pages", { initial: 65535, maximum: 65535, shared: true });
   tryMem("a second shared 65535", { initial: 65535, maximum: 65535, shared: true });
   tryMem("shared 32768", { initial: 32768, maximum: 32768, shared: true });
   tryMem("shared 16384", { initial: 16384, maximum: 16384, shared: true });

@@ -22,6 +22,7 @@ import { mintedShell } from "./common/wasm/minted.ts";
 import { loadMinted } from "./pyodide.ts";
 import { coreIndex, coreStore, pack, prefetch, texmfFile, warmDiff, warmFormats } from "./common/wasm/host.ts";
 import { spawnThread } from "./thread.ts";
+import { gib, outgrew, outgrownMessage } from "./common/wasm/threads.ts";
 import { order } from "./common/shelf.ts";
 
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
@@ -82,15 +83,28 @@ const FREEING_MS = 5000;
 /**
  * Why a core's memory was refused, as the tab shows it: Chrome gives the
  * extension's page on a machine with 16 GB of memory or less 8 GiB of data
- * in all, and each tab's core takes 4 GiB (core/build.rs), so a second
- * Overleaf tab showing PhiTeX does not fit beside the first.
+ * in all; a first tab's core takes 4 GiB and a second's 2 (core/build.rs,
+ * threads.ts chooseSize), so a third Overleaf tab showing PhiTeX does not
+ * fit beside them.
  */
 const NO_MEMORY =
-  "Chrome refused the 4 GiB of memory PhiTeX's engine needs, most likely because another Overleaf tab showing PhiTeX holds part of what Chrome allows the extension (8 GiB in all on a Linux computer with 16 GB of memory or less). Close that tab, or switch it to Overleaf's own PDF, then reload this one.";
+  "Chrome refused the 2 GiB of memory PhiTeX's engine needs at least, most likely because other Overleaf tabs showing PhiTeX hold the rest of what Chrome allows the extension (8 GiB in all on a Linux computer with 16 GB of memory or less). Close one of them, or switch it to Overleaf's own PDF, then reload this one.";
+
+/** The core's size (pages), once started: what a document that outgrows it is told it had. */
+let pages = 0;
+
+/**
+ * Why the core stopped (thread `tid` trapped), from what it wrote: an
+ * allocation refused is the document outgrowing the size this tab's core
+ * got. "core trapped" first: the tab's session says it (and opens once
+ * more, viewer/session.ts), where a failed status would be silent.
+ */
+const why = (tid: number, error: string) =>
+  `core trapped (thread ${tid}): ${pages && outgrew(stderr) ? outgrownMessage(pages) : stderr.split("\n").filter(Boolean).slice(-2).join(" | ") || error.split("\n")[0]}`;
 
 async function startCore(): Promise<{ core: Core; session: CoreSession }> {
   const t0 = performance.now();
-  const core = Core.start(await module, {
+  const core = await Core.start(await module, {
     spawn: (d) => void threads.push(spawnThread(d)),
     fetch: pack,
     resolve: texmfFile,
@@ -102,10 +116,17 @@ async function startCore(): Promise<{ core: Core; session: CoreSession }> {
       console.warn("[phitex core]", s);
     },
     trap: (tid, error) => {
-      dead = `core trapped (thread ${tid}): ${stderr.split("\n").filter(Boolean).slice(-2).join(" | ") || error.split("\n")[0]}`;
+      dead = why(tid, error);
       console.error("[phitex core]", dead, error);
     },
+    // (a reload's core starts while the old page's still holds its 4 GiB:
+    // the 4 asked again until that is freed, not 2 taken for good)
+    again: () => performance.now() - freeing < FREEING_MS,
   });
+  pages = core.pages;
+  console.info(`[phitex core] memory: ${gib(pages)} GiB`);
+  // (the offscreen document keeps each tab's, for the checks: scripts/dev/mock-run.mjs)
+  post({ event: "memory", gib: gib(pages) });
   const ix = await index;
   core.setIndex(ix.tsv, ix.release, ix.table, ix.names);
   for (const [f, b] of binaries) core.provide(f, { path: "./" + f, bytes: b });
@@ -159,6 +180,8 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
     if (r.bytes) return (self as unknown as Worker).postMessage({ ...r, id: m.id }, [r.bytes.buffer as ArrayBuffer]);
     post({ ...r, id: m.id });
   } catch (err) {
-    post({ id: m.id, ok: false, error: String(err) });
+    // (thread 0's own allocation refused: the core is gone, as a thread's trap)
+    if (pages && outgrew(stderr)) dead = why(0, String(err));
+    post({ id: m.id, ok: false, error: dead ?? String(err) });
   }
 };

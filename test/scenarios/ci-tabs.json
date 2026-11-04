@@ -1,2 +1,2 @@
 { "project": "test/scenarios/ci", "name": "ci-tabs",
-  "steps": [ { "secondtab": true, "ms": 120000 } ] }
+  "steps": [ { "secondtab": "page", "ms": 120000 } ] }

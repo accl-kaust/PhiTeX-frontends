@@ -32,6 +32,7 @@
 //       { "onpage": "Typed words", "ms": 60000 }, // until that text is on a page, else the run fails
 //       { "reload": 3, "ms": 120000 }, // the tab reloaded 3 times, each until its first page, else the run fails
 //       { "secondtab": true, "ms": 120000 }, // the project in a second tab: its first page, or its panel saying why it has none; else (neither in time) the run fails
+//       { "secondtab": "page", "ms": 120000 }, // the same, its first page required; at an 8 GiB data limit (a 16 GB machine) the cores 4 and 2 GiB
 //       { "rootdoc": "main.tex" }    // Overleaf's main document changed (its Menu), as its socket tells the editor
 //     ] }
 //   "strict": true // (top level) the run fails on any exception or console error in the
@@ -282,6 +283,25 @@ async function inOffscreen(expr) {
   ow.close();
   return v;
 }
+// each tab's core's memory as it chose it at its start (GiB: 4, else 3, else
+// 2; worker.ts, kept by the offscreen document), and the extension
+// process's data limit (Chrome's sandbox sets RLIMIT_DATA by the machine's
+// memory: 8 GiB at 16 GB or less), which decides what the cores can get
+const memories = async () => JSON.parse((await inOffscreen("JSON.stringify(globalThis.__phitexMemory ?? {})")) ?? "{}");
+function dataLimit() {
+  let pids = [];
+  try { pids = execFileSync("pgrep", ["-f", "--", "--extension-process"], { encoding: "utf8" }).split("\n").filter(Boolean); } catch {}
+  const lims = new Set();
+  for (const p of pids) {
+    try {
+      if (!fs.readFileSync(`/proc/${p}/cmdline`, "utf8").includes("--type=renderer")) continue;
+      const l = /Max data size\s+(\S+)/.exec(fs.readFileSync(`/proc/${p}/limits`, "utf8"))?.[1];
+      if (l) lims.add(l === "unlimited" ? Infinity : +l);
+    } catch {}
+  }
+  return lims.size ? Math.max(...lims) : undefined;
+}
+const GiB = 2 ** 30;
 {
   const iso = { tab: await evalIn("globalThis.crossOriginIsolated", true), offscreen: await inOffscreen("globalThis.crossOriginIsolated") };
   const mem = await inOffscreen(`(() => { const out = []; const one = (name, o) => { try { const m = new WebAssembly.Memory(o); out.push(name + ": ok"); return m; } catch (e) { out.push(name + ": " + e); return null; } }; const a = one("shared 65535 pages", { initial: 65535, maximum: 65535, shared: true }); const b = one("a second shared 65535", { initial: 65535, maximum: 65535, shared: true }); one("own 65535", { initial: 65535, maximum: 65535 }); return out.join("; "); })()`);
@@ -446,8 +466,12 @@ for (const s of sc.steps ?? []) {
       const t1 = Date.now();
       let pages = 0;
       while (!pages && Date.now() - t1 < (s.ms ?? 120_000)) (await sleep(300), (pages = (await state())?.pages ?? 0));
-      console.log(`reload ${k + 1}: ${pages ? `a first page in ${Date.now() - t1} ms` : "NO first page"}`);
+      // (the reloaded page's core gets the 4 GiB again: it asks while the old one's are freed, worker.ts)
+      const mem = Object.values(await memories());
+      const lim = dataLimit();
+      console.log(`reload ${k + 1}: ${pages ? `a first page in ${Date.now() - t1} ms` : "NO first page"}; its core's memory ${mem.join(", ")} GiB (the renderers' data limit ${lim === undefined ? "?" : (lim / GiB).toFixed(1) + " GiB"})`);
       if (!pages) (steps.push({ t, k: "STEP FAILED", d: { ...s, at: k + 1 } }), (process.exitCode = 1));
+      else if (mem.length !== 1 || mem[0] !== 4) (console.log(`FAIL the reloaded core has ${mem.join(", ") || "no"} GiB, not 4`), steps.push({ t, k: "STEP FAILED", d: { ...s, at: k + 1, mem } }), (process.exitCode = 1));
     }
   } else if (s.secondtab) {
     // (a second tab on the project: its own core, beside the first one's)
@@ -474,8 +498,12 @@ for (const s of sc.steps ?? []) {
       const r = await call2("Runtime.evaluate", { contextId: c.id, returnByValue: true, expression: `(() => { const s = globalThis.__phitexSession; if (s?.pages) return "a first page"; const r = document.querySelector("phitex-preview")?.shadowRoot; const h = [...(r?.querySelectorAll("h3") ?? [])].find((e) => /Couldn't open/.test(e.textContent)); return h ? "says: " + h.textContent + ": " + (h.parentElement.querySelector(".count")?.textContent ?? "") : null; })()` });
       seen = r.result?.result?.value ?? null;
     }
-    console.log(`second tab: ${seen ?? "neither a page nor a reason"} (${Date.now() - t1} ms)`);
-    if (!seen) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    // (each tab's core's size: at an 8 GiB limit the first has 4 GiB, the second 2)
+    const mem = Object.values(await memories()).sort((a, b) => b - a);
+    const lim = dataLimit();
+    console.log(`second tab: ${seen ?? "neither a page nor a reason"} (${Date.now() - t1} ms); the cores' memory ${mem.join(" and ")} GiB (the renderers' data limit ${lim === undefined ? "?" : (lim / GiB).toFixed(1) + " GiB"})`);
+    if (!seen || (s.secondtab === "page" && seen !== "a first page")) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    if (s.secondtab === "page" && lim !== undefined && lim <= 8 * GiB && mem.join() !== "4,2") (console.log(`FAIL at an ${(lim / GiB).toFixed(1)} GiB limit the two cores have ${mem.join(" and ")} GiB, not 4 and 2`), steps.push({ t, k: "STEP FAILED", d: { ...s, mem } }), (process.exitCode = 1));
     s.result = seen;
     w2.close();
   }

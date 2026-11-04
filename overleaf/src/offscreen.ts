@@ -37,9 +37,15 @@ function b64(b: Uint8Array): string {
  * page's port before the old page's has gone, and the old core holds its
  * 4 GiB until it ends; on a machine with 16 GB of memory or less Chrome
  * gives this page's process 8 GiB of data in all, so the new core's memory
- * was refused (the release gate's browsers job, and a user's reload).
+ * was refused (the release gate's browsers job, and a user's reload), or
+ * now, as it starts at 2 GiB, would get only 2 (worker.ts asks for 4 again
+ * while the old one is freed).
  */
 const cores = new Map<string, Worker>();
+
+/** Each tab's core's memory (GiB, as it chose it at its start: worker.ts), read by the checks (scripts/dev/mock-run.mjs). */
+const memory = new Map<string, number>();
+const showMemory = () => ((globalThis as { __phitexMemory?: Record<string, number> }).__phitexMemory = Object.fromEntries(memory));
 
 /** A core ended, and every other told: one whose start was refused memory waits for this one's to be freed (worker.ts). */
 function end(core: Worker): void {
@@ -71,6 +77,7 @@ chrome.runtime.onConnect.addListener((port) => {
   };
   core.onmessage = (e) => {
     const m = e.data;
+    if (m.event === "memory") return void (memory.set(tab, m.gib), showMemory());
     // (bytes as base64: the port carries JSON; a page's strips' pixels, the PDF only for a download)
     if (m.pdf) m.pdf = b64(m.pdf);
     if (m.bytes) m.bytes = b64(m.bytes);
@@ -102,6 +109,8 @@ chrome.runtime.onConnect.addListener((port) => {
     ports.delete(port);
     if (cores.get(tab) === core) {
       cores.delete(tab);
+      memory.delete(tab);
+      showMemory();
       end(core);
     }
   });
