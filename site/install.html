@@ -46,6 +46,8 @@
         <div class="cmd"><pre><code>phitex watch paper.tex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
         <ul class="facts">
           <li><b>Update</b><span><code>phitex upgrade</code>; <code>phitex news</code> says what it brings.</span></li>
+          <li><b>The PDF</b><span>kept in memory: <code>phitex watch</code> writes nothing into your folder. For <code>paper.pdf</code> (and its <code>.synctex</code>) on disk, <code>phitex watch --write paper.tex</code>, or <code>watch-write = true</code> in your own config.</span></li>
+          <li><b>Project files</b><span>a project's <code>phitex.toml</code> can't set <code>shell-escape</code>, <code>viewer</code>, <code>editor</code> or an output folder outside it. Those go in your own config or on the command line.</span></li>
           <li><b>Remove</b><span>delete <code>~/.local/bin/phitex</code>.</span></li>
           <li><b>Windows</b><span>not yet: build from <a data-repo href="#" target="_blank" rel="noopener">source</a>.</span></li>
           <li><b>No install</b><span><a href="https://demo.phitex.org/" target="_blank" rel="noopener">try it in your browser&nbsp;↗</a>, or use <a href="#overleaf">Overleaf</a>.</span></li>
@@ -59,6 +61,7 @@
         <p class="eyebrow">Your editor</p>
         <h2>Set it up <em>where you write.</em></h2>
         <p class="lede">The same compiler and the same instant page in each. A project with several <code>.tex</code> files names its main one in <code>phitex.toml</code>: <code>main = "paper.tex"</code>.</p>
+        <p class="lede">In Neovim, Emacs and other LSP editors, the diagnostics are TeX's errors, LaTeX's warnings (an undefined <code>\ref</code> or <code>\cite</code>, a font substituted) and every overfull and underfull box. The page's filter by kind reaches the editor soon.</p>
       </header>
       <nav class="ed-picks" aria-label="Editors">
         <a class="ed-pick" href="#overleaf"><svg width="20" height="20" class="ed-ico i-overleaf" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M22.3515.7484C19.1109-.5101 7.365-.982 7.3452 6.0266c-3.4272 2.194-5.6967 5.768-5.6967 9.598a8.373 8.373 0 0 0 13.1225 6.898 8.373 8.373 0 0 0-1.7668-14.7194c-.6062-.2339-1.9234-.6481-2.9753-.559-1.5007.9544-3.3308 2.9155-4.1949 4.8693 2.5894-3.082 7.5046-2.425 9.1937 1.2287 1.6892 3.6538-.9944 7.8237-5.0198 7.7998a5.4995 5.4995 0 0 1-4.1949-1.9328c-1.485-1.7483-1.8678-3.6444-1.5615-5.4975 1.057-6.4947 8.759-10.1894 14.486-11.6094-1.8677.989-5.2373 2.6134-7.5948 4.3837C18.015 9.1382 19.1308 3.345 22.3515.7484z"/></svg><span>Overleaf</span></a>
@@ -106,30 +109,43 @@
           </ol>
         </article>
         <article class="setup reveal" id="neovim">
-          <header><svg width="34" height="34" class="ed-ico i-neovim" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.214 4.954v13.615L7.655 24V10.314L3.312 3.845 2.214 4.954zm4.999 17.98l-4.557-4.548V5.136l.59-.596 3.967 5.908v12.485zm14.573-4.457l-.862.937-4.24-6.376V0l5.068 5.092.034 13.385zM7.431.001l12.998 19.835-3.637 3.637L3.787 3.683 7.43 0z"/></svg><div><h3>Neovim</h3><p class="need">Neovim 0.11+ · needs <a href="#binary">phitex</a></p></div></header>
+          <header><svg width="34" height="34" class="ed-ico i-neovim" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.214 4.954v13.615L7.655 24V10.314L3.312 3.845 2.214 4.954zm4.999 17.98l-4.557-4.548V5.136l.59-.596 3.967 5.908v12.485zm14.573-4.457l-.862.937-4.24-6.376V0l5.068 5.092.034 13.385zM7.431.001l12.998 19.835-3.637 3.637L3.787 3.683 7.43 0z"/></svg><div><h3>Neovim</h3><p class="need">Neovim 0.11+ · needs <a href="#binary">phitex</a> nightly 202611041513+</p></div></header>
           <p><code>phitex.lua</code>: the buffer is built as you type, TeX's errors are diagnostics, and the page follows your cursor.</p>
           <ol class="setup-steps">
-            <li>Put it in your config:
+            <li>Add it with lazy.nvim:
+              <div class="cmd"><pre><code>{ "accl-kaust/PhiTeX-frontends",
+  config = function(p)
+    vim.opt.rtp:append(p.dir .. "/editors/nvim")
+    dofile(p.dir .. "/editors/nvim/phitex.lua")
+  end }</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+              Or put the file in your config:
               <div class="cmd"><pre><code>curl -fsSLo ~/.config/nvim/plugin/phitex.lua \
   https://raw.githubusercontent.com/accl-kaust/PhiTeX-frontends/dev/editors/nvim/phitex.lua</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
             <li>Open a <code>.tex</code> file. <code>&lt;leader&gt;lv</code> opens the page; double-click it to jump back to the source.</li>
             <li>Optional, the build's state in your statusline:
               <div class="cmd"><pre><code>vim.o.statusline = "%f %m%=%{v:lua.PhitexStatus()} "</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
           </ol>
-          <p class="fine">Commands: <code>:PhiTeXViewer</code>, <code>:PhiTeXRebuild</code>, <code>:PhiTeXSavePdf</code>, <code>:PhiTeXRestart</code>. Settings in <code>PhitexSettings</code>, e.g. <code>{ threads = 4, follow = "selection" }</code>.</p>
+          <p class="fine">Commands: <code>:PhiTeXViewer</code>, <code>:PhiTeXRebuild</code>, <code>:PhiTeXSavePdf</code>, <code>:PhiTeXStop</code>, <code>:PhiTeXRestart</code>. Settings in <code>PhitexSettings</code>, e.g. <code>{ threads = 4, follow = "selection" }</code>. With no <code>phitex</code> on your <code>PATH</code>, it offers to download the nightly into <code>~/.local/bin</code> (<code>:PhiTeXInstall</code>), checked against its minisign signature; it needs <code>curl</code> and <code>minisign</code>.</p>
         </article>
         <article class="setup reveal" id="emacs">
-          <header><svg width="34" height="34" class="ed-ico i-emacs" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12,24C5.448,24,0.118,18.617,0.118,12S5.448,0,12,0c6.552,0,11.882,5.383,11.882,12S18.552,24,12,24z M12,0.661 C5.813,0.661,0.779,5.748,0.779,12S5.813,23.339,12,23.339c6.187,0,11.221-5.086,11.221-11.339S18.187,0.661,12,0.661z M8.03,20.197 c0,0,0.978,0.069,2.236-0.042c0.51-0.045,2.444-0.235,3.891-0.552c0,0,1.764-0.377,2.707-0.725c0.987-0.364,1.524-0.673,1.766-1.11 c-0.011-0.09,0.074-0.408-0.381-0.599c-1.164-0.488-2.514-0.4-5.185-0.457c-2.962-0.102-3.948-0.598-4.472-0.997 c-0.503-0.405-0.25-1.526,1.907-2.513c1.086-0.526,5.345-1.496,5.345-1.496c-1.434-0.709-4.109-1.955-4.659-2.224 c-0.482-0.236-1.254-0.591-1.421-1.021c-0.19-0.413,0.448-0.768,0.804-0.87c1.147-0.331,2.766-0.536,4.24-0.56 c0.741-0.012,0.861-0.059,0.861-0.059c1.022-0.17,1.695-0.869,1.414-1.976c-0.252-1.13-1.579-1.795-2.84-1.565 c-1.188,0.217-4.05,1.048-4.05,1.048c3.539-0.031,4.131,0.028,4.395,0.398c0.156,0.218-0.071,0.518-1.015,0.672 c-1.027,0.168-3.163,0.37-3.163,0.37c-2.049,0.122-3.492,0.13-3.925,1.046C6.202,7.564,6.787,8.094,7.043,8.425 c1.082,1.204,2.646,1.853,3.652,2.331c0.379,0.18,1.49,0.52,1.49,0.52c-3.265-0.18-5.619,0.823-7.001,1.977 c-1.562,1.445-0.871,3.168,2.33,4.228c1.891,0.626,2.828,0.921,5.648,0.667c1.661-0.09,1.923-0.036,1.939,0.1 c0.023,0.192-1.845,0.669-2.355,0.816C11.448,19.438,8.047,20.193,8.03,20.197z"/></svg><div><h3>Emacs</h3><p class="need">Emacs 29+ · needs <a href="#binary">phitex</a></p></div></header>
+          <header><svg width="34" height="34" class="ed-ico i-emacs" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12,24C5.448,24,0.118,18.617,0.118,12S5.448,0,12,0c6.552,0,11.882,5.383,11.882,12S18.552,24,12,24z M12,0.661 C5.813,0.661,0.779,5.748,0.779,12S5.813,23.339,12,23.339c6.187,0,11.221-5.086,11.221-11.339S18.187,0.661,12,0.661z M8.03,20.197 c0,0,0.978,0.069,2.236-0.042c0.51-0.045,2.444-0.235,3.891-0.552c0,0,1.764-0.377,2.707-0.725c0.987-0.364,1.524-0.673,1.766-1.11 c-0.011-0.09,0.074-0.408-0.381-0.599c-1.164-0.488-2.514-0.4-5.185-0.457c-2.962-0.102-3.948-0.598-4.472-0.997 c-0.503-0.405-0.25-1.526,1.907-2.513c1.086-0.526,5.345-1.496,5.345-1.496c-1.434-0.709-4.109-1.955-4.659-2.224 c-0.482-0.236-1.254-0.591-1.421-1.021c-0.19-0.413,0.448-0.768,0.804-0.87c1.147-0.331,2.766-0.536,4.24-0.56 c0.741-0.012,0.861-0.059,0.861-0.059c1.022-0.17,1.695-0.869,1.414-1.976c-0.252-1.13-1.579-1.795-2.84-1.565 c-1.188,0.217-4.05,1.048-4.05,1.048c3.539-0.031,4.131,0.028,4.395,0.398c0.156,0.218-0.071,0.518-1.015,0.672 c-1.027,0.168-3.163,0.37-3.163,0.37c-2.049,0.122-3.492,0.13-3.925,1.046C6.202,7.564,6.787,8.094,7.043,8.425 c1.082,1.204,2.646,1.853,3.652,2.331c0.379,0.18,1.49,0.52,1.49,0.52c-3.265-0.18-5.619,0.823-7.001,1.977 c-1.562,1.445-0.871,3.168,2.33,4.228c1.891,0.626,2.828,0.921,5.648,0.667c1.661-0.09,1.923-0.036,1.939,0.1 c0.023,0.192-1.845,0.669-2.355,0.816C11.448,19.438,8.047,20.193,8.03,20.197z"/></svg><div><h3>Emacs</h3><p class="need">Emacs 29+ · needs <a href="#binary">phitex</a> nightly 202611041513+</p></div></header>
           <p><code>phitex.el</code>, a minor mode: it runs beside eglot or lsp-mode (or nothing), with diagnostics in flymake and the build's state in the mode line.</p>
           <ol class="setup-steps">
-            <li>Download it:
+            <li>Add it with use-package (Emacs 30's <code>:vc</code>; on 29, straight or elpaca the same way):
+              <div class="cmd"><pre><code>(use-package phitex
+  :vc (:url "https://github.com/accl-kaust/PhiTeX-frontends"
+       :lisp-dir "editors/emacs" :rev :newest)
+  :hook ((LaTeX-mode latex-mode) . phitex-mode)
+  :custom (phitex-settings '(:follow "selection")))</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+              Or download it:
               <div class="cmd"><pre><code>curl -fsSLo ~/.emacs.d/phitex.el \
-  https://raw.githubusercontent.com/accl-kaust/PhiTeX-frontends/dev/editors/emacs/phitex.el</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
-            <li>Turn it on in TeX buffers, in your init file:
+  https://raw.githubusercontent.com/accl-kaust/PhiTeX-frontends/dev/editors/emacs/phitex.el</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+              and turn it on in TeX buffers, in your init file:
               <div class="cmd"><pre><code>(load "~/.emacs.d/phitex.el")
 (add-hook 'LaTeX-mode-hook #'phitex-mode)   ; and/or latex-mode-hook</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
             <li><kbd>M-x</kbd> <code>phitex-open-viewer</code> opens the page.</li>
           </ol>
+          <p class="fine">With no <code>phitex</code> on your <code>PATH</code>, the mode offers to download the nightly into <code>~/.local/bin</code> (<kbd>M-x</kbd> <code>phitex-install</code>), checked against its minisign signature; it needs <code>curl</code> and <code>minisign</code>.</p>
         </article>
         <article class="setup reveal" id="lsp">
           <header><svg width="34" height="34" class="ed-ico i-lsp" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1"/></svg><div><h3>Any LSP editor</h3><p class="need">Needs <a href="#binary">phitex</a></p></div></header>
