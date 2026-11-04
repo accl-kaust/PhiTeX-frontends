@@ -45,7 +45,7 @@ export async function startCore(root: string, folder: () => string, log: (s: str
   const t0 = performance.now();
   // (which Shelf host answers first, found while the core compiles)
   void order();
-  const core = Core.start(await WebAssembly.compile(await readFile(join(root, "dist/core.wasm"))), {
+  const core = await Core.start(await WebAssembly.compile(await readFile(join(root, "dist/core.wasm"))), {
     spawn: spawner(pathToFileURL(join(root, "dist/thread.js"))),
     fetch: pack,
     resolve: texmfFile,

@@ -221,7 +221,7 @@ const core = single
         },
       },
     })
-  : Core.start(module, options);
+  : await Core.start(module, options);
 const main = file ? file.split("/").pop()! : "plain.tex";
 if (!kpse) {
   core.setIndex(gunzipSync(await readFile("shelf-index.tsv.gz")), await readFile("shelf-release.json"), gunzipSync(await readFile("shelf-packs.tsv.gz")), flag("--no-bundled") ? [] : (await readdir(bundledDir)).filter((n) => n !== "names.txt"));

@@ -19,7 +19,7 @@
 // PreviewSession talks to the wasm core as it talks to `phitex watch` over
 // its WebSocket.
 
-import { type Spawn, type ThreadData, type ThreadMsg, imports, newMemory } from "./threads.ts";
+import { type Spawn, type ThreadData, type ThreadMsg, chooseSize, imports, newMemory } from "./threads.ts";
 import { unsigned, wasi } from "./wasi.ts";
 import type { CoreEvent, CoreReq, CoreRes, CoreTransport } from "../viewer/session.ts";
 
@@ -90,6 +90,8 @@ export interface CoreOptions {
   log?: (s: string) => void;
   /** A thread trapped: the core is gone. */
   trap?: (tid: number, error: string) => void;
+  /** While true, the core's start asks for its largest size again before taking a smaller one (another core's memory still being freed: threads.ts chooseSize). */
+  again?: () => boolean;
 }
 
 interface Exports {
@@ -114,6 +116,8 @@ interface Exports {
   ph_strips(p: number, n: number): number;
   ph_frame(p: number, n: number): number;
   ph_step(): number;
+  ph_grow(pages: number): number;
+  ph_seal(): void;
 }
 
 /** A document to open (core/src/main.rs's `ph_open`). */
@@ -156,8 +160,15 @@ export class Core {
     if (channels[0]) channels[0].onmessage = (ev: MessageEvent<ThreadMsg>) => this.heard(ev.data);
   }
 
-  /** The core from its compiled module. */
-  static start(module: WebAssembly.Module, o: CoreOptions): Core {
+  /** The memory's size, in wasm pages, chosen at the start (threads.ts chooseSize): what a document may use. */
+  pages = 0;
+
+  /**
+   * The core from its compiled module, its memory's size chosen: grown on
+   * this thread, before the core has started any thread, to the largest
+   * size the browser gives, then sealed (core/src/heap.rs).
+   */
+  static async start(module: WebAssembly.Module, o: CoreOptions): Promise<Core> {
     const memory = newMemory();
     const ids = new SharedArrayBuffer(4);
     new Int32Array(ids)[0] = 1;
@@ -165,7 +176,11 @@ export class Core {
     const out = new BroadcastChannel(channel);
     const shared = { module, memory, ids, channel, env: o.env ?? [] };
     const inst = new WebAssembly.Instance(module, imports(shared, o.spawn, (m) => out.postMessage(m)));
-    return new Core(shared, inst, [new BroadcastChannel(channel), out], o);
+    const core = new Core(shared, inst, [new BroadcastChannel(channel), out], o);
+    // (no request reaches the core before this: its first thread starts at the open)
+    core.pages = await chooseSize((p) => core.x.ph_grow(p) >>> 0, o.again);
+    core.x.ph_seal();
+    return core;
   }
 
   /**

@@ -40,7 +40,7 @@ const store: Store = {
   },
 };
 const bundled = new URL("../texmf/", import.meta.url);
-const core = Core.start(await WebAssembly.compile(await readFile(new URL("../target/core/wasm32-wasip1-threads/release/core.wasm", import.meta.url))), {
+const core = await Core.start(await WebAssembly.compile(await readFile(new URL("../target/core/wasm32-wasip1-threads/release/core.wasm", import.meta.url))), {
   spawn: spawner(new URL("../vscode/src/thread.ts", import.meta.url)),
   store,
   async fetch(id) {

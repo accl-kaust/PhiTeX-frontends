@@ -46,16 +46,60 @@ export type ThreadMsg =
   | { t: "trap"; tid: number; error: string };
 
 /**
- * The memory's size (core/build.rs): as large at first as it may ever be,
- * so it never grows (another thread's memory.copy or memory.fill into
- * pages one thread just grew traps in V8), and 64 KiB short of 4 GiB (the
- * allocator's heap end would wrap to 0). Committed only as it is touched.
+ * The memory's size (core/build.rs, core/src/heap.rs): made at 2 GiB, the
+ * module's initial memory; grown on thread 0 before the first thread
+ * starts to the largest of SIZE_TRIES the browser gives (chooseSize), then
+ * sealed, never grown again: another thread's memory.copy or memory.fill
+ * into pages one thread just grew traps in V8. At most 64 KiB short of
+ * 4 GiB (the allocator's heap end would wrap to 0). Committed only as it
+ * is touched, but Chrome counts a memory's size against its renderer's
+ * data limit in full (8 GiB on a Linux machine with 16 GB or less), so a
+ * second tab's core, beside a first one's 4 GiB, gets 2.
  */
-export const PAGES_INITIAL = 65535;
+export const PAGES_INITIAL = 32768;
 export const PAGES_MAX = 65535;
+/** The sizes asked for, in pages: 4 GiB (less 64 KiB), 3, else the 2 the memory starts with. */
+export const SIZE_TRIES = [PAGES_MAX, 49152, PAGES_INITIAL];
+/** How far below a try the memory may end and the try count as given (the allocator's sbrk stops a page or two short). */
+const SLACK = 4;
 
 export function newMemory(): WebAssembly.Memory {
   return new WebAssembly.Memory({ initial: PAGES_INITIAL, maximum: PAGES_MAX, shared: true });
+}
+
+/**
+ * The core's size, chosen once: the first of SIZE_TRIES `grow` reaches
+ * (`grow(pages)`: the core's ph_grow, the memory's pages after; a refused
+ * growth changes nothing). While `again()` (another core's memory still
+ * being freed: a reload's), the largest is asked again every 100 ms before
+ * a smaller one is taken.
+ */
+export async function chooseSize(grow: (pages: number) => number, again: () => boolean = () => false, sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))): Promise<number> {
+  for (const [i, p] of SIZE_TRIES.entries()) {
+    if (grow(p) >= p - SLACK) return p;
+    while (i === 0 && again()) {
+      await sleep(100);
+      if (grow(p) >= p - SLACK) return p;
+    }
+  }
+  return PAGES_INITIAL;
+}
+
+/** `pages` (a SIZE_TRIES size) in GiB as the tab says it: 4, 3, 2. */
+export function gib(pages: number): number {
+  return Math.round(pages / 16384);
+}
+
+/** Whether what the core wrote to stderr says an allocation failed (Rust's "memory allocation of N bytes failed"): its size outgrown. */
+export function outgrew(stderr: string): boolean {
+  return /memory allocation of \d+ bytes failed/.test(stderr);
+}
+
+/** Why the core stopped when the document outgrew its `pages` (`chooseSize`'s): the size it got, and what to close. */
+export function outgrownMessage(pages: number): string {
+  const n = gib(pages);
+  if (pages >= PAGES_MAX - SLACK) return `This document needs more than the ${n} GiB of memory PhiTeX's engine can have in the browser, the most it gets. Documents of more than about 300 pages do not build in the browser today: use phitex on your computer (or Overleaf's own PDF) for this one.`;
+  return `This document needs more than the ${n} GiB of memory PhiTeX's engine got in this tab: other Overleaf tabs showing PhiTeX hold the rest of what Chrome allows the extension (8 GiB in all on a Linux computer with 16 GB of memory or less). Close them, or switch them to Overleaf's own PDF, then reload this tab: it then gets 4 GiB.`;
 }
 
 /** The core's imports on any thread: thread 0's `spawn` starts a worker, any other thread's asks thread 0 to. */

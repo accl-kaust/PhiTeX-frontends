@@ -46,6 +46,7 @@
 //! `ph_output_len`.
 
 mod files;
+mod heap;
 mod live;
 #[cfg(feature = "memstats")]
 mod mem;
