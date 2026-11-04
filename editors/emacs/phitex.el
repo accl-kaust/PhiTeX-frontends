@@ -76,9 +76,26 @@ See docs/spec-editor-protocol.md §1.")
 (defun phitex--buffers (server)
   (cl-remove-if-not (lambda (b) (eq (buffer-local-value 'phitex--server b) server)) (buffer-list)))
 
+(defvar phitex--roots (make-hash-table :test 'eq)
+  "Each server's folder, as its phitex/status says: where its watch runs.")
+
+(defun phitex--serving (file)
+  "A running server whose watch runs in a folder holding FILE (the deepest)."
+  (let (best len)
+    (maphash (lambda (s root)
+               (when (and (jsonrpc-running-p s) (stringp root) (> (length root) 0)
+                          (string-prefix-p (file-name-as-directory root) (expand-file-name file))
+                          (or (null len) (> (length root) len)))
+                 (setq best s len (length root))))
+             phitex--roots)
+    best))
+
 (defun phitex--connect (root)
-  "The server of the project at ROOT, started if none."
+  "The server of the project at ROOT, started if none.
+A watch already running for the folder of this buffer's file is used:
+one started for a chapter that found its main file a folder up."
   (or (let ((s (gethash root phitex--servers))) (and s (jsonrpc-running-p s) s))
+      (and buffer-file-name (phitex--serving buffer-file-name))
       (let* ((default-directory root)
              (proc (make-process :name "phitex" :command phitex-command :connection-type 'pipe
                                  :coding 'utf-8-emacs-unix :noquery t
@@ -107,6 +124,7 @@ See docs/spec-editor-protocol.md §1.")
 (defun phitex--ended (server root)
   "SERVER exited: its buffers told; said unless it was asked to stop."
   (remhash root phitex--servers)
+  (remhash server phitex--roots)
   (dolist (b (phitex--buffers server))
     (with-current-buffer b (setq phitex--server nil)))
   (unless (equal (plist-get phitex--status :state) "stopped")
@@ -157,8 +175,16 @@ See docs/spec-editor-protocol.md §1.")
     (setq phitex--change nil)))
 
 (defun phitex--close ()
-  (when (and phitex--server (jsonrpc-running-p phitex--server))
-    (jsonrpc-notify phitex--server :textDocument/didClose (list :textDocument (list :uri (phitex--uri)))))
+  "This buffer closed for its watch; the watch stopped with its last buffer."
+  (let ((s phitex--server))
+    (when (and s (jsonrpc-running-p s))
+      (jsonrpc-notify s :textDocument/didClose (list :textDocument (list :uri (phitex--uri))))
+      (setq phitex--server nil)
+      ;; (no buffer left on it, the mode off or the buffer killed: the
+      ;; watch ends, as phitex-stop ends it)
+      (unless (cl-remove (current-buffer) (phitex--buffers s))
+        (setq phitex--status (list :state "stopped"))
+        (ignore-errors (jsonrpc-shutdown s)))))
   (setq phitex--server nil))
 
 (defvar-local phitex--selected nil
@@ -218,14 +244,16 @@ Its own language server, beside any other the buffer has."
 
 ;;; What the server says and asks
 
-(defun phitex--notification (_server method params)
+(defun phitex--notification (server method params)
   (pcase method
     ('textDocument/publishDiagnostics
      (when-let* ((b (find-buffer-visiting (phitex--file (plist-get params :uri)))))
        (with-current-buffer b
          (setq phitex--diags (append (plist-get params :diagnostics) nil))
          (when phitex--report (phitex--flymake phitex--report)))))
-    ('phitex/status (setq phitex--status params) (force-mode-line-update t))
+    ('phitex/status
+     (when (plist-get params :root) (puthash server (plist-get params :root) phitex--roots))
+     (setq phitex--status params) (force-mode-line-update t))
     ('window/showMessage (message "PhiTeX: %s" (plist-get params :message)))
     ('window/logMessage
      (with-current-buffer (get-buffer-create "*phitex log*")

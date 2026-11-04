@@ -1095,7 +1095,11 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     },
     onDebug: (on) => session && (session.debug = on),
-    onMain: (m) => session?.setMain(m),
+    // (the main file picked in the settings: kept for this project, used at its next open)
+    onMain: (m) => {
+      void chrome.storage.local.get("mains").then(({ mains }) => chrome.storage.local.set({ mains: { ...(mains as Record<string, string> | undefined), [project()]: m } }));
+      void session?.setMain(m);
+    },
     // (the hook moves the editor's cursor there: the one thing it writes)
     onGoto: (file, line) => DETACHED ? ask({ t: "goto", file, line }) : window.postMessage({ src: "phitex-content", type: "goto", file, line }, location.origin),
     onSyncSource: (k, x, y) => (DETACHED ? ask({ t: "sync", k, x, y }) : void shown()?.toSource(k, x, y)),
@@ -1343,7 +1347,9 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     // opened: the core builds it and says when its pages are in)
     const files = await host.loadProject();
     session.refresh(files);
-    const main = guessMain(files);
+    // (the main file picked for this project, else the guess: never the file open for being open)
+    const picked = ((await chrome.storage.local.get("mains")).mains as Record<string, string> | undefined)?.[project()];
+    const main = picked && picked in files ? picked : guessMain(files);
     sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), main);
     if (!main) throw new Error("no main .tex file found");
     await session.setMain(main);

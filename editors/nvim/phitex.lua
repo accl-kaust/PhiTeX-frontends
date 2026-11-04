@@ -71,6 +71,7 @@ end
 PhitexSettings = PhitexSettings or {}
 
 local function start(buf)
+  local file = vim.api.nvim_buf_get_name(buf)
   local id = vim.lsp.start({
     -- (the engine's settings: at the start, and when it asks)
     init_options = vim.tbl_extend("force", PhitexSettings, { client = CLIENT }),
@@ -81,6 +82,13 @@ local function start(buf)
     -- project often sits in a folder of a larger git repository)
     root_dir = vim.fs.root(buf, { "phitex.toml" }) or vim.fs.dirname(vim.api.nvim_buf_get_name(buf)),
     -- init_options = { main = "paper.tex" },
+    -- (a watch already running in a folder holding this file, its phitex/status
+    -- root: one started for a chapter that found its main file a folder up)
+    reuse_client = function(c, config)
+      local r = status[c.id] and status[c.id].root
+      if type(r) == "string" and r ~= "" and vim.startswith(file, r .. "/") then return true end
+      return c.name == config.name and c.root_dir == config.root_dir
+    end,
     handlers = {
       ["phitex/status"] = function(_, s, ctx)
         status[ctx.client_id] = s
@@ -143,6 +151,18 @@ vim.api.nvim_create_autocmd("FileType", {
       end,
     })
     vim.keymap.set("n", "<leader>lv", "<cmd>PhiTeXViewer<cr>", { buffer = ev.buf, desc = "PhiTeX: open the pages" })
+  end,
+})
+
+-- (the watch ends with its last buffer: closed, or its client detached)
+vim.api.nvim_create_autocmd("LspDetach", {
+  callback = function(ev)
+    local c = vim.lsp.get_client_by_id(ev.data.client_id)
+    if not c or c.name ~= "phitex" then return end
+    vim.schedule(function()
+      local left = vim.tbl_filter(function(b) return b ~= ev.buf and vim.api.nvim_buf_is_loaded(b) end, vim.lsp.get_buffers_by_client_id(c.id))
+      if #left == 0 and not c:is_stopped() then c:stop() end
+    end)
   end,
 })
 
