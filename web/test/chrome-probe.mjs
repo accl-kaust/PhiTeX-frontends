@@ -2,7 +2,7 @@
 // checks in CI, so a failure there says why): the shared 4 GiB memory the
 // threaded core asks for (common/src/wasm/threads.ts), a second one beside
 // it, the single-threaded core's own, and smaller ones; with the machine's
-// memory, its overcommit mode and its limits. Exits 0 always.
+// memory, its overcommit mode, its limits and its renderers' data limit. Exits 0 always.
 //   node web/test/chrome-probe.mjs      (PHITEX_CHROME: the browser)
 import { chromium } from "playwright-core";
 import { execSync } from "node:child_process";
@@ -16,9 +16,14 @@ console.log(`overcommit_memory: ${sh("cat /proc/sys/vm/overcommit_memory")}, ove
 console.log(`CommitLimit/Committed_AS: ${sh("grep -E 'CommitLimit|Committed_AS' /proc/meminfo | tr -s ' ' | tr '\\n' ' '")}`);
 console.log(`ulimit -v: ${sh("ulimit -v")}, ulimit -a:\n${sh("ulimit -a")}`);
 const home = fs.mkdtempSync("/tmp/phitex-probe-");
-const b = await chromium.launch({ executablePath: chrome, args: ["--no-sandbox", "--disable-crashpad", "--disable-crash-reporter"], env: { ...process.env, HOME: home } });
+// (sandboxed, as a user's Chrome runs: the sandbox lowers each renderer's
+// RLIMIT_DATA to 8 GiB on a machine with 16 GB of memory or less, 16 GiB up
+// to 32 GB, 32 GiB above (Chromium's sandbox_linux.cc), and the core's 4 GiB
+// counts against it; with --no-sandbox nothing is limited)
+const b = await chromium.launch({ executablePath: chrome, chromiumSandbox: true, args: ["--disable-crashpad", "--disable-crash-reporter"], env: { ...process.env, HOME: home } });
 const p = await b.newPage();
 await p.goto("about:blank");
+console.log(`renderers' data limit (bytes; count): ${sh("for p in $(pgrep -f -- '--type=renderer'); do grep 'Max data size' /proc/$p/limits | tr -s ' ' | cut -d' ' -f4; done | sort | uniq -c | tr -s ' ' | tr '\\n' ';'")}`);
 const probe = await p.evaluate(() => {
   const out = {};
   const tryMem = (name, o) => {

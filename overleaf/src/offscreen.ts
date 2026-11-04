@@ -32,12 +32,36 @@ function b64(b: Uint8Array): string {
   return btoa(s);
 }
 
+/**
+ * Each tab's (and frame's) core: one at a time. A reload connects the new
+ * page's port before the old page's has gone, and the old core holds its
+ * 4 GiB until it ends; on a machine with 16 GB of memory or less Chrome
+ * gives this page's process 8 GiB of data in all, so the new core's memory
+ * was refused (the release gate's browsers job, and a user's reload).
+ */
+const cores = new Map<string, Worker>();
+
+/** A core ended, and every other told: one whose start was refused memory waits for this one's to be freed (worker.ts). */
+function end(core: Worker): void {
+  core.terminate();
+  ended = performance.now();
+  for (const c of cores.values()) if (c !== core) c.postMessage({ op: "freeing", ago: 0 });
+}
+/** When a core was last ended (a new core is told: its memory may still be held). */
+let ended = -Infinity;
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "phitex") return;
   ports.add(port);
+  const tab = `${port.sender?.tab?.id ?? "?"}:${port.sender?.frameId ?? 0}`;
+  // (the tab's previous page's core ended before this page's starts)
+  const old = cores.get(tab);
+  if (old) end(old);
   // (Chrome's offscreen page is cross-origin isolated: the threaded core;
   // Firefox's background page cannot be: the single-threaded one, worker1.ts)
   const core = new Worker(new URL(globalThis.crossOriginIsolated ? "worker.js" : "worker1.js", import.meta.url), { type: "module", name: "phitex-core" });
+  cores.set(tab, core);
+  if (performance.now() - ended < 5000) core.postMessage({ op: "freeing", ago: performance.now() - ended });
   const say = (m: any) => {
     try {
       port.postMessage(m);
@@ -76,6 +100,9 @@ chrome.runtime.onConnect.addListener((port) => {
   });
   port.onDisconnect.addListener(() => {
     ports.delete(port);
-    core.terminate();
+    if (cores.get(tab) === core) {
+      cores.delete(tab);
+      end(core);
+    }
   });
 });

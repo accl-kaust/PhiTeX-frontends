@@ -29,7 +29,9 @@
 //       { "dbltext": "Every writer" }, // double-click the editor at that text: the page's highlight boxes after
 //       { "dbloutline": "Section 3" }, // double-click that heading in the file outline
 //       { "replacefile": "fig.png", "b64": "…", "ms": 60000 }, // the binary file replaced as Overleaf says it is; until the session's PDF changes, else the run fails
-//       { "onpage": "Typed words", "ms": 60000 } // until that text is on a page, else the run fails
+//       { "onpage": "Typed words", "ms": 60000 }, // until that text is on a page, else the run fails
+//       { "reload": 3, "ms": 120000 }, // the tab reloaded 3 times, each until its first page, else the run fails
+//       { "secondtab": true, "ms": 120000 } // the project in a second tab: its first page, or its panel saying why it has none; else (neither in time) the run fails
 //     ] }
 //   "strict": true // (top level) the run fails on any exception or console error in the
 //                  // tab or the extension (the release gate's: test/scenarios/ci.json)
@@ -431,6 +433,46 @@ for (const s of sc.steps ?? []) {
     console.log(`dumpview → ${path.join(out, s.dumpview + ".html")}: ${(html ?? "").length} chars`);
   }
   else if (s.wait !== undefined) await sleep(s.wait);
+  else if (s.reload !== undefined) {
+    // (a reload's page connects its core before the old page's has ended: offscreen.ts)
+    for (let k = 0; k < s.reload; k++) {
+      await call("Page.reload");
+      const t1 = Date.now();
+      let pages = 0;
+      while (!pages && Date.now() - t1 < (s.ms ?? 120_000)) (await sleep(300), (pages = (await state())?.pages ?? 0));
+      console.log(`reload ${k + 1}: ${pages ? `a first page in ${Date.now() - t1} ms` : "NO first page"}`);
+      if (!pages) (steps.push({ t, k: "STEP FAILED", d: { ...s, at: k + 1 } }), (process.exitCode = 1));
+    }
+  } else if (s.secondtab) {
+    // (a second tab on the project: its own core, beside the first one's)
+    const tw = await (await fetch(`http://localhost:${PORT}/json/new?${encodeURIComponent(`http://localhost:${MOCK}/project/mock`)}`, { method: "PUT" })).json();
+    const w2 = new WebSocket(tw.webSocketDebuggerUrl);
+    await new Promise((r) => w2.addEventListener("open", r));
+    const ctx2 = [], wait2 = new Map();
+    let id2 = 0;
+    w2.addEventListener("message", (m) => {
+      const d = JSON.parse(m.data);
+      if (d.method === "Runtime.executionContextCreated") ctx2.push(d.params.context);
+      wait2.get(d.id)?.(d);
+    });
+    const call2 = (method, params = {}) => new Promise((r) => { const i = ++id2; wait2.set(i, r); w2.send(JSON.stringify({ id: i, method, params })); });
+    await call2("Runtime.enable");
+    const t1 = Date.now();
+    let seen = null;
+    while (!seen && Date.now() - t1 < (s.ms ?? 120_000)) {
+      await sleep(500);
+      // (a background tab paints only when a frame is asked for)
+      await call2("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: 1, height: 1, scale: 1 } });
+      const c = ctx2.find((x) => x.auxData?.type === "isolated" && x.origin.startsWith("chrome-extension://"));
+      if (!c) continue;
+      const r = await call2("Runtime.evaluate", { contextId: c.id, returnByValue: true, expression: `(() => { const s = globalThis.__phitexSession; if (s?.pages) return "a first page"; const r = document.querySelector("phitex-preview")?.shadowRoot; const h = [...(r?.querySelectorAll("h3") ?? [])].find((e) => /Couldn't open/.test(e.textContent)); return h ? "says: " + h.textContent + ": " + (h.parentElement.querySelector(".count")?.textContent ?? "") : null; })()` });
+      seen = r.result?.result?.value ?? null;
+    }
+    console.log(`second tab: ${seen ?? "neither a page nor a reason"} (${Date.now() - t1} ms)`);
+    if (!seen) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    s.result = seen;
+    w2.close();
+  }
   else if (s.parity !== undefined) await parity(s);
   else if (s.shot) await shot(s.shot);
   else if (s.clean) await evalIn(`(() => { document.getElementById("phitex-zoom")?.click(); document.querySelector("[data-act=clean]")?.click(); })()`);

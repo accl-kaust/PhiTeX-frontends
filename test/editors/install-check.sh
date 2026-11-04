@@ -2,7 +2,11 @@
 # The plugins' download (phitex-install, :PhiTeXInstall) against a release
 # made here, signed with a key made here: a good one is installed; a bad
 # signature, a tarball that doesn't match, and "no" at the prompt install
-# nothing. Needs minisign, emacs and nvim. Exits 1 on a failure.
+# nothing; a download that fails names its channel and its URL. With
+# PHITEX_INSTALL_LIVE=1 (CI's editors job), also each plugin's own default:
+# the channel it ships with (nightly until v1.0) downloaded from GitHub,
+# checked against PhiTeX's release key, and run. Needs minisign, emacs and
+# nvim. Exits 1 on a failure.
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"; repo="$(cd "$here/../.." && pwd)"
 tmp="$(mktemp -d)"; rel="$tmp/rel"; mkdir -p "$rel" "$tmp/w"
@@ -38,4 +42,22 @@ for ed in emacs nvim; do
   run "a tarball changed after signing installs nothing" $ed yes nothing "does not match SHA256SUMS"
   cp "$tmp/keep" "$rel/$asset"
 done
+# (a release that is not there: the error names the channel and the URL)
+for ed in emacs nvim; do
+  rel_keep=$rel; rel="$tmp/none"
+  run "a missing release says its channel and URL" $ed yes nothing "from the nightly channel (file://$tmp/none)"
+  rel=$rel_keep
+done
+# (each plugin's own channel and key, from GitHub: what a user's first start downloads)
+if [ "${PHITEX_INSTALL_LIVE:-}" = 1 ]; then
+  for ed in emacs nvim; do
+    pre="$tmp/live-$ed"
+    case $ed in
+      emacs) out=$(env -u DISPLAY emacs --batch -Q -l "$repo/editors/emacs/phitex.el" --eval "(progn (setq phitex-install-prefix \"$pre\") (fset 'yes-or-no-p (lambda (_) t)) (condition-case e (phitex-install) (error (princ (error-message-string e)))))" 2>&1) ;;
+      nvim) out=$(nvim --clean --headless --cmd "lua PhitexInstall = { prefix = '$pre' }" -c "luafile $repo/editors/nvim/phitex.lua" -c "lua vim.fn.confirm = function() return 1 end; vim.notify = function(m) io.stdout:write(m .. '\\n') end" -c "PhiTeXInstall" -c "qa!" 2>&1) ;;
+    esac
+    v=$("$pre/bin/phitex" --version 2>&1 | head -1)
+    if [ -x "$pre/bin/phitex" ] && grep -q '"channel": "nightly"' "$XDG_DATA_HOME/phitex/install.json" && [ -n "$v" ]; then echo "ok $ed: its own channel's release installed and runs: $v"; else echo "FAIL $ed: its own channel's release: said: $out; --version: $v"; status=1; fi
+  done
+fi
 exit $status
