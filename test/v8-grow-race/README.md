@@ -1,0 +1,1 @@
+V8: a shared WebAssembly.Memory grown by one thread traps another thread's memory.fill into the new pages while that thread stays in wasm (`FN=spin node race2.mjs`, `FN=park node race2.mjs`; `node race-js.mjs` returns to JS between pages and does not trap); the reason the core's memory never grows (docs/note-browser-memory.md in PhiTeX). Not yet filed upstream.
