@@ -56,5 +56,8 @@ fn main() {
         for e in EXPORTS {
             println!("cargo:rustc-link-arg-bins=--export={e}");
         }
+        if std::env::var_os("CARGO_FEATURE_MEMSTATS").is_some() {
+            println!("cargo:rustc-link-arg-bins=--export=ph_mem");
+        }
     }
 }

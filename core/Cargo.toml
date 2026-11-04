@@ -25,6 +25,8 @@ observe = ["dep:phitex-defuse", "phitex-defuse/observe"]
 # PhiTeX's probes compiled in, switched on by the environment
 # (PHITEX_TEX_TIME=1, PHITEX_OBS=1: core.ts's `env`)
 profile = ["phitex-tex/profile"]
+# the allocations counted, read by the host at `ph_mem` (core/src/mem.rs)
+memstats = []
 
 # (thin LTO and parallel codegen: the engine's release speed without fat
 # LTO's long link, as PhiTeX's fastdev; this machine is shared)

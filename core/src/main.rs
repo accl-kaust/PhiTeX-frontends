@@ -47,6 +47,11 @@
 
 mod files;
 mod live;
+#[cfg(feature = "memstats")]
+mod mem;
+#[cfg(feature = "memstats")]
+#[global_allocator]
+static GLOBAL: mem::Counted = mem::Counted;
 mod shell;
 mod store;
 

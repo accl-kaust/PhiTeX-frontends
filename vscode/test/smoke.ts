@@ -48,6 +48,20 @@ const { core, session, index } = await startCore(root, () => folder, (s) => proc
 console.log(`core started: ${ms()} ms`);
 
 let settled = 0;
+// (a core built with `--features memstats`, core/src/mem.rs: the heap over
+// the build, every MEM_EVERY ms (5 s): the bytes live, their peak, the
+// highest block end (what the fixed memory must hold), against the pages
+// typeset so far; docs/note-browser-memory.md in PhiTeX)
+let memPages = 0, memPhase = "";
+session.onEvent((e: any) => e.event === "progress" && ((memPages = e.pages ?? memPages), (memPhase = e.phase ?? memPhase)));
+const memAt = (core as unknown as { x: { ph_mem?: () => number } }).x.ph_mem?.();
+const memTick = () => {
+  if (memAt === undefined) return;
+  const w = new Uint32Array((core as unknown as { memory: WebAssembly.Memory }).memory.buffer, memAt >>> 0, 4);
+  const mib = (k: number) => (Atomics.load(w, k) / 2 ** 20).toFixed(0);
+  console.log(`MEMCURVE t ${(ms() / 1e3).toFixed(0)} s settled ${settled} phase ${memPhase} pages ${memPages} live ${mib(0)} peak ${mib(1)} end ${mib(2)} MiB allocs ${Atomics.load(w, 3)}`);
+};
+if (memAt !== undefined) setInterval(memTick, +(process.env.MEM_EVERY ?? 5000)).unref();
 let wake = () => {};
 const fetched = new Set<string>();
 session.onEvent((e: any) => {
@@ -55,7 +69,9 @@ session.onEvent((e: any) => {
   if (e.event === "progress" && e.phase === "fetching" && e.pack) fetched.add(e.pack);
 });
 const next = (n: number) => new Promise<void>((ok, fail) => {
-  const timer = setTimeout(() => fail(new Error(`no build settled in 120 s (${settled} settled)`)), 120_000);
+  // (SMOKE_TIMEOUT_S: a book's cold build takes minutes in wasm)
+  const limit = +(process.env.SMOKE_TIMEOUT_S ?? 120);
+  const timer = setTimeout(() => fail(new Error(`no build settled in ${limit} s (${settled} settled)`)), limit * 1000);
   wake = () => settled >= n && (clearTimeout(timer), ok());
 });
 
@@ -153,6 +169,7 @@ for (let p = 0; p < mem.length / PAGE; p++) {
   const o = p * PAGE;
   for (let i = 0; i < PAGE; i++) if (mem[o + i]) { written++; top = p; break; }
 }
+memTick();
 console.log(`threads ${threads ?? "default"}: heap top ${((top + 1) * 65536 / 2 ** 20).toFixed(0)} MiB, ${(written * 65536 / 2 ** 20).toFixed(0)} MiB of pages written`);
 // (a double-click on the page, as the webview asks for it: the source of a place, the
 // editor told by the server, window/showDocument)
