@@ -340,6 +340,8 @@ Its own language server, beside any other the buffer has."
   (pcase method
     ('window/showDocument
      (let ((sel (plist-get params :selection)))
+       (ignore sel)
+       (jsonrpc-error "deliberately broken: the release gate's proof")
        (if (eq (plist-get params :external) t)
            (browse-url (plist-get params :uri))
          ;; (a double-click takes the focus; text selected on the pages
