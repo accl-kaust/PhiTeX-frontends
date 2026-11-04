@@ -1,0 +1,65 @@
+;;; check.el --- editors/emacs/phitex.el against the phitex being released  -*- lexical-binding: t; -*-
+;;; Run by test/editors/run.sh: PROJECT (main.tex inputting chapters/ch1.tex),
+;;; PROBE (probe.mjs), each line "ok NAME" or "FAIL NAME: why"; exit 1 on a failure.
+;;; With the cursor in the \input child: the MAIN file is built; an error typed
+;;; in the child is its flymake diagnostic; the viewer's double-click place
+;;; (inverse search) opens in Emacs; the cursor moved is on the pages (forward
+;;; search); closing the last buffer stops the watch.
+(require 'cl-lib)
+(setq flymake-diagnostic-functions nil)
+(defvar check-failed nil)
+(defun check (name ok &optional why)
+  (princ (if ok (format "ok %s\n" name) (format "FAIL %s: %s\n" name why)))
+  (unless ok (setq check-failed t)))
+(defun check-wait (pred secs)
+  (let ((end (+ (float-time) secs)))
+    (while (and (not (funcall pred)) (< (float-time) end)) (accept-process-output nil 0.1))
+    (funcall pred)))
+(defun check-log () (if (get-buffer "*phitex log*") (with-current-buffer "*phitex log*" (buffer-string)) ""))
+(defun check-ours () (cl-remove-if-not (lambda (d) (eq (flymake-diagnostic-backend d) #'phitex--flymake)) (flymake-diagnostics)))
+(let* ((project (file-name-as-directory (getenv "PROJECT")))
+       (child (concat project "chapters/ch1.tex")))
+  (find-file child)
+  (latex-mode)
+  (remove-hook 'flymake-diagnostic-functions 'tex-chktex t)
+  (phitex-mode 1)
+  (let ((proc (and phitex--server (jsonrpc--process phitex--server))))
+    (check "the watch starts" proc)
+    (check "the main file is built, not the child"
+           (check-wait (lambda () (string-match-p "main\\.tex → main\\.pdf" (check-log))) 120)
+           (check-log))
+    (check-wait (lambda () (equal (plist-get phitex--status :state) "ready")) 120)
+    (let ((url (and (string-match "http://127\\.0\\.0\\.1:[0-9]+/[0-9a-f]+/" (check-log)) (match-string 0 (check-log)))))
+      (check "the viewer's address is logged" url (check-log))
+      ;; (an error in the child: its diagnostic there)
+      (goto-char (point-min))
+      (insert "\\undefinedmacrohere ")
+      (check "an error in the child is its diagnostic"
+             (check-wait (lambda () (flymake-start) (check-ours)) 60) (format "%S" phitex--diags))
+      (delete-region (point-min) (+ (point-min) 20))
+      (check-wait (lambda () (flymake-start) (null (check-ours))) 60)
+      ;; (forward search: the cursor on the pages)
+      (when url
+        (let ((follow (start-process "follow" "*follow*" "node" (getenv "PROBE") url "follow" "30000")))
+          (sleep-for 1)
+          (goto-char (point-min)) (forward-word) (phitex--cursor)
+          ;; (batch Emacs is never idle: the plugin's idle timer fired as idleness would)
+          (when phitex--timer (timer-event-handler phitex--timer))
+          (check-wait (lambda () (not (process-live-p follow))) 40)
+          (check "the cursor is shown on the pages (forward search)"
+                 (eq (process-exit-status follow) 0) (with-current-buffer "*follow*" (buffer-string))))
+        ;; (inverse search: the viewer's place opened here)
+        (find-file (concat project "main.tex"))
+        (goto-char (point-min))
+        (call-process "node" nil nil nil (getenv "PROBE") url "source" "chapters/ch1.tex" "1")
+        (check "a place on the pages opens in the editor (inverse search)"
+               (check-wait (lambda () (equal (buffer-file-name (window-buffer (selected-window))) child)) 30)
+               (buffer-file-name (window-buffer (selected-window))))))
+    ;; (one watch for the project: main.tex opened after its chapter uses it)
+    (with-current-buffer (find-file-noselect (concat project "main.tex"))
+      (latex-mode) (remove-hook 'flymake-diagnostic-functions 'tex-chktex t) (phitex-mode 1)
+      (check "the main file opened later uses the same watch" (eq (jsonrpc--process phitex--server) proc)))
+    (dolist (b (buffer-list))
+      (with-current-buffer b (when (bound-and-true-p phitex-mode) (kill-buffer b))))
+    (check "the watch stops with its last buffer" (check-wait (lambda () (not (process-live-p proc))) 20))))
+(kill-emacs (if check-failed 1 0))
