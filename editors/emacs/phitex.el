@@ -55,21 +55,44 @@
 (defvar phitex-command '("phitex" "watch" "--lsp")
   "How the language server is started.")
 
-(defvar phitex-release-base "https://github.com/accl-kaust/PhiTeX/releases/latest/download"
-  "Where `phitex-install' downloads from.")
+(defvar phitex-channel "nightly"
+  "Which releases `phitex-install' downloads, as install.sh's PHITEX_CHANNEL:
+\"stable\" (the latest release) or \"nightly\" (dev's, rebuilt each night).
+Nightly until v1.0 is tagged: GitHub's latest release skips pre-releases, and
+the nightly is the only release so far (the release checklist flips this).")
 
-(defvar phitex-release-key "RWS/tPWBRVVf0Y9h/ODPiO2EgZi1labeCog3siaCfIdaC9HJkDJZ8k4u"
-  "The release key's minisign public key (PhiTeX's ci/minisign.pub).")
+(defvar phitex-release-base nil
+  "Where `phitex-install' downloads from; nil: `phitex-channel''s releases.")
+
+(defun phitex--release-base ()
+  "The download's base URL: `phitex-release-base', else the channel's."
+  (or phitex-release-base
+      (pcase phitex-channel
+        ("stable" "https://github.com/accl-kaust/PhiTeX/releases/latest/download")
+        ("nightly" "https://github.com/accl-kaust/PhiTeX/releases/download/nightly")
+        (c (user-error "PhiTeX: phitex-channel is \"stable\" or \"nightly\", not %S" c)))))
+
+(defvar phitex-release-key nil
+  "The minisign public key the download is checked against; nil: the channel's
+\(the releases' PhiTeX's ci/minisign.pub, the nightly's its own ci/nightly.pub,
+as install.sh: a nightly is never checked against the releases' key).")
+
+(defun phitex--release-key ()
+  "The key the download's SHA256SUMS signature is checked against."
+  (or phitex-release-key
+      (if (equal phitex-channel "nightly")
+          "RWT5jA+G82gT+bMpGqolUeaWPm6OYkLC4m6lI8G5HbUnyL3yY5UpGCYD"
+        "RWS/tPWBRVVf0Y9h/ODPiO2EgZi1labeCog3siaCfIdaC9HJkDJZ8k4u")))
 
 (defvar phitex-install-prefix "~/.local"
   "`phitex-install' puts the binary in this folder's bin/.")
 
 ;; (never from a project's file or directory variables: what runs, and what is trusted)
-(dolist (v '(phitex-command phitex-release-base phitex-release-key phitex-install-prefix))
+(dolist (v '(phitex-command phitex-channel phitex-release-base phitex-release-key phitex-install-prefix))
   (put v 'risky-local-variable t))
 
 (defconst phitex--install-script "set -eu
-base=$1 key=$2 prefix=$3
+base=$1 key=$2 prefix=$3 channel=$4
 command -v minisign >/dev/null || { echo \"minisign is not installed: the download could not be checked\"; exit 1; }
 case \"$(uname -s)\" in Linux) os=linux;; Darwin) os=macos;; *) echo \"no build for $(uname -s)\"; exit 1;; esac
 case \"$(uname -m)\" in x86_64|amd64) arch=x86_64;; aarch64|arm64) arch=aarch64;; *) echo \"no build for $(uname -m)\"; exit 1;; esac
@@ -87,9 +110,9 @@ tar -xzf \"$tmp/$asset\" -C \"$tmp\"
 mkdir -p \"$prefix/bin\"
 cp \"$tmp/phitex\" \"$prefix/bin/.phitex.new\"; chmod 755 \"$prefix/bin/.phitex.new\"; mv -f \"$prefix/bin/.phitex.new\" \"$prefix/bin/phitex\"
 data=${XDG_DATA_HOME:-$HOME/.local/share}/phitex; mkdir -p \"$data\"
-printf '{\"method\": \"script\", \"prefix\": \"%s\", \"asset\": \"%s\", \"channel\": \"stable\"}\\n' \"$prefix\" \"$asset\" > \"$data/install.json\"
+printf '{\"method\": \"script\", \"prefix\": \"%s\", \"asset\": \"%s\", \"channel\": \"%s\"}\\n' \"$prefix\" \"$asset\" \"$channel\" > \"$data/install.json\"
 "
-  "Downloads and checks a release: its arguments are the base, the key and the prefix.")
+  "Downloads and checks a release: its arguments are the base, the key, the prefix and the channel.")
 
 (defvar phitex--install-declined nil "The download was declined in this Emacs: not asked again.")
 
@@ -98,14 +121,15 @@ printf '{\"method\": \"script\", \"prefix\": \"%s\", \"asset\": \"%s\", \"channe
   (interactive)
   (unless (executable-find "minisign")
     (user-error "PhiTeX: installing needs minisign, to check the download's signature: install it, or phitex itself (https://phitex.org)"))
-  (let ((prefix (expand-file-name phitex-install-prefix)))
-    (unless (yes-or-no-p (format "Download PhiTeX from %s into %s/bin, checked against its signature? " phitex-release-base prefix))
+  (let ((prefix (expand-file-name phitex-install-prefix))
+        (base (phitex--release-base)))
+    (unless (yes-or-no-p (format "Download PhiTeX (%s) from %s into %s/bin, checked against its signature? " phitex-channel base prefix))
       (setq phitex--install-declined t)
       (user-error "PhiTeX: not downloaded"))
     (message "PhiTeX: downloading...")
     (with-temp-buffer
-      (unless (eql 0 (call-process "sh" nil t nil "-c" phitex--install-script "sh" phitex-release-base phitex-release-key prefix))
-        (user-error "PhiTeX: not installed: %s" (string-trim (buffer-string)))))
+      (unless (eql 0 (call-process "sh" nil t nil "-c" phitex--install-script "sh" base (phitex--release-key) prefix phitex-channel))
+        (user-error "PhiTeX: not installed from the %s channel (%s): %s" phitex-channel base (string-trim (buffer-string)))))
     (add-to-list 'exec-path (concat prefix "/bin"))
     (message "PhiTeX: installed in %s/bin" prefix)))
 

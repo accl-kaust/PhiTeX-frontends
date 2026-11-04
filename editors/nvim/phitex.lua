@@ -74,15 +74,20 @@ end
 
 PhitexSettings = PhitexSettings or {}
 
---- Where :PhiTeXInstall downloads from, the release key's minisign public key (PhiTeX's ci/minisign.pub), the folder whose bin/ it fills.
+--- Which releases :PhiTeXInstall downloads (`channel`, as install.sh's PHITEX_CHANNEL: "stable", the latest
+--- release, or "nightly", dev's rebuilt each night; nightly until v1.0 is tagged, GitHub's latest release
+--- skipping pre-releases: the release checklist flips it), where from (`base`, nil: the channel's), the
+--- minisign public key it is checked against (`key`, nil: the channel's, PhiTeX's ci/minisign.pub for
+--- releases, ci/nightly.pub for the nightly, as install.sh), the folder whose bin/ it fills.
 PhitexInstall = vim.tbl_extend("keep", PhitexInstall or {}, {
-  base = "https://github.com/accl-kaust/PhiTeX/releases/latest/download",
-  key = "RWS/tPWBRVVf0Y9h/ODPiO2EgZi1labeCog3siaCfIdaC9HJkDJZ8k4u",
+  channel = "nightly",
+  base = nil,
+  key = nil,
   prefix = vim.fn.expand("~/.local"),
 })
 local INSTALL_SCRIPT = [==[
 set -eu
-base=$1 key=$2 prefix=$3
+base=$1 key=$2 prefix=$3 channel=$4
 command -v minisign >/dev/null || { echo "minisign is not installed: the download could not be checked"; exit 1; }
 case "$(uname -s)" in Linux) os=linux;; Darwin) os=macos;; *) echo "no build for $(uname -s)"; exit 1;; esac
 case "$(uname -m)" in x86_64|amd64) arch=x86_64;; aarch64|arm64) arch=aarch64;; *) echo "no build for $(uname -m)"; exit 1;; esac
@@ -100,25 +105,39 @@ tar -xzf "$tmp/$asset" -C "$tmp"
 mkdir -p "$prefix/bin"
 cp "$tmp/phitex" "$prefix/bin/.phitex.new"; chmod 755 "$prefix/bin/.phitex.new"; mv -f "$prefix/bin/.phitex.new" "$prefix/bin/phitex"
 data=${XDG_DATA_HOME:-$HOME/.local/share}/phitex; mkdir -p "$data"
-printf '{"method": "script", "prefix": "%s", "asset": "%s", "channel": "stable"}\n' "$prefix" "$asset" > "$data/install.json"
+printf '{"method": "script", "prefix": "%s", "asset": "%s", "channel": "%s"}\n' "$prefix" "$asset" "$channel" > "$data/install.json"
 ]==]
 local declined = false
 
 --- Ask, then download the latest release, checked against its signature; whether it is installed.
+local CHANNELS = {
+  stable = "https://github.com/accl-kaust/PhiTeX/releases/latest/download",
+  nightly = "https://github.com/accl-kaust/PhiTeX/releases/download/nightly",
+}
+local KEYS = {
+  stable = "RWS/tPWBRVVf0Y9h/ODPiO2EgZi1labeCog3siaCfIdaC9HJkDJZ8k4u",
+  nightly = "RWT5jA+G82gT+bMpGqolUeaWPm6OYkLC4m6lI8G5HbUnyL3yY5UpGCYD",
+}
+
 local function install()
   local i = PhitexInstall
+  local base = i.base or CHANNELS[i.channel]
+  if not base then
+    vim.notify(string.format('PhiTeX: PhitexInstall.channel is "stable" or "nightly", not %q', tostring(i.channel)), vim.log.levels.ERROR)
+    return false
+  end
   if vim.fn.executable("minisign") == 0 then
     vim.notify("PhiTeX: installing needs minisign, to check the download's signature: install it, or phitex itself (https://phitex.org)", vim.log.levels.ERROR)
     return false
   end
-  local q = string.format("Download PhiTeX from %s into %s/bin, checked against its signature?", i.base, i.prefix)
+  local q = string.format("Download PhiTeX (%s) from %s into %s/bin, checked against its signature?", i.channel, base, i.prefix)
   if vim.fn.confirm(q, "&Yes\n&No", 2) ~= 1 then
     declined = true
     return false
   end
-  local r = vim.system({ "sh", "-c", INSTALL_SCRIPT, "sh", i.base, i.key, i.prefix }, { text = true }):wait()
+  local r = vim.system({ "sh", "-c", INSTALL_SCRIPT, "sh", base, i.key or KEYS[i.channel], i.prefix, i.channel }, { text = true }):wait()
   if r.code ~= 0 then
-    vim.notify("PhiTeX: not installed: " .. vim.trim((r.stdout or "") .. (r.stderr or "")), vim.log.levels.ERROR)
+    vim.notify(string.format("PhiTeX: not installed from the %s channel (%s): %s", i.channel, base, vim.trim((r.stdout or "") .. (r.stderr or ""))), vim.log.levels.ERROR)
     return false
   end
   vim.env.PATH = i.prefix .. "/bin:" .. vim.env.PATH
