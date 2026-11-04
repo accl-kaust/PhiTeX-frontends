@@ -108,6 +108,8 @@ let started: ReturnType<typeof start> | undefined;
 self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: unknown }>) => {
   const m = e.data;
   try {
+    // (another core ended: this one's memory is its own, so nothing waits on it)
+    if (m.op === "freeing") return;
     if (m.op === "hello") {
       project = String(m.project ?? "");
       return post({ id: m.id, ok: true });
