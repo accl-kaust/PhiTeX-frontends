@@ -493,6 +493,10 @@ p.where b { color: var(--text); }
 .anim-banner, .anim-cli { container-type: inline-size; }
 @container (max-width: 639.98px) { .anim-banner iframe { aspect-ratio: 800 / 1100; } .anim-cli iframe { aspect-ratio: 840 / 1120; } }
 .anim-everywhere iframe { aspect-ratio: 1600 / 640; }
+/* the problem on the page (anim/errors.html): under 640 px its window is taller, the page larger */
+.anim-errors { max-width: 1200px; margin-top: 40px; container-type: inline-size; }
+.anim-errors iframe { aspect-ratio: 1200 / 600; }
+@container (max-width: 639.98px) { .anim-errors iframe { aspect-ratio: 840 / 620; } }
 
 .banner-hero { max-width: 1440px !important; margin: 0 auto; padding-top: 96px !important; padding-bottom: 48px !important; gap: 24px !important; }
 .banner-hero .ctas { justify-content: center; }

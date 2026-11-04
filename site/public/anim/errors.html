@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhiTeX Problems</title>
+<!--
+  A problem on the page, as the viewer draws it (PhiTeX's viewer/src/print.ts: .culprit, .ctip). One clock drives
+  everything: render(t) draws the stage at story time t (seconds, 0..DURATION), as anim/cli.html does.
+
+  Story: \cite{knuth84} has no entry yet, so the page reads [?] with the viewer's wavy warning line under it (amber,
+  #c77700; an error's is red, #d93025). The pointer rests on it and the problem's message shows in a tooltip under the
+  line. refs.bib gains the entry, the page is built again: [1], the line gone, the references there. Then it loops.
+  The line and the tooltip are the viewer's, drawn over the page: the PDF itself never has them.
+
+  URL parameters:
+    ?theme=light|dark   force a theme (default: the system's)
+    ?t=2.4              freeze at one time
+    ?render=1           no controls, no autoplay (for frame capture)
+    ?embed              playing, no controls, fitted to the frame's width (phitex.org)
+-->
+<style>
+@font-face { font-family: "CMU Serif"; font-weight: 700; src: url("/fonts/cmu-serif-700-roman.woff2") format("woff2"); }
+@font-face { font-family: "CMU Serif"; font-weight: 400; src: url("/fonts/cmu-serif-500-roman.woff2") format("woff2"); }
+@font-face { font-family: "CMU Serif"; font-weight: 400; font-style: italic; src: url("/fonts/cmu-serif-500-italic.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans"; font-weight: 400; src: url("/fonts/noto-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans"; font-weight: 600; src: url("/fonts/noto-sans-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "DM Mono"; font-weight: 400; src: url("/fonts/dm-mono-latin-400-normal.woff2") format("woff2"); }
+
+:root {
+  --sans: "Noto Sans", system-ui, sans-serif;
+  --serif: "CMU Serif", "Latin Modern Roman", Georgia, serif;
+  --mono: "DM Mono", ui-monospace, Menlo, monospace;
+  --bg: #ffffff;
+  color-scheme: light;
+  --ink: #1b222c;
+  --muted: #495365;
+  --rule: #e7e9ee;
+  --accent: #366cbf;
+  --green: #1e6b41;
+  --warning: #c77700;            /* the viewer's warning colour (print.ts) */
+  --card: #ffffff;
+  --card-edge: #e7e9ee;
+  --card-shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 10px 28px rgb(16 24 40 / 8%);
+  --viewer-bg: #e7e9ee;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1117;
+    color-scheme: dark;
+    --ink: #ffffff;
+    --muted: #d0d5dd;
+    --rule: #2f3a4c;
+    --accent: #6597e0;
+    --green: #53b57f;
+    --warning: #f2b83b;
+    --card: #1b222c;
+    --card-edge: #2f3a4c;
+    --card-shadow: 0 1px 3px rgb(0 0 0 / 40%), 0 10px 30px rgb(0 0 0 / 35%);
+    --viewer-bg: #141a23;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1117;
+  color-scheme: dark;
+  --ink: #ffffff;
+  --muted: #d0d5dd;
+  --rule: #2f3a4c;
+  --accent: #6597e0;
+  --green: #53b57f;
+  --warning: #f2b83b;
+  --card: #1b222c;
+  --card-edge: #2f3a4c;
+  --card-shadow: 0 1px 3px rgb(0 0 0 / 40%), 0 10px 30px rgb(0 0 0 / 35%);
+  --viewer-bg: #141a23;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--sans); overflow: hidden; -webkit-font-smoothing: antialiased; }
+
+#viewport { position: relative; transform-origin: 0 0; }
+#stage { position: relative; width: 1200px; height: 600px; overflow: hidden; background: var(--bg); }
+.abs { position: absolute; }
+
+/* ── the viewer: a browser window on the page ────────────── */
+#pdf { left: 40px; top: 30px; width: 1120px; height: 540px; border-radius: 14px; overflow: hidden; background: var(--viewer-bg);
+       box-shadow: 0 0 0 1px var(--card-edge), var(--card-shadow); }
+#pdf .chrome { height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--card); border-bottom: 1px solid var(--card-edge); }
+#pdf .chrome i { width: 12px; height: 12px; border-radius: 50%; display: block; background: var(--rule); }
+#pdf .url { margin-left: 14px; flex: 1; height: 26px; border-radius: 13px; background: var(--viewer-bg); display: flex; align-items: center; padding: 0 14px;
+            font: 13px var(--mono); color: var(--muted); }
+#sheet { position: absolute; left: 141px; top: 62px; transform: scale(3.2); transform-origin: 0 0; }   /* the page zoomed in, at its third section */
+#vbar { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+        font: 12.5px var(--mono); color: var(--muted); background: var(--card); border-top: 1px solid var(--card-edge); white-space: nowrap; overflow: hidden; }
+#vbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: none; }
+#page {
+  position: relative; width: 262px; height: 160px; background: #fff; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(16,24,40,.08), 0 2px 4px rgba(16,24,40,.06), 0 18px 44px rgba(16,24,40,.16);
+  padding: 12px 22px 0; font-family: var(--serif); color: #111; font-size: 7.3px; line-height: 9.3px; text-align: justify; hyphens: auto;
+  -webkit-mask-image: linear-gradient(#000 86%, transparent);   /* the page goes on below */
+}
+#page h2 { font-size: 9.4px; font-weight: 700; margin: 0 0 4px; text-align: left; }
+#page p + p { text-indent: 1.4em; }
+#page .tex-e { position: relative; top: .22em; margin: 0 -.12em; }
+#page .refs { margin-top: 10px; }
+#page .refs p { display: grid; grid-template-columns: 1.6em 1fr; text-indent: 0; }
+/* the culprit: a wavy line along its glyphs' foot (print.ts's .culprit.warning, its 6 × 3 tile at the page's scale) */
+#cite { position: relative; white-space: nowrap; }
+#cite::after { content: ""; position: absolute; left: 0; right: 0; bottom: -.7px; height: .94px; opacity: var(--line, 0);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='M0 2.5 Q1.5 0 3 1.5 T6 0.5' fill='none' stroke='%23c77700' stroke-width='1'/%3E%3C/svg%3E") repeat-x left bottom / 1.875px .94px; }
+#veil { position: absolute; inset: 0; background: #fff; pointer-events: none; }   /* the page drawn again, top down */
+
+/* the problem's message: print.ts's .ctip, under the line */
+#tip { display: flex; gap: 6px; align-items: flex-start; padding: 5px 9px; max-width: 420px; z-index: 8;
+  background: var(--card); color: var(--ink); border: 1px solid var(--card-edge); border-radius: 6px;
+  box-shadow: 0 3px 12px rgb(0 0 0 / 25%); font-size: 12px; line-height: 1.35; white-space: nowrap; }
+#tip .icon { color: var(--warning); margin-top: 1px; }
+#tip .loc { color: var(--muted); font-family: var(--mono); font-size: 11.5px; margin-left: 4px; }
+#ptr { z-index: 9; width: 22px; height: 22px; }
+
+/* ── portrait (a phone): the page larger in a taller window ── */
+body.portrait #stage { width: 840px; height: 620px; }
+body.portrait #pdf { left: 20px; top: 20px; width: 800px; height: 580px; }
+body.portrait #sheet { left: 22px; top: 62px; transform: scale(2.88); }
+body.portrait #page { height: 168px; }
+body.portrait #tip { font-size: 19px; padding: 7px 12px; } body.portrait #tip .loc { font-size: 18px; }
+body.portrait #vbar { height: 44px; font-size: 19px; } body.portrait #vbar .dot { width: 12px; height: 12px; }
+
+#controls {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 52px; display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; background: color-mix(in srgb, var(--bg) 88%, transparent); border-top: 1px solid var(--rule);
+  font-size: 13px; color: var(--muted); backdrop-filter: blur(6px);
+}
+#controls button { font: inherit; font-weight: 600; color: var(--ink); background: var(--card); border: 1px solid var(--card-edge);
+  border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+#controls input[type=range] { flex: 1; accent-color: var(--accent); }
+#clock { width: 92px; font-variant-numeric: tabular-nums; text-align: right; }
+body.render #controls { display: none; }
+html:has(body.embed), body.embed, body.embed #stage { background: transparent; }
+</style>
+</head>
+<body>
+<div id="viewport">
+<div id="stage">
+  <div id="pdf" class="abs">
+    <div class="chrome"><i></i><i></i><i></i><span class="url">127.0.0.1:37765</span></div>
+    <div id="sheet">
+      <div id="page">
+        <h2>3&nbsp;&nbsp;&nbsp;Results</h2>
+        <p>The engine keeps every piece of the document as a node of one build. An edit runs again only the pieces that read what it changed, and the page that shows is exactly the page T<span class="tex-e">E</span>X would set, as shown by <span id="cite">[?]</span>.</p>
+        <p>Line breaks and page breaks are computed as before, so a change that moves no break leaves the other pages alone.</p>
+        <div class="refs" id="refs">
+          <h2>References</h2>
+          <p><span>[1]</span><span>Donald E. Knuth. <i>The T<span class="tex-e">E</span>Xbook</i>. Addison-Wesley, 1984.</span></p>
+        </div>
+        <div id="veil"></div>
+      </div>
+    </div>
+    <div id="vbar"><span class="dot" id="vdot"></span><span id="vtext"></span></div>
+  </div>
+  <div id="tip" class="abs"><span class="icon">⚠</span><span>Citation `knuth84' on page 1 undefined<span class="loc">main.tex:17</span></span></div>
+  <svg id="ptr" class="abs" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 2 L3 18 L7.2 14.2 L10 20.5 L12.8 19.3 L10.1 13.2 L15.8 13.2 Z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+</div>
+</div>
+
+<div id="controls">
+  <button id="play">Pause</button>
+  <input id="scrub" type="range" min="0" step="0.01">
+  <span id="clock"></span>
+  <button id="theme">Theme</button>
+</div>
+<script>
+// ── story beats, seconds ───────────────────────────────────────────────────
+const TIMELINE = {
+  line: [0.2, 0.5],               // the warning's line appears under [?]
+  enter: [0.8, 1.7],              // the pointer comes to the citation
+  tip: 1.85,                      // ... and its message shows under the line
+  leave: [3.9, 4.5],              // the pointer moves off: the tooltip goes
+  saved: 4.7,                     // refs.bib gains @book{knuth84, ...}: build 3
+  rebuilt: [5.0, 5.35],           // the page drawn again, top down: [1], no line, the references
+  back: [7.4, 7.8],               // back to the first frame
+  duration: 8.0,
+};
+const T = TIMELINE, D = T.duration;
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lin = (t, [a, b]) => clamp((t - a) / (b - a));
+const ease = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const mix = (a, b, u) => a + (b - a) * u;
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+let scale = 1;                    // the viewport's, so the page's boxes are measured in stage pixels
+
+// where the pointer rests and the tooltip sits: under the citation, in stage pixels
+function anchor() {
+  const st = $('stage').getBoundingClientRect(), r = $('cite').getBoundingClientRect();
+  return { x: (r.left - st.left) / scale, y: (r.top - st.top) / scale, w: r.width / scale, h: r.height / scale };
+}
+
+function render(t) {
+  t = ((t % D) + D) % D;
+  const a = anchor();
+  const fixed = t >= T.rebuilt[0] && t < T.back[1];
+  const back = ease(lin(t, T.back));
+  // the page: [?] with its line, then built again as [1] with its references
+  $('cite').textContent = fixed ? '[1]' : '[?]';
+  $('cite').style.setProperty('--line', fixed ? 0 : ease(lin(t, T.line)));
+  $('refs').style.visibility = fixed ? 'visible' : 'hidden';
+  const drawn = ease(lin(t, T.rebuilt));
+  $('veil').style.opacity = t >= T.saved && t < T.rebuilt[1] ? 1 : t >= T.back[0] ? Math.sin(back * Math.PI) : 0;
+  $('veil').style.clipPath = t >= T.rebuilt[0] && t < T.rebuilt[1] ? `inset(${(drawn * 100).toFixed(1)}% 0 0 0)` : 'none';
+  // the pointer: from the lower right to the citation's middle, then away
+  const into = ease(lin(t, T.enter)), out = ease(lin(t, T.leave));
+  const rx = a.x + a.w * .9, ry = a.y - a.h * .1, ox = 1080, oy = 520;
+  $('ptr').style.left = `${mix(mix(ox, rx, into), ox + 40, out)}px`;
+  $('ptr').style.top = `${mix(mix(oy, ry, into), oy + 30, out)}px`;
+  $('ptr').style.opacity = t < T.enter[0] || t > T.leave[1] ? 0 : 1;
+  // the tooltip, under the line, while the pointer is on it
+  const tipOn = t >= T.tip && t < T.leave[0] + .15;
+  $('tip').style.opacity = tipOn ? clamp((t - T.tip) / .15) : 0;
+  $('tip').style.left = `${Math.max(48, a.x - 8)}px`;
+  $('tip').style.top = `${a.y + a.h + 8}px`;
+  // the viewer's status line
+  const building = t >= T.saved && t < T.rebuilt[1];
+  $('vdot').style.background = fixed ? 'var(--green)' : building ? 'var(--accent)' : 'var(--warning)';
+  $('vtext').textContent = building ? 'refs.bib changed: build 3…' : fixed ? 'main.tex · build 3 · 4 pages · no problems' : 'main.tex · build 2 · 4 pages · 1 warning';
+}
+window.render = render;
+
+// ── preview: fit, play, scrub (as anim/cli.html) ───────────────────────────
+const renderMode = params.has('render'), embed = params.has('embed');
+if (renderMode || embed) document.body.classList.add('render');
+if (embed) {
+  document.body.classList.add('embed');
+  try {
+    const host = parent.document.documentElement, follow = () => {
+      if (host.dataset.theme) document.documentElement.dataset.theme = host.dataset.theme;
+      else delete document.documentElement.dataset.theme;
+    };
+    if (parent !== window) { follow(); new MutationObserver(follow).observe(host, { attributes: true, attributeFilter: ['data-theme'] }); }
+  } catch { /* another origin's page: the system's theme */ }
+}
+if (params.get('theme')) document.documentElement.dataset.theme = params.get('theme');
+function fit() {
+  // phitex.org's frame takes the portrait stage's shape at the same width (style.css, .anim-errors)
+  const portrait = !renderMode && innerWidth < 640;
+  document.body.classList.toggle('portrait', portrait);
+  const W = portrait ? 840 : 1200, H = portrait ? 620 : 600;
+  scale = renderMode ? 1 : embed ? innerWidth / W : Math.min(innerWidth / W, (innerHeight - 52) / H);
+  $('viewport').style.transform = `scale(${scale})`;
+  if (!renderMode && !embed) $('viewport').style.marginTop = `${Math.max(0, (innerHeight - 52 - H * scale) / 2)}px`;
+}
+addEventListener('resize', fit);
+let playing = !renderMode && !params.has('t'), t0 = performance.now(), cur = Number(params.get('t')) || 0;
+const scrub = $('scrub'); scrub.max = D;
+let onScreen = true;
+new IntersectionObserver(es => { onScreen = es[es.length - 1].isIntersecting; }).observe($('stage'));
+function frame(now) {
+  if (!onScreen || document.hidden) { requestAnimationFrame(frame); return; }
+  if (playing) cur = ((now - t0) / 1000) % D;
+  render(cur);
+  scrub.value = cur; $('clock').textContent = `${cur.toFixed(2)} / ${D.toFixed(1)} s`;
+  requestAnimationFrame(frame);
+}
+$('play').onclick = () => { playing = !playing; t0 = performance.now() - cur * 1000; $('play').textContent = playing ? 'Pause' : 'Play'; };
+scrub.oninput = () => { cur = Number(scrub.value); playing = false; $('play').textContent = 'Play'; };
+$('theme').onclick = () => {
+  const dark = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() !== '#ffffff';
+  document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+};
+addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); $('play').click(); } });
+window.bannerReady = document.fonts.ready.then(() => {
+  fit();
+  if (renderMode) render(cur); else requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>
