@@ -110,14 +110,19 @@ function compile() {
 
 http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
-  const send = (code, type, body) => (res.writeHead(code, { "content-type": type }), res.end(body));
+  // (served as overleaf.com is: COOP same-origin and COEP credentialless,
+  // so the tab is cross-origin isolated, as the core's offscreen page is
+  // by its manifest; scripts/dev/mock-run.mjs asserts both before the
+  // first page is waited for)
+  const iso = { "cross-origin-opener-policy": "same-origin", "cross-origin-embedder-policy": "credentialless" };
+  const send = (code, type, body) => (res.writeHead(code, { "content-type": type, ...iso }), res.end(body));
   let m;
   // (with Overleaf's script policy: a nonce, strict-dynamic, and no
   // 'wasm-unsafe-eval', so WebAssembly compiled in the tab fails here as it
   // does on overleaf.com, where content scripts get the page's policy)
   if (u.pathname === "/project/mock" || u.pathname === "/project/mock/") {
     const nonce = Math.random().toString(36).slice(2);
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": `script-src 'nonce-${nonce}' 'unsafe-inline' 'strict-dynamic' https: 'report-sample'` });
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": `script-src 'nonce-${nonce}' 'unsafe-inline' 'strict-dynamic' https: 'report-sample'`, ...iso });
     return res.end(fs.readFileSync(path.join(dir, "overleaf.html"), "utf8").replaceAll("<script", `<script nonce="${nonce}"`));
   }
   // (the editor: CodeMirror 6 and Overleaf's grammar, scripts/build/mock-editor.sh)
@@ -156,7 +161,7 @@ http.createServer((req, res) => {
     // (PHITEX_SLOWZIP=kbit/s: the ZIP trickled, as a slow connection sends a big project)
     const kbps = +(process.env.PHITEX_SLOWZIP ?? 0);
     if (!kbps) return send(200, "application/zip", z);
-    res.writeHead(200, { "content-type": "application/zip", "content-length": String(z.length) });
+    res.writeHead(200, { "content-type": "application/zip", "content-length": String(z.length), ...iso });
     const step = Math.max(256, Math.round((kbps * 1000) / 8 / 10));
     let at = 0;
     const tick = setInterval(() => {

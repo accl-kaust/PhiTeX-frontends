@@ -51,6 +51,16 @@ warmFormats().catch((e: unknown) => console.warn("[phitex core] fetching ahead:"
 void order();
 
 async function start(): Promise<{ core: Core; session: CoreSession }> {
+  try {
+    return await startCore();
+  } catch (e) {
+    // (said here: a request then fails with it, but the console says it at once, where a check reads it)
+    console.error("[phitex core] not started:", String(e));
+    throw e;
+  }
+}
+
+async function startCore(): Promise<{ core: Core; session: CoreSession }> {
   const t0 = performance.now();
   const core = Core.start(await module, {
     spawn: (d) => void threads.push(spawnThread(d)),
