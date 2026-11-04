@@ -1,0 +1,3 @@
+{ "project": "test/scenarios/ci", "name": "ci", "strict": true,
+  "steps": [ { "type": " Typedwords here.", "after": "words typed in.", "keys": 60 },
+    { "onpage": "Typedwords", "ms": 60000 }, { "idle": 1500 }, { "shot": "edited" } ] }

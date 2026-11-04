@@ -2,7 +2,8 @@
 // extension.ts): the viewer's address in a logMessage, an unsaved edit's
 // error as a diagnostic, its fix clearing it, the cursor told, a clean end.
 //
-//   scripts/sandbox node test/lsp-smoke.mjs PHITEX DIR MAIN.tex
+//   scripts/sandbox node test/lsp-smoke.mjs PHITEX DIR MAIN.tex   (MAIN.tex has a line with "Some text")
+// (test/editors/run.sh runs it as the VS Code check of the release gate)
 
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -44,7 +45,8 @@ const at0 = text.split("\n").findIndex((l) => l.includes("Some text"));
 c.sendNotification("textDocument/didChange", { textDocument: { uri, version: 2 }, contentChanges: [{ range: { start: { line: at0, character: 0 }, end: { line: at0, character: 0 } }, text: "Typed words. " }] });
 for (let i = 0; i < 50 && !events.some((e) => e.event === "settled"); i++) await new Promise((r) => setTimeout(r, 100));
 const after = await pdf();
-console.log(`${at()} viewer events after an unsaved edit: ${JSON.stringify(events.map((e) => e.event))}; doc.pdf ${before.length} -> ${after.length} bytes, ${Buffer.compare(Buffer.from(before), Buffer.from(after)) === 0 ? "UNCHANGED" : "changed"}`);
+const changed = Buffer.compare(Buffer.from(before), Buffer.from(after)) !== 0;
+console.log(`${at()} viewer events after an unsaved edit: ${JSON.stringify(events.map((e) => e.event))}; doc.pdf ${before.length} -> ${after.length} bytes, ${changed ? "changed" : "UNCHANGED"}`);
 c.sendNotification("textDocument/didChange", { textDocument: { uri, version: 3 }, contentChanges: [{ range: { start: { line: at0, character: 0 }, end: { line: at0, character: 13 } }, text: "" }] });
 await new Promise((r) => setTimeout(r, 500));
 
@@ -65,4 +67,8 @@ await c.sendRequest("shutdown");
 c.sendNotification("exit");
 const code = await new Promise((r) => p.on("exit", r));
 console.log(`${at()} exit ${code}; viewer announced: ${!!url}`);
-process.exit(url && code === 0 ? 0 : 1);
+// (the editors' checks read these lines: test/editors/run.sh)
+console.log(`${url ? "ok" : "FAIL"} the viewer is announced`);
+console.log(`${changed ? "ok" : "FAIL"} an unsaved edit changes the PDF`);
+console.log(`${code === 0 ? "ok" : "FAIL"} the watch stops`);
+process.exit(url && changed && code === 0 ? 0 : 1);

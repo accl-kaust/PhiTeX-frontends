@@ -13,13 +13,14 @@ done
 port="${PHITEX_CDP_PORT:-9222}"
 profile="$PWD/${PHITEX_PROFILE:-.chrome-profile}"
 pkill -f -- "--user-data-dir=$profile( |$)" && sleep 2
+# (PHITEX_CHROME: the browser, chromium by default (CI: google-chrome))
 # (PHITEX_HEADLESS=1: no window, as in scripts/sandbox, which has no display;
 # its size PHITEX_WINDOW, 1600,1000 by default, for screenshots)
 headless=(); [ -n "${PHITEX_HEADLESS:-}" ] && headless=(--headless=new "--window-size=${PHITEX_WINDOW:-1600,1000}")
 # (its caches in RAM, /dev/shm: on a spinning disk shared with builds the
 # cache's writes stalled the browser; the profile itself, its logins, stays)
 cache="/dev/shm/phitex-chrome-cache-$port"
-nohup chromium "${headless[@]}" --user-data-dir="$profile" --disk-cache-dir="$cache" --remote-debugging-port="$port" --no-first-run \
+nohup "${PHITEX_CHROME:-chromium}" "${headless[@]}" --user-data-dir="$profile" --disk-cache-dir="$cache" --remote-debugging-port="$port" --no-first-run \
   --enable-unsafe-extension-debugging about:blank > /dev/null 2>&1 &
 # (the extension loaded over the protocol: Chromium 153 ignores --load-extension; then the page)
 node scripts/dev/load-ext.mjs "$port" > /dev/null

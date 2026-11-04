@@ -27,8 +27,11 @@
 //       { "dblpage": [0, 0.3, 0.4] }, // double-click page 0 at 30% across, 40% down: the editor's selection after
 //       { "cursor": "Every writer" },  // the cursor put in that text: the word's highlight boxes 150 ms after
 //       { "dbltext": "Every writer" }, // double-click the editor at that text: the page's highlight boxes after
-//       { "dbloutline": "Section 3" } // double-click that heading in the file outline
+//       { "dbloutline": "Section 3" }, // double-click that heading in the file outline
+//       { "onpage": "Typed words", "ms": 60000 } // until that text is on a page, else the run fails
 //     ] }
+//   "strict": true // (top level) the run fails on any exception or console error in the
+//                  // tab or the extension (the release gate's: test/scenarios/ci.json)
 //   "storage": { "toured": false } // (top level) over the onboarded settings (scripts/dev/onboarded.mjs)
 // --fresh: the package cache (IndexedDB) emptied first, as a new install.
 // --keep: Chromium and the mock left running after.
@@ -336,6 +339,12 @@ for (const s of sc.steps ?? []) {
     if (measuring) console.log("cpu while typing:", JSON.stringify((s.result = await measuring), null, 1));
   } else if (s.replace !== undefined) {
     await evalIn(`(() => { const t = mockEditor.text(), i = t.indexOf(${JSON.stringify(s.replace)}); if (i >= 0) mockEditor.replace(i, i + ${JSON.stringify(s.replace)}.length, ${JSON.stringify(s.with ?? "")}); })()`);
+  } else if (s.onpage !== undefined) {
+    const has = `(() => { const r = document.querySelector("phitex-preview")?.shadowRoot; return !!r && [...r.querySelectorAll(".slot text")].some((t) => t.textContent.includes(${JSON.stringify(s.onpage)})); })()`;
+    let seen = false;
+    for (const t0 = Date.now(); !seen && Date.now() - t0 < (s.ms ?? 60000); ) (seen = !!(await evalIn(has, true))) || (await sleep(200));
+    console.log(`onpage ${JSON.stringify(s.onpage)}: ${seen ? "on the page" : "NOT on the page"}`);
+    if (!seen) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
   } else if (s.idle !== undefined) await idle(s.idle);
   // ({"cpu": ms}: the tab's main thread over ms with nothing typed: CPU
   // time by kind (Performance metrics) and the hottest functions (a
@@ -514,6 +523,13 @@ const worst = builds.reduce((a, b) => (b.d.build_ms > (a?.d.build_ms ?? -1) ? b 
 console.log(lines.slice(0, 400).join("\n"));
 console.log(`\n${sc.name ?? "run"}: ${builds.length} builds, worst ${worst?.d.build_ms ?? 0} ms (${worst?.k ?? "-"} at ${worst?.t ?? 0} ms); final: ${fmt(sess.status)}; packages: ${sess.pkg.done?.length ?? 0} fetched, ${sess.pkg.failed?.length ?? 0} failed`);
 console.log(`trace and screenshots: ${out}`);
+// (strict: an exception or console error anywhere, the tab's or the workers', fails the run)
+if (sc.strict) {
+  const bad = [...events.filter((e) => e.k === "EXCEPTION" || e.k === "console.error").map((e) => `${e.k}: ${e.d}`), ...workerLog.filter((l) => / error: /.test(l))];
+  for (const b of bad) console.log(`FAIL ${String(b).slice(0, 400)}`);
+  if (bad.length) process.exitCode = 1;
+  console.log(`strict: ${bad.length} errors`);
+}
 ws.close();
 if (!keep) {
   try { execFileSync("pkill", ["-f", "--", `--user-data-dir=${path.join(root, PROFILE)}( |$)`]); } catch {}
