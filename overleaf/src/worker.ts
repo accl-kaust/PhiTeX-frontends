@@ -28,7 +28,7 @@ const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
 
 /** The project this tab shows (its path): the document's store keys are its own. */
 let project = "";
-const store = coreStore(() => project, async () => (await started).core);
+const store = coreStore(() => project, async () => (await running()).core);
 
 const at = (p: string) => platform().assetUrl(p);
 const shell = mintedShell(loadMinted);
@@ -51,14 +51,41 @@ warmFormats().catch((e: unknown) => console.warn("[phitex core] fetching ahead:"
 void order();
 
 async function start(): Promise<{ core: Core; session: CoreSession }> {
-  try {
-    return await startCore();
-  } catch (e) {
-    // (said here: a request then fails with it, but the console says it at once, where a check reads it)
-    console.error("[phitex core] not started:", String(e));
-    throw e;
+  for (;;) {
+    try {
+      return await startCore();
+    } catch (e) {
+      const memory = e instanceof RangeError && /allocate memory/.test(e.message);
+      // (a core the offscreen document just ended still holds its 4 GiB:
+      // Chrome frees a terminated worker's memory a moment later, and says
+      // nothing when it has; so while one is being freed, the start waits
+      // for it, and only then is a refusal this core's own)
+      if (memory && performance.now() - freeing < FREEING_MS) {
+        await new Promise((r) => setTimeout(r, 100));
+        continue;
+      }
+      // (said here: a request then fails with it, but the console says it at once, where a check reads it)
+      console.error("[phitex core] not started:", String(e));
+      // (the next request starts it again)
+      started = undefined;
+      throw memory ? new Error(NO_MEMORY) : e;
+    }
   }
 }
+
+/** When the offscreen document last ended another core (op "freeing"), on this worker's clock. */
+let freeing = -Infinity;
+/** How long after that its memory may still be held: a reload's was freed 0.4 s after its core was ended (Chrome 156, a 16 GB machine). */
+const FREEING_MS = 5000;
+
+/**
+ * Why a core's memory was refused, as the tab shows it: Chrome gives the
+ * extension's page on a machine with 16 GB of memory or less 8 GiB of data
+ * in all, and each tab's core takes 4 GiB (core/build.rs), so a second
+ * Overleaf tab showing PhiTeX does not fit beside the first.
+ */
+const NO_MEMORY =
+  "Chrome refused the 4 GiB of memory PhiTeX's engine needs, most likely because another Overleaf tab showing PhiTeX holds part of what Chrome allows the extension (8 GiB in all on a Linux computer with 16 GB of memory or less). Close that tab, or switch it to Overleaf's own PDF, then reload this one.";
 
 async function startCore(): Promise<{ core: Core; session: CoreSession }> {
   const t0 = performance.now();
@@ -88,11 +115,17 @@ async function startCore(): Promise<{ core: Core; session: CoreSession }> {
   return { core, session: new CoreSession(core, { shell: true, threads: Math.min(navigator.hardwareConcurrency || 1, WASM_THREADS) }) };
 }
 
-let started = start();
+/** The core, started at the first request that needs it (an open), not when this worker loads: a reloaded page's core then starts after the old page's has ended (offscreen.ts). */
+let started: ReturnType<typeof start> | undefined;
+const running = () => (started ??= start());
 
 self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: unknown }>) => {
   const m = e.data;
   try {
+    if (m.op === "freeing") {
+      freeing = performance.now() - Number(m.ago ?? 0);
+      return;
+    }
     if (m.op === "hello") {
       project = String(m.project ?? "");
       return post({ id: m.id, ok: true });
@@ -100,7 +133,8 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
     if (m.op === "binary") {
       const [file, bytes] = [m.file as string, m.bytes as Uint8Array];
       binaries.set(file, bytes);
-      (await started).core.provide(file, { path: "./" + file, bytes });
+      // (a core not started yet is given them when it starts)
+      if (started) (await started).core.provide(file, { path: "./" + file, bytes });
       return post({ id: m.id, ok: true });
     }
     if (dead) {
@@ -108,9 +142,9 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
       // (an open after a trap: a new core, the old one's threads ended)
       for (const w of threads) w.terminate();
       [threads, dead, stderr] = [[], undefined, ""];
-      started = start();
+      started = undefined;
     }
-    const { core, session } = await started;
+    const { core, session } = await running();
     if (m.op === "open") prefetch(core, await index, (m.files ?? {}) as Record<string, string>, String(m.engine ?? "pdflatex"));
     // (a compare's packs kept ahead, once, when the first build is in: its own packs first)
     if (m.op === "open" && !diffWarm) {
