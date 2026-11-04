@@ -33,11 +33,13 @@
 //       { "reload": 3, "ms": 120000 }, // the tab reloaded 3 times, each until its first page, else the run fails
 //       { "secondtab": true, "ms": 120000 }, // the project in a second tab: its first page, or its panel saying why it has none; else (neither in time) the run fails
 //       { "secondtab": "page", "ms": 120000 }, // the same, its first page required; at an 8 GiB data limit (a 16 GB machine) the cores 4 and 2 GiB
+//       { "secondtab": "outgrow", "ms": 900000 }, // the same, its panel required to say the document outgrew its 2 GiB (a project larger than that: tabs-outgrow.json)
 //       { "rootdoc": "main.tex" }    // Overleaf's main document changed (its Menu), as its socket tells the editor
 //     ] }
 //   "strict": true // (top level) the run fails on any exception or console error in the
 //                  // tab or the extension (the release gate's: test/scenarios/ci.json)
 //   "storage": { "toured": false } // (top level) over the onboarded settings (scripts/dev/onboarded.mjs)
+//   "nofirst": true              // (top level) the steps begin without waiting for the first tab's first page
 //   "root": "report.tex"         // (top level) Overleaf's main document for the project (the mock's MOCK_ROOT; unset, none)
 // --fresh: the package cache (IndexedDB) emptied first, as a new install.
 // --keep: Chromium and the mock left running after.
@@ -304,8 +306,13 @@ function dataLimit() {
 const GiB = 2 ** 30;
 {
   const iso = { tab: await evalIn("globalThis.crossOriginIsolated", true), offscreen: await inOffscreen("globalThis.crossOriginIsolated") };
-  const mem = await inOffscreen(`(() => { const out = []; const one = (name, o) => { try { const m = new WebAssembly.Memory(o); out.push(name + ": ok"); return m; } catch (e) { out.push(name + ": " + e); return null; } }; const a = one("shared 65535 pages", { initial: 65535, maximum: 65535, shared: true }); const b = one("a second shared 65535", { initial: 65535, maximum: 65535, shared: true }); one("own 65535", { initial: 65535, maximum: 65535 }); return out.join("; "); })()`);
-  console.log(`cross-origin isolated: tab ${iso.tab}, offscreen ${iso.offscreen}; what the offscreen document can still allocate beside its cores (one 4 GiB core already there: on a 16 GB machine, 8 GiB in all, these fail; not the core's own start): ${mem}`);
+  // (no memory tried here beside the cores: a 4 GiB shared memory made
+  // to see whether it fits is held until a collection, in the renderer
+  // whose data limit the cores share, and the cores' sizes and the
+  // pages' JS then lacked it: the extension's renderer at its 8 GiB limit
+  // from the start, the first tab's core lost on a 241-page document.
+  // Each core's size is said with the tabs' steps, \`memories\`)
+  console.log(`cross-origin isolated: tab ${iso.tab}, offscreen ${iso.offscreen}; the renderers' data limit ${dataLimit() === undefined ? "?" : (dataLimit() / GiB).toFixed(1) + " GiB"}`);
   if (iso.offscreen !== true) {
     console.log("FAIL the extension's offscreen document is not cross-origin isolated: the core cannot share its memory with its threads (the manifest's cross_origin_embedder_policy and cross_origin_opener_policy)");
     process.exitCode = 1;
@@ -321,13 +328,15 @@ const GiB = 2 ** 30;
 // while the session is building, up to 10 minutes; given up after 30 s
 // only when it builds nothing; a remote session's cold build shows in none
 // of those flags while it fetches: it is waited for until a build is in)
-for (let i = 0; i < 2000; i++) {
+// ("nofirst": not waited for: the steps begin while it builds, tabs-outgrow's
+// second tab beside a first one still at its cold build)
+for (let i = 0; i < (sc.nofirst ? 0 : 2000); i++) {
   const st = await state();
   if (st?.pages || st?.built || (i >= 100 && !st?.remote && !st?.building && !st?.inflight && !st?.loading)) break;
   await sleep(300);
 }
 // (none: why, from the page, not after the idle's 15 minutes)
-if (!(await state())?.pages) {
+if (!sc.nofirst && !(await state())?.pages) {
   console.log("no first page; the session:", JSON.stringify(await state()));
   console.log("editor:", await evalIn(`(() => { const c = document.querySelector(".cm-editor .cm-content"); return c ? "cm-content" + (c.cmView || c.cmTile ? ", with its view" : ", no view") : typeof mockEditor; })()`));
   for (const e of events) console.log(`  ${e.t} ms  ${e.k}  ${String(e.d).slice(0, 400)}`);
@@ -489,19 +498,21 @@ for (const s of sc.steps ?? []) {
     await call2("Runtime.enable");
     const t1 = Date.now();
     let seen = null;
-    while (!seen && Date.now() - t1 < (s.ms ?? 120_000)) {
+    // (outgrow: a page streamed before the core runs out is not the end)
+    while ((!seen || (s.secondtab === "outgrow" && !seen.startsWith("outgrew"))) && Date.now() - t1 < (s.ms ?? 120_000)) {
       await sleep(500);
       // (a background tab paints only when a frame is asked for)
       await call2("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: 1, height: 1, scale: 1 } });
       const c = ctx2.find((x) => x.auxData?.type === "isolated" && x.origin.startsWith("chrome-extension://"));
       if (!c) continue;
-      const r = await call2("Runtime.evaluate", { contextId: c.id, returnByValue: true, expression: `(() => { const s = globalThis.__phitexSession; if (s?.pages) return "a first page"; const r = document.querySelector("phitex-preview")?.shadowRoot; const h = [...(r?.querySelectorAll("h3") ?? [])].find((e) => /Couldn't open/.test(e.textContent)); return h ? "says: " + h.textContent + ": " + (h.parentElement.querySelector(".count")?.textContent ?? "") : null; })()` });
+      const r = await call2("Runtime.evaluate", { contextId: c.id, returnByValue: true, expression: `(() => { const s = globalThis.__phitexSession; if (s?.pages) return "a first page"; const r = document.querySelector("phitex-preview")?.shadowRoot; const h = [...(r?.querySelectorAll("h3") ?? [])].find((e) => /Couldn't open/.test(e.textContent)); if (h) return "says: " + h.textContent + ": " + (h.parentElement.querySelector(".count")?.textContent ?? ""); const m = /This document needs more than the [\\d.]+ GiB[^]*?reload this tab[^.]*\\./.exec(r?.textContent ?? ""); return m ? "outgrew: " + m[0] : null; })()` });
       seen = r.result?.result?.value ?? null;
     }
     // (each tab's core's size: at an 8 GiB limit the first has 4 GiB, the second 2)
     const mem = Object.values(await memories()).sort((a, b) => b - a);
     const lim = dataLimit();
     console.log(`second tab: ${seen ?? "neither a page nor a reason"} (${Date.now() - t1} ms); the cores' memory ${mem.join(" and ")} GiB (the renderers' data limit ${lim === undefined ? "?" : (lim / GiB).toFixed(1) + " GiB"})`);
+    if (s.secondtab === "outgrow" && !/^outgrew: This document needs more than the 2 GiB/.test(seen ?? "")) (console.log("FAIL the second tab did not say it outgrew its 2 GiB"), steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
     if (!seen || (s.secondtab === "page" && seen !== "a first page")) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
     if (s.secondtab === "page" && lim !== undefined && lim <= 8 * GiB && mem.join() !== "4,2") (console.log(`FAIL at an ${(lim / GiB).toFixed(1)} GiB limit the two cores have ${mem.join(" and ")} GiB, not 4 and 2`), steps.push({ t, k: "STEP FAILED", d: { ...s, mem } }), (process.exitCode = 1));
     s.result = seen;
