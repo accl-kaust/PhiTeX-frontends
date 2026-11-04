@@ -1265,11 +1265,31 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     }
     await transport.request({ op: "rebuild" } as never);
   };
+  // Overleaf's main document (the project's root doc, the hook's `rootDoc`):
+  // the session's main unless one was picked in the settings (kept by
+  // project), as its Recompile builds it. Asked once now: the hook may have
+  // heard the socket's join before this script listened.
+  let overleafRoot: string | null = null;
+  // (the settings' list of main files told anew: set once the session's sink is made)
+  let resyncMains = () => {};
+  const followRoot = async () => {
+    if (!session?.main || !overleafRoot || overleafRoot === session.main || session.text(overleafRoot) === undefined) return;
+    const picked = ((await chrome.storage.local.get("mains")).mains as Record<string, string> | undefined)?.[project()];
+    if (picked && session.text(picked) !== undefined) return;
+    await session.setMain(overleafRoot);
+    resyncMains();
+  };
+  window.postMessage({ src: "phitex-content", type: "rootDoc?" }, location.origin);
   // (a double-click in the editor or on the file outline: that place on the page)
   window.addEventListener("message", (e) => {
     if (e.source !== window || e.data?.src !== "phitex-hook") return;
     if (e.data.type === "sync") void session?.toPage(e.data.file, e.data.pos);
     if (e.data.type === "fileReplaced") void replaced(String(e.data.id), String(e.data.name));
+    // (Overleaf's main document, as its socket told the hook: followed unless one was picked here)
+    if (e.data.type === "rootDoc") {
+      overleafRoot = typeof e.data.path === "string" ? e.data.path : null;
+      void followRoot();
+    }
     // (Overleaf's ← beside the PDF: the place on the ⚡ pages in the editor)
     if (e.data.type === "toCode") {
       const p = panel.spot();
@@ -1379,9 +1399,11 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     const files = await host.loadProject();
     session.refresh(files);
     // (the main file picked for this project, else the guess: never the file open for being open)
+    // (then Overleaf's own main document, its Menu's, when the hook heard it already: else it follows when heard, followRoot)
     const picked = ((await chrome.storage.local.get("mains")).mains as Record<string, string> | undefined)?.[project()];
-    const main = picked && picked in files ? picked : guessMain(files);
+    const main = picked && picked in files ? picked : overleafRoot && overleafRoot in files ? overleafRoot : guessMain(files);
     sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), main);
+    resyncMains = () => sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), session.main);
     if (!main) throw new Error("no main .tex file found");
     await session.setMain(main);
     // (the editor's open file announced again: its text, unsaved edits and all, wins over the ZIP's)

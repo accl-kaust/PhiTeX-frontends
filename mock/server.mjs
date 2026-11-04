@@ -23,11 +23,34 @@ const TEXT = /\.(tex|bib|cls|sty|bst|bbx|cbx|lbx|dbx|cfg|def|clo|fd|ltx|txt|md|i
 // (the editor's socket as Overleaf's speaks it: server to client text frames
 // only; POST /project/mock/replace?path=fig.png with the new bytes says what
 // a replaced file says: a new id, `removeEntity`, then `reciveNewFile`)
+// The join's answer on each new socket, as Overleaf's real-time service
+// sends it (`joinProjectResponse`: the project's root doc and folder tree),
+// and a change of the root doc (POST /project/mock/root-doc?path=main.tex:
+// `rootDocUpdated`, the new id). MOCK_ROOT: the root doc's path (unset: none,
+// as a project whose root doc was deleted).
 const sockets = new Set();
-const say = (name, args) => {
+const frame = (name, args) => {
   const t = Buffer.from(`5:::${JSON.stringify({ name, args })}`);
-  const head = t.length < 126 ? Buffer.from([0x81, t.length]) : Buffer.from([0x81, 126, t.length >> 8, t.length & 255]);
-  for (const s of sockets) s.write(Buffer.concat([head, t]));
+  const len = t.length;
+  const head = len < 126 ? Buffer.from([0x81, len]) : len < 65536 ? Buffer.from([0x81, 126, len >> 8, len & 255]) : Buffer.concat([Buffer.from([0x81, 127]), Buffer.from(new BigUint64Array([BigInt(len)]).buffer).reverse()]);
+  return Buffer.concat([head, t]);
+};
+const say = (name, args) => {
+  for (const s of sockets) s.write(frame(name, args));
+};
+let rootPath = process.env.MOCK_ROOT ?? null;
+const docId = (p) => [...docs].find(([, d]) => d.path === p)?.[0] ?? null;
+/** The project's folders as Overleaf's join gives them (ProjectEditorHandler's folder model): names and ids. */
+const folderTree = () => {
+  const top = { _id: "rootfolder", name: "rootFolder", folders: [], docs: [], fileRefs: [] };
+  const at = (parts) => {
+    let f = top;
+    for (const name of parts) f = f.folders.find((c) => c.name === name) ?? (f.folders.push({ _id: `folder-${name}`, name, folders: [], docs: [], fileRefs: [] }), f.folders.at(-1));
+    return f;
+  };
+  for (const [id, d] of docs) at(d.path.split("/").slice(0, -1)).docs.push({ _id: id, name: path.basename(d.path) });
+  for (const p of files.keys()) at(p.split("/").slice(0, -1)).fileRefs.push({ _id: `file-${p}`, name: path.basename(p) });
+  return [top];
 };
 const fileIds = new Map(); // id → path
 const add = (p, b) => {
@@ -146,6 +169,11 @@ http.createServer((req, res) => {
     });
     return;
   }
+  if (u.pathname === "/project/mock/root-doc" && req.method === "POST") {
+    rootPath = u.searchParams.get("path");
+    say("rootDocUpdated", [docId(rootPath)]);
+    return send(204, "text/plain", "");
+  }
   if (u.pathname === "/project/mock/entities")
     return send(200, "application/json", JSON.stringify({ project_id: "mock", entities: [...docs.values()].map((d) => ({ path: "/" + d.path, type: "doc" })).concat([...files.keys()].map((p) => ({ path: "/" + p, type: "file" }))) }));
   if (u.pathname === "/project/mock/docs")
@@ -181,6 +209,7 @@ http.createServer((req, res) => {
   const accept = crypto.createHash("sha1").update(req.headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");
   socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
   sockets.add(socket);
+  socket.write(frame("joinProjectResponse", [{ project: { _id: "mock", name: "mock", rootDoc_id: rootPath && docId(rootPath), rootFolder: folderTree() }, permissionsLevel: "owner", protocolVersion: 2 }]));
   socket.on("close", () => sockets.delete(socket));
   socket.on("error", () => sockets.delete(socket));
 }).listen(port, () => console.log(`mock Overleaf on http://localhost:${port}/project/mock (${docs.size} docs, ${files.size} files)`));

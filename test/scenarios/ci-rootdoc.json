@@ -1,0 +1,2 @@
+{ "project": "test/scenarios/rootdoc", "name": "ci-rootdoc", "strict": true, "root": "other.tex",
+  "steps": [ { "onpage": "Otherword", "ms": 60000 }, { "rootdoc": "main.tex" }, { "onpage": "Mainword", "ms": 60000 } ] }

@@ -17,16 +17,49 @@
   // [folder, file, ...]}`: EditorController's addFile and replaceFile), and in
   // nothing the page shows. Only heard, each frame still Overleaf's. On its
   // xhr-polling fallback nothing is heard: the figure is new at the next load.
+  //
+  // Overleaf's main file (the project's root document, its Menu's "Main
+  // document") is told on the same socket and nowhere on the page: the
+  // join's answer (`joinProjectResponse`, `project.rootDoc_id` and the
+  // folder tree, `rootFolder`) and each change (`rootDocUpdated`, the new
+  // id). Its path is posted (`rootDoc`), and again whenever the content
+  // script asks (`rootDoc?`: it may start after the join).
+  let folders: any = null;
+  let rootId: string | null = null;
+  let rootPath: string | null = null;
+  /** The path of doc `id` in Overleaf's folder tree (folders' names, then the doc's), or null. */
+  const docPath = (f: any, id: string, at = ""): string | null => {
+    for (const d of f?.docs ?? []) if (d?._id === id) return at + d.name;
+    for (const c of f?.folders ?? []) {
+      const p = docPath(c, id, `${at}${c.name}/`);
+      if (p) return p;
+    }
+    return null;
+  };
+  const tellRoot = () => {
+    rootPath = rootId && folders ? docPath(folders, rootId) : null;
+    post({ type: "rootDoc", path: rootPath });
+  };
   const NativeSocket = window.WebSocket;
   window.WebSocket = class extends NativeSocket {
     constructor(url: string | URL, protocols?: string | string[]) {
       super(url, protocols);
       this.addEventListener("message", (e) => {
-        if (typeof e.data !== "string" || !e.data.includes('"reciveNewFile"')) return;
+        if (typeof e.data !== "string" || !/"(reciveNewFile|joinProjectResponse|rootDocUpdated)"/.test(e.data)) return;
         const m = /^5:[^:]*:[^:]*:([\s\S]*)$/.exec(e.data);
         try {
           const f = m && JSON.parse(m[1]);
           if (f?.name === "reciveNewFile" && f.args?.[1]?._id) post({ type: "fileReplaced", id: f.args[1]._id, name: f.args[1].name });
+          if (f?.name === "joinProjectResponse" && f.args?.[0]?.project) {
+            const p = f.args[0].project;
+            folders = Array.isArray(p.rootFolder) ? p.rootFolder[0] : null;
+            rootId = typeof p.rootDoc_id === "string" ? p.rootDoc_id : null;
+            tellRoot();
+          }
+          if (f?.name === "rootDocUpdated") {
+            rootId = typeof f.args?.[0] === "string" ? f.args[0] : null;
+            tellRoot();
+          }
         } catch {
           /* (not an event frame) */
         }
@@ -304,6 +337,7 @@
     if (e.source !== window || e.data?.src !== "phitex-content") return;
     const m = e.data;
     if (m.type === "hello") identify();
+    else if (m.type === "rootDoc?") post({ type: "rootDoc", path: rootPath });
     else if (m.type === "goto" && view && typeof m.line === "number") {
       if (m.file === file) gotoLine(m.line);
       else openThen(m.file, () => gotoLine(m.line));

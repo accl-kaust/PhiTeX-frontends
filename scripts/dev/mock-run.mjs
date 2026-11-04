@@ -31,11 +31,13 @@
 //       { "replacefile": "fig.png", "b64": "…", "ms": 60000 }, // the binary file replaced as Overleaf says it is; until the session's PDF changes, else the run fails
 //       { "onpage": "Typed words", "ms": 60000 }, // until that text is on a page, else the run fails
 //       { "reload": 3, "ms": 120000 }, // the tab reloaded 3 times, each until its first page, else the run fails
-//       { "secondtab": true, "ms": 120000 } // the project in a second tab: its first page, or its panel saying why it has none; else (neither in time) the run fails
+//       { "secondtab": true, "ms": 120000 }, // the project in a second tab: its first page, or its panel saying why it has none; else (neither in time) the run fails
+//       { "rootdoc": "main.tex" }    // Overleaf's main document changed (its Menu), as its socket tells the editor
 //     ] }
 //   "strict": true // (top level) the run fails on any exception or console error in the
 //                  // tab or the extension (the release gate's: test/scenarios/ci.json)
 //   "storage": { "toured": false } // (top level) over the onboarded settings (scripts/dev/onboarded.mjs)
+//   "root": "report.tex"         // (top level) Overleaf's main document for the project (the mock's MOCK_ROOT; unset, none)
 // --fresh: the package cache (IndexedDB) emptied first, as a new install.
 // --keep: Chromium and the mock left running after.
 import { spawn, execFileSync } from "node:child_process";
@@ -58,7 +60,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // the mock, on the scenario's project
 try { execFileSync("pkill", ["-f", `^node mock/server.mjs ${MOCK}`]); } catch {}
 await sleep(500);
-const mock = spawn("node", ["mock/server.mjs", String(MOCK)], { cwd: root, env: { ...process.env, MOCK_PROJECT: path.resolve(sc.project) }, stdio: ["ignore", "pipe", "inherit"], detached: true });
+const mock = spawn("node", ["mock/server.mjs", String(MOCK)], { cwd: root, env: { ...process.env, MOCK_PROJECT: path.resolve(sc.project), ...(sc.root ? { MOCK_ROOT: sc.root } : {}) }, stdio: ["ignore", "pipe", "inherit"], detached: true });
 await new Promise((r) => mock.stdout.once("data", r));
 // Chromium with the extension
 if (fresh) fs.rmSync(path.join(root, PROFILE, "Default/IndexedDB"), { recursive: true, force: true });
@@ -383,6 +385,10 @@ for (const s of sc.steps ?? []) {
     for (const t0 = Date.now(); now === was && Date.now() - t0 < (s.ms ?? 60000); ) (now = await evalIn(digest, true)) === was && (await sleep(200));
     console.log(`replacefile ${s.replacefile}: the PDF ${now === was ? "UNCHANGED" : "changed"}`);
     if (now === was) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+  } else if (s.rootdoc !== undefined) {
+    // (`{"rootdoc": "main.tex"}`: the project's main document changed in Overleaf's Menu, its socket telling the editor)
+    await fetch(`http://localhost:${MOCK}/project/mock/root-doc?path=${encodeURIComponent(s.rootdoc)}`, { method: "POST" });
+    console.log(`rootdoc ${s.rootdoc}: told`);
   } else if (s.onpage !== undefined) {
     const has = `(() => { const r = document.querySelector("phitex-preview")?.shadowRoot; return !!r && [...r.querySelectorAll(".slot text")].some((t) => t.textContent.includes(${JSON.stringify(s.onpage)})); })()`;
     let seen = false;
