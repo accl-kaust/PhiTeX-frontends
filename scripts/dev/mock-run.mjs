@@ -28,6 +28,7 @@
 //       { "cursor": "Every writer" },  // the cursor put in that text: the word's highlight boxes 150 ms after
 //       { "dbltext": "Every writer" }, // double-click the editor at that text: the page's highlight boxes after
 //       { "dbloutline": "Section 3" }, // double-click that heading in the file outline
+//       { "replacefile": "fig.png", "b64": "…", "ms": 60000 }, // the binary file replaced as Overleaf says it is; until the session's PDF changes, else the run fails
 //       { "onpage": "Typed words", "ms": 60000 } // until that text is on a page, else the run fails
 //     ] }
 //   "strict": true // (top level) the run fails on any exception or console error in the
@@ -339,6 +340,14 @@ for (const s of sc.steps ?? []) {
     if (measuring) console.log("cpu while typing:", JSON.stringify((s.result = await measuring), null, 1));
   } else if (s.replace !== undefined) {
     await evalIn(`(() => { const t = mockEditor.text(), i = t.indexOf(${JSON.stringify(s.replace)}); if (i >= 0) mockEditor.replace(i, i + ${JSON.stringify(s.replace)}.length, ${JSON.stringify(s.with ?? "")}); })()`);
+  } else if (s.replacefile !== undefined) {
+    const digest = `(async () => { const b = await globalThis.__phitexSession.pdf(); return b ? [...new Uint8Array(await crypto.subtle.digest("SHA-256", b))].join() : ""; })()`;
+    const was = await evalIn(digest, true);
+    await fetch(`http://localhost:${MOCK}/project/mock/replace?path=${encodeURIComponent(s.replacefile)}`, { method: "POST", body: Buffer.from(s.b64, "base64") });
+    let now = was;
+    for (const t0 = Date.now(); now === was && Date.now() - t0 < (s.ms ?? 60000); ) (now = await evalIn(digest, true)) === was && (await sleep(200));
+    console.log(`replacefile ${s.replacefile}: the PDF ${now === was ? "UNCHANGED" : "changed"}`);
+    if (now === was) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
   } else if (s.onpage !== undefined) {
     const has = `(() => { const r = document.querySelector("phitex-preview")?.shadowRoot; return !!r && [...r.querySelectorAll(".slot text")].some((t) => t.textContent.includes(${JSON.stringify(s.onpage)})); })()`;
     let seen = false;

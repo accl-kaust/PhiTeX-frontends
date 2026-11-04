@@ -1235,10 +1235,41 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
       if (others) session?.others(others.file, othersOn ? others.others : []);
     }
   });
+  /**
+   * A binary file uploaded or replaced (hook.ts): its new bytes given to the
+   * core, and a build that reads every file again. Its path is by its name in
+   * `/entities`; two files of that name: both read again, from the ZIP, which
+   * has them all.
+   */
+  const replaced = async (id: string, name: string) => {
+    if (!giveBinary) return;
+    const r = await pageFetch(`${project()}/entities`, { credentials: "include" });
+    if (!r.ok) return;
+    const { entities } = (await r.json()) as { entities: { path: string; type: string }[] };
+    const paths = entities.filter((e) => e.type === "file" && e.path.split("/").pop() === name).map((e) => e.path.replace(/^\//, ""));
+    if (paths.length === 1) {
+      const f = await pageFetch(`${project()}/file/${id}`, { credentials: "include" });
+      if (!f.ok) return;
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      lastBinaries[paths[0]] = bytes;
+      await giveBinary(paths[0], bytes);
+    } else {
+      const z = await pageFetch(`${project()}/download/zip`, { credentials: "include" });
+      if (!z.ok) return;
+      const { binaries } = await readZip(await z.arrayBuffer(), () => {});
+      for (const p of paths) {
+        if (!binaries[p]) continue;
+        lastBinaries[p] = binaries[p];
+        await giveBinary(p, binaries[p]);
+      }
+    }
+    await transport.request({ op: "rebuild" } as never);
+  };
   // (a double-click in the editor or on the file outline: that place on the page)
   window.addEventListener("message", (e) => {
     if (e.source !== window || e.data?.src !== "phitex-hook") return;
     if (e.data.type === "sync") void session?.toPage(e.data.file, e.data.pos);
+    if (e.data.type === "fileReplaced") void replaced(String(e.data.id), String(e.data.name));
     // (Overleaf's ← beside the PDF: the place on the ⚡ pages in the editor)
     if (e.data.type === "toCode") {
       const p = panel.spot();

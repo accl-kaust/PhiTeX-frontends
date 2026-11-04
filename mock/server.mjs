@@ -11,6 +11,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
+import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 
 const dir = path.dirname(new URL(import.meta.url).pathname);
@@ -19,6 +20,16 @@ const docs = new Map(); // id → { path, text }
 const files = new Map(); // path → Buffer (binary files: figures)
 let n = 0;
 const TEXT = /\.(tex|bib|cls|sty|bst|bbx|cbx|lbx|dbx|cfg|def|clo|fd|ltx|txt|md|ist|tikz|pgf|dtx|ins)$/i;
+// (the editor's socket as Overleaf's speaks it: server to client text frames
+// only; POST /project/mock/replace?path=fig.png with the new bytes says what
+// a replaced file says: a new id, `removeEntity`, then `reciveNewFile`)
+const sockets = new Set();
+const say = (name, args) => {
+  const t = Buffer.from(`5:::${JSON.stringify({ name, args })}`);
+  const head = t.length < 126 ? Buffer.from([0x81, t.length]) : Buffer.from([0x81, 126, t.length >> 8, t.length & 255]);
+  for (const s of sockets) s.write(Buffer.concat([head, t]));
+};
+const fileIds = new Map(); // id → path
 const add = (p, b) => {
   if (TEXT.test(p) && !b.includes(0)) docs.set(`d${String(++n).padStart(23, "0")}`, { path: p, text: b.toString("utf8") });
   else files.set(p, b);
@@ -115,6 +126,21 @@ http.createServer((req, res) => {
     if (!fs.existsSync(f)) return send(404, "text/plain", "mock/build/editor.js: run scripts/sandbox scripts/build/mock-editor.sh");
     return send(200, "text/javascript; charset=utf-8", fs.readFileSync(f));
   }
+  if ((m = u.pathname.match(/^\/project\/mock\/file\/(\w+)$/)) && files.has(fileIds.get(m[1])))
+    return send(200, "application/octet-stream", files.get(fileIds.get(m[1])));
+  if (u.pathname === "/project/mock/replace" && req.method === "POST") {
+    const parts = [];
+    req.on("data", (c) => parts.push(c));
+    req.on("end", () => {
+      const p = u.searchParams.get("path"), id = `f${String(++n).padStart(23, "0")}`;
+      files.set(p, Buffer.concat(parts));
+      fileIds.set(id, p);
+      say("removeEntity", ["old", "upload"]);
+      say("reciveNewFile", ["root", { _id: id, name: path.basename(p) }, "upload", null, "me"]);
+      send(204, "text/plain", "");
+    });
+    return;
+  }
   if (u.pathname === "/project/mock/entities")
     return send(200, "application/json", JSON.stringify({ project_id: "mock", entities: [...docs.values()].map((d) => ({ path: "/" + d.path, type: "doc" })).concat([...files.keys()].map((p) => ({ path: "/" + p, type: "file" }))) }));
   if (u.pathname === "/project/mock/docs")
@@ -146,4 +172,10 @@ http.createServer((req, res) => {
   if (u.pathname === "/project/mock/output/output.log" && fs.existsSync(path.join(OUT, "output.log")))
     return send(200, "text/plain; charset=utf-8", fs.readFileSync(path.join(OUT, "output.log")));
   send(404, "text/plain", "not found");
+}).on("upgrade", (req, socket) => {
+  const accept = crypto.createHash("sha1").update(req.headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");
+  socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+  sockets.add(socket);
+  socket.on("close", () => sockets.delete(socket));
+  socket.on("error", () => sockets.delete(socket));
 }).listen(port, () => console.log(`mock Overleaf on http://localhost:${port}/project/mock (${docs.size} docs, ${files.size} files)`));

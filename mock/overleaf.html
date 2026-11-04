@@ -59,6 +59,10 @@
   <div class="toolbar-pdf"><div class="toolbar-pdf-left"><div class="compile-button-group"><button type="button" id="recompile" title="Compile with the local pdflatex, as Overleaf compiles">Recompile</button></div></div><div class="toolbar-pdf-right"></div></div>
   <div class="pdf-viewer" id="olpdf">Overleaf's PDF: press Recompile (the local pdflatex)</div>
 </div>
+<script>
+// (Overleaf's socket: its frames heard by the extension's hook, as on the real page)
+new WebSocket(location.origin.replace(/^http/, "ws") + "/socket.io");
+</script>
 <script type="module">
 // CodeMirror 6, as Overleaf runs it (mock/editor/editor.mjs, bundled by
 // scripts/build/mock-editor.sh): the extension's hook finds its EditorView from

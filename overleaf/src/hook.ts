@@ -12,6 +12,28 @@
 
   const post = (msg: object) => window.postMessage({ src: SRC, ...msg }, location.origin);
 
+  // A figure uploaded or replaced: Overleaf tells each editor of the project on
+  // its socket (socket.io 0.9's event frame, `5:::{"name":"reciveNewFile","args":
+  // [folder, file, ...]}`: EditorController's addFile and replaceFile), and in
+  // nothing the page shows. Only heard, each frame still Overleaf's. On its
+  // xhr-polling fallback nothing is heard: the figure is new at the next load.
+  const NativeSocket = window.WebSocket;
+  window.WebSocket = class extends NativeSocket {
+    constructor(url: string | URL, protocols?: string | string[]) {
+      super(url, protocols);
+      this.addEventListener("message", (e) => {
+        if (typeof e.data !== "string" || !e.data.includes('"reciveNewFile"')) return;
+        const m = /^5:[^:]*:[^:]*:([\s\S]*)$/.exec(e.data);
+        try {
+          const f = m && JSON.parse(m[1]);
+          if (f?.name === "reciveNewFile" && f.args?.[1]?._id) post({ type: "fileReplaced", id: f.args[1]._id, name: f.args[1].name });
+        } catch {
+          /* (not an event frame) */
+        }
+      });
+    }
+  };
+
   /**
    * The source editor's EditorView (of its `.cm-content`: `cmView.view` (CM ≤
    * 6.3x), or `cmTile.view`). Never the history's: its document is a version's

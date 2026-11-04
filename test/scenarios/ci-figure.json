@@ -1,0 +1,1 @@
+{"project": "test/scenarios/ci-figure", "name": "ci-figure", "strict": true, "steps": [{"replacefile": "fig.png", "b64": "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAIAAAAC64paAAAAGklEQVR4nGOQkztBNmIY1TyqeVTzqOaB1QwAOE2WUGwwv+kAAAAASUVORK5CYII=", "ms": 60000}, {"idle": 1500}, {"shot": "replaced"}]}
