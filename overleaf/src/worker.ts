@@ -68,7 +68,8 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
       console.error("[phitex core] not started:", String(e));
       // (the next request starts it again)
       started = undefined;
-      throw memory ? new Error(NO_MEMORY) : e;
+      // (the message as it is, the panel's card: no "Error: " before it)
+      throw memory ? NO_MEMORY : e;
     }
   }
 }

@@ -283,7 +283,7 @@ async function inOffscreen(expr) {
 {
   const iso = { tab: await evalIn("globalThis.crossOriginIsolated", true), offscreen: await inOffscreen("globalThis.crossOriginIsolated") };
   const mem = await inOffscreen(`(() => { const out = []; const one = (name, o) => { try { const m = new WebAssembly.Memory(o); out.push(name + ": ok"); return m; } catch (e) { out.push(name + ": " + e); return null; } }; const a = one("shared 65535 pages", { initial: 65535, maximum: 65535, shared: true }); const b = one("a second shared 65535", { initial: 65535, maximum: 65535, shared: true }); one("own 65535", { initial: 65535, maximum: 65535 }); return out.join("; "); })()`);
-  console.log(`cross-origin isolated: tab ${iso.tab}, offscreen ${iso.offscreen}; the offscreen document's memory: ${mem}`);
+  console.log(`cross-origin isolated: tab ${iso.tab}, offscreen ${iso.offscreen}; what the offscreen document can still allocate beside its cores (one 4 GiB core already there: on a 16 GB machine, 8 GiB in all, these fail; not the core's own start): ${mem}`);
   if (iso.offscreen !== true) {
     console.log("FAIL the extension's offscreen document is not cross-origin isolated: the core cannot share its memory with its threads (the manifest's cross_origin_embedder_policy and cross_origin_opener_policy)");
     process.exitCode = 1;
