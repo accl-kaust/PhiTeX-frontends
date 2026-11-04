@@ -124,6 +124,7 @@
         },
         "phitex.path": {
           "type": "string",
+          "scope": "machine",
           "default": "phitex",
           "description": "The phitex command (for the \"phitex watch\" engine): a name on the PATH or a full path."
         },

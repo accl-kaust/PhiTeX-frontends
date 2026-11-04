@@ -64,6 +64,10 @@
 (defvar phitex-install-prefix "~/.local"
   "`phitex-install' puts the binary in this folder's bin/.")
 
+;; (never from a project's file or directory variables: what runs, and what is trusted)
+(dolist (v '(phitex-command phitex-release-base phitex-release-key phitex-install-prefix))
+  (put v 'risky-local-variable t))
+
 (defconst phitex--install-script "set -eu
 base=$1 key=$2 prefix=$3
 command -v minisign >/dev/null || { echo \"minisign is not installed: the download could not be checked\"; exit 1; }
