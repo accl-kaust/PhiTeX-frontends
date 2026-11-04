@@ -82,13 +82,6 @@ local function start(buf)
     -- project often sits in a folder of a larger git repository)
     root_dir = vim.fs.root(buf, { "phitex.toml" }) or vim.fs.dirname(vim.api.nvim_buf_get_name(buf)),
     -- init_options = { main = "paper.tex" },
-    -- (a watch already running in a folder holding this file, its phitex/status
-    -- root: one started for a chapter that found its main file a folder up)
-    reuse_client = function(c, config)
-      local r = status[c.id] and status[c.id].root
-      if type(r) == "string" and r ~= "" and vim.startswith(file, r .. "/") then return true end
-      return c.name == config.name and c.root_dir == config.root_dir
-    end,
     handlers = {
       ["phitex/status"] = function(_, s, ctx)
         status[ctx.client_id] = s
@@ -110,7 +103,16 @@ local function start(buf)
         vim.schedule(function() vim.notify(string.format("PhiTeX: phitex watch exited (code %d). :PhiTeXRestart starts it again.", code), vim.log.levels.ERROR) end)
       end
     end,
-  }, { bufnr = buf })
+  }, {
+    bufnr = buf,
+    -- (a watch already running in a folder holding this file, its phitex/status
+    -- root: one started for a chapter that found its main file a folder up)
+    reuse_client = function(c, config)
+      local r = status[c.id] and status[c.id].root
+      if type(r) == "string" and r ~= "" and vim.startswith(file, r .. "/") then return true end
+      return c.name == config.name and c.root_dir == config.root_dir
+    end,
+  })
   return id
 end
 
@@ -160,7 +162,7 @@ vim.api.nvim_create_autocmd("LspDetach", {
     local c = vim.lsp.get_client_by_id(ev.data.client_id)
     if not c or c.name ~= "phitex" then return end
     vim.schedule(function()
-      local left = vim.tbl_filter(function(b) return b ~= ev.buf and vim.api.nvim_buf_is_loaded(b) end, vim.lsp.get_buffers_by_client_id(c.id))
+      local left = vim.tbl_filter(function(b) return b ~= ev.buf and vim.api.nvim_buf_is_loaded(b) end, vim.tbl_keys(c.attached_buffers))
       if #left == 0 and not c:is_stopped() then c:stop() end
     end)
   end,
