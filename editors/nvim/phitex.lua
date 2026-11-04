@@ -12,7 +12,7 @@
 -- Its progress (fetching a package, typesetting) is Neovim's own LSP
 -- progress (vim.lsp.status(), or a plugin such as fidget.nvim).
 --
--- Commands: :PhiTeXViewer, :PhiTeXStop, :PhiTeXRestart, :PhiTeXRebuild,
+-- Commands: :PhiTeXInstall, :PhiTeXViewer, :PhiTeXStop, :PhiTeXRestart, :PhiTeXRebuild,
 -- :PhiTeXSavePdf [path], :PhiTeXCaches, :PhiTeXClearCache [build|packages|all].
 --
 -- Settings (docs/spec-editor-protocol.md §3.5), in PhitexSettings before
@@ -21,8 +21,12 @@
 -- words at the cursor marked on the page; "selection": only a selection's;
 -- "dblclick": nothing as you move).
 --
--- Put this file in your config (e.g. ~/.config/nvim/plugin/phitex.lua);
--- `phitex` must be on PATH. A project with several .tex files names its
+-- Put this file in your config (e.g. ~/.config/nvim/plugin/phitex.lua), or
+-- with lazy.nvim: { "accl-kaust/PhiTeX-frontends", config = function(p) vim.opt.rtp:append(p.dir .. "/editors/nvim"); dofile(p.dir .. "/editors/nvim/phitex.lua") end }.
+-- With no `phitex` on PATH, it asks before downloading the latest release
+-- into ~/.local/bin (:PhiTeXInstall does the same). That needs minisign and
+-- curl: the release's SHA256SUMS must verify against the release key below,
+-- and the download must match it, or nothing is installed. A project with several .tex files names its
 -- main one in phitex.toml (`main = "paper.tex"`) or in init_options.
 
 --- This file, as the server is told (initializationOptions.client: docs/spec-editor-protocol.md §1).
@@ -70,7 +74,72 @@ end
 
 PhitexSettings = PhitexSettings or {}
 
+--- Where :PhiTeXInstall downloads from, the release key's minisign public key (PhiTeX's ci/minisign.pub), the folder whose bin/ it fills.
+PhitexInstall = vim.tbl_extend("keep", PhitexInstall or {}, {
+  base = "https://github.com/accl-kaust/PhiTeX/releases/latest/download",
+  key = "RWS/tPWBRVVf0Y9h/ODPiO2EgZi1labeCog3siaCfIdaC9HJkDJZ8k4u",
+  prefix = vim.fn.expand("~/.local"),
+})
+local INSTALL_SCRIPT = [==[
+set -eu
+base=$1 key=$2 prefix=$3
+command -v minisign >/dev/null || { echo "minisign is not installed: the download could not be checked"; exit 1; }
+case "$(uname -s)" in Linux) os=linux;; Darwin) os=macos;; *) echo "no build for $(uname -s)"; exit 1;; esac
+case "$(uname -m)" in x86_64|amd64) arch=x86_64;; aarch64|arm64) arch=aarch64;; *) echo "no build for $(uname -m)"; exit 1;; esac
+asset=phitex-$arch-$os.tar.gz
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+for f in SHA256SUMS SHA256SUMS.minisig "$asset"; do
+  curl -fsSL --proto-redir '=https' -o "$tmp/$f" "$base/$f" || { echo "could not download $base/$f"; exit 1; }
+done
+minisign -Vqm "$tmp/SHA256SUMS" -x "$tmp/SHA256SUMS.minisig" -P "$key" || { echo "the signature does not verify: nothing installed"; exit 1; }
+want=$(awk -v f="$asset" '$2 == f || $2 == "*" f {print $1}' "$tmp/SHA256SUMS")
+if command -v sha256sum >/dev/null; then got=$(sha256sum "$tmp/$asset" | cut -d" " -f1); else got=$(shasum -a 256 "$tmp/$asset" | cut -d" " -f1); fi
+[ -n "$want" ] && [ "$want" = "$got" ] || { echo "$asset does not match SHA256SUMS: nothing installed"; exit 1; }
+tar -xzf "$tmp/$asset" -C "$tmp"
+[ -f "$tmp/phitex" ] || { echo "$asset has no phitex binary"; exit 1; }
+mkdir -p "$prefix/bin"
+cp "$tmp/phitex" "$prefix/bin/.phitex.new"; chmod 755 "$prefix/bin/.phitex.new"; mv -f "$prefix/bin/.phitex.new" "$prefix/bin/phitex"
+data=${XDG_DATA_HOME:-$HOME/.local/share}/phitex; mkdir -p "$data"
+printf '{"method": "script", "prefix": "%s", "asset": "%s", "channel": "stable"}\n' "$prefix" "$asset" > "$data/install.json"
+]==]
+local declined = false
+
+--- Ask, then download the latest release, checked against its signature; whether it is installed.
+local function install()
+  local i = PhitexInstall
+  if vim.fn.executable("minisign") == 0 then
+    vim.notify("PhiTeX: installing needs minisign, to check the download's signature: install it, or phitex itself (https://phitex.org)", vim.log.levels.ERROR)
+    return false
+  end
+  local q = string.format("Download PhiTeX from %s into %s/bin, checked against its signature?", i.base, i.prefix)
+  if vim.fn.confirm(q, "&Yes\n&No", 2) ~= 1 then
+    declined = true
+    return false
+  end
+  local r = vim.system({ "sh", "-c", INSTALL_SCRIPT, "sh", i.base, i.key, i.prefix }, { text = true }):wait()
+  if r.code ~= 0 then
+    vim.notify("PhiTeX: not installed: " .. vim.trim((r.stdout or "") .. (r.stderr or "")), vim.log.levels.ERROR)
+    return false
+  end
+  vim.env.PATH = i.prefix .. "/bin:" .. vim.env.PATH
+  vim.notify("PhiTeX: installed in " .. i.prefix .. "/bin")
+  return true
+end
+
+--- A `phitex` to run: on PATH, in the install folder, or downloaded when the user agrees.
+local function ensure_binary()
+  if vim.fn.executable("phitex") == 1 then return true end
+  local bin = PhitexInstall.prefix .. "/bin"
+  if vim.fn.executable(bin .. "/phitex") == 1 then
+    vim.env.PATH = bin .. ":" .. vim.env.PATH
+    return true
+  end
+  if declined then return false end
+  return install()
+end
+
 local function start(buf)
+  if not ensure_binary() then return nil end
   local file = vim.api.nvim_buf_get_name(buf)
   local id = vim.lsp.start({
     -- (the engine's settings: at the start, and when it asks)
@@ -168,6 +237,7 @@ vim.api.nvim_create_autocmd("LspDetach", {
   end,
 })
 
+vim.api.nvim_create_user_command("PhiTeXInstall", function() install() end, { desc = "PhiTeX: download the latest release, checked against its signature" })
 vim.api.nvim_create_user_command("PhiTeXViewer", function() exec("phitex.openViewer") end, { desc = "PhiTeX: open the pages in a browser" })
 vim.api.nvim_create_user_command("PhiTeXStop", function() exec("phitex.stop") end, { desc = "PhiTeX: stop the watch" })
 vim.api.nvim_create_user_command("PhiTeXRebuild", function() exec("phitex.rebuild") end, { desc = "PhiTeX: build again from scratch" })

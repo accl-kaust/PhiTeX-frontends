@@ -46,6 +46,7 @@ impl Hook {
             wrote: Vec::new(),
             removed: Vec::new(),
             read: None,
+            stdout: Vec::new(),
         });
         let mut a = self.answers.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(slot) = a.get_mut(&id) {
@@ -78,6 +79,7 @@ impl ShellHook for Hook {
                     wrote: Vec::new(),
                     removed: Vec::new(),
                     read: None,
+                    stdout: Vec::new(),
                 };
             }
             a = self.answered.wait(a).unwrap_or_else(PoisonError::into_inner);
@@ -132,6 +134,7 @@ fn answer(frame: &[u8]) -> Option<ShellRan> {
         wrote,
         removed,
         read: None,
+        stdout: Vec::new(),
     })
 }
 

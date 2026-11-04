@@ -26,7 +26,17 @@
 ;; Load this file and turn the mode on in TeX buffers:
 ;;   (load "~/path/to/phitex.el")
 ;;   (add-hook 'LaTeX-mode-hook #'phitex-mode) ; and/or latex-mode-hook
-;; `phitex' must be on PATH. A project is its phitex.toml's folder, else
+;; or with use-package (Emacs 30's :vc; on 29, straight or elpaca the same way):
+;;   (use-package phitex
+;;     :vc (:url "https://github.com/accl-kaust/PhiTeX-frontends"
+;;          :lisp-dir "editors/emacs" :rev :newest)
+;;     :hook ((LaTeX-mode latex-mode) . phitex-mode)
+;;     :custom (phitex-settings '(:follow "selection")))
+;; With no `phitex' on PATH, the mode asks before downloading the latest
+;; release into ~/.local/bin (M-x phitex-install does the same). It needs
+;; minisign and curl: the release's SHA256SUMS must verify against the
+;; release key below, and the download must match it, or nothing is installed.
+;; A project is its phitex.toml's folder, else
 ;; the file's own; one with several .tex files names its main one in
 ;; phitex.toml (main = "paper.tex").
 
@@ -44,6 +54,67 @@
 
 (defvar phitex-command '("phitex" "watch" "--lsp")
   "How the language server is started.")
+
+(defvar phitex-release-base "https://github.com/accl-kaust/PhiTeX/releases/latest/download"
+  "Where `phitex-install' downloads from.")
+
+(defvar phitex-release-key "RWS/tPWBRVVf0Y9h/ODPiO2EgZi1labeCog3siaCfIdaC9HJkDJZ8k4u"
+  "The release key's minisign public key (PhiTeX's ci/minisign.pub).")
+
+(defvar phitex-install-prefix "~/.local"
+  "`phitex-install' puts the binary in this folder's bin/.")
+
+(defconst phitex--install-script "set -eu
+base=$1 key=$2 prefix=$3
+command -v minisign >/dev/null || { echo \"minisign is not installed: the download could not be checked\"; exit 1; }
+case \"$(uname -s)\" in Linux) os=linux;; Darwin) os=macos;; *) echo \"no build for $(uname -s)\"; exit 1;; esac
+case \"$(uname -m)\" in x86_64|amd64) arch=x86_64;; aarch64|arm64) arch=aarch64;; *) echo \"no build for $(uname -m)\"; exit 1;; esac
+asset=phitex-$arch-$os.tar.gz
+tmp=$(mktemp -d); trap 'rm -rf \"$tmp\"' EXIT
+for f in SHA256SUMS SHA256SUMS.minisig \"$asset\"; do
+  curl -fsSL --proto-redir '=https' -o \"$tmp/$f\" \"$base/$f\" || { echo \"could not download $base/$f\"; exit 1; }
+done
+minisign -Vqm \"$tmp/SHA256SUMS\" -x \"$tmp/SHA256SUMS.minisig\" -P \"$key\" || { echo \"the signature does not verify: nothing installed\"; exit 1; }
+want=$(awk -v f=\"$asset\" '$2 == f || $2 == \"*\" f {print $1}' \"$tmp/SHA256SUMS\")
+if command -v sha256sum >/dev/null; then got=$(sha256sum \"$tmp/$asset\" | cut -d\" \" -f1); else got=$(shasum -a 256 \"$tmp/$asset\" | cut -d\" \" -f1); fi
+[ -n \"$want\" ] && [ \"$want\" = \"$got\" ] || { echo \"$asset does not match SHA256SUMS: nothing installed\"; exit 1; }
+tar -xzf \"$tmp/$asset\" -C \"$tmp\"
+[ -f \"$tmp/phitex\" ] || { echo \"$asset has no phitex binary\"; exit 1; }
+mkdir -p \"$prefix/bin\"
+cp \"$tmp/phitex\" \"$prefix/bin/.phitex.new\"; chmod 755 \"$prefix/bin/.phitex.new\"; mv -f \"$prefix/bin/.phitex.new\" \"$prefix/bin/phitex\"
+data=${XDG_DATA_HOME:-$HOME/.local/share}/phitex; mkdir -p \"$data\"
+printf '{\"method\": \"script\", \"prefix\": \"%s\", \"asset\": \"%s\", \"channel\": \"stable\"}\\n' \"$prefix\" \"$asset\" > \"$data/install.json\"
+"
+  "Downloads and checks a release: its arguments are the base, the key and the prefix.")
+
+(defvar phitex--install-declined nil "The download was declined in this Emacs: not asked again.")
+
+(defun phitex-install ()
+  "Ask, then download the latest phitex release, checked against its signature."
+  (interactive)
+  (unless (executable-find "minisign")
+    (user-error "PhiTeX: installing needs minisign, to check the download's signature: install it, or phitex itself (https://phitex.org)"))
+  (let ((prefix (expand-file-name phitex-install-prefix)))
+    (unless (yes-or-no-p (format "Download PhiTeX from %s into %s/bin, checked against its signature? " phitex-release-base prefix))
+      (setq phitex--install-declined t)
+      (user-error "PhiTeX: not downloaded"))
+    (message "PhiTeX: downloading...")
+    (with-temp-buffer
+      (unless (eql 0 (call-process "sh" nil t nil "-c" phitex--install-script "sh" phitex-release-base phitex-release-key prefix))
+        (user-error "PhiTeX: not installed: %s" (string-trim (buffer-string)))))
+    (add-to-list 'exec-path (concat prefix "/bin"))
+    (message "PhiTeX: installed in %s/bin" prefix)))
+
+(defun phitex--ensure-binary ()
+  "A `phitex' to run: on `exec-path', in the install folder, or downloaded when the user agrees."
+  (let ((name (car phitex-command))
+        (bin (expand-file-name "bin" phitex-install-prefix)))
+    (unless (executable-find name)
+      (if (file-executable-p (expand-file-name name bin))
+          (add-to-list 'exec-path bin)
+        (when phitex--install-declined
+          (user-error "PhiTeX: no phitex on PATH (M-x phitex-install downloads it)"))
+        (phitex-install)))))
 
 (defconst phitex--client '(:name "phitex.el" :version "0.1.0")
   "This file, as the server is told (initializationOptions.client).
@@ -97,6 +168,7 @@ one started for a chapter that found its main file a folder up."
   (or (let ((s (gethash root phitex--servers))) (and s (jsonrpc-running-p s) s))
       (and buffer-file-name (phitex--serving buffer-file-name))
       (let* ((default-directory root)
+             (_ (phitex--ensure-binary))
              (proc (make-process :name "phitex" :command phitex-command :connection-type 'pipe
                                  :coding 'utf-8-emacs-unix :noquery t
                                  :stderr (get-buffer-create "*phitex stderr*")))
