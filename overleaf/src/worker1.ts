@@ -95,6 +95,12 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
     },
     event: post,
     log: (s) => say("error", s),
+    // (a build's step trapped: this core is gone, the tab told now (it
+    // reopens, which starts a new one); its memory its own, nothing to free)
+    trap: (_tid, error) => {
+      started = undefined;
+      post({ event: "trapped", error: `core trapped (thread 0): ${error.split("\n")[0]}` });
+    },
   });
   const ix = await index;
   core.setIndex(ix.tsv, ix.release, ix.table, ix.names);

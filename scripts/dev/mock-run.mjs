@@ -498,14 +498,15 @@ for (const s of sc.steps ?? []) {
     await call2("Runtime.enable");
     const t1 = Date.now();
     let seen = null;
-    // (outgrow: a page streamed before the core runs out is not the end)
+    // (outgrow: a page streamed before the core runs out is not the end; its
+    // words are looked for first, the card they are said in heads them "Couldn't open")
     while ((!seen || (s.secondtab === "outgrow" && !seen.startsWith("outgrew"))) && Date.now() - t1 < (s.ms ?? 120_000)) {
       await sleep(500);
       // (a background tab paints only when a frame is asked for)
       await call2("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: 1, height: 1, scale: 1 } });
       const c = ctx2.find((x) => x.auxData?.type === "isolated" && x.origin.startsWith("chrome-extension://"));
       if (!c) continue;
-      const r = await call2("Runtime.evaluate", { contextId: c.id, returnByValue: true, expression: `(() => { const s = globalThis.__phitexSession; if (s?.pages) return "a first page"; const r = document.querySelector("phitex-preview")?.shadowRoot; const h = [...(r?.querySelectorAll("h3") ?? [])].find((e) => /Couldn't open/.test(e.textContent)); if (h) return "says: " + h.textContent + ": " + (h.parentElement.querySelector(".count")?.textContent ?? ""); const m = /This document needs more than the [\\d.]+ GiB[^]*?reload this tab[^.]*\\./.exec(r?.textContent ?? ""); return m ? "outgrew: " + m[0] : null; })()` });
+      const r = await call2("Runtime.evaluate", { contextId: c.id, returnByValue: true, expression: `(() => { const s = globalThis.__phitexSession; if (s?.pages) return "a first page"; const r = document.querySelector("phitex-preview")?.shadowRoot; const m = /This document needs more than the [\\d.]+ GiB[^]*?reload this tab[^.]*\\./.exec(r?.textContent ?? ""); if (m) return "outgrew: " + m[0]; const h = [...(r?.querySelectorAll("h3") ?? [])].find((e) => /Couldn't open/.test(e.textContent)); return h ? "says: " + h.textContent + ": " + (h.parentElement.querySelector(".count")?.textContent ?? "") : null; })()` });
       seen = r.result?.result?.value ?? null;
     }
     // (each tab's core's size: at an 8 GiB limit the first has 4 GiB, the second 2)

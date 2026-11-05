@@ -116,8 +116,13 @@ async function startCore(): Promise<{ core: Core; session: CoreSession }> {
       console.warn("[phitex core]", s);
     },
     trap: (tid, error) => {
-      dead = why(tid, error);
+      // (the first trap: the tab told now. A thread's trap mid-build has no
+      // request waiting on it, so a cold build that outgrew its core was
+      // said only at the tab's next request, which never came)
+      const first = !dead;
+      dead ??= why(tid, error);
       console.error("[phitex core]", dead, error);
+      if (first) post({ event: "trapped", error: dead });
     },
     // (a reload's core starts while the old page's still holds its 4 GiB:
     // the 4 asked again until that is freed, not 2 taken for good)

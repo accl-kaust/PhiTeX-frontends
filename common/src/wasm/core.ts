@@ -247,7 +247,15 @@ export class Core {
     this.stepping = true;
     setTimeout(() => {
       this.stepping = false;
-      if (this.x.ph_step()) this.stepSoon();
+      // (a step's trap, thread 0's own: the core is gone, as a thread's trap;
+      // thrown here it reached no one, the build waited for ever)
+      let more = 0;
+      try {
+        more = this.x.ph_step();
+      } catch (e) {
+        return this.o.trap?.(0, String((e as Error)?.stack ?? e));
+      }
+      if (more) this.stepSoon();
     }, 0);
   }
 

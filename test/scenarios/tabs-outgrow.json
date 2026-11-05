@@ -1,2 +1,2 @@
-{ "project": "target/memdocs/tl/latex/beamer", "root": "beameruserguide.tex", "name": "tabs-outgrow", "nofirst": true,
-  "steps": [ { "secondtab": "outgrow", "ms": 1500000 } ] }
+{ "project": "test/scenarios/outgrow", "name": "tabs-outgrow", "nofirst": true,
+  "steps": [ { "secondtab": "outgrow", "ms": 240000 } ] }
