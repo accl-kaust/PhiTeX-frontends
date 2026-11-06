@@ -40,6 +40,10 @@
 //                  // tab or the extension (the release gate's: test/scenarios/ci.json)
 //   "storage": { "toured": false } // (top level) over the onboarded settings (scripts/dev/onboarded.mjs)
 //   "nofirst": true              // (top level) the steps begin without waiting for the first tab's first page
+//   "budget": { "ms": 30000, "packs": 12, "nopack": "^hyphen-" } // (top level) the first page within 30 s of
+//                  // the tab's navigation, at most 12 packages fetched for it, none matching ^hyphen-; else
+//                  // the run fails (the release gate's time check: a stale format rebuilt in the tab
+//                  // fetches every language's patterns). On a "reload" step: each reload's.
 //   "root": "report.tex"         // (top level) Overleaf's main document for the project (the mock's MOCK_ROOT; unset, none)
 // --fresh: the package cache (IndexedDB) emptied first, as a new install.
 // --keep: Chromium and the mock left running after.
@@ -97,7 +101,20 @@ const evalIn = async (expr, cs = false) => {
   return r.result?.result?.value;
 };
 // (a remote session building: its watch's build under way; its pkg.building is not cleared there)
-const state = () => evalIn(`(() => { const s = globalThis.__phitexSession; if (!s) return null; return { n: s.trace.length, last: s.trace.at(-1)?.t ?? 0, now: Math.round(performance.now()), loading: s.pkg.loading.length, building: s.o?.remote ? s.watchBuilding : s.pkg.building, inflight: s.inflight, pages: s.pages, remote: !!s.o?.remote, built: !!s.trace.findLast((e) => e.k === "← status")?.d?.history } })()`, true);
+const state = () => evalIn(`(() => { const s = globalThis.__phitexSession; if (!s) return null; return { n: s.trace.length, last: s.trace.at(-1)?.t ?? 0, now: Math.round(performance.now()), loading: s.pkg.loading.length, building: s.o?.remote ? s.watchBuilding : s.pkg.building, inflight: s.inflight, pages: s.pages, done: s.pkg.done ?? [], remote: !!s.o?.remote, built: !!s.trace.findLast((e) => e.k === "← status")?.d?.history } })()`, true);
+/** A budget (the scenario's "budget"): `st`, the state at a first page, against it; over it, the run fails. */
+function budget(b, st, what) {
+  if (!b || !st?.pages) return;
+  const done = st.done, odd = b.nopack ? done.filter((p) => new RegExp(b.nopack).test(p)) : [];
+  const over = [
+    b.ms !== undefined && st.now > b.ms && `its first page ${st.now} ms after the navigation, over ${b.ms}`,
+    b.packs !== undefined && done.length > b.packs && `${done.length} packages fetched, over ${b.packs}: ${done.join(" ")}`,
+    odd.length && `${odd.length} packages matching ${b.nopack}: ${odd.slice(0, 8).join(" ")}${odd.length > 8 ? " …" : ""}`,
+  ].filter(Boolean);
+  console.log(`budget, ${what}: ${st.now} ms, ${done.length} packages${over.length ? "" : " (within it)"}`);
+  for (const m of over) console.log(`FAIL ${what}: ${m}`);
+  if (over.length) process.exitCode = 1;
+}
 /** Until nothing new for `quiet` ms and no package in flight (or `max`). */
 async function idle(quiet = 1500, max = 900_000) {
   const t = Date.now();
@@ -330,8 +347,9 @@ const GiB = 2 ** 30;
 // of those flags while it fetches: it is waited for until a build is in)
 // ("nofirst": not waited for: the steps begin while it builds, tabs-outgrow's
 // second tab beside a first one still at its cold build)
+let first;
 for (let i = 0; i < (sc.nofirst ? 0 : 2000); i++) {
-  const st = await state();
+  const st = (first = await state());
   if (st?.pages || st?.built || (i >= 100 && !st?.remote && !st?.building && !st?.inflight && !st?.loading)) break;
   await sleep(300);
 }
@@ -347,6 +365,7 @@ if (!sc.nofirst && !(await state())?.pages) {
   try { process.kill(-mock.pid); } catch {}
   process.exit(1);
 }
+budget(sc.budget, first, "the first page");
 // ("noidle": the steps start at the first page, while the core readies its rebuilds)
 /**
  * The tab's main thread over `wall` ms: CPU time by kind (Performance
@@ -473,14 +492,15 @@ for (const s of sc.steps ?? []) {
     for (let k = 0; k < s.reload; k++) {
       await call("Page.reload");
       const t1 = Date.now();
-      let pages = 0;
-      while (!pages && Date.now() - t1 < (s.ms ?? 120_000)) (await sleep(300), (pages = (await state())?.pages ?? 0));
+      let pages = 0, st;
+      while (!pages && Date.now() - t1 < (s.ms ?? 120_000)) (await sleep(300), (pages = (st = await state())?.pages ?? 0));
       // (the reloaded page's core gets the 4 GiB again: it asks while the old one's are freed, worker.ts)
       const mem = Object.values(await memories());
       const lim = dataLimit();
       console.log(`reload ${k + 1}: ${pages ? `a first page in ${Date.now() - t1} ms` : "NO first page"}; its core's memory ${mem.join(", ")} GiB (the renderers' data limit ${lim === undefined ? "?" : (lim / GiB).toFixed(1) + " GiB"})`);
       if (!pages) (steps.push({ t, k: "STEP FAILED", d: { ...s, at: k + 1 } }), (process.exitCode = 1));
       else if (mem.length !== 1 || mem[0] !== 4) (console.log(`FAIL the reloaded core has ${mem.join(", ") || "no"} GiB, not 4`), steps.push({ t, k: "STEP FAILED", d: { ...s, at: k + 1, mem } }), (process.exitCode = 1));
+      if (pages) budget(s.budget, st, `reload ${k + 1}`);
     }
   } else if (s.secondtab) {
     // (a second tab on the project: its own core, beside the first one's)

@@ -1,2 +1,2 @@
 { "project": "test/scenarios/ci", "name": "ci-reload", "strict": true,
-  "steps": [ { "reload": 3, "ms": 120000 } ] }
+  "steps": [ { "reload": 3, "ms": 120000, "budget": { "ms": 15000, "packs": 0 } } ] }
