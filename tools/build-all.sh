@@ -14,7 +14,7 @@ if [ -z "${BUILD_ALL_FETCHED:-}" ]; then
   branch=${1:-main}
   # (the submodule not counted: it is checked out at the branch's commit below)
   [ -z "$(git status --porcelain --untracked-files=no --ignore-submodules)" ] || { echo "uncommitted changes: commit or stash them first" >&2; exit 1; }
-  locks() { git rev-parse HEAD:package-lock.json HEAD:vscode/package-lock.json; }
+  locks() { git rev-parse HEAD:package-lock.json HEAD:apps/vscode/package-lock.json; }
   before=$(locks)
   git fetch github "$branch"
   git checkout "$branch"
