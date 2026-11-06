@@ -39,16 +39,19 @@ step "Packaging for Firefox (build/firefox/)"
 fx="build/phitex-instant-$version-firefox.zip" stage=build/firefox
 rm -rf "$stage" "$fx" && mkdir -p "$stage"
 [ -s overleaf/dist/core1.wasm ] || { echo "no core1.wasm (the single-threaded core: scripts/build/build.sh)" >&2; exit 1; }
-# (the threaded core and its threads, the offscreen page and the threaded
-# core's formats out: no shared memory there)
-for f in "${files[@]}" firefox-bg.html; do case $f in offscreen.html|formats) ;; *) cp -r "overleaf/$f" "$stage/" ;; esac; done
+# (the threaded core and its threads and the offscreen page out: no shared
+# memory there; the formats in, which the single-threaded core reads too:
+# check-formats.sh)
+for f in "${files[@]}" firefox-bg.html; do case $f in offscreen.html) ;; *) cp -r "overleaf/$f" "$stage/" ;; esac; done
+[ -s "$stage/formats/names.txt" ] || { echo "the Firefox package has no formats (formats/names.txt): a first open would make one in the browser" >&2; exit 1; }
 rm -rf "$stage"/dist/{core.wasm,worker.js,thread.js}
 scripts/sandbox node -e '
   const fs = require("fs"), f = process.argv[1] + "/manifest.json", m = JSON.parse(fs.readFileSync(f));
   // (in Firefox an MV3 background is a page: the core runs there, offscreen.ts in it)
   m.background = { page: "firefox-bg.html" };
   m.permissions = m.permissions.filter((p) => p !== "offscreen");
-  for (const k of ["minimum_chrome_version", "cross_origin_embedder_policy", "cross_origin_opener_policy"]) delete m[k];
+  // (Chrome-only keys: Firefox warns at each one; version_name too)
+  for (const k of ["minimum_chrome_version", "cross_origin_embedder_policy", "cross_origin_opener_policy", "version_name"]) delete m[k];
   // (128: content scripts in the page world; nothing collected, as AMO asks it said)
   m.browser_specific_settings = { gecko: { id: "phitex-instant@phitex.org", strict_min_version: "128.0", data_collection_permissions: { required: ["none"] } } };
   fs.writeFileSync(f, JSON.stringify(m, null, 2) + "\n");' "$stage"

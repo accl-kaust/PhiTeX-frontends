@@ -46,6 +46,24 @@ function readNow(url: string): Uint8Array | null {
   return x.status === 200 && x.response ? new Uint8Array(x.response as ArrayBuffer) : null;
 }
 
+/**
+ * The formats shipped (formats/names.txt, build.sh: each NAME's
+ * NAME.gzdata and NAME.pkgrec.gzdata), as the store's `format/NAME` and
+ * `format/NAME/pkgrec`, read before the core starts: without them a first
+ * open makes the format here, every language's patterns fetched for it.
+ */
+async function shippedFormats(): Promise<Map<string, Uint8Array>> {
+  const r = await fetch(at("formats/names.txt"));
+  if (!r.ok) throw new Error(`formats/names.txt: ${r.status} (scripts/build/build.sh writes it)`);
+  const gz = async (p: string) => new Uint8Array(await new Response((await fetch(at(p))).body!.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+  const out = new Map<string, Uint8Array>();
+  for (const n of (await r.text()).split("\n").filter(Boolean)) {
+    out.set(`format/${n}`, await gz(`formats/${n}.gzdata`));
+    out.set(`format/${n}/pkgrec`, await gz(`formats/${n}.pkgrec.gzdata`));
+  }
+  return out;
+}
+
 const isGzip = (b: Uint8Array) => b.length > 2 && b[0] === 0x1f && b[1] === 0x8b;
 
 /** Packs fetched before the core asks (a project's, at its open), by id. */
@@ -54,6 +72,8 @@ const ready = new Map<string, Uint8Array>();
 let kept = new Map<string, Uint8Array>();
 let hosts: string[] = [];
 let ours = new Set<string>();
+/** The formats the extension ships, gunzipped: a format kept nowhere is read from them (the core's `stored` asks at once). */
+let formats = new Map<string, Uint8Array>();
 /** minted's runner, loaded at the open of a project that uses it. */
 let minted: Promise<Runner> | undefined;
 let runner: Runner | undefined;
@@ -63,7 +83,7 @@ const index = coreIndex();
 
 async function start(): Promise<{ core: Core; session: CoreSession }> {
   const t0 = performance.now();
-  [kept, hosts, ours] = await Promise.all([platform().kv.all<Uint8Array>(KV), order(), shipped()]);
+  [kept, hosts, ours, formats] = await Promise.all([platform().kv.all<Uint8Array>(KV), order(), shipped(), shippedFormats()]);
   const core = Core.startSingle(await module, {
     sync: {
       resolve: (name) => {
@@ -82,12 +102,12 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
         }
         return null;
       },
-      stored: (key) => kept.get(scoped(key)) ?? null,
+      stored: (key) => kept.get(scoped(key)) ?? formats.get(key) ?? null,
       // (refused, as "not found", until minted's runner is loaded)
       shell: (command, files) => (runner ? runOn(runner, command, files) : { status: 127 << 8, wrote: [], removed: [] }),
     },
     store: {
-      get: async (key) => kept.get(scoped(key)) ?? null,
+      get: async (key) => kept.get(scoped(key)) ?? formats.get(key) ?? null,
       put: (key, bytes) => {
         kept.set(scoped(key), bytes);
         return platform().kv.write([[KV, scoped(key), bytes]]);
