@@ -1,10 +1,10 @@
 // Examples opened one after another in one tab (one core), each until its first page: its time, the sheet's last step and the panel's status (debugging a sample, an engine switch)
-//   node web/test/one.mjs NAME[,NAME…] [--fresh]   (--fresh: the first as a new core's first, the page reloaded with it open)
+//   node apps/web/test/one.mjs NAME[,NAME…] [--fresh]   (--fresh: the first as a new core's first, the page reloaded with it open)
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
 const names = (process.argv[2] ?? "Languages").split(",");
 const port = 19000 + Math.floor(Math.random() * 1000);
-const server = spawn(process.execPath, ["web/test/serve.mjs", String(port)], { stdio: "inherit" });
+const server = spawn(process.execPath, ["apps/web/test/serve.mjs", String(port)], { stdio: "inherit" });
 await new Promise((r) => setTimeout(r, 400));
 const home = process.cwd() + "/web/test/.one";
 const b = await chromium.launch({ executablePath: "/usr/bin/chromium", args: ["--no-sandbox", "--disable-crashpad", "--disable-crash-reporter"], env: { ...process.env, HOME: home, XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home } });
@@ -39,7 +39,7 @@ for (const [n, want] of names.entries()) {
   ok &&= done;
   if (!done) for (const t of await p.evaluate(() => (globalThis.__phitexSession?.trace ?? []).slice(-30))) console.log("  trace:", JSON.stringify(t).slice(0, 300));
   console.log(`${want}: ${done ? `first page in ${((Date.now() - t) / 1000).toFixed(1)} s` : "NO PAGE in 240 s"} ${JSON.stringify(st)}`);
-  await p.screenshot({ path: `web/shots/one-${n}-${want.toLowerCase()}.png` });
+  await p.screenshot({ path: `apps/web/shots/one-${n}-${want.toLowerCase()}.png` });
 }
 await b.close();
 server.kill();

@@ -3,7 +3,7 @@
 // threaded core starts with (2 GiB, grown to 4 if it can: common/src/wasm/threads.ts),
 // a 4 GiB one and a second beside it, the single-threaded core's own, and smaller ones; with the machine's
 // memory, its overcommit mode, its limits and its renderers' data limit. Exits 0 always.
-//   node web/test/chrome-probe.mjs      (PHITEX_CHROME: the browser)
+//   node apps/web/test/chrome-probe.mjs      (PHITEX_CHROME: the browser)
 import { chromium } from "playwright-core";
 import { execSync } from "node:child_process";
 import fs from "node:fs";

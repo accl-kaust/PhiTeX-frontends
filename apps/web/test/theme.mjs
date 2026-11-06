@@ -1,5 +1,5 @@
-// /try's look in light, dark, the system's dark, and the page's toggle clicked live, as screenshots in web/shots/theme-*.png:
-//   node web/test/theme.mjs [url]   (the site's page has its toggle, #theme; web/index.html alone: data-theme set as the toggle sets it)
+// /try's look in light, dark, the system's dark, and the page's toggle clicked live, as screenshots in apps/web/shots/theme-*.png:
+//   node apps/web/test/theme.mjs [url]   (the site's page has its toggle, #theme; apps/web/index.html alone: data-theme set as the toggle sets it)
 import { chromium } from "playwright-core";
 const url = process.argv[2] ?? "http://127.0.0.1:5176/try";
 const cache = process.cwd() + "/web/test/.cache";
@@ -37,20 +37,20 @@ for (const scheme of ["light", "dark"]) {
     getSelection().addRange(r);
   });
   console.log(`system ${scheme}`, await look(p));
-  await p.screenshot({ path: `web/shots/theme-system-${scheme}.png` });
+  await p.screenshot({ path: `apps/web/shots/theme-system-${scheme}.png` });
   await toggle(p);
   await p.waitForTimeout(400);
   console.log(`system ${scheme}, toggled`, await look(p));
-  await p.screenshot({ path: `web/shots/theme-system-${scheme}-toggled.png` });
+  await p.screenshot({ path: `apps/web/shots/theme-system-${scheme}-toggled.png` });
   await toggle(p);
   await p.waitForTimeout(400);
   console.log(`system ${scheme}, toggled back`, await look(p));
-  await p.screenshot({ path: `web/shots/theme-system-${scheme}-back.png` });
+  await p.screenshot({ path: `apps/web/shots/theme-system-${scheme}-back.png` });
   // the Versions dialog, in this look
   await p.locator("phitex-preview #b-compare").click();
   await p.waitForSelector(".phx-save input", { timeout: 10000 });
   await p.locator(".phx-save input").focus();
-  await p.screenshot({ path: `web/shots/theme-system-${scheme}-versions.png` });
+  await p.screenshot({ path: `apps/web/shots/theme-system-${scheme}-versions.png` });
   await c.close();
 }
 await b.close();

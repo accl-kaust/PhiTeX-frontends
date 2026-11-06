@@ -1,6 +1,6 @@
 // The editor: CodeMirror 6 with Overleaf's LaTeX grammar, as the mock's
 // (mock/editor/editor.mjs; the grammar generated into web/build/ by
-// scripts/build/build-web.sh). One file at a time; its edits told as the session
+// tools/build/build-web.sh). One file at a time; its edits told as the session
 // takes them, in the order applied (overleaf/src/hook.ts's), and its
 // cursor, selection and double-clicks, for the pages to follow.
 

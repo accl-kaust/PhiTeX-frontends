@@ -1,6 +1,6 @@
 // build/web/ served as phitex.org serves /try: COOP same-origin and COEP
 // credentialless, so the core's threads may share memory.
-//   node web/test/serve.mjs [port] [dir]
+//   node apps/web/test/serve.mjs [port] [dir]
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";

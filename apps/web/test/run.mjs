@@ -1,15 +1,15 @@
 // The web frontend in headless Chromium, as a visitor: each sample opened
 // and typed in (its first page's time, a keystroke's), a second file added
 // and \input, a project ZIP uploaded (a figure in it), and a compare with a
-// saved version. Screenshots in web/shots/.
-//   node web/test/run.mjs   (from the worktree, build/web built; network for Shelf;
-//   playwright-core resolvable here, e.g. web/test/node_modules linked to an install of it)
+// saved version. Screenshots in apps/web/shots/.
+//   node apps/web/test/run.mjs   (from the worktree, build/web built; network for Shelf;
+//   playwright-core resolvable here, e.g. apps/web/test/node_modules linked to an install of it)
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 
 const port = 18000 + Math.floor(Math.random() * 1000);
-const server = spawn(process.execPath, ["web/test/serve.mjs", String(port)], { stdio: "inherit" });
+const server = spawn(process.execPath, ["apps/web/test/serve.mjs", String(port)], { stdio: "inherit" });
 await new Promise((r) => setTimeout(r, 400));
 const cache = process.cwd() + "/web/test/.cache";
 const env = { ...process.env, HOME: cache, XDG_CONFIG_HOME: cache + "/cfg", XDG_CACHE_HOME: cache + "/cache" };
@@ -18,7 +18,7 @@ const p = await b.newPage({ viewport: { width: 1360, height: 820 } });
 const log = [];
 p.on("console", (m) => m.type() !== "debug" && log.push(`[${m.type()}] ${m.text()}`));
 p.on("pageerror", (e) => log.push(`[pageerror] ${e}`));
-fs.mkdirSync("web/shots", { recursive: true });
+fs.mkdirSync("apps/web/shots", { recursive: true });
 
 const shadow = (js) => `(() => { const r = document.querySelector("phitex-preview")?.shadowRoot; if (!r) return false; ${js} })()`;
 /** n slots, each drawn. */
@@ -34,7 +34,7 @@ const step = async (name, f) => {
     results[name] = { ...(await f()), ms: Date.now() - t };
   } catch (e) {
     results[name] = { error: String(e).split("\n")[0], ms: Date.now() - t };
-    await p.screenshot({ path: `web/shots/${name}-error.png` }).catch(() => {});
+    await p.screenshot({ path: `apps/web/shots/${name}-error.png` }).catch(() => {});
   }
 };
 /** Types `text` at the end of line `line` of the editor; the keystroke-to-page ms of its last key. */
@@ -64,7 +64,7 @@ await step("article", async () => {
   const firstBuild = await p.evaluate(() => window.phitexFirst);
   const key = await typeAt(28, " Typed here.");
   const statusAfter = await st();
-  await p.screenshot({ path: "web/shots/article.png" });
+  await p.screenshot({ path: "apps/web/shots/article.png" });
   // (a selection in the editor marked on the page, then collapsed: its marks gone, not left yellow)
   const marks = () => p.evaluate(shadow(`return r.querySelectorAll(".slot .mark:not(.sel):not(.fade)").length`));
   await p.click(".cm-line >> nth=20");
@@ -90,7 +90,7 @@ for (let i = 1; i < names.length; i++) {
     const first = Date.now() - t;
     await p.waitForTimeout(2500);
     const status = await p.evaluate(shadow(`return r.getElementById("sttext").textContent + " " + (r.getElementById("stmore")?.textContent ?? "")`));
-    await p.screenshot({ path: `web/shots/${names[i].toLowerCase()}.png` });
+    await p.screenshot({ path: `apps/web/shots/${names[i].toLowerCase()}.png` });
     return { firstPageMs: first, status };
   });
 }
@@ -117,16 +117,16 @@ await step("multifile", async () => {
   await p.waitForFunction(onPage("Wordfromintro"), null, { timeout: 60000 });
   // (settled: the status once the last keystroke's build is in, not mid-typing)
   await p.waitForTimeout(4000);
-  await p.screenshot({ path: "web/shots/multifile.png" });
+  await p.screenshot({ path: "apps/web/shots/multifile.png" });
   const status = await p.evaluate(shadow(`return (r.getElementById("sttext")?.textContent ?? "") + " | problems: " + (r.getElementById("pcount")?.textContent ?? "")`));
   return { inputShown: true, files: await p.locator(".phx-tree-list li").count(), status };
 });
 await step("zip", async () => {
   await p.click("[data-menu=new]");
-  await p.setInputFiles("[data-pop=new] input[type=file]", "web/test/fixture.zip");
+  await p.setInputFiles("[data-pop=new] input[type=file]", "apps/web/test/fixture.zip");
   await p.waitForFunction(onPage("Uploadedpart"), null, { timeout: 90000 });
   await p.waitForTimeout(1500);
-  await p.screenshot({ path: "web/shots/zip.png" });
+  await p.screenshot({ path: "apps/web/shots/zip.png" });
   return { files: await p.locator(".phx-tree-list li").allTextContents() };
 });
 await step("compare", async () => {
@@ -145,7 +145,7 @@ await step("compare", async () => {
   await p.waitForFunction(shadow(`const d = r.getElementById("diffbar"); return !!d && /\\d+ change/.test(d.textContent) && !/Diffing|Fetching|Typesetting/.test(d.textContent);`), null, { timeout: 120000 });
   await p.waitForTimeout(4000);
   const bar = await p.evaluate(() => document.querySelector("phitex-preview").shadowRoot.getElementById("diffbar").textContent);
-  await p.screenshot({ path: "web/shots/compare.png" });
+  await p.screenshot({ path: "apps/web/shots/compare.png" });
   return { diffbar: bar };
 });
 await step("log", async () => {
@@ -156,7 +156,7 @@ await step("log", async () => {
   await p.click("phitex-preview #x-log");
   await p.waitForFunction(shadow(`return (r.getElementById("logtext")?.textContent ?? "").length > 200`), null, { timeout: 30000 });
   const t = await p.evaluate(shadow(`return r.getElementById("logtext").textContent`));
-  await p.screenshot({ path: "web/shots/log.png" });
+  await p.screenshot({ path: "apps/web/shots/log.png" });
   await p.click("phitex-preview #logview [data-close]");
   return { logChars: t.length, head: t.slice(0, 60) };
 });
@@ -165,13 +165,13 @@ await step("dark", async () => {
   await p.click('phitex-preview #darkpdf [data-dark="on"]');
   await p.keyboard.press("Escape");
   await p.waitForTimeout(800);
-  await p.screenshot({ path: "web/shots/dark.png" });
+  await p.screenshot({ path: "apps/web/shots/dark.png" });
   return {};
 });
 await step("narrow", async () => {
   await p.setViewportSize({ width: 420, height: 820 });
   await p.waitForTimeout(1200);
-  await p.screenshot({ path: "web/shots/narrow.png" });
+  await p.screenshot({ path: "apps/web/shots/narrow.png" });
   return {};
 });
 console.log(JSON.stringify(results, null, 1));

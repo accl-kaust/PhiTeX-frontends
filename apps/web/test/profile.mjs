@@ -1,6 +1,6 @@
 // Where a visit's time goes: /try from a fresh profile, then reloaded (warm), every request (the page's and its
 // workers'), the core's console and the panel's status as it changes, each with its ms from navigation.
-//   node web/test/profile.mjs [url]
+//   node apps/web/test/profile.mjs [url]
 import { chromium } from "playwright-core";
 const url = process.argv[2] ?? "http://127.0.0.1:5198/try";
 const cache = process.cwd() + "/web/test/.cache";

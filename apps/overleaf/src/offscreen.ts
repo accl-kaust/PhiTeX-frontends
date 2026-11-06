@@ -43,7 +43,7 @@ function b64(b: Uint8Array): string {
  */
 const cores = new Map<string, Worker>();
 
-/** Each tab's core's memory (GiB, as it chose it at its start: worker.ts), read by the checks (scripts/dev/mock-run.mjs). */
+/** Each tab's core's memory (GiB, as it chose it at its start: worker.ts), read by the checks (tools/dev/mock-run.mjs). */
 const memory = new Map<string, number>();
 const showMemory = () => ((globalThis as { __phitexMemory?: Record<string, number> }).__phitexMemory = Object.fromEntries(memory));
 

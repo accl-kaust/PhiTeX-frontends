@@ -18,5 +18,5 @@ p.on("worker", (w) => {
 await p.goto(url);
 await p.waitForTimeout(+(process.env.WAIT ?? 40000));
 console.log(await p.evaluate(() => { const r = document.querySelector("phitex-preview")?.shadowRoot; return { iso: crossOriginIsolated, status: r?.getElementById("sttext")?.textContent, files: document.querySelectorAll(".phx-tree-list li").length, problems: [...(r?.querySelectorAll("#diags *") ?? [])].map((e) => e.textContent).filter(Boolean).slice(0, 4).join(" || ").slice(0, 600) }; }));
-await p.screenshot({ path: "web/shots/vite-try.png" });
+await p.screenshot({ path: "apps/web/shots/vite-try.png" });
 await b.close();

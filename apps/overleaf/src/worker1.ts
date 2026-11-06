@@ -54,7 +54,7 @@ function readNow(url: string): Uint8Array | null {
  */
 async function shippedFormats(): Promise<Map<string, Uint8Array>> {
   const r = await fetch(at("formats/names.txt"));
-  if (!r.ok) throw new Error(`formats/names.txt: ${r.status} (scripts/build/build.sh writes it)`);
+  if (!r.ok) throw new Error(`formats/names.txt: ${r.status} (tools/build/build.sh writes it)`);
   const gz = async (p: string) => new Uint8Array(await new Response((await fetch(at(p))).body!.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
   const out = new Map<string, Uint8Array>();
   for (const n of (await r.text()).split("\n").filter(Boolean)) {

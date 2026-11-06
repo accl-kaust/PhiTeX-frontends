@@ -2,8 +2,8 @@
 // in headless Chromium as a visitor opens it: the first sample's first page
 // drawn from its PDF, words typed into its source on the page within a
 // minute, and no exception or console error on the page or in its workers.
-//   node web/test/check.mjs            build/web (scripts/build/build-web.sh) served here
-//   node web/test/check.mjs URL        a deployed one (the nightly: https://demo.phitex.org/), read only
+//   node apps/web/test/check.mjs            build/web (tools/build/build-web.sh) served here
+//   node apps/web/test/check.mjs URL        a deployed one (the nightly: https://demo.phitex.org/), read only
 // PHITEX_CHROME: the browser (default /usr/bin/chromium). playwright-core
 // resolvable here (CI: npm i --no-save playwright-core). Exits 1 on a failure.
 import { chromium } from "playwright-core";
@@ -14,7 +14,7 @@ const given = process.argv[2];
 let server, url = given;
 if (!given) {
   const port = 18000 + Math.floor(Math.random() * 1000);
-  server = spawn(process.execPath, ["web/test/serve.mjs", String(port)], { stdio: "inherit" });
+  server = spawn(process.execPath, ["apps/web/test/serve.mjs", String(port)], { stdio: "inherit" });
   await new Promise((r) => setTimeout(r, 400));
   url = `http://127.0.0.1:${port}/`;
 }
@@ -62,8 +62,8 @@ await check("an edit is on the page", async () => {
   await p.keyboard.type(" Checkedword", { delay: 60 });
   await p.waitForFunction(shadow(`return [...r.querySelectorAll(".slot text")].some((t) => t.textContent.includes("Checkedword"))`), null, { timeout: 60000 });
 });
-fs.mkdirSync("web/shots", { recursive: true });
-await p.screenshot({ path: "web/shots/check.png" }).catch(() => {});
+fs.mkdirSync("apps/web/shots", { recursive: true });
+await p.screenshot({ path: "apps/web/shots/check.png" }).catch(() => {});
 await p.waitForTimeout(1500);
 await check("no exception or console error", async () => {
   if (errors.length) throw new Error(`${errors.length}:\n${errors.join("\n")}`);

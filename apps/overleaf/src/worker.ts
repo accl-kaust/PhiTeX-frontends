@@ -130,7 +130,7 @@ async function startCore(): Promise<{ core: Core; session: CoreSession }> {
   });
   pages = core.pages;
   console.info(`[phitex core] memory: ${gib(pages)} GiB`);
-  // (the offscreen document keeps each tab's, for the checks: scripts/dev/mock-run.mjs)
+  // (the offscreen document keeps each tab's, for the checks: tools/dev/mock-run.mjs)
   post({ event: "memory", gib: gib(pages) });
   const ix = await index;
   core.setIndex(ix.tsv, ix.release, ix.table, ix.names);

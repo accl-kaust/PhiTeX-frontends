@@ -1,7 +1,7 @@
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
 const port = 18000 + Math.floor(Math.random() * 1000);
-const server = spawn(process.execPath, ["web/test/serve.mjs", String(port)], { stdio: "ignore" });
+const server = spawn(process.execPath, ["apps/web/test/serve.mjs", String(port)], { stdio: "ignore" });
 await new Promise((r) => setTimeout(r, 400));
 const cache = process.cwd() + "/web/test/.cache";
 const b = await chromium.launch({ executablePath: "/usr/bin/chromium", args: ["--no-sandbox", "--disable-crashpad", "--disable-crash-reporter"], env: { ...process.env, HOME: cache, XDG_CONFIG_HOME: cache + "/cfg", XDG_CACHE_HOME: cache + "/cache" } });
@@ -32,5 +32,5 @@ await p.keyboard.type("\n\\input{intro}", { delay: 40 });
 await p.waitForTimeout(6000);
 console.log("problems:", await p.evaluate(() => document.querySelector("phitex-preview").shadowRoot.getElementById("sum")?.textContent));
 console.log("text has it:", await p.evaluate(shadow(`return [...r.querySelectorAll(".slot text")].some((t) => t.textContent.includes("Wordfromintro"))`)));
-await p.screenshot({ path: "web/shots/multi-debug.png" });
+await p.screenshot({ path: "apps/web/shots/multi-debug.png" });
 await b.close(); server.kill();
