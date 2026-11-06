@@ -60,6 +60,23 @@ export function indexOnce(): Promise<{ gz: Uint8Array; table: Uint8Array; releas
   return read;
 }
 
+/**
+ * Whether a release publishes a format, made on its files, for each this
+ * extension ships (formats/names.txt: the engine's identity is in a
+ * format's name). The shipped formats were made on the shipped release's
+ * files, so read on another's they are stale, and with none of that
+ * release's for this core the browser made the format again, every
+ * language's patterns for it (the nightly's ci, 79 packages, the morning
+ * tl2026.9 came out). A release that has none is not read.
+ */
+async function forThisCore(meta: ReleaseMeta): Promise<boolean> {
+  const ours = await platform()
+    .asset("formats/names.txt")
+    .then((x) => (x.ok ? x.text() : ""), () => "")
+    .then((t) => t.split("\n").filter(Boolean));
+  return ours.length > 0 && ours.every((n) => n in (meta.formats ?? {}));
+}
+
 const KV = "release.kv";
 const get = <T>(k: string) => platform().kv.get<T>(KV, k);
 const put = (entries: [string, unknown][]) => platform().kv.write(entries.map(([k, v]) => [KV, k, v]));
@@ -75,7 +92,8 @@ export async function indexBytes(): Promise<{ gz: ReadableStream; table: Readabl
   try {
     // (an older schema's, kept without a pack table, is not this one's)
     const have = await get<{ release: string; gz: Uint8Array; table: Uint8Array; meta?: ReleaseMeta }>("index");
-    if (have?.meta?.schema === SCHEMA && have.table) return { gz: stream(have.gz), table: stream(have.table), release: have.release, meta: have.meta };
+    // (one fetched before forThisCore was asked, or for another core of this extension's: not read)
+    if (have?.meta?.schema === SCHEMA && have.table && (await forThisCore(have.meta))) return { gz: stream(have.gz), table: stream(have.table), release: have.release, meta: have.meta };
   } catch {
     // (no IndexedDB: a private window's limits; the shipped one)
   }
@@ -108,8 +126,9 @@ export async function refresh(force = false): Promise<Release | undefined> {
     (await get<{ release: string }>("index").catch(() => undefined))?.release ??
     (await platform().asset("shelf-release.json").then((x) => x.json() as Promise<{ release?: string }>).then((m) => m.release, () => undefined));
   // (this schema only: an index of another is not this extension's to read;
-  // a release without a pack table is not taken)
-  if (r.schema === SCHEMA && r.release !== have && r.pack_table) {
+  // a release without a pack table is not taken; nor one without this
+  // core's formats, forThisCore)
+  if (r.schema === SCHEMA && r.release !== have && r.pack_table && (await forThisCore(r))) {
     const gzip = (name: string) => shelfFetch(name).then(async (x) => (x.ok ? new Uint8Array(await x.arrayBuffer()) : null), () => null);
     const [gz, table] = await Promise.all([gzip(r.index), gzip(r.pack_table)]);
     // (both gzip: one that isn't, a 404 page served as 200, is not kept)

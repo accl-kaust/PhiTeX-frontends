@@ -34,6 +34,8 @@ export interface ReleaseMeta {
   schema?: number;
   deps?: string[];
   search?: Search;
+  /** The formats made on this release's files (release.py --formats): a format's name (engine-identity-ini) to its pack. */
+  formats?: Record<string, string>;
 }
 
 /** Shelf's engine names, by the extension's. */
