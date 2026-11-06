@@ -256,7 +256,8 @@ A scenario can:
 
 - **Each build** (`tools/build/build.sh`, wherever it runs):
   `tools/build/check-formats.sh` gives each shipped format to each
-  shipped core (threaded, and Firefox's single-threaded one) for a warm
+  shipped core (the threaded one, VS Code's and the demo's, and the
+  single-threaded one, the browser extension's) for a warm
   build. A core that would make its format again, which fetches every
   language's hyphenation patterns in the user's browser, stops the build.
 - **Each push** (`.github/workflows/ci.yml`): the extensions' TypeScript

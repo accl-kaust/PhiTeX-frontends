@@ -1,7 +1,7 @@
 // Overleaf's wiring of a PreviewSession: the page hook (hook.ts, in the
 // page's world) for the editor, the project ZIP for the files, a chrome
 // port to the offscreen document, which relays it to this tab's core (a
-// worker of its own: worker.ts, the core's viewer protocol, CoreSession),
+// worker of its own: worker1.ts, the core's viewer protocol, CoreSession),
 // and the panel. The session is in its remote mode, as on `phitex watch`:
 // the core's events say when the pages are in (settled) and what the build
 // found (diagnostics); this script opens the project itself (its files,
@@ -262,9 +262,9 @@ class ChromeTransport implements CoreTransport {
     port.onDisconnect.addListener(() => clearInterval(alive));
     this.port.onMessage.addListener(async (r: any) => {
       if (r.event) return this.events.forEach((f) => f(r));
-      // (bytes base64: the PDF for a download, a page's strips' pixels)
-      if (r.pdf) r.pdf = unb64(r.pdf);
-      if (r.bytes) r.bytes = unb64(r.bytes);
+      // (bytes base64 in Chrome, as they are in Firefox: the PDF for a download, a page's strips' pixels)
+      if (typeof r.pdf === "string") r.pdf = unb64(r.pdf);
+      if (typeof r.bytes === "string") r.bytes = unb64(r.bytes);
       this.waiting.get(r.id)?.(r);
       this.waiting.delete(r.id);
     });
@@ -1240,7 +1240,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
       async connect() {
         const t = new ChromeTransport();
         await t.connect();
-        for (const [p, b] of Object.entries(lastBinaries)) await t.request({ op: "binary", file: p, b64: b64of(b) } as never);
+        for (const [p, b] of Object.entries(lastBinaries)) await t.request(binaryOp(p, b) as never);
         // (the diff's pages as strips too, composed here)
         return new StripPages(t, panel, panel.stripsChip());
       },
@@ -1429,7 +1429,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     if (contextGone()) return;
     await transport.connect();
     devMark("connected");
-    giveBinary = (path, bytes) => transport.request({ op: "binary", file: path, b64: b64of(bytes) } as never);
+    giveBinary = (path, bytes) => transport.request(binaryOp(path, bytes) as never);
     let engineSetting: EngineChoice = "auto", projectEngine: Engine | undefined;
     const readEngine = async () => {
       const { engine, engines } = await chrome.storage.local.get(["engine", "engines"]);
@@ -1509,6 +1509,17 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
 })();
 
 /** Bytes as base64 (the port to the offscreen document carries JSON). */
+/**
+ * Firefox's runtime ports carry bytes as they are (structured clone);
+ * Chrome's carry JSON only, so there the bytes cross as base64.
+ */
+const BYTES_AS_THEY_ARE = chrome.runtime.getURL("").startsWith("moz-extension:");
+
+/** A binary file (a figure) for the core, as this browser's port carries it. */
+function binaryOp(file: string, bytes: Uint8Array): object {
+  return BYTES_AS_THEY_ARE ? { op: "binary", file, bytes } : { op: "binary", file, b64: b64of(bytes) };
+}
+
 function b64of(b: Uint8Array): string {
   let s = "";
   for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));

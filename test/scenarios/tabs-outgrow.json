@@ -1,2 +1,0 @@
-{ "project": "test/scenarios/outgrow", "name": "tabs-outgrow", "nofirst": true,
-  "steps": [ { "secondtab": "outgrow", "ms": 240000 } ] }

@@ -1,13 +1,14 @@
-// The core in Firefox (common/src/wasm/core.ts's Core.startSingle): the
-// single-threaded core (wasm32-wasip1, dist/core1.wasm), since Firefox gives
-// an extension's pages no shared memory (Mozilla bug 1673477). One worker
-// of the background page (firefox-bg.html) for each tab's port, as
-// worker.ts is the offscreen document's in Chrome; a build runs on it to
-// its end, the tab's requests answered between the document's steps.
+// The extension's core, in both browsers (common/src/wasm/core.ts's
+// Core.startSingle): the single-threaded core (wasm32-wasip1, dist/core1.wasm).
+// Firefox gives an extension's pages no shared memory (Mozilla bug 1673477),
+// and in Chromium the threaded core was no faster (a first page 6.3–7.2 s
+// against 7.2–8.1 s on test/scenarios/longdoc, a keystroke 34 ms against
+// 37): one core, one host. One worker of the offscreen document (Firefox:
+// the background page, firefox-bg.html) for each tab's port; a build runs
+// on it to its end, the tab's requests answered between the document's steps.
 //
 // Nothing else runs while the core waits, so what it asks for is answered
-// inside its call: the packs a project loads fetched before it opens (as
-// worker.ts fetches them ahead), the rest read at once (sync XHR: the
+// inside its call: the packs a project loads fetched before it opens, the rest read at once (sync XHR: the
 // extension's own packs/ and texmf/, else Shelf, the hosts in the order
 // found); the session's store read before the core starts (IndexedDB is
 // asynchronous only), its writes kept as they come; minted's runner loaded
@@ -19,7 +20,7 @@ import { platform } from "./common/platform.ts";
 import { Core, CoreSession } from "./common/wasm/core.ts";
 import { coreIndex, packsOf, pack } from "./common/wasm/host.ts";
 import { order, shipped } from "./common/shelf.ts";
-import { putPack } from "./common/packstore.ts";
+import { hasPack, putPack } from "./common/packstore.ts";
 import { type Runner, runOn, usesMinted } from "./common/wasm/minted.ts";
 import { loadMinted } from "./pyodide.ts";
 
@@ -64,6 +65,13 @@ async function shippedFormats(): Promise<Map<string, Uint8Array>> {
   return out;
 }
 
+/** The packs a warm build on `engine`'s shipped formats reads (formats/NAME.packs.txt), by id. */
+async function formatPacks(engine: string): Promise<string[]> {
+  const names = (await (await fetch(at("formats/names.txt"))).text()).split("\n").filter((n) => n.startsWith(`${engine}-`));
+  const lists = await Promise.all(names.map((n) => fetch(at(`formats/${n}.packs.txt`)).then((r) => (r.ok ? r.text() : ""), () => "")));
+  return lists.flatMap((t) => t.split("\n").filter(Boolean));
+}
+
 const isGzip = (b: Uint8Array) => b.length > 2 && b[0] === 0x1f && b[1] === 0x8b;
 
 /** Packs fetched before the core asks (a project's, at its open), by id. */
@@ -77,6 +85,8 @@ let formats = new Map<string, Uint8Array>();
 /** minted's runner, loaded at the open of a project that uses it. */
 let minted: Promise<Runner> | undefined;
 let runner: Runner | undefined;
+/** The project's binary files (figures), kept until the core starts and given to it then. */
+const binaries = new Map<string, Uint8Array>();
 
 const module = WebAssembly.compileStreaming(fetch(at("dist/core1.wasm")));
 const index = coreIndex();
@@ -124,6 +134,7 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
   });
   const ix = await index;
   core.setIndex(ix.tsv, ix.release, ix.table, ix.names);
+  for (const [f, b] of binaries) core.provide(f, { path: "./" + f, bytes: b });
   say("info", `single-threaded core started in ${Math.round(performance.now() - t0)} ms`);
   // (one thread)
   return { core, session: new CoreSession(core, { shell: true, threads: 1 }) };
@@ -138,21 +149,44 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
     if (m.op === "freeing") return;
     if (m.op === "hello") {
       project = String(m.project ?? "");
+      // (the core started now, after the hello (the store's document keys are
+      // the project's): its start, the store read and the formats unpacked, runs
+      // while the tab downloads the project, not after it, at its first figure)
+      started ??= start();
+      started.catch(() => undefined);
       return post({ id: m.id, ok: true });
     }
-    // (started after the hello: the store's document keys are the project's)
-    const { core, session } = await (started ??= start());
+    // (a figure: kept, and given to the core if it is up; never waited on, the start may still be running)
     if (m.op === "binary") {
-      core.provide(m.file as string, { path: "./" + m.file, bytes: m.bytes as Uint8Array });
+      const [file, bytes] = [m.file as string, m.bytes as Uint8Array];
+      binaries.set(file, bytes);
+      if (started) void started.then(({ core }) => core.provide(file, { path: "./" + file, bytes }), () => undefined);
       return post({ id: m.id, ok: true });
     }
+    const { core, session } = await (started ??= start());
     // (the packs the project loads, fetched before it opens: all at once, from this browser or Shelf)
     if (m.op === "open") {
-      const ids = packsOf(await index, (m.files ?? {}) as Record<string, string>, String(m.engine ?? "pdflatex"));
+      const engine = String(m.engine ?? "pdflatex");
+      const ids = packsOf(await index, (m.files ?? {}) as Record<string, string>, engine);
+      // (and those of the packs a warm build on the engine's shipped format
+      // reads (make-formats.sh's formats/NAME.packs.txt) kept in this browser:
+      // asked inside the build, a pack comes from Shelf at once, never from
+      // the copies here (IndexedDB is asynchronous only). One not kept is
+      // fetched only if the build asks for it: the list is the format's
+      // sample's, more than a document may need)
+      for (const id of await formatPacks(engine)) if (await hasPack(id).catch(() => false)) ids.add(id);
       const files = Object.values((m.files ?? {}) as Record<string, string>);
       // (minted's runner too, beside the packs, for a project that uses it)
       if (usesMinted(files)) minted ??= loadMinted();
-      await Promise.all([...[...ids].map((id) => pack(id).then((b) => void ready.set(id, b), () => undefined)), minted?.then((r) => void (runner = r), (e) => say("error", `minted: ${e}`))]);
+      // (a pack that goes to Shelf said as the core's own fetches are: the tab counts it, Downloads; one kept here, not)
+      const early = (id: string) => {
+        let told = false;
+        return pack(id, () => ((told = true), post({ event: "pack", id, state: "fetching" }))).then(
+          (b) => (ready.set(id, b), told && post({ event: "pack", id, state: "done", bytes: b.length })),
+          () => told && post({ event: "pack", id, state: "failed" }),
+        );
+      };
+      await Promise.all([...[...ids].map(early), minted?.then((r) => void (runner = r), (e) => say("error", `minted: ${e}`))]);
     }
     const r = (await session.request(m as never)) as { bytes?: Uint8Array };
     if (r.bytes) return (self as unknown as Worker).postMessage({ ...r, id: m.id }, [r.bytes.buffer as ArrayBuffer]);

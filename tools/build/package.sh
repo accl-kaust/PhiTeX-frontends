@@ -2,8 +2,8 @@
 # The store uploads: a release build of the browser extension (build/overleaf/), zipped.
 #   tools/build/package.sh        → build/phitex-instant-<version>.zip (Chrome Web Store, Edge Add-ons)
 #                                     build/phitex-instant-<version>-firefox.zip (Firefox Add-ons)
-# (Firefox's extension pages have no shared memory: its package runs the
-# single-threaded core, dist/core1.wasm, on its background page, firefox-bg.html)
+# (both run the single-threaded core, dist/core1.wasm: Chrome's on its
+# offscreen document, Firefox's on its background page, firefox-bg.html)
 # Checks: the release manifest (no localhost), only what the extension
 # runs (no sources, tests or maps), the wasm core and the license in.
 set -euo pipefail
@@ -20,7 +20,7 @@ rm -f "$out"
 if grep -q localhost build/overleaf/manifest.json; then echo "manifest has localhost: not a release build" >&2; exit 1; fi
 files=(manifest.json popup.html offscreen.html LICENSE.txt NOTICE.txt icons fonts shims dist texmf packs minted formats shelf-index.tsv.gzdata shelf-packs.tsv.gzdata shelf-release.json)
 for f in "${files[@]}"; do [ -e "build/overleaf/$f" ] || { echo "missing build/overleaf/$f" >&2; exit 1; }; done
-[ -s build/overleaf/dist/core.wasm ] || { echo "no core.wasm" >&2; exit 1; }
+[ -s build/overleaf/dist/core1.wasm ] || { echo "no core1.wasm (tools/build/build.sh)" >&2; exit 1; }
 ls build/overleaf/formats/pdflatex-*.gzdata > /dev/null 2>&1 || { echo "no pdfLaTeX format in build/overleaf/formats (tools/build/make-formats.sh)" >&2; exit 1; }
 [ -s build/overleaf/texmf/names.txt ] || { echo "no shelf/texmf/ (tools/build/fetch-texmf.sh)" >&2; exit 1; }
 [ -s build/overleaf/shelf-index.tsv.gzdata ] || { echo "no shelf-index.tsv.gzdata (tools/build/shelf-index.sh, then build.sh)" >&2; exit 1; }
@@ -29,8 +29,9 @@ if find build/overleaf/dist build/overleaf/minted build/overleaf/packs build/ove
 if grep -q localhost build/overleaf/dist/common/shelf.js; then echo "shelf.js points at localhost: not a release build" >&2; exit 1; fi
 if find build/overleaf/dist -name '*.map' | grep -q .; then echo "source maps in dist" >&2; exit 1; fi
 
-# (Firefox's core and its worker are Firefox's package's only)
-(cd build/overleaf && scripts_zip=1 zip -q -r -X "../../$out" "${files[@]}" -x dist/core1.wasm dist/worker1.js)
+# (the threaded core and its worker are VS Code's and the web demo's
+# (build/overleaf/dist is their assets), not the extension's)
+(cd build/overleaf && scripts_zip=1 zip -q -r -X "../../$out" "${files[@]}" -x dist/core.wasm dist/worker.js dist/thread.js)
 echo "$out ($(du -h "$out" | cut -f1))"
 
 unzip -l "$out" | tail -n +4 | head -n -2 | awk '{print "  " $4}'
@@ -38,13 +39,10 @@ unzip -l "$out" | tail -n +4 | head -n -2 | awk '{print "  " $4}'
 step "Packaging for Firefox (build/firefox/)"
 fx="build/phitex-instant-$version-firefox.zip" stage=build/firefox
 rm -rf "$stage" "$fx" && mkdir -p "$stage"
-[ -s build/overleaf/dist/core1.wasm ] || { echo "no core1.wasm (the single-threaded core: tools/build/build.sh)" >&2; exit 1; }
-# (the threaded core and its threads and the offscreen page out: no shared
-# memory there; the formats in, which the single-threaded core reads too:
-# check-formats.sh)
+# (the threaded core and the offscreen page out; the formats in: check-formats.sh)
 for f in "${files[@]}" firefox-bg.html; do case $f in offscreen.html) ;; *) cp -r "build/overleaf/$f" "$stage/" ;; esac; done
 [ -s "$stage/formats/names.txt" ] || { echo "the Firefox package has no formats (formats/names.txt): a first open would make one in the browser" >&2; exit 1; }
-rm -rf "$stage"/dist/{core.wasm,worker.js,thread.js}
+rm -f "$stage"/dist/{core.wasm,worker.js,thread.js}
 tools/sandbox node -e '
   const fs = require("fs"), f = process.argv[1] + "/manifest.json", m = JSON.parse(fs.readFileSync(f));
   // (in Firefox an MV3 background is a page: the core runs there, offscreen.ts in it)

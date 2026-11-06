@@ -106,6 +106,14 @@ try {
     if (/^[1-9]\d* pages, [1-9]/.test(pages)) break;
   }
   console.log(`${pages} after ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+  // (the timing popover's words: the first page's time by step)
+  console.log("timing:", await ev(`(async () => { const r = document.querySelector('phitex-preview')?.shadowRoot; if (!r) return '-'; r.querySelector('#st')?.click(); await new Promise((f) => setTimeout(f, 300)); const t = r.querySelector('#m-time')?.innerText.replace(/\\s+/g, ' ').trim() ?? '-'; r.querySelector('#st')?.click(); return t; })()`));
+  // (--report FILE: the panel's debug report (its trace, the workers' console), as "Report a problem…" gives it)
+  if (args.includes("--report")) {
+    const text = await ev(`(async () => { const r = document.querySelector('phitex-preview')?.shadowRoot; if (!r) return ''; window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e' })); await new Promise((f) => setTimeout(f, 500)); r.querySelector('.reportbtn')?.click(); for (let i = 0; i < 50 && !r.querySelector('#reporttext')?.value; i++) await new Promise((f) => setTimeout(f, 100)); return r.querySelector('#reporttext')?.value ?? ''; })()`);
+    fs.writeFileSync(args[args.indexOf("--report") + 1], text ?? "");
+    console.log("report:", args[args.indexOf("--report") + 1], `${(text ?? "").length} chars`);
+  }
   // (the panel's diagnostics and the page's console errors: why, when no pages)
   console.log("diagnostics:", await ev(`(() => { const r = document.querySelector('phitex-preview')?.shadowRoot; return r ? [...r.querySelectorAll('.diag')].map((d) => d.innerText.replace(/\\s+/g, ' ').slice(0, 300)).join(' | ') || '(none)' : '-'; })()`));
   for (const l of logs.slice(-15)) console.log("console:", l);

@@ -1,5 +1,7 @@
-// The core's thread 0 in the browser (common/src/wasm/core.ts): a module
-// worker of the offscreen document, one for each tab's port, so a tab's
+// The web demo's core (tools/build/build-web.sh bundles it; the extension
+// runs the single-threaded one, worker1.ts, and ships neither this nor
+// thread.ts): the core's thread 0 in the browser (common/src/wasm/core.ts),
+// a module worker, one for each tab's port, so a tab's
 // document is its own core (its memory, its threads) and goes with it. A
 // dedicated worker, not the offscreen page itself: the core's exports take
 // its locks, held briefly by its threads, and a wait (Atomics.wait) is not
