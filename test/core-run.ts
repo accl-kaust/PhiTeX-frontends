@@ -10,6 +10,9 @@
 //   scripts/sandbox --net node test/core-run.ts [FILE.tex] [--threads N] [--ini] [--cold] [--kpse] [--timeline] [--minted]
 //
 // --cold: the store's formats not given (built again, and stored).
+// --warm: the store's format must be used: made again (stored), or a
+// hyphen-* pack fetched (a format made again reads every language's), the
+// run fails (make-formats.sh's check of each core against the formats shipped).
 // --store DIR: the store there (scripts/build/make-formats.sh: the formats shipped).
 // --packs FILE: the ids of the packs the build fetched, written there.
 // --names FILE: the bundled texmf/ files the build read, by name, written there
@@ -245,6 +248,11 @@ async function built(e: any): Promise<void> {
   // (--names FILE: the bundled files it read, one name a line)
   if (value("--names")) stored.push(writeFile(value("--names")!, read.map((n) => n + "\n").join("")));
   await Promise.all([...stored, writeFile(pathsFile, JSON.stringify(paths))]);
+  const hyph = timeline.map(([id]) => id).filter((id) => id.startsWith("hyphen-"));
+  if (flag("--warm") && (formatBytes || hyph.length)) {
+    console.error(`FAIL the store's format was not used: ${formatBytes ? "a format made again" : ""}${formatBytes && hyph.length ? ", " : ""}${hyph.length ? `${hyph.length} hyphen-* packs fetched` : ""} (${wasm})`);
+    process.exit(1);
+  }
   process.exit(first.pages > 0 ? 0 : 1);
 }
 core.open({ main, text, ini, shell: !!shell, threads: value("--threads") ? Number(value("--threads")) : undefined, engine: value("--engine") });

@@ -80,7 +80,8 @@ chrome.runtime.onConnect.addListener((port) => {
     if (m.event === "memory") return void (memory.set(tab, m.gib), showMemory());
     // (bytes as base64: the port carries JSON; a page's strips' pixels, the PDF only for a download)
     if (m.pdf) m.pdf = b64(m.pdf);
-    if (m.bytes) m.bytes = b64(m.bytes);
+    // (a pack event's `bytes` is its size, a number: kept as it is)
+    if (m.bytes instanceof Uint8Array) m.bytes = b64(m.bytes);
     say(m);
   };
   core.onerror = (e) => say({ event: "console", item: { kind: "error", text: `core worker: ${e.message}` } });

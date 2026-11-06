@@ -243,6 +243,11 @@ A scenario can:
 
 ## Checks
 
+- **Each build** (`scripts/build/build.sh`, wherever it runs):
+  `scripts/build/check-formats.sh` gives each shipped format to each
+  shipped core (threaded, and Firefox's single-threaded one) for a warm
+  build. A core that would make its format again, which fetches every
+  language's hyphenation patterns in the user's browser, stops the build.
 - **Each push** (`.github/workflows/ci.yml`): the extensions' TypeScript
   and the unit tests, among them the format lock (`test/formats.test.ts`).
 - **PhiTeX's release gate and nightly** (its `frontends.yml`, at the

@@ -52,6 +52,10 @@ else
   (cd diff-wasm && CARGO_TARGET_DIR="$PWD/target" ../scripts/sandbox cargo build --release --target wasm32-unknown-unknown)
   diff=diff-wasm/target/wasm32-unknown-unknown/release/phitex_diff_wasm.wasm
 fi
+# (each core on the formats it ships with, before anything is replaced: a
+# core that would make its format again in the browser stops the build)
+step "Checking the formats against both cores"
+scripts/sandbox --net scripts/build/check-formats.sh "$formats" "$core" "$core1"
 rm -rf overleaf/dist overleaf/formats && mkdir -p overleaf/dist overleaf/formats
 cp "$core" overleaf/dist/core.wasm
 cp "$core1" overleaf/dist/core1.wasm
