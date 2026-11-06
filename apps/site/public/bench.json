@@ -1,0 +1,185 @@
+{
+ "schema": 1,
+ "sample": true,
+ "note": "Counts read from PhiTeX CI's lists, which its gate keeps true; a sweep that writes this file is being set up.",
+ "commit": "a54ffde2cd50d7dfebf2b86dd3497a10e8b57cdf",
+ "date": "2026-11-07",
+ "texlive": "TeX Live 2026.1 (svn r78408), Arch Linux packages of the 2026-09-25 archive snapshot, texlive-doc",
+ "machine": null,
+ "corpora": [
+  {
+   "name": "manuals",
+   "title": "TeX Live's manuals",
+   "about": "Every manual in TeX Live that pdfLaTeX or XeLaTeX builds without an error.",
+   "excluded": {
+    "total": 1066,
+    "by_engine": {
+     "pdflatex": 815,
+     "xelatex": 162,
+     "lualatex": 84,
+     "other": 5
+    },
+    "link": "ci/manuals.json"
+   },
+   "engines": {
+    "pdflatex": {
+     "total": 1098,
+     "identical": 1091,
+     "by_class": {
+      "pdftex-bug": 7,
+      "phitex-bug": 0,
+      "not-examined": 0
+     },
+     "slow": 7
+    },
+    "xelatex": {
+     "total": 75,
+     "identical": 75,
+     "by_class": {
+      "pdftex-bug": 0,
+      "phitex-bug": 0,
+      "not-examined": 0
+     },
+     "slow": 1
+    }
+   }
+  },
+  {
+   "name": "research",
+   "title": "Research templates",
+   "about": "The templates researchers start from: IEEEtran, acmart, llncs, elsarticle, REVTeX, amsart, beamer, theses and more.",
+   "excluded": null,
+   "engines": {
+    "pdflatex": {
+     "total": 33,
+     "identical": 33,
+     "by_class": {}
+    },
+    "xelatex": {
+     "total": 36,
+     "identical": 36,
+     "by_class": {}
+    }
+   }
+  }
+ ],
+ "timing": {
+  "cold": null,
+  "edit": {
+   "cases": 521,
+   "under_100ms": 245,
+   "p50_ms": null,
+   "buckets": null,
+   "worst": null,
+   "machine": null
+  }
+ },
+ "differences": [
+  {
+   "corpus": "manuals",
+   "doc": "generic/hologo/hologo-example.tex",
+   "engine": "pdflatex",
+   "cls": "pdftex-bug",
+   "link": "docs/differences.md#dest-under-matrix",
+   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/cje/cjeguide.tex",
+   "engine": "pdflatex",
+   "cls": "pdftex-bug",
+   "link": "docs/differences.md#dest-under-matrix",
+   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/heria/heria-proposal.tex",
+   "engine": "pdflatex",
+   "cls": "pdftex-bug",
+   "link": "docs/differences.md#dest-under-matrix",
+   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/milsymb/milsymb.tex",
+   "engine": "pdflatex",
+   "cls": "pdftex-bug",
+   "link": "docs/differences.md#dest-under-matrix",
+   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/mnras/mnras_guide.tex",
+   "engine": "pdflatex",
+   "cls": "pdftex-bug",
+   "link": "docs/differences.md#dest-under-matrix",
+   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/tablefootnote/tablefootnote-example.tex",
+   "engine": "pdflatex",
+   "cls": "pdftex-bug",
+   "link": "docs/differences.md#dest-under-matrix",
+   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/ualberta/ualberta.tex",
+   "engine": "pdflatex",
+   "cls": "pdftex-bug",
+   "link": "docs/differences.md#dest-under-matrix",
+   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+  }
+ ],
+ "slow": [
+  {
+   "corpus": "manuals",
+   "doc": "generic/pgf/pgfmanual.tex",
+   "engine": "pdflatex",
+   "note": null
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/zx-calculus/zx-calculus.tex",
+   "engine": "pdflatex",
+   "note": null
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/dynkin-diagrams/dynkin-diagrams.tex",
+   "engine": "pdflatex",
+   "note": null
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/atableau/atableau.tex",
+   "engine": "pdflatex",
+   "note": null
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/knowledge/knowledge.tex",
+   "engine": "pdflatex",
+   "note": null
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/lineno/lineno.tex",
+   "engine": "pdflatex",
+   "note": null
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/circuitikz/circuitikzmanual.tex",
+   "engine": "xelatex",
+   "note": null
+  },
+  {
+   "corpus": "manuals",
+   "doc": "latex/codehigh/codehigh.tex",
+   "engine": "pdflatex",
+   "note": null
+  }
+ ]
+}
