@@ -173,6 +173,36 @@
             "Nothing is marked as you move; a double-click on a page opens its source."
           ],
           "description": "What the pages mark of where you are in the source."
+        },
+        "phitex.darkPdf": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on",
+            "theme"
+          ],
+          "enumDescriptions": [
+            "Pages as they are",
+            "Darker pages; it inverts figures and photos too",
+            "Dark when VS Code's theme is"
+          ],
+          "default": "off",
+          "description": "The preview's dark pages."
+        },
+        "phitex.opening": {
+          "type": "string",
+          "enum": [
+            "phitex",
+            "retro",
+            "off"
+          ],
+          "default": "phitex",
+          "description": "The loading animation played on the first page's sheet while it is typeset."
+        },
+        "phitex.underline": {
+          "type": "boolean",
+          "default": true,
+          "description": "A wavy line under what each error and warning is about, on the pages."
         }
       }
     }

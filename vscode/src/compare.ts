@@ -150,7 +150,7 @@ export function compareHost(view: vscode.WebviewPanel, p: CompareProject): vscod
       const doc = await vscode.workspace.openTextDocument({ content: m.text, language: "log" });
       return void vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Active, preview: true });
     }
-    if (m.t === "cmd") return void vscode.commands.executeCommand(m.cmd);
+    if (m.t === "cmd") return void vscode.commands.executeCommand(m.cmd, ...(m.args ?? []));
     if (m.t === "save") return void save(m.name, m);
   });
   return { dispose: () => (asks.dispose(), edited.dispose(), close()) };

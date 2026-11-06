@@ -8,7 +8,7 @@
 // (Not the watch's own page in an iframe: VS Code shows a frame nested in
 // its webview's only once, its later frames never on the screen.)
 
-import { Panel, type PanelPrefs } from "../../common/src/viewer/panel.ts";
+import { Panel, type PanelPrefs, type SettingRow, type SettingsGroup, type ViewPrefs } from "../../common/src/viewer/panel.ts";
 import { Compare, DiffControls, gate } from "../../common/src/viewer/compare.ts";
 import type { DiffLook } from "../../common/src/viewer/panel.ts";
 import { PreviewSession, type CoreEvent, type CoreRes, type CoreTransport, type EditorHost } from "../../common/src/viewer/session.ts";
@@ -30,8 +30,8 @@ export type Up =
   | { t: "cmp-close" }
   /** The last build's log, in an editor tab. */
   | { t: "showlog"; text: string }
-  /** One of the extension's commands (phitex.caches). */
-  | { t: "cmd"; cmd: string }
+  /** One of VS Code's commands (phitex.caches; the Settings editor at a setting). */
+  | { t: "cmd"; cmd: string; args?: unknown[] }
   /** A compare's file saved (its .tex, or its PDF as base64). */
   | { t: "save"; name: string; text?: string; b64?: string };
 /** What the extension host says to the webview. */
@@ -137,6 +137,13 @@ const panel = new Panel(
       if (text) up({ t: "showlog", text });
       return text;
     },
+    // (Settings: VS Code's phitex.* settings, and the watch's user settings with that engine)
+    settings: () => vscodeSettings(),
+    // (the panel's own choices: VS Code's settings phitex.darkPdf, phitex.opening, phitex.underline)
+    onPref: async (key, value) => {
+      const r = await relay.request({ op: "vsc-set", key: PREF_KEYS[key], value });
+      return r.ok ? undefined : (r.error ?? "not saved");
+    },
   },
   // (the panel's settings: kept in the webview's own state)
   {
@@ -165,6 +172,61 @@ const panel = new Panel(
     },
   },
 );
+/** The panel's own choices, by their VS Code settings' names. */
+const PREF_KEYS: Record<keyof ViewPrefs, string> = { "dark-pdf": "darkPdf", opening: "opening", underline: "underline" };
+void relay.request({ op: "vsc-settings" }).then((r) => {
+  const c = r.json ?? {};
+  if (r.ok) panel.viewPrefs({ "dark-pdf": c.darkPdf, opening: c.opening, underline: c.underline !== false });
+});
+
+/** The Settings dialog's VS Code rows: phitex.* (set here, kept by VS Code), and the watch's user file's with that engine. */
+async function vscodeSettings(): Promise<SettingsGroup[]> {
+  const [r, w] = await Promise.all([relay.request({ op: "vsc-settings" }), watch ? relay.request({ op: "prefs" }) : Promise.resolve(null)]);
+  const c = r.json ?? {};
+  const set = (key: string) => async (value?: boolean | string | number) => {
+    const res = await relay.request({ op: "vsc-set", key, value });
+    return res.ok ? undefined : (res.error ?? "not saved");
+  };
+  const open = (key: string) => () => up({ t: "cmd", cmd: "workbench.action.openSettings", args: [`phitex.${key}`] });
+  const cores = Number(c.cores ?? 1);
+  const wset = (k: string) => async (v?: boolean | string) => {
+    const res = await relay.request({ op: "prefs", set: { [k]: v } });
+    return res.ok ? undefined : (res.error ?? "not saved");
+  };
+  const p = w?.ok ? (w.json ?? {}) : null;
+  const wtoggle = (id: string, label: string, help: string): SettingRow => ({ id: `w-${id}`, label, help, kind: "toggle", value: !!p?.[id], disabled: p ? undefined : "phitex watch did not answer", set: wset(id) });
+  return [
+    {
+      title: "Preview",
+      rows: [
+        { id: "v-main", label: "Main file", help: "phitex.main: empty, the open file if it has \\documentclass", kind: "action", button: c.main ? String(c.main) : "The open file", set: open("main") },
+        { id: "v-tex", label: "Engine", help: "What the project needs: a % !TEX program line in its main file, else its preamble", kind: "choice", options: [["auto", "Auto"], ["pdflatex", "pdfLaTeX"], ["xelatex", "XeLaTeX"]], value: String(c.texEngine ?? "auto"), set: set("texEngine") },
+        { id: "v-follow", label: "Highlight follows", help: "Where your editor is, on the page: as the cursor moves, what you select, or a double-click alone", kind: "choice", options: [["cursor", "Cursor"], ["selection", "Selection"], ["dblclick", "Double-click"]], value: String(c.follow ?? "cursor"), set: set("follow") },
+      ],
+    },
+    {
+      title: "Build",
+      rows: [
+        { id: "v-engine", label: "Engine backend", help: "builtin: PhiTeX in WebAssembly inside VS Code. phitex watch: the native engine. From the preview's next open", kind: "choice", options: [["builtin", "builtin"], ["phitex watch", "phitex watch"]], value: String(c.engine ?? "builtin"), set: set("engine") },
+        {
+          id: "v-threads",
+          label: "Threads",
+          help: "The builtin engine's, from the preview's next open (the watch's: phitex config threads). The output is the same at any count",
+          kind: "select",
+          options: [["0", `Automatic (at most ${Math.min(4, cores)})`], ...Array.from({ length: cores }, (_, i): [string, string] => [String(i + 1), String(i + 1)])],
+          value: String(c.threads ?? 0),
+          set: (v) => set("threads")(Number(v)),
+        },
+        { id: "v-path", label: "The phitex command", help: "phitex.path, for the phitex watch engine", kind: "action", button: c.path ? String(c.path) : "phitex", set: open("path") },
+        { id: "v-trace", label: "Trace", help: "What the preview does, each request and page with its time, in the PhiTeX output", kind: "toggle", value: c.trace === true, set: set("trace") },
+        ...(watch ? [wtoggle("watch-write", "Write the PDF into the folder", "phitex watch: after each build, the PDF with its .synctex.gz. From the next watch on."), wtoggle("synctex", "SyncTeX file with a written PDF", "JOB.synctex.gz beside the PDF, for a PDF viewer's jumps")] : []),
+      ],
+    },
+    { title: "Packages", rows: [{ id: "v-cache", label: "Caches", help: "The packages and formats kept on this machine: listed, one cleared", kind: "action", button: "Show…", set: () => up({ t: "cmd", cmd: "phitex.caches" }) }] },
+    { title: "Updates and tips", rows: watch ? [wtoggle("update-check", "Say when a newer PhiTeX is out", "phitex watch asks once a day")] : [] },
+  ];
+}
+
 // (the pages as strips; each frame's numbers under the panel's ⚡ chip)
 const pages = new StripPages(relay, { pixelsPerPoint: () => panel.pixelsPerPoint(), pageView: (k) => panel.pageView(k), painted: (ms) => panel.painted(ms) }, panel.stripsChip());
 // (the engine lost, as the extension host says: the last pages dimmed, a banner saying why)

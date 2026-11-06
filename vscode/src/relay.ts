@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import type { CoreEvent, CoreRes, CoreTransport } from "../../common/src/viewer/session.ts";
 import type { Down, Up } from "./webview.ts";
 import { latexdiff } from "./compare.ts";
+import { availableParallelism } from "node:os";
 
 /** The webview's page: the panel's script from the extension's dist/, nothing else; `engine`: which one builds (its words). */
 export function viewHtml(view: vscode.Webview, ext: vscode.Uri, engine: "builtin" | "watch"): string {
@@ -32,13 +33,40 @@ export function relay(view: vscode.WebviewPanel, core: CoreTransport, pdf: () =>
     if (m.t === "pdf") pdf();
     // (a compare's own document's, channel 2: compare.ts's)
     if (m.t !== "req" || m.ch) return;
-    // (latexdiff: here, the diff wasm, as Overleaf's offscreen page runs it)
+    // (latexdiff: here, the diff wasm, as Overleaf's offscreen page runs it;
+    // the Settings dialog's: VS Code's own settings, here)
     const r =
       m.op.op === "latexdiff"
         ? await latexdiff(m.op.req as never)
-        : await core.request(m.op as never).catch((e): CoreRes => ({ ok: false, error: String(e) }));
+        : m.op.op === "vsc-settings"
+          ? settingsNow()
+          : m.op.op === "vsc-set"
+            ? await setSetting(String(m.op.key), m.op.value)
+            : await core.request(m.op as never).catch((e): CoreRes => ({ ok: false, error: String(e) }));
     void view.webview.postMessage({ t: "res", id: m.id, r } satisfies Down);
   });
+}
+
+/** The settings the preview's Settings dialog shows and sets: VS Code's `phitex.*`. */
+const SETTINGS = ["engine", "texEngine", "follow", "threads", "main", "path", "trace", "darkPdf", "opening", "underline"];
+
+/** Their values now, and this machine's cores (Threads' list). */
+function settingsNow(): CoreRes {
+  const c = vscode.workspace.getConfiguration("phitex");
+  return { ok: true, json: { ...Object.fromEntries(SETTINGS.map((k) => [k, c.get(k)])), cores: availableParallelism() } };
+}
+
+/** One set where it is set now (the workspace's, else the user's): its error, if VS Code refused it. */
+async function setSetting(key: string, value: unknown): Promise<CoreRes> {
+  if (!SETTINGS.includes(key)) return { ok: false, error: `no setting phitex.${key} here` };
+  const c = vscode.workspace.getConfiguration("phitex");
+  const at = c.inspect(key)?.workspaceValue !== undefined ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+  try {
+    await c.update(key, value, at);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 
 /**

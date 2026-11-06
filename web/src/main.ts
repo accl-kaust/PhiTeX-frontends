@@ -16,7 +16,7 @@
 
 import "../../overleaf/src/platform.ts";
 import { platform } from "../../common/src/platform.ts";
-import { Panel, type DiffLook, type PanelPrefs, type Prefs } from "../../common/src/viewer/panel.ts";
+import { Panel, type DiffLook, type PanelPrefs, type Prefs, type ViewPrefs } from "../../common/src/viewer/panel.ts";
 import { PreviewSession, guessMain, type EditorHost, type Options } from "../../common/src/viewer/session.ts";
 import { charOffset, type Edit } from "../../common/src/viewer/edits.ts";
 import { Compare, DiffControls, gate, type CompareHost } from "../../common/src/viewer/compare.ts";
@@ -234,12 +234,28 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   /** The session the panel shows: the compare's while its diff is in view. */
   const shown = (): PreviewSession | undefined => (session ? compare.shown() : undefined);
 
+  /** The panel's own choices as this page keeps them. */
+  const viewPrefs = (): Partial<ViewPrefs> => {
+    try {
+      return JSON.parse(localStorage.getItem("phitex.view") ?? "{}") as Partial<ViewPrefs>;
+    } catch {
+      return {};
+    }
+  };
   const panel = new Panel(
     {
       onPage: (p) => void shown()?.setPage(p),
       onNeed: (k) => void shown()?.fetch(k),
       onPdf: () => void downloadPdf(),
       onMain: (m) => setMain(m),
+      // (the panel's own choices: this page's storage, its one place)
+      onPref: (key, value) => {
+        try {
+          localStorage.setItem("phitex.view", JSON.stringify({ ...viewPrefs(), [key]: value }));
+        } catch {
+          return "This browser keeps nothing for this page";
+        }
+      },
       onReload: () => session?.refresh({ ...P().files }),
       // (builds run by themselves on each edit: Rebuild typesets the files as they are once more, Clean rebuild from a fresh session)
       onRebuild: () => void session?.reopen(),
@@ -288,6 +304,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       },
     },
   );
+  panel.viewPrefs(viewPrefs());
   panel.dock(pane);
   panel.shown(true);
   // (the contents closed until the visitor opens them: most samples have no outline, and narrow pages no room)

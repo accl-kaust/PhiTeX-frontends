@@ -21,7 +21,8 @@ import { h } from "./dom.ts";
 import { filesAt, type Version } from "./history.ts";
 import { Compare, gate, LATEXDIFF_LOOK } from "./common/viewer/compare.ts";
 import { SUPPORT, unseen, type News } from "./news.ts";
-import { Panel, type DiffLook, type PanelPrefs, type Prefs, type ViewState } from "./common/viewer/panel.ts";
+import { Panel, type DiffLook, type PanelPrefs, type Prefs, type SettingRow, type SettingsGroup, type ViewPrefs, type ViewState } from "./common/viewer/panel.ts";
+import { resetAll } from "./settings.ts";
 import { channel, follow, tee, type Ask } from "./mirror.ts";
 import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
 import { StripPages } from "./common/strippages.ts";
@@ -327,7 +328,8 @@ const DOCK_CSS = `
   body:has(.phitex-on) .synctex-controls { z-index: 13 !important; }
   /* in PhiTeX mode, Overleaf's viewer controls go, all but its invert-colors button (which works on ours too) */
   .phitex-on #toolbar-pdf-controls *:not(:has(.theme-toggle-btn)):not(.theme-toggle-btn):not(.theme-toggle-btn *) { display: none !important; }
-  .phitex-on .toolbar-pdf-right { display: flex; align-items: center; justify-content: flex-end; min-width: 0; }
+  /* safe: when the toolbar is too narrow, the right side spills rightwards, never over the switch */
+  .phitex-on .toolbar-pdf-right { display: flex; align-items: center; justify-content: safe flex-end; min-width: 0; }
   /* its controls' wrapper keeps only the invert button: no room held for the hidden rest */
   .phitex-on #toolbar-pdf-controls, .phitex-on #toolbar-pdf-controls > * { flex: 0 0 auto !important; width: auto !important; }
   .phitex-on .toolbar-pdf-left { flex-shrink: 0; }
@@ -335,6 +337,8 @@ const DOCK_CSS = `
   #phitex-controls.compact .pdfjs-toolbar-buttons, #phitex-controls.compact .pdfjs-page-number-input { display: none; }
   #phitex-switch { margin-left: 8px; display: inline-flex; align-items: center; position: relative; }
   #phitex-switch .toggle-switch { margin: 0; }
+  /* Overleaf's editor switch pads each label's inner edge more than its outer one: ours centers its text in the pill */
+  #phitex-switch .toggle-switch-label span { padding: 0 var(--spacing-05, 12px) !important; }
   #phitex-controls, #phitex-left { display: none !important; }
   .phitex-on #phitex-controls { display: flex !important; flex: 0 0 auto !important; width: auto !important; }
   .phitex-on #phitex-left { display: inline-flex !important; align-items: center; }
@@ -572,21 +576,22 @@ function dockInOverleaf(panel: Panel): Dock {
       `<div class="dropdown"><button type="button" id="phitex-zoom" aria-expanded="false" aria-label="PhiTeX zoom level" class="pdf-toolbar-btn pdfjs-zoom-dropdown-button small dropdown-toggle btn btn-link">100%</button>` +
       `<ul class="dropdown-menu dropdown-menu-end" id="phitex-zoom-menu" role="menu">` +
       ZOOMS.map(([v, l]) => `<li><button type="button" class="dropdown-item" data-zoom="${v}">${l}</button></li>`).join("") +
-      `<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li>` +
-      `<li><button type="button" class="dropdown-item" data-act="more">PhiTeX settings and timings…</button></li></ul></div></div>` +
+      `<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li></ul></div></div>` +
       // (compact, as Overleaf's own narrow layout: page and zoom steps behind ⋯)
       `<div class="dropdown phitex-compact-only"><button type="button" id="phitex-more" aria-label="More" class="d-inline-grid pdf-toolbar-btn pdfjs-toolbar-popover-button btn btn-ghost">` +
       `<span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">more_horiz</span></span></button>` +
       `<ul class="dropdown-menu dropdown-menu-end" id="phitex-more-menu" role="menu">` +
 `<li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li><li><hr class="dropdown-divider"></li>` +
       `<li><button type="button" class="dropdown-item" data-act="prev">Previous page</button></li><li><button type="button" class="dropdown-item" data-act="next">Next page</button></li>` +
-      `<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="zin">Zoom in</button></li><li><button type="button" class="dropdown-item" data-act="zout">Zoom out</button></li>` +
-      `<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="more">PhiTeX settings and timings…</button></li></ul></div>`;
+      `<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="zin">Zoom in</button></li><li><button type="button" class="dropdown-item" data-act="zout">Zoom out</button></li></ul></div>` +
+      // (⚡ Instant's Settings: one dialog in every host, the viewer's)
+      gbtn("phitex-settings", "settings", "⚡ Instant settings");
     const q = (id: string) => c!.querySelector<HTMLElement>(`#${id}`)!;
     q("phitex-prev").onclick = () => panel.prev();
     q("phitex-next").onclick = () => panel.next();
     q("phitex-zout").onclick = () => panel.zoomStep(-1);
     q("phitex-zin").onclick = () => panel.zoomStep(1);
+    q("phitex-settings").onclick = () => void panel.settings();
     q("phitex-pform").onsubmit = (e) => {
       e.preventDefault();
       const k = Number((q("phitex-page") as HTMLInputElement).value);
@@ -607,7 +612,6 @@ function dockInOverleaf(panel: Panel): Dock {
         const b = (e.target as HTMLElement).closest<HTMLElement>("[data-zoom], [data-act]");
         const act = b?.dataset.act;
         if (b?.dataset.zoom) panel.zoomTo(b.dataset.zoom);
-        if (act === "more") panel.sheet(true);
         if (act === "clean") panel.clean();
         if (act === "prev") panel.prev();
         if (act === "next") panel.next();
@@ -1072,6 +1076,13 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   const ask = (a: Ask) => ch.postMessage(a);
   /** The pages as strips over the core's transport (set once the transport is). */
   let pages: StripPages | undefined;
+  /** The packs kept in this browser, emptied by the service worker (asked first): its error, if any. */
+  const clearCache = async (): Promise<string | void> => {
+    if (!confirm("Clear the LaTeX packages ⚡ Instant keeps in this browser? They are fetched again when a document needs them.")) return;
+    const r = await chrome.runtime.sendMessage({ type: "clear-cache" }).catch((e: unknown) => ({ error: String(e) }));
+    panel.msg(r?.error ? `Couldn't clear the cache: ${r.error}` : `Cleared ${Math.round((r?.freed ?? 0) / 1048576)} MB of packages.`, !!r?.error, true);
+    return r?.error;
+  };
   const panel = new Panel({
     onFind: (q) => pages?.find(q) ?? Promise.resolve([]),
     onPage: (p) => (DETACHED ? ask({ t: "page", k: p }) : shown()?.setPage(p)),
@@ -1126,15 +1137,70 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     // (the toolbar's compare: its versions' menu, diffui.ts)
     onCompare: () => document.getElementById("phitex-cmp")?.click(),
     // (the packs kept in this browser: the extension's store, emptied by the service worker)
-    onClearCache: async () => {
-      if (!confirm("Clear the LaTeX packages ⚡ Instant keeps in this browser? They are fetched again when a document needs them.")) return;
-      const r = await chrome.runtime.sendMessage({ type: "clear-cache" }).catch((e: unknown) => ({ error: String(e) }));
-      panel.msg(r?.error ? `Couldn't clear the cache: ${r.error}` : `Cleared ${Math.round((r?.freed ?? 0) / 1048576)} MB of packages.`, !!r?.error, true);
+    onClearCache: () => void clearCache(),
+    // (Settings: the extension's rows, in chrome.storage as the popup keeps them)
+    settings: () => overleafSettings(),
+    // (the panel's own choices: chrome.storage, the same in every Overleaf tab)
+    onPref: async (key, value) => {
+      const { viewPrefs } = await chrome.storage.local.get("viewPrefs");
+      await chrome.storage.local.set({ viewPrefs: { ...(viewPrefs as Partial<ViewPrefs> | undefined), [key]: value } });
     },
     // (the last build's log: the core's transcript)
     onLog: () => shown()?.log() ?? Promise.resolve(null),
     onBoxes: (file, start, end) => shown()?.boxesOf(file, start, end) ?? Promise.resolve([]),
   }, prefs, { host: "overleaf", fileUrl: (p) => chrome.runtime.getURL(p) });
+  void chrome.storage.local.get("viewPrefs").then(({ viewPrefs }) => panel.viewPrefs((viewPrefs as Partial<ViewPrefs> | undefined) ?? {}));
+  /** The extension's rows of the Settings dialog: what the popup sets, kept where it keeps them. */
+  async function overleafSettings(): Promise<SettingsGroup[]> {
+    const s = await chrome.storage.local.get(["enabled", "view", "engine", "follow", "othersOff", "tipOff", "newsOff", "foldersTipOff", "folders", "statusColumn", "hideData", "accepted"]);
+    const c = (await chrome.runtime.sendMessage({ type: "cache-stats" }).catch(() => null)) as { packs: number; bytes: number; capMB: number; ahead: boolean; error?: string } | null;
+    const put = (o: Record<string, unknown>) => chrome.storage.local.set(o).then(() => undefined, (e: unknown) => String(e));
+    const ask = (m: object) => chrome.runtime.sendMessage(m).then((r: { error?: string } | undefined) => r?.error, (e: unknown) => String(e));
+    const toggle = (id: string, label: string, help: string, on: boolean, set: (on: boolean) => Promise<string | void>): SettingRow => ({ id, label, help, kind: "toggle", value: on, set: (v) => set(v === true) });
+    const mb = (b: number) => (b < 10 * 1048576 ? (b / 1048576).toFixed(1) : String(Math.round(b / 1048576)));
+    const accepted = s.accepted === TERMS;
+    return [
+      {
+        title: "Preview",
+        rows: [
+          { id: "o-view", label: "Opens with", help: "What Overleaf's PDF pane shows when a project opens", kind: "choice", options: [["pdf", "PDF"], ["phitex", "⚡ Instant"]], value: s.view === "phitex" ? "phitex" : "pdf", set: (v) => put({ view: v }) },
+          { id: "o-engine", label: "Engine", help: "Auto: what the project's preamble needs (a project given its own keeps it). LuaLaTeX: coming", kind: "choice", options: [["auto", "Auto"], ["pdflatex", "pdfLaTeX"], ["xelatex", "XeLaTeX"]], value: (s.engine as string | undefined) ?? "auto", set: (v) => put({ engine: v }) },
+          { id: "o-follow", label: "Highlight follows", help: "In yellow: the word you're at as the cursor moves, what you select, or a double-click alone", kind: "choice", options: [["cursor", "Cursor"], ["selection", "Selection"], ["dblclick", "Double-click"]], value: (s.follow as string | undefined) ?? "cursor", set: (v) => put({ follow: v }) },
+          toggle("o-others", "Collaborators on the PDF", "Where each collaborator is, in their colour; the page never moves for them", !s.othersOff, (on) => put({ othersOff: !on })),
+        ],
+      },
+      { title: "Build", rows: [{ id: "o-clean", label: "Clean rebuild", help: "Read the project again and typeset it from the start", kind: "action", button: "Rebuild", set: () => (void panel.settings(false), panel.clean()) }] },
+      {
+        title: "Packages",
+        rows: c && !c.error
+          ? [
+              { id: "o-cache", label: "Packages kept in this browser", help: c.packs ? `${c.packs} packs, ${mb(c.bytes)} of ${mb(c.capMB * 1048576)} MB · fetched once, reused offline` : "Empty: packages are fetched as documents need them", kind: "action", button: "Clear", disabled: c.packs ? undefined : "Empty: packages are fetched as documents need them", set: () => clearCache() },
+              { id: "o-cap", label: "Keep at most", help: "Past it, the least recently used go first", kind: "choice", options: [["100", "100 MB"], ["300", "300 MB"], ["1000", "1 GB"]], value: String(c.capMB), set: (v) => ask({ type: "cache-cap", mb: Number(v) }) },
+              toggle("o-ahead", "Fetch common packages ahead", "The ones most arXiv papers use, in the background: a first open needs no wait", c.ahead, (on) => ask({ type: "cache-ahead", on })),
+            ]
+          : [{ id: "o-cache", label: "Packages kept in this browser", kind: "info", value: "", disabled: `Couldn't read them: ${c?.error ?? "the extension did not answer"}` }],
+      },
+      {
+        title: "Updates and tips",
+        rows: [
+          toggle("o-tip", "Show the ⚡ Instant tip", "On Overleaf's PDF, until turned off", !s.tipOff, (on) => put({ tipOff: !on })),
+          toggle("o-foldertip", "Show the folders tip", "On the project dashboard, until you have a folder", !s.foldersTipOff, (on) => put({ foldersTipOff: !on })),
+          toggle("o-news", "Show what's new after updates", "Once per version, over the pages", !s.newsOff, (on) => put({ newsOff: !on })),
+        ],
+      },
+      {
+        title: "Overleaf",
+        rows: [
+          toggle("o-enabled", "Enable on Overleaf", "Off: Overleaf exactly as it is, ⚡ Instant and folders gone", s.enabled !== false, (on) => put({ enabled: on })),
+          toggle("o-folders", "Folders", "Nested folders for your projects on the dashboard, kept in your Overleaf project .phitex-data", s.folders !== false, (on) => put({ folders: on })),
+          { ...toggle("o-status", "Status column", "Each project's status (idea, drafting, submitted, …), and sorting by it", s.statusColumn === true, (on) => put({ statusColumn: on })), disabled: s.folders === false ? "With folders on" : undefined },
+          { ...toggle("o-hide", "Hide .phitex-data", "Leave the folders' own project out of your project list", s.hideData === true, (on) => put({ hideData: on })), disabled: s.folders === false ? "With folders on" : undefined },
+          { id: "o-withdraw", label: "Terms", help: accepted ? "Accepted: unofficial, experimental, as is, no warranty, at your own risk" : "Not accepted yet", kind: "action", button: "Withdraw consent", disabled: accepted ? undefined : "Not accepted yet", set: () => put({ accepted: 0, view: "pdf" }) },
+          { id: "o-reset", label: "Reset extension", help: "Every setting as just installed; your Overleaf projects untouched", kind: "action", button: "Reset", set: () => (confirm("Reset ⚡ Instant's settings to how they were when installed?") ? resetAll().then(() => undefined, (e: unknown) => String(e)) : undefined) },
+        ],
+      },
+    ];
+  }
   // (off in the popup: nothing at all, not even the project fetched; on again, live)
   let { enabled } = await chrome.storage.local.get("enabled");
   let started = false;

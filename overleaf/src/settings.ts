@@ -38,3 +38,9 @@ export async function settled(): Promise<void> {
   if (change.remove.length) await chrome.storage.local.remove(change.remove);
   await chrome.storage.local.set(change.set);
 }
+
+/** As just installed: everything stored goes, and this version's notes count as seen (as an install's). */
+export async function resetAll(): Promise<void> {
+  await chrome.storage.local.clear();
+  await chrome.storage.local.set({ newsSeen: chrome.runtime.getManifest().version, format: FORMAT });
+}

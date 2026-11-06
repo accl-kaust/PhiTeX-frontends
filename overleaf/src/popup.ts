@@ -1,7 +1,7 @@
 // The toolbar popup: the extension's settings, in chrome.storage.local (the
 // content script follows changes live), and actions on the open Overleaf tab.
 
-import { FORMAT as SETTINGS_FORMAT } from "./settings.ts";
+import { resetAll } from "./settings.ts";
 import "./platform.ts";
 import { type PackMeta, DEFAULT_CAP_MB, allMeta, capBytes, clearPacks, evict, kvGet, kvSet } from "./common/packstore.ts";
 import { type Ahead, setAheadOff } from "./common/prefetch.ts";
@@ -145,12 +145,6 @@ async function cacheStats(): Promise<void> {
     await clearPacks().catch(() => undefined);
     void cacheStats();
   };
-}
-
-/** As just installed: everything stored goes, and this version's notes count as seen (as an install's). */
-export async function resetAll(): Promise<void> {
-  await chrome.storage.local.clear();
-  await chrome.storage.local.set({ newsSeen: chrome.runtime.getManifest().version, format: SETTINGS_FORMAT });
 }
 
 void render();

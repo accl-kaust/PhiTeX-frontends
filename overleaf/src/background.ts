@@ -5,7 +5,8 @@
 import "./platform.ts";
 import { prefetch } from "./common/prefetch.ts";
 import { settled } from "./settings.ts";
-import { allMeta, clearPacks } from "./common/packstore.ts";
+import { DEFAULT_CAP_MB, allMeta, capBytes, clearPacks, evict, kvGet, kvSet } from "./common/packstore.ts";
+import { setAheadOff } from "./common/prefetch.ts";
 
 let creating: Promise<void> | null = null;
 
@@ -38,6 +39,28 @@ chrome.runtime.onMessage.addListener((m, _sender, reply) => {
         reply({ freed });
       })
       .catch((e) => reply({ error: String(e) }));
+    return true;
+  }
+  // (the page's Settings: the packs kept, their cap and the fetch ahead, as the popup shows them)
+  if (m?.type === "cache-stats") {
+    Promise.all([allMeta(), capBytes().catch(() => DEFAULT_CAP_MB * 1048576), kvGet<boolean>("aheadOff").catch(() => false)])
+      .then(([all, cap, aheadOff]) => {
+        let bytes = 0;
+        for (const p of all.values()) bytes += p.bytes;
+        reply({ packs: all.size, bytes, capMB: Math.round(cap / 1048576), ahead: !aheadOff });
+      })
+      .catch((e) => reply({ error: String(e) }));
+    return true;
+  }
+  if (m?.type === "cache-cap" && [100, 300, 1000].includes(m.mb)) {
+    kvSet("capMB", m.mb)
+      .then(() => evict())
+      .then(() => reply({}), (e) => reply({ error: String(e) }));
+    return true;
+  }
+  if (m?.type === "cache-ahead") {
+    setAheadOff(!m.on)
+      .then(() => (m.on && ahead(), reply({})), (e) => reply({ error: String(e) }));
     return true;
   }
   if (m?.type === "ensure-offscreen") {

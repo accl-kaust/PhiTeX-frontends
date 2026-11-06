@@ -27,7 +27,8 @@
    "tipOff",
    "tipsSeen",
    "toured",
-   "view"
+   "view",
+   "viewPrefs"
   ]
  },
  "databases": {
