@@ -162,7 +162,7 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
       );
     }
     panel.reading({ h: "Project read · checking packages…", detail: `${Object.keys(files).length} files, ${Object.keys(bin).length} figures and other files` });
-    panel.files(Object.keys(files), [], `${(performance.now() - t).toFixed(0)} ms; ${Object.keys(bin).length} binary files`);
+    panel.files(Object.keys(files), [], `in ${((performance.now() - t) / 1000).toFixed(1)} s, with ${Object.keys(bin).length} figures and other files`);
     return files;
   }
   // (a refresh, of the docs not open: each by its id, those the tree shows;
