@@ -146,9 +146,10 @@
           <li class="reveal warn"><span class="sev">warning</span><b>{ never closed: the group runs to the end of the file</b><span class="loc">main.tex:12 · unclosed-brace</span></li>
           <li class="reveal warn"><span class="sev">warning</span><b>\input chapter2: no such file in the project</b><span class="loc">main.tex:15 · missing-file</span></li>
           <li class="reveal info"><span class="sev">info</span><b>ï: this font has no glyph for it; using Latin Modern</b><span class="loc">main.tex:16 · font-fallback</span></li>
-          <li class="reveal err"><span class="sev">error</span><b>\cite{knuth84}: no such entry in refs.bib</b><span class="loc">main.tex:17 · missing-citation</span></li>
+          <li class="reveal warn"><span class="sev">warning</span><b>\cite{knuth84}: no such entry in refs.bib</b><span class="loc">main.tex:17 · missing-citation</span></li>
         </ul>
       </div>
+      <div class="anim anim-errors reveal"><iframe src="anim/errors.html?embed" title="A citation with no entry: the page shows [?] with a wavy warning line under it, the pointer on it shows the message, and once refs.bib has the entry the page reads [1]" scrolling="no" loading="lazy"></iframe></div>
       <p class="fine">Every message comes from the compiler itself, with the exact place in your source. There's a <code>--json</code> mode for tools too.</p>
     </section>
 
