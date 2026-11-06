@@ -62,8 +62,6 @@ upload with `tools/build/package.sh` (→ `store/phitex-instant-<version>.zip`).
 > project being edited, next to Overleaf's own PDF.
 
 **Permission justifications:**
-- `offscreen`: Runs the WebAssembly typesetting engine in a worker in an
-  offscreen document, outside the Overleaf page, so typing stays smooth.
 - `storage`: Keeps the extension's own settings (on/off, which preview
   opens, the page view, tips, acceptance of the terms, panel layout). No
   document content is stored.
@@ -111,7 +109,8 @@ repository) and paste its URL.
 > The extension's network requests: overleaf.com (the project's files, as
 > the signed-in user) and Shelf (v1.shelf.phitex.org, else shelf-phitex-v1.pages.dev, TeX Live's package files,
 > fetched by name when a document needs one not bundled; nothing about the
-> document is sent). The engine runs locally in an offscreen document.
+> document is sent). The engine runs locally, in a worker of a hidden extension frame in the
+> Overleaf tab (the extension's own page, not Overleaf's).
 
 ## Updates
 

@@ -222,11 +222,19 @@ async function parity(s) {
 }
 const pos = (s) => `(() => { const t = mockEditor.text(); ${s.after !== undefined ? `const i = t.${s.last ? "lastIndexOf" : "indexOf"}(${JSON.stringify(s.after)}); return i < 0 ? -1 : i + ${JSON.stringify(s.after)}.length;` : s.before !== undefined ? `return t.indexOf(${JSON.stringify(s.before)});` : "return t.length;"} })()`;
 
+// the tab's engine iframe (engine.html: the extension's origin, the core's worker), as a DevTools target
+async function engineTarget(tries = 1) {
+  for (let i = 0; i < tries; i++) {
+    const t = (await (await fetch(`http://localhost:${PORT}/json`)).json()).find((x) => x.url.endsWith("/engine.html"));
+    if (t) return t;
+    await sleep(250);
+  }
+}
 // the workers' console (the core's stderr: a panic's message, before its trap),
-// through the offscreen document's target and the workers attached to it
+// through the engine iframe's target and the workers attached to it
 const workerLog = [];
 try {
-  const off = (await (await fetch(`http://localhost:${PORT}/json`)).json()).find((t) => t.url.endsWith("/offscreen.html"));
+  const off = await engineTarget(40);
   if (off) {
     const ow = new WebSocket(off.webSocketDebuggerUrl);
     await new Promise((r) => ow.addEventListener("open", r));
@@ -282,8 +290,8 @@ try {
   }
 }
 
-async function inOffscreen(expr) {
-  const off = (await (await fetch(`http://localhost:${PORT}/json`)).json()).find((t) => t.url.endsWith("/offscreen.html"));
+async function inEngine(expr) {
+  const off = await engineTarget();
   if (!off) return undefined;
   const ow = new WebSocket(off.webSocketDebuggerUrl);
   await new Promise((r) => ow.addEventListener("open", r));
@@ -442,7 +450,6 @@ for (const s of sc.steps ?? []) {
   }
   else if (s.wait !== undefined) await sleep(s.wait);
   else if (s.reload !== undefined) {
-    // (a reload's page connects its core before the old page's has ended: offscreen.ts)
     for (let k = 0; k < s.reload; k++) {
       await call("Page.reload");
       const t1 = Date.now();
@@ -494,14 +501,13 @@ for (const s of sc.steps ?? []) {
     // (an expression in the content script's world, for debugging)
     s.result = await evalIn(s.eval, !s.page);
     console.log("eval →", JSON.stringify(s.result));
-  } else if (s.offscreen !== undefined) {
-    // (an expression in the offscreen document: the extension's origin, its IndexedDB)
-    s.result = await inOffscreen(s.offscreen);
-    console.log("offscreen →", JSON.stringify(s.result));
+  } else if (s.engine !== undefined) {
+    // (an expression in the engine iframe: the extension's origin, its IndexedDB)
+    s.result = await inEngine(s.engine);
+    console.log("engine →", JSON.stringify(s.result));
   } else if (s.extpage !== undefined) {
     // (an extension page, popup.html, opened in a tab of its own: its text after a moment, and a screenshot)
-    const off = (await (await fetch(`http://localhost:${PORT}/json`)).json()).find((t) => t.url.endsWith("/offscreen.html"));
-    const url = off.url.replace(/offscreen\.html$/, s.extpage);
+    const url = (await engineTarget(40)).url.replace(/engine\.html$/, s.extpage);
     const t = await (await fetch(`http://localhost:${PORT}/json/new?${encodeURIComponent(url)}`, { method: "PUT" })).json();
     const pw = new WebSocket(t.webSocketDebuggerUrl);
     await new Promise((r) => pw.addEventListener("open", r));

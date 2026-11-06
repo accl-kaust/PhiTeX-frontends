@@ -6,7 +6,6 @@
   "description": "Unofficial, experimental: an instant PhiTeX preview beside Overleaf's PDF, and folders for projects. Not affiliated with Overleaf.",
   "minimum_chrome_version": "116",
   "permissions": [
-    "offscreen",
     "storage",
     "unlimitedStorage",
     "alarms",
@@ -59,7 +58,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "dist/content-main.js",
+        "engine.html",
+    "dist/content-main.js",
         "dist/platform.js",
         "dist/mirror.js",
         "dist/news.js",

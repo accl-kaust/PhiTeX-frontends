@@ -11,7 +11,8 @@ import path from "node:path";
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const port = process.argv[2] ?? "9222";
-const src = path.join(root, "build/overleaf"), dev = path.join(root, "target/ext-dev");
+// (PHITEX_EXT: another unpacked build to load instead, for an A/B: target/old-ext, say)
+const src = path.resolve(root, process.env.PHITEX_EXT ?? "build/overleaf"), dev = path.join(root, "target/ext-dev");
 fs.rmSync(dev, { recursive: true, force: true });
 fs.mkdirSync(dev, { recursive: true });
 // (copies (reflinks where the disk has them), not symlinks: Chromium serves an unpacked extension's files only from inside its folder)

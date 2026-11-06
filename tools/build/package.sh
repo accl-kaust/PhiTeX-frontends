@@ -2,8 +2,8 @@
 # The store uploads: a release build of the browser extension (build/overleaf/), zipped.
 #   tools/build/package.sh        → build/phitex-instant-<version>.zip (Chrome Web Store, Edge Add-ons)
 #                                     build/phitex-instant-<version>-firefox.zip (Firefox Add-ons)
-# (both run the single-threaded core, dist/core1.wasm: Chrome's on its
-# offscreen document, Firefox's on its background page, firefox-bg.html)
+# (both run the single-threaded core, dist/core1.wasm, in each tab's engine
+# iframe, engine.html; Firefox's background is a page, firefox-bg.html)
 # Checks: the release manifest (no localhost), only what the extension
 # runs (no sources, tests or maps), the wasm core and the license in.
 set -euo pipefail
@@ -18,7 +18,7 @@ mkdir -p build
 rm -f "$out"
 
 if grep -q localhost build/overleaf/manifest.json; then echo "manifest has localhost: not a release build" >&2; exit 1; fi
-files=(manifest.json popup.html offscreen.html LICENSE.txt NOTICE.txt icons fonts shims dist texmf packs minted formats shelf-index.tsv.gzdata shelf-packs.tsv.gzdata shelf-release.json)
+files=(manifest.json popup.html engine.html LICENSE.txt NOTICE.txt icons fonts shims dist texmf packs minted formats shelf-index.tsv.gzdata shelf-packs.tsv.gzdata shelf-release.json)
 for f in "${files[@]}"; do [ -e "build/overleaf/$f" ] || { echo "missing build/overleaf/$f" >&2; exit 1; }; done
 [ -s build/overleaf/dist/core1.wasm ] || { echo "no core1.wasm (tools/build/build.sh)" >&2; exit 1; }
 ls build/overleaf/formats/pdflatex-*.gzdata > /dev/null 2>&1 || { echo "no pdfLaTeX format in build/overleaf/formats (tools/build/make-formats.sh)" >&2; exit 1; }
@@ -39,17 +39,16 @@ unzip -l "$out" | tail -n +4 | head -n -2 | awk '{print "  " $4}'
 step "Packaging for Firefox (build/firefox/)"
 fx="build/phitex-instant-$version-firefox.zip" stage=build/firefox
 rm -rf "$stage" "$fx" && mkdir -p "$stage"
-# (the threaded core and the offscreen page out; the formats in: check-formats.sh)
-for f in "${files[@]}" firefox-bg.html; do case $f in offscreen.html) ;; *) cp -r "build/overleaf/$f" "$stage/" ;; esac; done
+# (the threaded core out; the formats in: check-formats.sh)
+for f in "${files[@]}" firefox-bg.html; do cp -r "build/overleaf/$f" "$stage/"; done
 [ -s "$stage/formats/names.txt" ] || { echo "the Firefox package has no formats (formats/names.txt): a first open would make one in the browser" >&2; exit 1; }
 rm -f "$stage"/dist/{core.wasm,worker.js,thread.js}
 tools/sandbox node -e '
   const fs = require("fs"), f = process.argv[1] + "/manifest.json", m = JSON.parse(fs.readFileSync(f));
-  // (in Firefox an MV3 background is a page: the core runs there, offscreen.ts in it)
+  // (in Firefox an MV3 background is a page)
   m.background = { page: "firefox-bg.html" };
-  m.permissions = m.permissions.filter((p) => p !== "offscreen");
   // (Chrome-only keys: Firefox warns at each one; version_name too)
-  for (const k of ["minimum_chrome_version", "cross_origin_embedder_policy", "cross_origin_opener_policy", "version_name"]) delete m[k];
+  for (const k of ["minimum_chrome_version", "version_name"]) delete m[k];
   // (128: content scripts in the page world; nothing collected, as AMO asks it said)
   m.browser_specific_settings = { gecko: { id: "phitex-instant@phitex.org", strict_min_version: "128.0", data_collection_permissions: { required: ["none"] } } };
   fs.writeFileSync(f, JSON.stringify(m, null, 2) + "\n");' "$stage"

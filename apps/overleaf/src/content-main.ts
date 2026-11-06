@@ -1,7 +1,7 @@
 // Overleaf's wiring of a PreviewSession: the page hook (hook.ts, in the
-// page's world) for the editor, the project ZIP for the files, a chrome
-// port to the offscreen document, which relays it to this tab's core (a
-// worker of its own: worker1.ts, the core's viewer protocol, CoreSession),
+// page's world) for the editor, the project ZIP for the files, a
+// MessagePort to this tab's core (a worker in the engine's iframe, engine.ts
+// and worker1.ts: the core's viewer protocol, CoreSession),
 // and the panel. The session is in its remote mode, as on `phitex watch`:
 // the core's events say when the pages are in (settled) and what the build
 // found (diagnostics); this script opens the project itself (its files,
@@ -99,7 +99,7 @@ function docIds(): Map<string, string> {
  * ever fetched). A doc whose id the tree has not rendered (a folder never
  * opened) comes from the project ZIP, the one fallback.
  */
-/** Where the project's binary files go (the core, by the offscreen document); set once connected. */
+/** Where the project's binary files go (the core); set once connected. */
 let giveBinary: ((path: string, bytes: Uint8Array) => Promise<unknown>) | undefined;
 /** The project's binary files as last read (a compare's session gets them too). */
 let lastBinaries: Record<string, Uint8Array> = {};
@@ -225,78 +225,58 @@ class OverleafHost implements EditorHost {
 const contextGone = () => !chrome.runtime?.id;
 const GONE = "PhiTeX Instant was updated or reloaded: reload this tab to use it";
 /**
- * Base64 to bytes: atob's string copied in a plain loop. Uint8Array.from
- * with a mapping function called it for every byte: the user's trace of a
- * fast scroll, 88 tasks of 700-1200 ms on the tab's thread, nearly all of
- * them here (the strips' pixels), Overleaf frozen meanwhile.
+ * The tab's engine: an extension page in a hidden iframe of this tab
+ * (engine.html, engine.ts), its core a worker there, and a MessagePort to
+ * it, as the web demo talks to its worker: requests and replies are
+ * structured clones, bytes as they are. Each transport is a core of its own
+ * (the tab's, a compare's), gone with its iframe.
  */
-function unb64(s: string): Uint8Array {
-  const t = atob(s);
-  const b = new Uint8Array(t.length);
-  for (let i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
-  return b;
-}
-
-/** A chrome port to the offscreen document (which relays to the worker). Bytes come base64. */
-class ChromeTransport implements CoreTransport {
-  private port!: chrome.runtime.Port;
+class FrameTransport implements CoreTransport {
+  private port!: MessagePort;
+  private frame: HTMLIFrameElement | undefined;
   private nextId = 1;
   private waiting = new Map<number, (r: CoreRes) => void>();
-  private lost: (() => void)[] = [];
   async connect(): Promise<void> {
-    await chrome.runtime.sendMessage({ type: "ensure-offscreen" });
-    this.port = chrome.runtime.connect({ name: "phitex" });
-    // (the project: the core keeps the document's records under it)
-    this.port.postMessage({ id: 0, op: "hello", project: project() });
-    // (Firefox stops an add-on's background page, and the core's worker on
-    // it, after 30 s without an event, an open port or not: a cold build
-    // there runs longer, so a message every 20 s keeps it)
-    const port = this.port;
-    const alive = setInterval(() => {
-      try {
-        port.postMessage({ op: "keepalive" });
-      } catch {
-        clearInterval(alive);
-      }
-    }, 20_000);
-    port.onDisconnect.addListener(() => clearInterval(alive));
-    this.port.onMessage.addListener(async (r: any) => {
+    const frame = (this.frame = document.createElement("iframe"));
+    frame.src = chrome.runtime.getURL("engine.html");
+    frame.setAttribute("aria-hidden", "true");
+    frame.tabIndex = -1;
+    frame.style.display = "none";
+    const loaded = new Promise((r) => frame.addEventListener("load", r, { once: true }));
+    document.documentElement.append(frame);
+    await loaded;
+    const ch = new MessageChannel();
+    frame.contentWindow!.postMessage("phitex-engine", new URL(chrome.runtime.getURL("")).origin, [ch.port2]);
+    this.port = ch.port1;
+    this.port.onmessage = (m: MessageEvent<any>) => {
+      const r = m.data;
       if (r.event) return this.events.forEach((f) => f(r));
-      // (bytes base64 in Chrome, as they are in Firefox: the PDF for a download, a page's strips' pixels)
-      if (typeof r.pdf === "string") r.pdf = unb64(r.pdf);
-      if (typeof r.bytes === "string") r.bytes = unb64(r.bytes);
       this.waiting.get(r.id)?.(r);
       this.waiting.delete(r.id);
-    });
-    this.port.onDisconnect.addListener(() => {
-      // (the extension reloaded or updated under this tab: this script is
-      // cut off from it for good; said once, nothing retried)
-      const gone = contextGone();
-      for (const w of this.waiting.values()) w({ ok: false, error: gone ? GONE : "core disconnected" });
-      this.waiting.clear();
-      if (gone) return this.gone.forEach((f) => f());
-      setTimeout(() => this.connect().then(() => this.lost.forEach((f) => f()), (e) => console.warn("[phitex] reconnect", e)), 500);
-    });
+    };
+    // (the project: the core keeps the document's records under it)
+    this.port.postMessage({ id: 0, op: "hello", project: project() });
   }
-  /** Let go of the port (a compare stopped): its core session goes with it. */
+  /** Let go of the core (a compare stopped): its iframe, and the core with it. */
   close(): void {
-    this.port?.disconnect();
+    this.port?.close();
+    this.frame?.remove();
   }
-  /** Called once if the extension is reloaded or updated under this tab. */
+  /** Called once if the extension is reloaded or updated under this tab (its iframe gone, the core with it). */
   onGone(cb: () => void) {
     this.gone.push(cb);
   }
   private gone: (() => void)[] = [];
   request(req: CoreReq): Promise<CoreRes> {
+    if (contextGone()) {
+      this.gone.splice(0).forEach((f) => f());
+      return Promise.resolve({ ok: false, error: GONE } as CoreRes);
+    }
     const id = this.nextId++;
-    if (contextGone()) return Promise.resolve({ ok: false, error: GONE } as CoreRes);
     return new Promise((res) => {
       this.waiting.set(id, res);
       this.port.postMessage({ id, ...req });
     });
-  }
-  onLost(cb: () => void) {
-    this.lost.push(cb);
   }
   private events: ((e: CoreEvent) => void)[] = [];
   onEvent(cb: (e: CoreEvent) => void) {
@@ -1228,7 +1208,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
    * Overleaf's history, the marked-up document's session on a port of its
    * own, its binary files the project's as last read.
    */
-  function compareWith(host: OverleafHost, core: ChromeTransport, opts: ConstructorParameters<typeof PreviewSession>[3]): Compare<Version> {
+  function compareWith(host: OverleafHost, core: FrameTransport, opts: ConstructorParameters<typeof PreviewSession>[3]): Compare<Version> {
     return new Compare<Version>({
       session: () => session,
       core,
@@ -1238,9 +1218,9 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
         return (await filesAt(project(), v.v, pageFetch)).files;
       },
       async connect() {
-        const t = new ChromeTransport();
+        const t = new FrameTransport();
         await t.connect();
-        for (const [p, b] of Object.entries(lastBinaries)) await t.request(binaryOp(p, b) as never);
+        for (const [p, b] of Object.entries(lastBinaries)) await t.request({ op: "binary", file: p, bytes: b } as never);
         // (the diff's pages as strips too, composed here)
         return new StripPages(t, panel, panel.stripsChip());
       },
@@ -1385,7 +1365,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     // (the editor's selection: its text highlighted on the pages)
     if (e.data.type === "select" && (highlightMode !== "dblclick" || e.data.from === e.data.to)) void session?.selectSource(e.data.file, e.data.from, e.data.to);
   });
-  const transport = new ChromeTransport();
+  const transport = new FrameTransport();
   // (the pages as strips: the core draws them, this tab composes them; MuPDF
   // can't run here, overleaf.com's policy forbids the tab WebAssembly)
   pages = new StripPages(transport, panel, panel.stripsChip());
@@ -1429,7 +1409,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     if (contextGone()) return;
     await transport.connect();
     devMark("connected");
-    giveBinary = (path, bytes) => transport.request(binaryOp(path, bytes) as never);
+    giveBinary = (path, bytes) => transport.request({ op: "binary", file: path, bytes } as never);
     let engineSetting: EngineChoice = "auto", projectEngine: Engine | undefined;
     const readEngine = async () => {
       const { engine, engines } = await chrome.storage.local.get(["engine", "engines"]);
@@ -1507,24 +1487,6 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   if (enabled === false) return;
   await start();
 })();
-
-/** Bytes as base64 (the port to the offscreen document carries JSON). */
-/**
- * Firefox's runtime ports carry bytes as they are (structured clone);
- * Chrome's carry JSON only, so there the bytes cross as base64.
- */
-const BYTES_AS_THEY_ARE = chrome.runtime.getURL("").startsWith("moz-extension:");
-
-/** A binary file (a figure) for the core, as this browser's port carries it. */
-function binaryOp(file: string, bytes: Uint8Array): object {
-  return BYTES_AS_THEY_ARE ? { op: "binary", file, bytes } : { op: "binary", file, b64: b64of(bytes) };
-}
-
-function b64of(b: Uint8Array): string {
-  let s = "";
-  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
-  return btoa(s);
-}
 
 function escapeHtml(t: string): string {
   return t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);

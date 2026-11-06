@@ -108,6 +108,16 @@ try {
   console.log(`${pages} after ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   // (the timing popover's words: the first page's time by step)
   console.log("timing:", await ev(`(async () => { const r = document.querySelector('phitex-preview')?.shadowRoot; if (!r) return '-'; r.querySelector('#st')?.click(); await new Promise((f) => setTimeout(f, 300)); const t = r.querySelector('#m-time')?.innerText.replace(/\\s+/g, ' ').trim() ?? '-'; r.querySelector('#st')?.click(); return t; })()`));
+  // (--frame-eval EXPR: EXPR in the tab's engine iframe (engine.html: the extension's origin), its value said)
+  if (args.includes("--frame-eval")) {
+    const kids = (c) => [c, ...(c.children ?? []).flatMap(kids)];
+    const all = (await send("browsingContext.getTree", { root: ctx })).contexts.flatMap(kids);
+    const frame = all.find((c) => c.url.endsWith("/engine.html"));
+    const r = frame ? await send("script.evaluate", { expression: args[args.indexOf("--frame-eval") + 1], target: { context: frame.context }, awaitPromise: true }).catch((e) => ({ result: { value: String(e) } })) : { result: { value: "no engine iframe" } };
+    console.log("frame-eval:", JSON.stringify(r.result?.value ?? r.exceptionDetails ?? r).slice(0, 1500));
+  }
+  // (--dev: the content script's dev log, the trace's tail and its errors (a localhost page's: content-main.ts devMark))
+  if (args.includes("--dev")) console.log("dev:", await ev(`new Promise((f) => { addEventListener("message", (e) => e.data?.type === "traced" && f(e.data.trace)); setTimeout(() => f("none"), 3000); postMessage({ src: "phitex-dev", type: "trace" }, location.origin); })`));
   // (--report FILE: the panel's debug report (its trace, the workers' console), as "Report a problem…" gives it)
   if (args.includes("--report")) {
     const text = await ev(`(async () => { const r = document.querySelector('phitex-preview')?.shadowRoot; if (!r) return ''; window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e' })); await new Promise((f) => setTimeout(f, 500)); r.querySelector('.reportbtn')?.click(); for (let i = 0; i < 50 && !r.querySelector('#reporttext')?.value; i++) await new Promise((f) => setTimeout(f, 100)); return r.querySelector('#reporttext')?.value ?? ''; })()`);

@@ -2,14 +2,16 @@
 // URL (this module is dist/platform.js, the extension's root one up: the
 // same address chrome.runtime.getURL gives, in a worker too, which has no
 // chrome.runtime), IndexedDB for the store (the extension's origin: one for
-// the offscreen document, the background, the popup and the workers), and
+// the engine iframes, the background, the popup and the workers), and
 // the browser's fetch. Every entry point imports it first, so it is set
 // before a shared module asks; the content script never opens the store
 // (its IndexedDB would be Overleaf's).
 
 import { DATABASES, setPlatform, type KeyValue } from "./common/platform.ts";
 
-const root = new URL("../", import.meta.url);
+// (the core's worker is a blob (engine.ts: Chrome loads no extension script
+// into a worker of an iframe in a web page), its bundle told the root)
+const root = new URL((globalThis as { PHITEX_ROOT?: string }).PHITEX_ROOT ?? "../", import.meta.url);
 const url = (p: string) => new URL(p, root).href;
 
 /** A database's name, as it has always been: "phitex-shelf", ... */

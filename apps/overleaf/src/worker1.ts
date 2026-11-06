@@ -3,8 +3,8 @@
 // Firefox gives an extension's pages no shared memory (Mozilla bug 1673477),
 // and in Chromium the threaded core was no faster (a first page 6.3–7.2 s
 // against 7.2–8.1 s on test/scenarios/longdoc, a keystroke 34 ms against
-// 37): one core, one host. One worker of the offscreen document (Firefox:
-// the background page, firefox-bg.html) for each tab's port; a build runs
+// 37): one core, one host. One worker of the engine's
+// iframe (engine.ts, which starts this bundled, dist/engine-worker.js) for each tab, its core; a build runs
 // on it to its end, the tab's requests answered between the document's steps.
 //
 // Nothing else runs while the core waits, so what it asks for is answered

@@ -143,8 +143,6 @@ with nothing installed. It is deployed on each push to `main`
 - The Overleaf extension reads your project from overleaf.com as you do,
   and never writes to it (except the folders' own `.phitex-data`, when
   folders are on). Its permissions:
-  - `offscreen` (Chrome, Edge): the typesetter's background worker;
-    Firefox's background page does this instead.
   - `storage`: the settings.
   - `activeTab`: the popup's tour.
   - Access to `https://www.overleaf.com/project/*` only.
@@ -233,8 +231,8 @@ CodeMirror 6, the file tree, the project endpoints and the PDF pane.
 
 Scripted runs:
 - They skip the terms and the tour (`tools/dev/onboarded.mjs`).
-- After a change to the core, restart the browser: the offscreen document
-  keeps the old wasm across reloads.
+- After a change to the core, reload the Overleaf tab: each tab's engine
+  lives in its own hidden frame.
 
 ```sh
 tools/sandbox --net node tools/dev/mock-run.mjs test/scenarios/ci.json [--fresh]
@@ -281,7 +279,7 @@ A scenario can:
 
 | Path | |
 | --- | --- |
-| `apps/overleaf/` | the browser extension's sources: content scripts, offscreen document, workers, popup, the folders, `manifest.base.json` |
+| `apps/overleaf/` | the browser extension's sources: content scripts, the engine frame (`engine.html`), its worker, popup, the folders, `manifest.base.json` |
 | `apps/vscode/` | the VS Code extension's sources |
 | `apps/editors/` | the Emacs and Neovim plugins (`emacs/phitex.el`, `nvim/phitex.lua`) |
 | `apps/web/` | the demo (demo.phitex.org) |

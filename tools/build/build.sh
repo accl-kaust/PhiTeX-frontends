@@ -48,7 +48,7 @@ step "Checking the formats against both cores"
 tools/sandbox --net tools/build/check-formats.sh "$formats" "$core" "$core1"
 rm -rf build/overleaf && mkdir -p build/overleaf/dist build/overleaf/formats
 # (the extension's own files, as they are: its pages and icons)
-cp -r apps/overleaf/{popup.html,offscreen.html,firefox-bg.html,icons} build/overleaf/
+cp -r apps/overleaf/{popup.html,engine.html,firefox-bg.html,icons} build/overleaf/
 cp "$core" build/overleaf/dist/core.wasm
 cp "$core1" build/overleaf/dist/core1.wasm
 cp "$diff" build/overleaf/dist/diff.wasm
@@ -73,7 +73,7 @@ cp "${SHELF_INDEX:-shelf/shelf-index.tsv.gz}" build/overleaf/shelf-index.tsv.gzd
 cp "${SHELF_RELEASE:-shelf/shelf-release.json}" build/overleaf/shelf-release.json
 cp "${SHELF_PACKS:-shelf/shelf-packs.tsv.gz}" build/overleaf/shelf-packs.tsv.gzdata
 # The extension's TypeScript, as the modules it loads (dist/: the content
-# script's, the offscreen document's, the core's worker and its threads')
+# script's, the engine iframe's, the core's worker)
 step "The extension's TypeScript (apps/overleaf/ to build/overleaf/)"
 tools/sandbox npx tsc -p apps/overleaf --outDir build/overleaf/dist
 # The dashboard's content scripts, the folders (apps/overleaf/src/folders/, in the
@@ -82,6 +82,9 @@ tools/sandbox npx tsc -p apps/overleaf --outDir build/overleaf/dist
 tools/sandbox node_modules/.bin/esbuild apps/overleaf/src/folders/main.ts --bundle --log-level=warning --format=iife --target=chrome116 --outfile=build/overleaf/dist/folders.js
 tools/sandbox node_modules/.bin/esbuild apps/overleaf/src/dashboard.ts --bundle --log-level=warning --format=iife --target=chrome116 --outfile=build/overleaf/dist/dashboard.js --allow-overwrite
 rm -rf build/overleaf/dist/folders
+# The core's worker, one module (engine.ts starts it from a blob of its text:
+# Chrome loads no extension script into a worker of an iframe in a web page)
+tools/sandbox node_modules/.bin/esbuild apps/overleaf/src/worker1.ts --bundle --log-level=warning --format=esm --target=chrome116 --outfile=build/overleaf/dist/engine-worker.js
 step "Fonts and minted (Pyodide)"
 # Latin Modern (GUST Font License), the fonts the pages are drawn in (page2.ts):
 # common/fonts (kept up to date from TeX Live here; CI, which has none, takes

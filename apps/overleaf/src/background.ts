@@ -1,27 +1,12 @@
-// The service worker: makes sure the offscreen document (which runs the
-// core's worker) exists, and fetches packs ahead. Content scripts then
-// connect to the offscreen document directly.
+// The service worker (in Firefox, the background page, firefox-bg.html):
+// fetches packs ahead and answers the tabs' asks (an update check, the
+// cache's settings). The core is each tab's own, in its engine iframe (engine.ts).
 
 import "./platform.ts";
 import { prefetch } from "./common/prefetch.ts";
 import { settled } from "./settings.ts";
 import { DEFAULT_CAP_MB, allMeta, capBytes, clearPacks, evict, kvGet, kvSet } from "./common/packstore.ts";
 import { setAheadOff } from "./common/prefetch.ts";
-
-let creating: Promise<void> | null = null;
-
-async function ensureOffscreen(): Promise<void> {
-  // (Firefox: no offscreen documents; the background page is the core's
-  // page itself, firefox-bg.html, always there)
-  if (!chrome.offscreen) return;
-  const url = chrome.runtime.getURL("offscreen.html");
-  const have = await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT" as chrome.runtime.ContextType], documentUrls: [url] });
-  if (have.length) return;
-  creating ??= chrome.offscreen
-    .createDocument({ url, reasons: ["WORKERS" as chrome.offscreen.Reason], justification: "Runs the PhiTeX typesetter (wasm) in a worker, locally." })
-    .finally(() => (creating = null));
-  await creating;
-}
 
 chrome.runtime.onMessage.addListener((m, _sender, reply) => {
   // (Shelf asks for a newer extension: the store's update, checked now)
@@ -61,10 +46,6 @@ chrome.runtime.onMessage.addListener((m, _sender, reply) => {
   if (m?.type === "cache-ahead") {
     setAheadOff(!m.on)
       .then(() => (m.on && ahead(), reply({})), (e) => reply({ error: String(e) }));
-    return true;
-  }
-  if (m?.type === "ensure-offscreen") {
-    ensureOffscreen().then(() => reply(true), (e) => reply(String(e)));
     return true;
   }
 });
