@@ -242,7 +242,13 @@ export class Core {
 
   /** Single-threaded: the document stepped, a step a task, until nothing is asked. */
   private stepping = false;
-  private stepSoon(): void {
+  /**
+   * `later`: ph_step said 2, only the work after a build is left (its
+   * origins, 13 ms on Grail): stepped after the requests now waiting, so
+   * the page the build's `settled` asks for is drawn first (a keystroke
+   * reached the page ~8 ms sooner, 83 → 75 ms), not after it.
+   */
+  private stepSoon(later = false): void {
     if (!this.single || this.stepping) return;
     this.stepping = true;
     setTimeout(() => {
@@ -255,8 +261,8 @@ export class Core {
       } catch (e) {
         return this.o.trap?.(0, String((e as Error)?.stack ?? e));
       }
-      if (more) this.stepSoon();
-    }, 0);
+      if (more) this.stepSoon(more === 2);
+    }, later ? 20 : 0);
   }
 
   private heard(m: ThreadMsg): void {
