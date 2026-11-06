@@ -1023,9 +1023,19 @@ function dockInOverleaf(panel: Panel): Dock {
   }
   let tipsTried = false;
   let timer = setInterval(tick, 700);
+  // (Overleaf draws its PDF toolbar again (its dark-PDF switch, a resize):
+  // our switch and controls put back before the next paint, not at the
+  // next tick, which left the toolbar without them for up to 0.7 s; only
+  // when one is gone, so the editor's own changes cost two lookups)
+  const back = new MutationObserver(() => {
+    const gone = !document.getElementById("phitex-switch") || (mode === "phitex" && !document.getElementById("phitex-controls"));
+    if (gone && document.querySelector(PANE)?.querySelector(".toolbar-pdf-left")) tick();
+  });
+  back.observe(document.body, { childList: true, subtree: true });
   /** The extension turned off: everything we added goes; Overleaf is as it was. */
   function stop(): void {
     clearInterval(timer);
+    back.disconnect();
     endTour();
     hideTip();
     for (const id of ["phitex-switch", "phitex-controls", "phitex-left", "phitex-news", "phitex-consent"]) document.getElementById(id)?.remove();
@@ -1049,6 +1059,7 @@ function dockInOverleaf(panel: Panel): Dock {
     resume: () => {
       clearInterval(timer);
       timer = setInterval(tick, 700);
+      back.observe(document.body, { childList: true, subtree: true });
       tick();
     },
     news: () => void whatsNew(true),
@@ -1138,6 +1149,8 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     onCompare: () => document.getElementById("phitex-cmp")?.click(),
     // (the packs kept in this browser: the extension's store, emptied by the service worker)
     onClearCache: () => void clearCache(),
+    // (a project file's text as the session has it, for Copy for an AI assistant)
+    onSource: async (file) => shown()?.text(file) ?? null,
     // (Settings: the extension's rows, in chrome.storage as the popup keeps them)
     settings: () => overleafSettings(),
     // (the panel's own choices: chrome.storage, the same in every Overleaf tab)

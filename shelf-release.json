@@ -1,9 +1,9 @@
 {
  "schema": 1,
- "release": "tl2026.7",
- "index": "index-tl2026.7.tsv.gz",
- "pack_table": "packs-tl2026.7.tsv.gz",
- "packs": 7163,
+ "release": "tl2026.8",
+ "index": "index-tl2026.8.tsv.gz",
+ "pack_table": "packs-tl2026.8.tsv.gz",
+ "packs": 7195,
  "min_extension": "0.7.0",
  "notice": null,
  "deps": [
@@ -11,8 +11,8 @@
   "xetex"
  ],
  "traced_by": {
-  "pdftex": "phitex 0f8b1fa579e6dc67df5741a50a2cc0df8987e08e shelf-trace 2",
-  "xetex": "phitex 0f8b1fa579e6dc67df5741a50a2cc0df8987e08e shelf-trace 2"
+  "pdftex": "phitex unknown shelf-trace 2",
+  "xetex": "phitex unknown shelf-trace 2"
  },
  "search": {
   "pdftex": {
@@ -65,6 +65,13 @@
    ],
    "misc": [
     "fonts/misc"
+   ],
+   "mf": [
+    "metafont",
+    "fonts/source"
+   ],
+   "web2c": [
+    "web2c"
    ]
   },
   "xetex": {
@@ -119,6 +126,13 @@
    ],
    "misc": [
     "fonts/misc"
+   ],
+   "mf": [
+    "metafont",
+    "fonts/source"
+   ],
+   "web2c": [
+    "web2c"
    ]
   },
   "luatex": {
@@ -173,6 +187,13 @@
    ],
    "misc": [
     "fonts/misc"
+   ],
+   "mf": [
+    "metafont",
+    "fonts/source"
+   ],
+   "web2c": [
+    "web2c"
    ],
    "lua": [
     "scripts/lualatex/lua",

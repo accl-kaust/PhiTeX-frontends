@@ -248,6 +248,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       onNeed: (k) => void shown()?.fetch(k),
       onPdf: () => void downloadPdf(),
       onMain: (m) => setMain(m),
+      // (a file's text as the session has it, for Copy for an AI assistant)
+      onSource: async (file) => shown()?.text(file) ?? null,
       // (the panel's own choices: this page's storage, its one place)
       onPref: (key, value) => {
         try {

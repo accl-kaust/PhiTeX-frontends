@@ -137,6 +137,11 @@ const panel = new Panel(
       if (text) up({ t: "showlog", text });
       return text;
     },
+    // (a project file's text, for Copy for an AI assistant: the extension host's, unsaved edits in)
+    onSource: async (file) => {
+      const r = await relay.request({ op: "vsc-source", file });
+      return r.ok ? String(r.json?.text ?? "") : null;
+    },
     // (Settings: VS Code's phitex.* settings, and the watch's user settings with that engine)
     settings: () => vscodeSettings(),
     // (the panel's own choices: VS Code's settings phitex.darkPdf, phitex.opening, phitex.underline)

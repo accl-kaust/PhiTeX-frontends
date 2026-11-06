@@ -310,7 +310,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   const client = ownCommands(new LanguageClient("phitex", "PhiTeX", async () => ({ reader: new ChannelReader(channel), writer: new ChannelWriter(channel) }), clientOptions(folder, log)));
   let closed = false;
   const subs: vscode.Disposable[] = [
-    relay(view, session, () => void savePdf(session, folder, main), (s) => log.appendLine(s)),
+    relay(view, session, folder, () => void savePdf(session, folder, main), (s) => log.appendLine(s)),
     // (Compare, View log, Clear cache: what the webview asks of this host)
     compareHost(view, { root, folder, main, files: Object.keys(project.files), binaries: project.binaries, log: (s) => log.append(s.endsWith("\n") ? s : s + "\n") }),
   ];
@@ -596,7 +596,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   if (status.state === "starting") status.set({ state: "ready" });
   view.webview.html = viewHtml(view.webview, ext, "watch");
   subs.push(
-    relay(view, link, () => void savePdf(link, folder, main), (s) => log.appendLine(s)),
+    relay(view, link, folder, () => void savePdf(link, folder, main), (s) => log.appendLine(s)),
     { dispose: () => link.close() },
   );
   subs.push(

@@ -9,6 +9,8 @@ import type { CoreEvent, CoreRes, CoreTransport } from "../../common/src/viewer/
 import type { Down, Up } from "./webview.ts";
 import { latexdiff } from "./compare.ts";
 import { availableParallelism } from "node:os";
+import { readFile, stat } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
 
 /** The webview's page: the panel's script from the extension's dist/, nothing else; `engine`: which one builds (its words). */
 export function viewHtml(view: vscode.Webview, ext: vscode.Uri, engine: "builtin" | "watch"): string {
@@ -21,8 +23,8 @@ export function viewHtml(view: vscode.Webview, ext: vscode.Uri, engine: "builtin
 <body style="margin:0;height:100vh"><script nonce="${nonce}">window.PHITEX_ROOT=${JSON.stringify(root)};window.PHITEX_FONTS=${JSON.stringify(root + "fonts/")};window.PHITEX_ENGINE=${JSON.stringify(engine)};</script><script nonce="${nonce}" src="${root}dist/webview.js"></script></body></html>`;
 }
 
-/** What the webview of `view` asks, answered by `core`; `pdf`: its download asked. */
-export function relay(view: vscode.WebviewPanel, core: CoreTransport, pdf: () => void, log?: (s: string) => void): vscode.Disposable {
+/** What the webview of `view` asks, answered by `core`; `pdf`: its download asked; `folder`: the project's, its files' names from it. */
+export function relay(view: vscode.WebviewPanel, core: CoreTransport, folder: string, pdf: () => void, log?: (s: string) => void): vscode.Disposable {
   core.onEvent?.((e: CoreEvent) => void view.webview.postMessage({ t: "event", e } satisfies Down));
   return view.webview.onDidReceiveMessage(async (m: Up) => {
     // (the webview's trace: errors and blocks always, the rest with phitex.trace)
@@ -42,9 +44,25 @@ export function relay(view: vscode.WebviewPanel, core: CoreTransport, pdf: () =>
           ? settingsNow()
           : m.op.op === "vsc-set"
             ? await setSetting(String(m.op.key), m.op.value)
+            : m.op.op === "vsc-source"
+              ? await source(folder, String(m.op.file))
             : await core.request(m.op as never).catch((e): CoreRes => ({ ok: false, error: String(e) }));
     void view.webview.postMessage({ t: "res", id: m.id, r } satisfies Down);
   });
+}
+
+/** A project file's text (Copy for an AI assistant): its editor's, unsaved edits in, else the disk's; a file of the project only, at most 2 MB. */
+async function source(folder: string, file: string): Promise<CoreRes> {
+  if (isAbsolute(file) || file.split(/[\\/]/).includes("..")) return { ok: false, error: "not a project file" };
+  const path = join(folder, file);
+  const open = vscode.workspace.textDocuments.find((d) => d.uri.scheme === "file" && d.uri.fsPath === path);
+  if (open) return { ok: true, json: { text: open.getText() } };
+  try {
+    if ((await stat(path)).size > 2 << 20) return { ok: false, error: "too large" };
+    return { ok: true, json: { text: await readFile(path, "utf8") } };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 
 /** The settings the preview's Settings dialog shows and sets: VS Code's `phitex.*`. */
