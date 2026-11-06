@@ -57,7 +57,7 @@ function render(b: Bench) {
   if (b.sample) {
     const s = $("#sample");
     s.hidden = false;
-    s.innerHTML = `<b>Sample data.</b> ${esc(b.note ?? "")}`;
+    s.innerHTML = `<b>Preliminary:</b> ${esc(b.note ?? "")}`;
   }
   const engines = b.corpora.flatMap((c) => Object.values(c.engines));
   const sum = (f: (e: Engine) => number) => engines.reduce((a, e) => a + f(e), 0);
@@ -192,7 +192,7 @@ function curveChart(el: HTMLElement, o: { title: string; sub: string; series: Se
 }
 
 function curves(c: Cold | null, e: Edit | null) {
-  const pending = (el: HTMLElement, title: string, text: string) => void (el.innerHTML = `<figcaption><b>${title}</b></figcaption><p class="pending">${text}</p>`);
+  const pending = (el: HTMLElement, title: string, text: string) => { el.classList.add("waiting"); el.innerHTML = `<figcaption><b>${title}</b></figcaption><p class="pending">${text}</p>`; };
   for (const [id, en] of [["#k-pdflatex", "pdflatex"], ["#k-xelatex", "xelatex"]] as const) {
     const pts = c?.points.filter((p) => p.engine === en) ?? [];
     const title = `A cold build, against ${ENGINES[en]}`;
@@ -221,7 +221,7 @@ function curves(c: Cold | null, e: Edit | null) {
  */
 function coldChart(el: HTMLElement, c: Cold | null, mach: Machine | null) {
   const head = `<figcaption><b>A cold build, document by document</b><span class="sub">Each dot is one document, built from nothing by PhiTeX and by pdfLaTeX or XeLaTeX on the same machine${c ? `, each time the median of ${c.runs} runs` : ""}. Under the diagonal, PhiTeX is faster.</span></figcaption>`;
-  if (!c?.points.length) return void (el.innerHTML = `${head}<p class="pending">Being measured: each document built by both engines back to back on one machine. Cold builds are often slower than pdfLaTeX's today. PhiTeX's work went to identical output first and to edits second.</p>`);
+  if (!c?.points.length) return void (el.classList.add("waiting"), el.innerHTML = `${head}<p class="pending">Being measured: each document built by both engines back to back on one machine. Cold builds are often slower than pdfLaTeX's today. PhiTeX's work went to identical output first and to edits second.</p>`);
   const engs = [...new Set(c.points.map((p) => p.engine))];
   const on = new Set(engs);
   let pinned: Point | null = null;

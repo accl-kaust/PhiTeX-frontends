@@ -138,3 +138,6 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
 i.dash, i.dot { height: 3px !important; width: 16px !important; background: repeating-linear-gradient(90deg, var(--c) 0 5px, transparent 5px 8px) !important; vertical-align: middle !important; }
 i.dot { background: repeating-linear-gradient(90deg, var(--c) 0 2px, transparent 2px 5px) !important; }
 @media (max-width: 1100px) { .curves { grid-template-columns: 1fr; } }
+/* a chart with no measurements yet: no axes, greyed */
+.chart.waiting { background: transparent; border: 1px dashed var(--line-2); box-shadow: none; }
+.chart.waiting figcaption b { color: var(--muted); }

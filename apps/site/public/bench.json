@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "sample": true,
- "note": "Counts read from PhiTeX CI's lists, which its gate keeps true; a sweep that writes this file is being set up.",
+ "note": "counts from PhiTeX's test lists as of 2026-11-07. Full measurements, including timings, are being set up.",
  "commit": "a54ffde2cd50d7dfebf2b86dd3497a10e8b57cdf",
  "date": "2026-11-07",
  "texlive": "TeX Live 2026.1 (svn r78408), Arch Linux packages of the 2026-09-25 archive snapshot, texlive-doc",
