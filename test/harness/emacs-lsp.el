@@ -1,0 +1,46 @@
+;;; emacs-lsp.el --- apps/editors/emacs/phitex.el against phitex watch --lsp  -*- lexical-binding: t; -*-
+;;; In batch (Emacs 29+):
+;;;   DOC=/path/doc.tex [CLIENT=eglot|lsp PKG_DIR=elpa] emacs --batch -Q -l apps/editors/emacs/phitex.el -l test/harness/emacs-lsp.el
+;;; (phitex on PATH, DOC in a folder of its own): phitex-mode connects
+;;; (beside eglot's or lsp-mode's own TeX server, texlab, with CLIENT), an
+;;; unsaved error is a flymake diagnostic, its fix clears it.
+(defun phitex-test--wait (pred secs)
+  (let ((end (+ (float-time) secs)))
+    (while (and (not (funcall pred)) (< (float-time) end))
+      (accept-process-output nil 0.2)
+      (when flymake-mode (flymake-start)))
+    (funcall pred)))
+(defun phitex-test--ours ()
+  "Flymake's diagnostics from phitex-mode's backend."
+  (cl-remove-if-not (lambda (d) (eq (flymake-diagnostic-backend d) #'phitex--flymake)) (flymake-diagnostics)))
+(find-file (getenv "DOC"))
+(latex-mode)
+(pcase (getenv "CLIENT")
+  ("eglot" (require 'eglot)
+           (add-to-list 'eglot-server-programs '((latex-mode) . ("texlab")))
+           (apply #'eglot (eglot--guess-contact)))
+  ("lsp" (require 'package)
+         (setq package-user-dir (getenv "PKG_DIR"))
+         (package-initialize)
+         (require 'lsp-mode)
+         (setq lsp-auto-guess-root t lsp-enable-file-watchers nil lsp-restart 'ignore lsp-headerline-breadcrumb-enable nil)
+         (lsp)))
+(phitex-mode 1)
+(princ (format "mode %s, phitex: %s, beside: %s\n" major-mode
+               (and (phitex-test--wait (lambda () (and phitex--server (jsonrpc-running-p phitex--server))) 20) "connected")
+               (pcase (getenv "CLIENT")
+                 ("eglot" (and (phitex-test--wait #'eglot-current-server 20) (jsonrpc-name (eglot-current-server))))
+                 ("lsp" (and (phitex-test--wait #'lsp-workspaces 20)
+                             (mapcar (lambda (w) (lsp--client-server-id (lsp--workspace-client w))) (lsp-workspaces)))))))
+;; (the first build makes the format)
+(phitex-test--wait (lambda () nil) 25)
+(goto-char (point-min))
+(search-forward "Some text")
+(beginning-of-line)
+(insert "\\undefinedmacro ")
+(let ((got (phitex-test--wait #'phitex-test--ours 30)))
+  (princ (format "unsaved error -> diagnostic: %s %s\n" (and got t) (and got (car (split-string (flymake-diagnostic-text (car got)) "\n"))))))
+(beginning-of-line)
+(delete-char 16)
+(princ (format "fixed -> cleared: %s\n" (phitex-test--wait (lambda () (null (phitex-test--ours))) 30)))
+(kill-emacs 0)

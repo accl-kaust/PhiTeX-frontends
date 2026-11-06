@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "scripts/build/build.sh",
-    "//": "run through scripts/sandbox: scripts/sandbox npm test",
-    "test": "node --test test/",
-    "typecheck": "tsc --noEmit -p overleaf"
+    "build": "tools/build/build.sh",
+    "//": "run through tools/sandbox: tools/sandbox npm test",
+    "test": "node --test test/unit/",
+    "typecheck": "tsc --noEmit -p apps/overleaf"
   },
   "devDependencies": {
     "@codemirror/commands": "^6.10.1",

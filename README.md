@@ -15,12 +15,12 @@ Code, Emacs and Neovim, a demo in the browser, and phitex.org.
 
 | Frontend | Where | Engine |
 | --- | --- | --- |
-| **Overleaf** (Chrome, Edge, Firefox) | `overleaf/` | PhiTeX as WebAssembly, in the browser |
-| **VS Code** | `vscode/` ([its README](vscode/README.md)) | WebAssembly inside VS Code, or the `phitex` command |
-| **Emacs** | `editors/emacs/phitex.el` | the `phitex` command (`phitex watch --lsp`) |
-| **Neovim** 0.11 | `editors/nvim/phitex.lua` | the `phitex` command (`phitex watch --lsp`) |
-| **The demo** | `web/`, at demo.phitex.org | WebAssembly, in the browser |
-| **phitex.org** | `site/` | the project's site and install page |
+| **Overleaf** (Chrome, Edge, Firefox) | `apps/overleaf/` | PhiTeX as WebAssembly, in the browser |
+| **VS Code** | `apps/vscode/` ([its README](apps/vscode/README.md)) | WebAssembly inside VS Code, or the `phitex` command |
+| **Emacs** | `apps/editors/emacs/phitex.el` | the `phitex` command (`phitex watch --lsp`) |
+| **Neovim** 0.11 | `apps/editors/nvim/phitex.lua` | the `phitex` command (`phitex watch --lsp`) |
+| **The demo** | `apps/web/`, at demo.phitex.org | WebAssembly, in the browser |
+| **phitex.org** | `apps/site/` | the project's site and install page |
 
 Every frontend shows pages with PhiTeX's viewer (`phitex/viewer/`). In
 it you can select and search text, which stays sharp at any zoom. Each
@@ -103,7 +103,7 @@ unless you send it.
 the editor. It also compares the document with a past git commit, marking
 the changes as `latexdiff` would. The built-in engine needs nothing
 installed; `phitex.engine` switches to the `phitex` command. See
-[vscode/README.md](vscode/README.md).
+[apps/vscode/README.md](apps/vscode/README.md).
 
 ### Emacs and Neovim
 
@@ -149,7 +149,7 @@ with nothing installed. It is deployed on each push to `main`
   - `activeTab`: the popup's tour.
   - Access to `https://www.overleaf.com/project/*` only.
 
-The extension's full policy is [PRIVACY.md](PRIVACY.md).
+The extension's full policy is [PRIVACY.md](docs/PRIVACY.md).
 
 ## How it works
 
@@ -181,53 +181,64 @@ editor ── edits as byte ranges ──▶ session.ts ── one build in flig
 
 ## Building
 
-The engine is the `phitex/` submodule, followed at PhiTeX's `dev`:
+The engine is the `phitex/` submodule, followed at PhiTeX's `dev`. Its
+Rust crates for the browser (`crates/wasm/live`, `crates/wasm/diff`) are
+PhiTeX's; this repository holds no Rust.
 
-    git submodule update --init phitex
+```sh
+git submodule update --init phitex
+```
 
 You need:
-- the Rust toolchain in `rust-toolchain.toml`, with the `wasm32-wasip1`
-  target;
+- PhiTeX's pinned toolchain (`phitex/rust-toolchain.toml`) with the
+  `wasm32-wasip1-threads` and `wasm32-wasip1` targets, added once:
+  `rustup target add wasm32-wasip1-threads wasm32-wasip1 --toolchain nightly-2026-08-08`;
 - Node 22 or later;
-- bubblewrap, for `scripts/sandbox`, which runs build steps without
+- bubblewrap, for `tools/sandbox`, which runs build steps without
   network access or `$HOME`.
 
 ```sh
-scripts/sandbox --net npm ci --ignore-scripts
-scripts/build/build.sh           # the wasm core, the formats, the extension → overleaf/
-scripts/build/package.sh         # the store zips → build/ (Chrome and Edge; Firefox)
-scripts/build/build-vscode.sh    # VS Code → vscode/
-scripts/build/build-web.sh       # the demo → build/web/
+tools/sandbox --net npm ci --ignore-scripts
+tools/build/build.sh           # the wasm (phitex/scripts/wasm-live.sh), the formats, the extension → build/overleaf/
+tools/build/package.sh         # the store zips → build/ (Chrome and Edge; Firefox)
+tools/build/build-vscode.sh    # VS Code → build/vscode/ (--package: the .vsix)
+tools/build/build-web.sh       # the demo → build/web/
+tools/build-all.sh [BRANCH]    # all of it, from the branch on GitHub
 ```
 
-To try the extension, open `chrome://extensions`, turn on *Developer
-mode*, choose *Load unpacked* and pick `overleaf/`.
+Every build writes into `build/` only; `apps/` holds sources. To try the
+extension, open `chrome://extensions`, turn on *Developer mode*, choose
+*Load unpacked* and pick `build/overleaf/`. `PHITEX_WASM_DIR` takes
+`core.wasm`, `core1.wasm` and `diff.wasm` (and `formats/`, if made) built
+elsewhere.
 
-`shelf-index.tsv.gz`, `shelf-packs.tsv.gz` and `shelf-release.json` are
-the Shelf release shipped (`scripts/build/shelf-index.sh`). The formats
-are made against it. A newer Shelf release means shipping it with its
-formats made again; otherwise the browser rebuilds the format and fetches
-every language's hyphenation patterns.
+`shelf/` holds the Shelf release shipped (`shelf-index.tsv.gz`,
+`shelf-packs.tsv.gz`, `shelf-release.json`: `tools/build/shelf-index.sh`),
+the bundled `texmf/` files and the lists the extension reads ahead
+(`data/`). The formats are made against that release. A newer Shelf
+release means shipping it with its formats made again; otherwise the
+browser rebuilds the format and fetches every language's hyphenation
+patterns.
 
 ## Development
 
-The mock Overleaf (`mock/`) imitates what the extension reads:
+The mock Overleaf (`tools/mock/`) imitates what the extension reads:
 CodeMirror 6, the file tree, the project endpoints and the PDF pane.
 
-    scripts/build/build.sh --dev
-    scripts/sandbox scripts/build/mock-editor.sh        # once: the mock's editor → mock/build/
-    scripts/sandbox --net node mock/server.mjs          # http://localhost:8123/project/mock
-    scripts/dev/chrome.sh [url]                         # Chromium with the extension, DevTools on :9222
-    scripts/sandbox node --test test/                   # unit tests
+    tools/build/build.sh --dev
+    tools/sandbox tools/build/mock-editor.sh        # once: the mock's editor → tools/mock/build/
+    tools/sandbox --net node tools/mock/server.mjs          # http://localhost:8123/project/mock
+    tools/dev/chrome.sh [url]                         # Chromium with the extension, DevTools on :9222
+    tools/sandbox node --test test/unit/              # unit tests
 
 Scripted runs:
-- They skip the terms and the tour (`scripts/dev/onboarded.mjs`).
+- They skip the terms and the tour (`tools/dev/onboarded.mjs`).
 - After a change to the core, restart the browser: the offscreen document
   keeps the old wasm across reloads.
 
 ```sh
-scripts/sandbox --net node scripts/dev/mock-run.mjs test/scenarios/ci.json [--fresh]
-scripts/build/package.sh && node scripts/dev/fx-run.mjs     # Firefox: the store package on the mock
+tools/sandbox --net node tools/dev/mock-run.mjs test/scenarios/ci.json [--fresh]
+tools/build/package.sh && node tools/dev/fx-run.mjs     # Firefox: the store package on the mock
 ```
 
 `mock-run.mjs` runs a scenario in headless Chromium. It writes the trace,
@@ -243,18 +254,18 @@ A scenario can:
 
 ## Checks
 
-- **Each build** (`scripts/build/build.sh`, wherever it runs):
-  `scripts/build/check-formats.sh` gives each shipped format to each
+- **Each build** (`tools/build/build.sh`, wherever it runs):
+  `tools/build/check-formats.sh` gives each shipped format to each
   shipped core (threaded, and Firefox's single-threaded one) for a warm
   build. A core that would make its format again, which fetches every
   language's hyphenation patterns in the user's browser, stops the build.
 - **Each push** (`.github/workflows/ci.yml`): the extensions' TypeScript
-  and the unit tests, among them the format lock (`test/formats.test.ts`).
+  and the unit tests, among them the format lock (`test/unit/formats.test.ts`).
 - **PhiTeX's release gate and nightly** (its `frontends.yml`, at the
   commit its `ci/frontends.commit` names) build the wasm core and every
   frontend and run them in Chrome:
   - the extension on the mock (`test/scenarios/ci*.json`);
-  - the demo (`web/test/check.mjs`);
+  - the demo (`apps/web/test/check.mjs`);
   - VS Code's wasm engine;
   - Emacs, Neovim and VS Code's native engine (`test/editors/run.sh`).
 
@@ -269,14 +280,19 @@ A scenario can:
 
 | Path | |
 | --- | --- |
-| `common/` | what the frontends share: the session, the core's worker and host, packages and their cache, the fonts; `common/src/viewer` links to `phitex/viewer/src` |
-| `overleaf/` | the extension: manifest, content scripts, offscreen document, popup, the folders |
-| `vscode/`, `editors/`, `web/`, `site/` | the other frontends |
-| `phitex/` | the engine (submodule) |
-| `mock/` | the mock Overleaf |
-| `scripts/` | `build/`, `dev/`, `debug/`, `sandbox` |
-| `test/` | unit tests, scenarios, the editors' checks |
-| `store/`, `STORE.md` | the store listings' screenshots, icons and text |
+| `apps/overleaf/` | the browser extension's sources: content scripts, offscreen document, workers, popup, the folders, `manifest.base.json` |
+| `apps/vscode/` | the VS Code extension's sources |
+| `apps/editors/` | the Emacs and Neovim plugins (`emacs/phitex.el`, `nvim/phitex.lua`) |
+| `apps/web/` | the demo (demo.phitex.org) |
+| `apps/site/` | phitex.org |
+| `common/` | what the frontends share: the session's host, the core's worker and host, packages and their cache, the fonts; `common/src/viewer` links to `phitex/viewer/src` |
+| `phitex/` | the engine (submodule): its viewer, and the wasm crates the browser runs |
+| `shelf/` | the Shelf release shipped, the bundled `texmf/`, the lists read ahead (`data/`) |
+| `tools/` | `build/` (every build), `dev/` (the mock runs, the browsers), `debug/`, `mock/` (the mock Overleaf), `sandbox`, `build-all.sh` |
+| `test/` | `unit/`, `scenarios/` (the mock runs), `editors/` (Emacs, Neovim, VS Code against the binary), `harness/` (the core on Node, the LSP smoke test), `fixtures/`, `bench/` |
+| `docs/` | `PRIVACY.md` (the extension's policy), `STORE.md` (the listings' text), `screenshots/`, `history/` (early notes) |
+| `store/` | the store listings' screenshots and icons |
+| `build/` | output only (ignored) |
 
 ## License
 

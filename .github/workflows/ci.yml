@@ -1,14 +1,14 @@
 # Each push and pull request: both extensions' TypeScript checked, and the
-# unit tests (test/*.test.ts), the format lock among them
-# (test/formats.test.ts: a stored shape changed without a new format fails).
-# The engine (wasm) is built elsewhere: scripts/build/build.sh, on a build machine.
+# unit tests (test/unit/*.test.ts), the format lock among them
+# (test/unit/formats.test.ts: a stored shape changed without a new format fails).
+# The engine (wasm) is built elsewhere: tools/build/build.sh, on a build machine.
 name: ci
-# (site/ is checked by its deploy, deploy-site.yml)
+# (apps/site/ is checked by its deploy, deploy-site.yml)
 on:
   push:
-    paths-ignore: ["site/**", ".github/workflows/deploy-site.yml"]
+    paths-ignore: ["apps/site/**", ".github/workflows/deploy-site.yml"]
   pull_request:
-    paths-ignore: ["site/**", ".github/workflows/deploy-site.yml"]
+    paths-ignore: ["apps/site/**", ".github/workflows/deploy-site.yml"]
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -21,10 +21,10 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
-      - run: npm ci --prefix vscode
+      - run: npm ci --prefix apps/vscode
       - name: TypeScript
         run: |
-          npx tsc --noEmit -p overleaf
-          npx tsc --noEmit -p vscode
+          npx tsc --noEmit -p apps/overleaf
+          npx tsc --noEmit -p apps/vscode
       - name: Unit tests
-        run: node --test test/*.test.ts
+        run: node --test test/unit/*.test.ts

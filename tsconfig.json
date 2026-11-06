@@ -1,5 +1,5 @@
 {
-  "//": "The options every frontend compiles with: overleaf/tsconfig.json and vscode/tsconfig.json extend these.",
+  "//": "The options every frontend compiles with: apps/overleaf/tsconfig.json and apps/vscode/tsconfig.json extend these.",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",

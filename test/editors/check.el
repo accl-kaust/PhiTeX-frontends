@@ -1,4 +1,4 @@
-;;; check.el --- editors/emacs/phitex.el against the phitex being released  -*- lexical-binding: t; -*-
+;;; check.el --- apps/editors/emacs/phitex.el against the phitex being released  -*- lexical-binding: t; -*-
 ;;; Run by test/editors/run.sh: PROJECT (main.tex inputting chapters/ch1.tex),
 ;;; PROBE (probe.mjs), each line "ok NAME" or "FAIL NAME: why"; exit 1 on a failure.
 ;;; With the cursor in the \input child: the MAIN file is built; an error typed

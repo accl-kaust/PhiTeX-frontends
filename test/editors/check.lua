@@ -1,4 +1,4 @@
--- editors/nvim/phitex.lua against the phitex being released (test/editors/run.sh):
+-- apps/editors/nvim/phitex.lua against the phitex being released (test/editors/run.sh):
 -- PROJECT, PROBE, PHITEX_NVIM_CONFIG; each line "ok NAME" or "FAIL NAME: why"; exit 1 on a failure.
 local failed = false
 local function check(name, ok, why)

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Install PhiTeX</title>
+  <meta name="description" content="Install the PhiTeX compiler with one line, and set it up in Overleaf, VS Code, Neovim, Emacs, any LSP editor or a browser tab." />
+  <meta name="color-scheme" content="dark light" />
+  <script>
+    try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+  </script>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav" id="nav">
+    <div class="brandwrap">
+      <a class="brand" href="index.html" aria-label="PhiTeX home"><img width="47.2" height="46" class="logo th-light" src="/logo/phitex-mark.svg" alt="PhiTeX"><img width="47.1" height="46" class="logo th-dark" src="/logo/phitex-mark-dark.svg" alt="" aria-hidden="true"></a>
+      <span class="byline"><span class="by">by</span><a class="accl" href="https://accl.kaust.edu.sa/" target="_blank" rel="noopener" aria-label="ACCL, the Accelerated Connected Computing Lab"><img width="128.7" height="22" class="th-light" src="/logo/accl-lockup-small-colour-tight.svg" alt=""><img width="129.4" height="22" class="th-dark" src="/logo/accl-lockup-small-colour-reverse-tight.svg" alt=""></a><span class="sep"></span><a class="kaust" href="https://www.kaust.edu.sa/" target="_blank" rel="noopener"><img width="24.9" height="24" src="/logo/kaust-seeds.svg" alt=""><span>KAUST</span></a></span>
+    </div>
+    <nav aria-label="Sections">
+      <a href="#binary">Install</a>
+      <a href="#editors">Editors</a>
+      <a class="page" href="https://demo.phitex.org/" target="_blank" rel="noopener">Try it</a>
+      <span class="nsep" aria-hidden="true"></span>
+      <a class="page" href="index.html">The compiler</a>
+    </nav>
+    <a class="gh" data-repo href="#" aria-label="PhiTeX on GitHub" target="_blank" rel="noopener"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.57.1.78-.25.78-.55v-2c-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.26.73-1.55-2.56-.3-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.2-3.1-.12-.3-.52-1.48.1-3.08 0 0 .98-.31 3.2 1.18a11.1 11.1 0 0 1 5.82 0c2.22-1.49 3.2-1.18 3.2-1.18.63 1.6.23 2.78.11 3.08.75.81 1.2 1.84 1.2 3.1 0 4.43-2.7 5.4-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .3.2.66.79.55A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg></a>
+    <button class="theme" id="theme" type="button" aria-label="Toggle dark and light theme">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path class="sun" d="M12 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10zM12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><path class="moon" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </header>
+
+  <main id="main" class="install-page">
+    <!-- ───────────── THE BINARY ───────────── -->
+    <section class="hero install-hero" id="binary">
+      <div class="hero-copy">
+        <p class="eyebrow"><a href="index.html">← PhiTeX, the compiler</a></p>
+        <h1 class="display install-title"><span class="get-line">Get <img width="286" height="102.4" class="h-logo th-light" src="/logo/phitex-logo.svg" alt="PhiTeX"><img width="286.1" height="102.4" class="h-logo th-dark" src="/logo/phitex-logo-dark.svg" alt="" aria-hidden="true"></span><em>One line, one binary.</em></h1>
+        <p class="lede">For Linux and macOS, on x86-64 and ARM. It puts <code>phitex</code> in <code>~/.local/bin</code>, checks it against the release's SHA-256 sums (and their minisign signature, if you have minisign), and touches nothing else.</p>
+        <div class="cmd"><pre><code>curl -fsSL https://phitex.org/install.sh | sh</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+        <p class="then">v1.0 is coming; until then, use the nightly build: dev's head, rebuilt each night once its checks pass, signed like releases.</p>
+        <div class="cmd"><pre><code>curl -fsSL https://phitex.org/install.sh | PHITEX_CHANNEL=nightly sh</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+        <p class="then"><code>phitex upgrade</code> then follows the nightly; run the installer without <code>PHITEX_CHANNEL</code> to go back to releases. Then, in your paper's folder:</p>
+        <div class="cmd"><pre><code>phitex watch paper.tex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+        <ul class="facts">
+          <li><b>Update</b><span><code>phitex upgrade</code>; <code>phitex news</code> says what it brings.</span></li>
+          <li><b>The PDF</b><span>kept in memory: <code>phitex watch</code> writes nothing into your folder. For <code>paper.pdf</code> (and its <code>.synctex</code>) on disk, <code>phitex watch --write paper.tex</code>, or <code>watch-write = true</code> in your own config.</span></li>
+          <li><b>Project files</b><span>a project's <code>phitex.toml</code> can't set <code>shell-escape</code>, <code>viewer</code>, <code>editor</code> or an output folder outside it. Those go in your own config or on the command line.</span></li>
+          <li><b>Remove</b><span>delete <code>~/.local/bin/phitex</code>.</span></li>
+          <li><b>Windows</b><span>not yet: build from <a data-repo href="#" target="_blank" rel="noopener">source</a>.</span></li>
+          <li><b>No install</b><span><a href="https://demo.phitex.org/" target="_blank" rel="noopener">try it in your browser&nbsp;↗</a>, or use <a href="#overleaf">Overleaf</a>.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ───────────── EDITORS ───────────── -->
+    <section class="band editors" id="editors">
+      <header class="sec-head">
+        <p class="eyebrow">Your editor</p>
+        <h2>Set it up <em>where you write.</em></h2>
+        <p class="lede">The same compiler and the same instant page in each. A project with several <code>.tex</code> files names its main one in <code>phitex.toml</code>: <code>main = "paper.tex"</code>.</p>
+        <p class="lede">In Neovim, Emacs and other LSP editors, the diagnostics are TeX's errors, LaTeX's warnings (an undefined <code>\ref</code> or <code>\cite</code>, a font substituted) and every overfull and underfull box. The page's filter by kind reaches the editor soon.</p>
+      </header>
+      <nav class="ed-picks" aria-label="Editors">
+        <a class="ed-pick" href="#overleaf"><svg width="20" height="20" class="ed-ico i-overleaf" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M22.3515.7484C19.1109-.5101 7.365-.982 7.3452 6.0266c-3.4272 2.194-5.6967 5.768-5.6967 9.598a8.373 8.373 0 0 0 13.1225 6.898 8.373 8.373 0 0 0-1.7668-14.7194c-.6062-.2339-1.9234-.6481-2.9753-.559-1.5007.9544-3.3308 2.9155-4.1949 4.8693 2.5894-3.082 7.5046-2.425 9.1937 1.2287 1.6892 3.6538-.9944 7.8237-5.0198 7.7998a5.4995 5.4995 0 0 1-4.1949-1.9328c-1.485-1.7483-1.8678-3.6444-1.5615-5.4975 1.057-6.4947 8.759-10.1894 14.486-11.6094-1.8677.989-5.2373 2.6134-7.5948 4.3837C18.015 9.1382 19.1308 3.345 22.3515.7484z"/></svg><span>Overleaf</span></a>
+        <a class="ed-pick" href="#vscode"><svg width="20" height="20" class="ed-ico i-vscode" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"/></svg><span>VS Code</span></a>
+        <a class="ed-pick" href="#neovim"><svg width="20" height="20" class="ed-ico i-neovim" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.214 4.954v13.615L7.655 24V10.314L3.312 3.845 2.214 4.954zm4.999 17.98l-4.557-4.548V5.136l.59-.596 3.967 5.908v12.485zm14.573-4.457l-.862.937-4.24-6.376V0l5.068 5.092.034 13.385zM7.431.001l12.998 19.835-3.637 3.637L3.787 3.683 7.43 0z"/></svg><span>Neovim</span></a>
+        <a class="ed-pick" href="#emacs"><svg width="20" height="20" class="ed-ico i-emacs" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12,24C5.448,24,0.118,18.617,0.118,12S5.448,0,12,0c6.552,0,11.882,5.383,11.882,12S18.552,24,12,24z M12,0.661 C5.813,0.661,0.779,5.748,0.779,12S5.813,23.339,12,23.339c6.187,0,11.221-5.086,11.221-11.339S18.187,0.661,12,0.661z M8.03,20.197 c0,0,0.978,0.069,2.236-0.042c0.51-0.045,2.444-0.235,3.891-0.552c0,0,1.764-0.377,2.707-0.725c0.987-0.364,1.524-0.673,1.766-1.11 c-0.011-0.09,0.074-0.408-0.381-0.599c-1.164-0.488-2.514-0.4-5.185-0.457c-2.962-0.102-3.948-0.598-4.472-0.997 c-0.503-0.405-0.25-1.526,1.907-2.513c1.086-0.526,5.345-1.496,5.345-1.496c-1.434-0.709-4.109-1.955-4.659-2.224 c-0.482-0.236-1.254-0.591-1.421-1.021c-0.19-0.413,0.448-0.768,0.804-0.87c1.147-0.331,2.766-0.536,4.24-0.56 c0.741-0.012,0.861-0.059,0.861-0.059c1.022-0.17,1.695-0.869,1.414-1.976c-0.252-1.13-1.579-1.795-2.84-1.565 c-1.188,0.217-4.05,1.048-4.05,1.048c3.539-0.031,4.131,0.028,4.395,0.398c0.156,0.218-0.071,0.518-1.015,0.672 c-1.027,0.168-3.163,0.37-3.163,0.37c-2.049,0.122-3.492,0.13-3.925,1.046C6.202,7.564,6.787,8.094,7.043,8.425 c1.082,1.204,2.646,1.853,3.652,2.331c0.379,0.18,1.49,0.52,1.49,0.52c-3.265-0.18-5.619,0.823-7.001,1.977 c-1.562,1.445-0.871,3.168,2.33,4.228c1.891,0.626,2.828,0.921,5.648,0.667c1.661-0.09,1.923-0.036,1.939,0.1 c0.023,0.192-1.845,0.669-2.355,0.816C11.448,19.438,8.047,20.193,8.03,20.197z"/></svg><span>Emacs</span></a>
+        <a class="ed-pick" href="#lsp"><svg width="20" height="20" class="ed-ico i-lsp" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1"/></svg><span>Any LSP editor</span></a>
+        <a class="ed-pick" href="#browser"><svg width="20" height="20" class="ed-ico i-browser" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M2 9h20"/></g><circle cx="5.5" cy="6.5" r="1" fill="currentColor"/><circle cx="8.5" cy="6.5" r="1" fill="currentColor"/></svg><span>A browser tab</span></a>
+        <a class="ed-pick" href="#scripts"><svg width="20" height="20" class="ed-ico i-terminal" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M6.5 9.5l3 2.5-3 2.5M12 15h5"/></g></svg><span>Scripts &amp; CI</span></a>
+      </nav>
+      <div class="setups">
+        <article class="setup reveal" id="overleaf">
+          <header><svg width="34" height="34" class="ed-ico i-overleaf" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M22.3515.7484C19.1109-.5101 7.365-.982 7.3452 6.0266c-3.4272 2.194-5.6967 5.768-5.6967 9.598a8.373 8.373 0 0 0 13.1225 6.898 8.373 8.373 0 0 0-1.7668-14.7194c-.6062-.2339-1.9234-.6481-2.9753-.559-1.5007.9544-3.3308 2.9155-4.1949 4.8693 2.5894-3.082 7.5046-2.425 9.1937 1.2287 1.6892 3.6538-.9944 7.8237-5.0198 7.7998a5.4995 5.4995 0 0 1-4.1949-1.9328c-1.485-1.7483-1.8678-3.6444-1.5615-5.4975 1.057-6.4947 8.759-10.1894 14.486-11.6094-1.8677.989-5.2373 2.6134-7.5948 4.3837C18.015 9.1382 19.1308 3.345 22.3515.7484z"/></svg><div><h3>Overleaf</h3><p class="need">Nothing to install: it runs in your browser</p></div></header>
+          <p>A browser extension adds a <b>PDF&nbsp;|&nbsp;⚡&nbsp;Instant</b> switch to Overleaf's PDF toolbar. Chrome, Edge, Brave and other Chromium browsers, and Firefox 142 or later.</p>
+          <ol class="setup-steps">
+            <li>Add it to your browser:
+      <div class="stores small">
+        <a class="store" data-store="chrome" href="#" aria-label="PhiTeX on the Chrome Web Store">
+          <svg width="26" height="26" class="ico" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#fff"/><circle cx="24" cy="24" r="9" fill="#4285F4"/><path fill="#EA4335" d="M24 6a18 18 0 0 1 15.6 9H24a9 9 0 0 0-8.3 5.6L8.2 13A18 18 0 0 1 24 6z"/><path fill="#34A853" d="M8.2 13 15.7 26A9 9 0 0 0 28 32.5L20.4 41.7A18 18 0 0 1 8.2 13z"/><path fill="#FBBC05" d="M39.6 15A18 18 0 0 1 20.4 41.7L28 28.5A9 9 0 0 0 30.6 15z"/></svg>
+          <span class="lab"><b>Chrome</b><span>Web Store</span></span>
+        </a>
+        <a class="store" data-store="edge" href="#" aria-label="PhiTeX on Edge Add-ons">
+          <svg width="26" height="26" class="ico" viewBox="0 0 48 48" aria-hidden="true"><path fill="#0C88DA" d="M42 30c-2 7-9 13-18 13-6 0-12-3-14-8 3 2 7 2 11 0 5-3 7-8 7-12 0-3-3-5-6-5-7 0-11 6-11 6C12 11 22 4 32 7c6 4 12 12 10 23z"/><path fill="#2AC3A2" d="M24 4C13 4 4 12 4 23c0 2 0 3 1 5 2-6 8-10 14-10 4 0 7 2 9 4-1-6-6-10-11-10-4 0-7 1-9 4 3-7 9-12 16-12z"/></svg>
+          <span class="lab"><b>Edge</b><span>Add-ons</span></span>
+        </a>
+        <a class="store" data-store="firefox" href="#" aria-label="PhiTeX on Firefox Add-ons">
+          <svg width="26" height="26" class="ico" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FF9500" d="M43 17c0-3-2-7-4-9 1 3 1 6-1 9-2-5-6-8-10-10 1 2 1 4 0 6-5-3-10-2-14 1-4 3-7 9-7 15 0 10 8 17 18 17s18-8 18-18c0-4-2-8-5-11 1 3 1 6-1 8 2-4 6-5 6-8z"/><path fill="#FF5000" d="M24 45c-8 0-14-6-14-14 0-5 3-9 7-11-1 4 1 8 5 10-3-3-3-8 0-11 2 6 8 8 12 13 2 2 2 5 2 7 0 9-8 6-12 6z"/><circle cx="24" cy="28" r="10" fill="#FFCB00" opacity=".0"/></svg>
+          <span class="lab"><b>Firefox</b><span>Add-ons</span></span>
+        </a>
+      </div>
+            </li>
+            <li>Open any project on <code>overleaf.com</code> and flip the PDF pane to <b>⚡ Instant</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>).</li>
+            <li>The first time, accept the short terms: it is unofficial and experimental.</li>
+          </ol>
+          <p class="more"><a href="overleaf.html">PhiTeX for Overleaf, in full&nbsp;→</a></p>
+        </article>
+        <article class="setup reveal" id="vscode">
+          <header><svg width="34" height="34" class="ed-ico i-vscode" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"/></svg><div><h3>VS Code</h3><p class="need">VS Code 1.85+ · brings its own engine</p></div></header>
+          <p><b>PhiTeX ⚡ Instant</b> (<code>accl-kaust.phitex-instant</code>): a live page beside your editor, errors in the Problems panel, click-to-source both ways.</p>
+          <ol class="setup-steps">
+            <li>Install it. The Marketplace and Open VSX listings are coming soon; until then, from a <code>.vsix</code> built from <a data-ext href="#">PhiTeX-frontends</a>:
+              <div class="cmd"><pre><code>code --install-extension phitex-instant-0.7.0.vsix</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
+            <li>Open a <code>.tex</code> file and run <b>PhiTeX: Open Preview</b> from the Command Palette.</li>
+            <li>Optional: with <a href="#binary">phitex</a> installed, <b>PhiTeX: Switch Engine</b> runs <code>phitex watch</code> instead of the built-in engine.</li>
+          </ol>
+        </article>
+        <article class="setup reveal" id="neovim">
+          <header><svg width="34" height="34" class="ed-ico i-neovim" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.214 4.954v13.615L7.655 24V10.314L3.312 3.845 2.214 4.954zm4.999 17.98l-4.557-4.548V5.136l.59-.596 3.967 5.908v12.485zm14.573-4.457l-.862.937-4.24-6.376V0l5.068 5.092.034 13.385zM7.431.001l12.998 19.835-3.637 3.637L3.787 3.683 7.43 0z"/></svg><div><h3>Neovim</h3><p class="need">Neovim 0.11+ · needs <a href="#binary">phitex</a> nightly 202611041513+</p></div></header>
+          <p><code>phitex.lua</code>: the buffer is built as you type, TeX's errors are diagnostics, and the page follows your cursor.</p>
+          <ol class="setup-steps">
+            <li>Add it with lazy.nvim:
+              <div class="cmd"><pre><code>{ "accl-kaust/PhiTeX-frontends",
+  config = function(p)
+    vim.opt.rtp:append(p.dir .. "/apps/editors/nvim")
+    dofile(p.dir .. "/apps/editors/nvim/phitex.lua")
+  end }</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+              Or put the file in your config:
+              <div class="cmd"><pre><code>curl -fsSLo ~/.config/nvim/plugin/phitex.lua \
+  https://raw.githubusercontent.com/accl-kaust/PhiTeX-frontends/dev/apps/editors/nvim/phitex.lua</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
+            <li>Open a <code>.tex</code> file. <code>&lt;leader&gt;lv</code> opens the page; double-click it to jump back to the source.</li>
+            <li>Optional, the build's state in your statusline:
+              <div class="cmd"><pre><code>vim.o.statusline = "%f %m%=%{v:lua.PhitexStatus()} "</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
+          </ol>
+          <p class="fine">Commands: <code>:PhiTeXViewer</code>, <code>:PhiTeXRebuild</code>, <code>:PhiTeXSavePdf</code>, <code>:PhiTeXStop</code>, <code>:PhiTeXRestart</code>. Settings in <code>PhitexSettings</code>, e.g. <code>{ threads = 4, follow = "selection" }</code>. With no <code>phitex</code> on your <code>PATH</code>, it offers to download the nightly into <code>~/.local/bin</code> (<code>:PhiTeXInstall</code>), checked against its minisign signature; it needs <code>curl</code> and <code>minisign</code>.</p>
+        </article>
+        <article class="setup reveal" id="emacs">
+          <header><svg width="34" height="34" class="ed-ico i-emacs" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12,24C5.448,24,0.118,18.617,0.118,12S5.448,0,12,0c6.552,0,11.882,5.383,11.882,12S18.552,24,12,24z M12,0.661 C5.813,0.661,0.779,5.748,0.779,12S5.813,23.339,12,23.339c6.187,0,11.221-5.086,11.221-11.339S18.187,0.661,12,0.661z M8.03,20.197 c0,0,0.978,0.069,2.236-0.042c0.51-0.045,2.444-0.235,3.891-0.552c0,0,1.764-0.377,2.707-0.725c0.987-0.364,1.524-0.673,1.766-1.11 c-0.011-0.09,0.074-0.408-0.381-0.599c-1.164-0.488-2.514-0.4-5.185-0.457c-2.962-0.102-3.948-0.598-4.472-0.997 c-0.503-0.405-0.25-1.526,1.907-2.513c1.086-0.526,5.345-1.496,5.345-1.496c-1.434-0.709-4.109-1.955-4.659-2.224 c-0.482-0.236-1.254-0.591-1.421-1.021c-0.19-0.413,0.448-0.768,0.804-0.87c1.147-0.331,2.766-0.536,4.24-0.56 c0.741-0.012,0.861-0.059,0.861-0.059c1.022-0.17,1.695-0.869,1.414-1.976c-0.252-1.13-1.579-1.795-2.84-1.565 c-1.188,0.217-4.05,1.048-4.05,1.048c3.539-0.031,4.131,0.028,4.395,0.398c0.156,0.218-0.071,0.518-1.015,0.672 c-1.027,0.168-3.163,0.37-3.163,0.37c-2.049,0.122-3.492,0.13-3.925,1.046C6.202,7.564,6.787,8.094,7.043,8.425 c1.082,1.204,2.646,1.853,3.652,2.331c0.379,0.18,1.49,0.52,1.49,0.52c-3.265-0.18-5.619,0.823-7.001,1.977 c-1.562,1.445-0.871,3.168,2.33,4.228c1.891,0.626,2.828,0.921,5.648,0.667c1.661-0.09,1.923-0.036,1.939,0.1 c0.023,0.192-1.845,0.669-2.355,0.816C11.448,19.438,8.047,20.193,8.03,20.197z"/></svg><div><h3>Emacs</h3><p class="need">Emacs 29+ · needs <a href="#binary">phitex</a> nightly 202611041513+</p></div></header>
+          <p><code>phitex.el</code>, a minor mode: it runs beside eglot or lsp-mode (or nothing), with diagnostics in flymake and the build's state in the mode line.</p>
+          <ol class="setup-steps">
+            <li>Add it with use-package (Emacs 30's <code>:vc</code>; on 29, straight or elpaca the same way):
+              <div class="cmd"><pre><code>(use-package phitex
+  :vc (:url "https://github.com/accl-kaust/PhiTeX-frontends"
+       :lisp-dir "apps/editors/emacs" :rev :newest)
+  :hook ((LaTeX-mode latex-mode) . phitex-mode)
+  :custom (phitex-settings '(:follow "selection")))</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+              Or download it:
+              <div class="cmd"><pre><code>curl -fsSLo ~/.emacs.d/phitex.el \
+  https://raw.githubusercontent.com/accl-kaust/PhiTeX-frontends/dev/apps/editors/emacs/phitex.el</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+              and turn it on in TeX buffers, in your init file:
+              <div class="cmd"><pre><code>(load "~/.emacs.d/phitex.el")
+(add-hook 'LaTeX-mode-hook #'phitex-mode)   ; and/or latex-mode-hook</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
+            <li><kbd>M-x</kbd> <code>phitex-open-viewer</code> opens the page.</li>
+          </ol>
+          <p class="fine">With no <code>phitex</code> on your <code>PATH</code>, the mode offers to download the nightly into <code>~/.local/bin</code> (<kbd>M-x</kbd> <code>phitex-install</code>), checked against its minisign signature; it needs <code>curl</code> and <code>minisign</code>.</p>
+        </article>
+        <article class="setup reveal" id="lsp">
+          <header><svg width="34" height="34" class="ed-ico i-lsp" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1"/></svg><div><h3>Any LSP editor</h3><p class="need">Needs <a href="#binary">phitex</a></p></div></header>
+          <p><code>phitex watch --lsp</code> is a language server: your buffers are built as you type, problems are published, and your cursor is shown on the page. Add it as a server for TeX files, beside any other. In Helix, for example (<code>languages.toml</code>):</p>
+          <div class="cmd"><pre><code>[language-server.phitex]
+command = "phitex"
+args = ["watch", "--lsp"]
+
+[[language]]
+name = "latex"
+language-servers = ["texlab", "phitex"]</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+        </article>
+        <article class="setup reveal" id="browser">
+          <header><svg width="34" height="34" class="ed-ico i-browser" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M2 9h20"/></g><circle cx="5.5" cy="6.5" r="1" fill="currentColor"/><circle cx="8.5" cy="6.5" r="1" fill="currentColor"/></svg><div><h3>A browser tab</h3><p class="need">Needs <a href="#binary">phitex</a></p></div></header>
+          <p>Beside any editor at all: the page lives in a tab and is rebuilt every time you save.</p>
+          <div class="cmd"><pre><code>phitex watch paper.tex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+          <p>It opens <code>http://127.0.0.1</code> in your browser. Double-click the page to reach the source.</p>
+        </article>
+        <article class="setup reveal" id="scripts">
+          <header><svg width="34" height="34" class="ed-ico i-terminal" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M6.5 9.5l3 2.5-3 2.5M12 15h5"/></g></svg><div><h3>latexmk, scripts, CI</h3><p class="need">Needs <a href="#binary">phitex</a></p></div></header>
+          <p>One build does what latexmk does, BibTeX, biber and makeindex inside it.</p>
+          <div class="cmd"><pre><code>phitex build paper.tex                 # the finished PDF, like latexmk -pdf
+phitex --compat=pdflatex paper.tex     # one run, exactly as pdflatex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+          <p>Under the name <code>pdflatex</code>, PhiTeX takes pdflatex's command line and makes one run, as pdflatex would.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+    <footer class="foot">
+    <div class="foot-cols simple">
+      <a class="brand small" href="index.html" aria-label="PhiTeX"><img width="111.7" height="40" class="logo" src="/logo/phitex-logo-dark.svg" alt="PhiTeX"></a>
+      <p>A fast, modern TeX compiler, made at the <a href="https://accl.kaust.edu.sa/" target="_blank" rel="noopener">Accelerated Connected Computing Lab</a>, KAUST.</p>
+      <p class="foot-fine">Free software under the GNU AGPL v3.0 · Set in Computer Modern, the typeface Donald Knuth drew for TeX (CMU, SIL OFL) · Not affiliated with or endorsed by Overleaf · No analytics, no trackers</p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/install.ts"></script>
+</body>
+</html>

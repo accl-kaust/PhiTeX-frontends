@@ -25,8 +25,8 @@ status=0
 run() { # name editor answer want(installed|nothing) pattern
   local name=$1 ed=$2 ans=$3 want=$4 pat=$5 pre="$tmp/p$RANDOM" out
   case $ed in
-    emacs) out=$(env -u DISPLAY emacs --batch -Q -l "$repo/editors/emacs/phitex.el" --eval "(progn (setq phitex-release-base \"file://$rel\" phitex-release-key \"$key\" phitex-install-prefix \"$pre\") (fset 'yes-or-no-p (lambda (_) $([ "$ans" = yes ] && echo t || echo nil))) (condition-case e (phitex-install) (error (princ (error-message-string e)))))" 2>&1) ;;
-    nvim) out=$(nvim --clean --headless --cmd "lua PhitexInstall = { base = 'file://$rel', key = '$key', prefix = '$pre' }" -c "luafile $repo/editors/nvim/phitex.lua" -c "lua vim.fn.confirm = function() return $([ "$ans" = yes ] && echo 1 || echo 2) end; vim.notify = function(m) io.stdout:write(m .. '\n') end" -c "PhiTeXInstall" -c "qa!" 2>&1) ;;
+    emacs) out=$(env -u DISPLAY emacs --batch -Q -l "$repo/apps/editors/emacs/phitex.el" --eval "(progn (setq phitex-release-base \"file://$rel\" phitex-release-key \"$key\" phitex-install-prefix \"$pre\") (fset 'yes-or-no-p (lambda (_) $([ "$ans" = yes ] && echo t || echo nil))) (condition-case e (phitex-install) (error (princ (error-message-string e)))))" 2>&1) ;;
+    nvim) out=$(nvim --clean --headless --cmd "lua PhitexInstall = { base = 'file://$rel', key = '$key', prefix = '$pre' }" -c "luafile $repo/apps/editors/nvim/phitex.lua" -c "lua vim.fn.confirm = function() return $([ "$ans" = yes ] && echo 1 || echo 2) end; vim.notify = function(m) io.stdout:write(m .. '\n') end" -c "PhiTeXInstall" -c "qa!" 2>&1) ;;
   esac
   local got=nothing; [ -x "$pre/bin/phitex" ] && got=installed
   if [ "$got" = "$want" ] && grep -q -- "$pat" <<<"$out"; then echo "ok $ed: $name"; else echo "FAIL $ed: $name: $got; said: $out"; status=1; fi
@@ -53,8 +53,8 @@ if [ "${PHITEX_INSTALL_LIVE:-}" = 1 ]; then
   for ed in emacs nvim; do
     pre="$tmp/live-$ed"
     case $ed in
-      emacs) out=$(env -u DISPLAY emacs --batch -Q -l "$repo/editors/emacs/phitex.el" --eval "(progn (setq phitex-install-prefix \"$pre\") (fset 'yes-or-no-p (lambda (_) t)) (condition-case e (phitex-install) (error (princ (error-message-string e)))))" 2>&1) ;;
-      nvim) out=$(nvim --clean --headless --cmd "lua PhitexInstall = { prefix = '$pre' }" -c "luafile $repo/editors/nvim/phitex.lua" -c "lua vim.fn.confirm = function() return 1 end; vim.notify = function(m) io.stdout:write(m .. '\\n') end" -c "PhiTeXInstall" -c "qa!" 2>&1) ;;
+      emacs) out=$(env -u DISPLAY emacs --batch -Q -l "$repo/apps/editors/emacs/phitex.el" --eval "(progn (setq phitex-install-prefix \"$pre\") (fset 'yes-or-no-p (lambda (_) t)) (condition-case e (phitex-install) (error (princ (error-message-string e)))))" 2>&1) ;;
+      nvim) out=$(nvim --clean --headless --cmd "lua PhitexInstall = { prefix = '$pre' }" -c "luafile $repo/apps/editors/nvim/phitex.lua" -c "lua vim.fn.confirm = function() return 1 end; vim.notify = function(m) io.stdout:write(m .. '\\n') end" -c "PhiTeXInstall" -c "qa!" 2>&1) ;;
     esac
     v=$("$pre/bin/phitex" --version 2>&1 | head -1)
     if [ -x "$pre/bin/phitex" ] && grep -q '"channel": "nightly"' "$XDG_DATA_HOME/phitex/install.json" && [ -n "$v" ]; then echo "ok $ed: its own channel's release installed and runs: $v"; else echo "FAIL $ed: its own channel's release: said: $out; --version: $v"; status=1; fi

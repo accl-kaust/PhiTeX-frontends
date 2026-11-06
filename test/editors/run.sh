@@ -2,9 +2,9 @@
 # The editors' checks against one phitex binary (the release gate and the
 # nightly run them, PhiTeX's .github/workflows/release.yml and nightly.yml):
 #   test/editors/run.sh PHITEX [emacs] [nvim] [vscode]
-# (vscode: test/lsp-smoke.mjs, the watch as the VS Code extension's native
-# engine drives it, over vscode-jsonrpc: `npm ci --prefix vscode` first; the
-# extension's own wasm engine is vscode/test/smoke.ts's, the gate's browser job)
+# (vscode: test/harness/lsp-smoke.mjs, the watch as the VS Code extension's native
+# engine drives it, over vscode-jsonrpc: `npm ci --prefix apps/vscode` first; the
+# extension's own wasm engine is apps/vscode/test/smoke.ts's, the gate's browser job)
 # A project with its main file and a chapter it inputs (the cursor starts
 # in the chapter: item 30's regression). Exits 1 if any check fails.
 set -uo pipefail
@@ -30,9 +30,9 @@ status=0
 for e in ${which[@]}; do
   echo "== $e"
   case $e in
-    emacs) out=$(timeout 600 emacs --batch -Q -l "$repo/editors/emacs/phitex.el" -l "$here/check.el" 2>&1); code=$? ;;
-    nvim) out=$(PHITEX_NVIM_CONFIG="$repo/editors/nvim/phitex.lua" timeout 600 nvim --clean --headless -c "luafile $here/check.lua" 2>&1 | tr '\r' '\n'); code=${PIPESTATUS[0]} ;;
-    vscode) out=$(timeout 600 node "$repo/test/lsp-smoke.mjs" "$bin" "$tmp/vscode" main.tex 2>&1); code=$? ;;
+    emacs) out=$(timeout 600 emacs --batch -Q -l "$repo/apps/editors/emacs/phitex.el" -l "$here/check.el" 2>&1); code=$? ;;
+    nvim) out=$(PHITEX_NVIM_CONFIG="$repo/apps/editors/nvim/phitex.lua" timeout 600 nvim --clean --headless -c "luafile $here/check.lua" 2>&1 | tr '\r' '\n'); code=${PIPESTATUS[0]} ;;
+    vscode) out=$(timeout 600 node "$repo/test/harness/lsp-smoke.mjs" "$bin" "$tmp/vscode" main.tex 2>&1); code=$? ;;
     *) echo "no editor $e"; exit 2 ;;
   esac
   grep -E '^(ok|FAIL) ' <<<"$out"

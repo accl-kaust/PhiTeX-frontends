@@ -1,15 +1,15 @@
 # demo.phitex.org on each push to main: the whole web frontend built from
-# this commit, the wasm core with it (scripts/build/build.sh: PhiTeX's pinned
+# this commit, the wasm core with it (tools/build/build.sh: PhiTeX's pinned
 # commit, the phitex submodule, to wasm; the formats made by that core), then
-# scripts/build/build-web.sh, deployed to Cloudflare Pages project phitex-demo.
+# tools/build/build-web.sh, deployed to Cloudflare Pages project phitex-demo.
 #
-# Secret: CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit). (site/ is phitex.org,
+# Secret: CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit). (apps/site/ is phitex.org,
 # deploy-site.yml: a push that changes only it deploys only it)
 name: deploy-demo
 on:
   push:
     branches: [main]
-    paths-ignore: ["site/**", ".github/workflows/deploy-site.yml"]
+    paths-ignore: ["apps/site/**", ".github/workflows/deploy-site.yml"]
   workflow_dispatch:
 concurrency:
   group: deploy-demo
@@ -28,20 +28,21 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
-      # (the toolchain rust-toolchain.toml pins, its wasm targets with it)
-      - run: rustup toolchain install
+      # (PhiTeX's pinned toolchain, phitex/rust-toolchain.toml, and the wasm
+      # targets its scripts/wasm-live.sh builds the cores for)
+      - run: |
+          cd phitex && rustup toolchain install
+          rustup target add wasm32-wasip1-threads wasm32-wasip1
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            core -> ../target/core
-            diff-wasm -> target
+          workspaces: phitex -> ../target/phitex-wasm
       # (minted's wheels, the versions TeX Live ships, which build.sh takes from it locally)
       - run: |
           pip download --no-deps --only-binary=:all: -d target/minted latexminted==0.7.1 latexrestricted==0.6.2 latex2pydata==0.5.0 pygments==2.19.1
       - name: Build
         run: |
-          MINTED_WHEELS=target/minted scripts/build/build.sh
-          scripts/build/build-web.sh
+          MINTED_WHEELS=target/minted tools/build/build.sh
+          tools/build/build-web.sh
       - uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

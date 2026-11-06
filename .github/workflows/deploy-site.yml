@@ -1,17 +1,17 @@
-# phitex.org (site/, merged from the PhiTeX.org repository): the static site
+# phitex.org (apps/site/, merged from the PhiTeX.org repository): the static site
 # built and deployed to Cloudflare Pages project phitex-org on each push to
-# main that changes site/, and each day (news.json follows PhiTeX's
+# main that changes apps/site/, and each day (news.json follows PhiTeX's
 # CHANGELOG.md on its main: a release is seen within a day; run the workflow
 # by hand to publish one at once). The demo (deploy-demo.yml) is deployed
 # apart, on the rest.
 #
 # Secret: CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit), the demo's. The
-# VITE_* repository variables are optional: site/src/links.ts has defaults.
+# VITE_* repository variables are optional: apps/site/src/links.ts has defaults.
 name: deploy-site
 on:
   push:
     branches: [main]
-    paths: ["site/**", ".github/workflows/deploy-site.yml"]
+    paths: ["apps/site/**", ".github/workflows/deploy-site.yml"]
   workflow_dispatch:
   schedule:
     - cron: "17 3 * * *"
@@ -25,14 +25,14 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: site
+        working-directory: apps/site
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: site/package-lock.json
+          cache-dependency-path: apps/site/package-lock.json
       - run: npm ci
       - run: npm test
       # (news.json from PhiTeX's CHANGELOG.md on main, served at /news.json)
@@ -48,5 +48,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: 2925ae0c4cb07a33b3ab848a3a4c6c99
-          workingDirectory: site
+          workingDirectory: apps/site
           command: pages deploy dist --project-name=phitex-org --branch=main

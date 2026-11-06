@@ -1,0 +1,6 @@
+{
+  "//": "The web frontend (apps/web/): src/ and the shared sources it bundles, type-checked strictly (tools/build/build-web.sh bundles them with esbuild; its grammar, apps/web/build/, first).",
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "noEmit": true, "strict": true, "noImplicitAny": true, "useUnknownInCatchVariables": true },
+  "include": ["src"]
+}
