@@ -19,8 +19,8 @@ looking at is repainted first.
 
 - **⚡ Instant preview** in Overleaf's PDF pane, behind a **PDF | ⚡ Instant**
   switch next to Recompile (**Alt+Shift+P** toggles it).
-- **Real LaTeX**: the engine is pdfTeX, run as WebAssembly, with TeX Live
-  2026's packages and fonts. Your class files, `.bib` files and PDF/JPEG
+- **Real LaTeX**: the engine is pdfTeX or XeTeX (chosen from the preamble),
+  run as WebAssembly, with TeX Live 2026's packages and fonts. Your class files, `.bib` files and PDF/JPEG
   figures come from your project.
 - **Selectable, searchable text**: pages are drawn as vector graphics with
   the fonts' real outlines. You can select and copy text and find it with
@@ -33,13 +33,21 @@ looking at is repainted first.
   the build, and re-run only for what changed. `minted` works too:
   latexminted and Pygments run as Python in WebAssembly, loaded only for a
   project that uses minted.
-- **Diagnostics**: a badge counts errors and warnings. Click an entry to
-  jump to its line. When an edit breaks the document (an unclosed `{`, say),
-  the last good page stays on screen, dimmed, with the reason.
+- **Problems**: a badge counts errors and warnings, and a wavy line on the
+  page marks what each is about. Click an entry to jump to its line. Each
+  has **Copy for an AI assistant**: the message with the source around it,
+  the preamble, the macros and files it came from, TeX's notes and the
+  log, ready to paste into a chat. When an edit breaks the document (an
+  unclosed `{`, say), the last good page stays on screen, dimmed, with the
+  reason.
 - **Download the ⚡ Instant PDF** from the download button in the PDF
   toolbar. The ▾ menu next to it still gives Overleaf's compiled PDF.
+- **Collaborators** show on the page where they are, in their colour.
 - **Follows Overleaf**: its light/dark theme, its toolbar layout, and its
   "dark mode PDF" setting.
+- **Project folders** on Overleaf's dashboard: nested folders and a status
+  column (idea, drafting, submitted, …), kept in a project of your own,
+  `.phitex-data`.
 
 ## Install
 
@@ -63,19 +71,19 @@ almost straight away and works offline.
 
 ## Settings
 
-Click the extension's ⚡ icon in the browser toolbar:
+The ⚙ button in the PDF toolbar (beside ⚡ Instant) opens Settings, in tabs:
 
-| Setting | What it does |
+| Tab | Settings |
 | --- | --- |
-| Enable on Overleaf | Off: Overleaf exactly as it is, immediately. |
-| Opens with | Which view a project opens in: Overleaf's PDF or ⚡ Instant. |
-| Page | Vector (selectable text) or PNG. |
-| PDF highlight | When the yellow highlight shows on the page: following the cursor, the selection, or only on a double-click. |
-| Engine | pdfLaTeX (XeLaTeX and LuaLaTeX: not yet). |
-| Show the ⚡ ms chip | The small timer at the bottom of the pane that shows how fast each keystroke reached the page. |
-| Package cache | How many TeX Live files are kept in this browser and their size. **Clear** removes them; they are downloaded again when next needed. |
-| Tips / What's new | The welcome tip and release notes, on or off. |
-| Withdraw consent / Reset extension | Reset wipes every setting, as if just installed. |
+| Preview | **Opens with** (Overleaf's PDF or ⚡ Instant), **Engine** (Auto from the preamble, pdfLaTeX or XeLaTeX), **Highlight follows** (the cursor, the selection, or a double-click only), **Collaborators on the PDF**, the main file, the problem kinds shown. |
+| Appearance | **Dark PDF** (off, on, or matching the theme), the **loading animation**, **underline problems**. |
+| Build | **Clean rebuild**, reload the project's files, a debug check against a fresh build. |
+| Packages | How many TeX Live packs are kept in this browser and their size (**Clear**), the most to keep (100 MB, 300 MB, 1 GB), and fetching common packages ahead. |
+| Updates and tips | The tips, the tour, and what's new after an update. |
+| Overleaf | **Enable on Overleaf** (off: Overleaf exactly as it is), the dashboard's folders, status column and `.phitex-data`, withdrawing consent, and **Reset extension** (every setting as just installed). |
+
+The extension's ⚡ icon in the browser toolbar opens most of them
+outside a project.
 
 ## Privacy
 
@@ -155,11 +163,15 @@ Overleaf's is right.
 - **"Not found in TeX Live" in the diagnostics (info)**: LaTeX looks for
   many optional files (`*.cfg` and similar) that usually don't exist. This
   is normal. Only a file that stops the build is an error.
-- **Something looks wrong after an update**: in the settings, use
-  *Package cache → Clear*, then reload the Overleaf tab.
+- **Something looks wrong after an update**: in Settings, use
+  *Packages → Clear*, then reload the Overleaf tab.
 - **Download says "No complete PDF yet"**: the build stopped before the end
   of your document. Fix the error the diagnostics show, or download
   Overleaf's PDF from the ▾ menu.
+
+To ask an AI assistant about an error, use **Copy for an AI assistant** on
+that problem. Its text is your source, so read it before you paste it
+anywhere.
 
 To report a bug, open ⓘ diagnostics → **Report a problem…** (or click an
 error). It shows an anonymized debug report: versions, timings, errors and
@@ -169,10 +181,12 @@ flinner@nand.sh. Nothing is sent unless you send it.
 
 ## Building from source
 
-> The PhiTeX engine this extension embeds (accl-kaust/PhiTeX) is not public
-> yet. Until it is, the extension can't be built from this repository alone.
+The engine is the `phitex/` submodule (accl-kaust/PhiTeX, followed at
+its `dev`):
 
-With the engine checked out, you need the Rust toolchain pinned in
+    git submodule update --init phitex
+
+You need the Rust toolchain pinned in
 `rust-toolchain.toml` with the `wasm32-wasip1` target, Node ≥ 22, and
 bubblewrap (for `scripts/sandbox`, which runs every build step without
 network access or `$HOME`):
@@ -200,6 +214,14 @@ The repository holds the frontends of one engine:
   holds both (`dist/common/…`).
 - `vscode/`: the VS Code extension over the same engine and `common/`
   (`vscode/README.md`; `scripts/build/build-vscode.sh`).
+- `web/`: the browser demo (demo.phitex.org; `scripts/build/build-web.sh`),
+  deployed on each push to `main` (`.github/workflows/deploy-demo.yml`).
+- `editors/`: the Emacs and Neovim plugins over the `phitex` command.
+- `site/`: phitex.org (`deploy-site.yml`).
+- `shelf-index.tsv.gz`, `shelf-packs.tsv.gz`, `shelf-release.json`: the
+  Shelf release shipped (`scripts/build/shelf-index.sh`). The formats are
+  made against it, so a newer Shelf release means shipping it with formats
+  made again.
 
 Development:
 
@@ -220,7 +242,10 @@ a content-script hook that listens on `localhost` only):
 `mock-run.mjs` steps (see its header): `type`, `replace`, `idle`, `shot`,
 `dblpage`, `dbltext`, `cursor`, `select`, `pagesel`, `eval` (`"page": true`
 for the page's world), `trace` (the core's rebuild log in `core-log.txt`),
-`pdfsave`, `auxdump`. `fx-run.mjs` prints the content script's trace and
+`pdfsave`, `auxdump`, `onpage`, `reload`, `secondtab`, `rootdoc`. A
+scenario can be `strict` (any exception or console error fails it) and set
+a `budget` (its first page within so many ms, at most so many packages, none
+matching a pattern; on a `reload` step, each reload's). `fx-run.mjs` prints the content script's trace and
 errors when no page shows (Firefox's automation can't reach content
 scripts).
 
@@ -263,6 +288,20 @@ Overleaf page                                            extension
   every 10 s and diffed in, so collaborators' edits arrive too.
 - `session.ts` knows neither Overleaf nor Chrome (`EditorHost`,
   `CoreTransport`, `PreviewSink`), so other editors could reuse it.
+
+### Checks
+
+- Each push: `.github/workflows/ci.yml`, both extensions' TypeScript and
+  the unit tests (`node --test test/*.test.ts`, the format lock among them).
+- PhiTeX's release gate and nightly (its `.github/workflows/frontends.yml`,
+  at the frontends commit its `ci/frontends.commit` pins) build the wasm
+  core and every frontend, then run them in Chrome: the extension on the
+  mock (`test/scenarios/ci*.json`), the demo (`web/test/check.mjs`), VS
+  Code's wasm engine, and Emacs, Neovim and VS Code's native engine
+  (`test/editors/run.sh`). They fail on an error, and on time and packages:
+  `ci.json`'s first page, from an empty cache, within 20 s with at most 8
+  packages and no hyphenation patterns; each of `ci-reload.json`'s reloads
+  within 15 s with none fetched.
 
 Store kit: `scripts/build/package.sh` builds the upload zips (Chrome Web Store
 and Edge; Firefox: a background page instead of the offscreen document),
