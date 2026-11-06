@@ -67,6 +67,8 @@
         "dist/callout.js",
         "dist/dom.js",
         "dist/terms.js",
+        "dist/settings.js",
+        "dist/common/format.js",
         "dist/history.js",
         "dist/common/platform.js",
         "dist/common/edits.js",
