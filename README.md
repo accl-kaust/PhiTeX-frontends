@@ -10,6 +10,21 @@ milliseconds per keystroke. It runs entirely in your browser.**
 
 ![The ⚡ Instant preview in Overleaf's PDF pane](store/screenshot-1-instant.png)
 
+## The other frontends
+
+This repository holds every PhiTeX frontend; this README is the Overleaf
+extension's. The others:
+
+- **VS Code**: `vscode/` ([its README](vscode/README.md)). The same preview
+  in a VS Code panel, built into the extension or through the `phitex`
+  command when it is installed.
+- **Emacs and Neovim**: `editors/emacs/phitex.el` and
+  `editors/nvim/phitex.lua`, over the `phitex` command (phitex.org's
+  install page: use-package, lazy.nvim).
+- **The browser demo**: `web/`, at demo.phitex.org. A sample project or
+  your own, with nothing installed.
+- **phitex.org**: `site/`.
+
 ## What it does
 
 Overleaf compiles your whole project each time you press Recompile. PhiTeX
