@@ -5,7 +5,7 @@
 import "./style.css";
 import "./measured.css";
 import { REPO } from "./links";
-import { ENGINES, curves, esc, ms, n, secs, type Bench, type Cls, type Cold, type Diff, type Engine, type Links, type Machine, type Point } from "./bench";
+import { ENGINES, curves, esc, ms, n, secs, type Bench, type Cls, type Cold, type Diff, type Edit, type Engine, type Links, type Machine } from "./bench";
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 
@@ -97,6 +97,7 @@ function render(b: Bench) {
   $("#timed").hidden = !b.method;
   if (b.method) $("#timed").innerHTML = `<summary>How these were timed</summary><p>${esc(b.method).replace(/`([^`]+)`/g, "<code>$1</code>")}</p>`;
   coldChart($("#c-cold"), b.timing.cold, b.machine);
+  editChart($("#c-edit"), edit, b.machine);
   methods(b);
 }
 
@@ -145,70 +146,73 @@ const tipOn = (el: HTMLElement) => {
  * it is a document PhiTeX builds faster. Engines are toggled, a document
  * found by name, and a dot hovered or clicked shows its times and links.
  */
-function coldChart(el: HTMLElement, c: Cold | null, mach: Machine | null) {
-  const head = `<figcaption><b>A clean build, document by document</b><span class="sub">Each dot is one document. Under the diagonal, PhiTeX is faster.</span></figcaption>`;
-  if (!c?.points.length) return void (el.classList.add("waiting"), el.innerHTML = `${head}<p class="pending">Being measured: each document built by both engines back to back on one machine.</p>`);
-  const engs = [...new Set(c.points.map((p) => p.engine))];
+// A dot per case: TeX Live's time across, PhiTeX's up (both log scale), its
+// diagonals the ratios; hover reads a dot, a click pins it with its links.
+interface Dot extends Links { doc: string; engine: string; oracle_s: number; phitex_s: number; edit?: string; }
+interface ScatterOpts { key: string; title: string; sub: string; pending: string; what: string; across: string; up: string; diags: [number, string, string, number][]; sum: (e: string, pts: Dot[]) => string; foot: string; }
+function scatter(el: HTMLElement, pts: Dot[], o: ScatterOpts) {
+  const head = `<figcaption><b>${o.title}</b><span class="sub">${o.sub}</span></figcaption>`;
+  if (!pts.length) return void (el.classList.add("waiting"), el.innerHTML = `${head}<p class="pending">${o.pending}</p>`);
+  const engs = [...new Set(pts.map((p) => p.engine))];
   const on = new Set(engs);
-  let pinned: Point | null = null;
-  const summary = engs.map((e) => {
-    const s = c.summary[e];
-    const pts = c.points.filter((p) => p.engine === e);
-    const faster = pts.filter((p) => p.phitex_s < p.oracle_s).length;
-    return `<button type="button" class="chip-b ser" data-e="${e}" aria-pressed="true"><i class="s-texlive${e === "xelatex" ? "" : " round"}"></i>${eng(e)} <span>${n(pts.length)}</span></button><span class="sum">${s ? `median ${s.p50_ratio}× its time, 9 in 10 under ${s.p90_ratio}×; ` : ""}faster on ${n(faster)}</span>`;
-  }).join("");
-  el.innerHTML = `${head}<div class="ctrl"><div class="chips" role="group" aria-label="Engines">${summary}</div><input type="search" list="cold-docs" id="cq" placeholder="Find a document" aria-label="Find a document"><datalist id="cold-docs">${c.points.map((p) => `<option value="${esc(p.doc)}">`).join("")}</datalist></div>
-    <div class="plot"><svg viewBox="0 0 880 560" role="img" aria-label="PhiTeX's clean build time against TeX Live's, per document"></svg><div class="tip" hidden></div></div>
-    <div class="pin" id="cpin" hidden></div>${mach ? `<p class="worst">${esc(mach.cpu)}, one thread, one document at a time.</p>` : ""}
-    <details><summary>Table view</summary><table><thead><tr><th>document</th><th>engine</th><th>TeX Live</th><th>PhiTeX</th><th>ratio</th></tr></thead><tbody>${[...c.points].sort((p, q) => q.phitex_s / q.oracle_s - p.phitex_s / p.oracle_s).map((p) => `<tr><td>${esc(p.doc)}</td><td>${eng(p.engine)}</td><td>${secs(p.oracle_s)}</td><td>${secs(p.phitex_s)}</td><td>${(p.phitex_s / p.oracle_s).toFixed(2)}×</td></tr>`).join("")}</tbody></table></details>`;
-  const svg = el.querySelector("svg")!, tip = el.querySelector(".tip") as HTMLElement, pin = el.querySelector("#cpin") as HTMLElement;
+  let pinned: Dot | null = null;
+  const name = (p: Dot) => (p.edit ? `${p.edit} in ${p.doc}` : p.doc);
+  const summary = engs.map((e) => `<button type="button" class="chip-b ser" data-e="${e}" aria-pressed="true"><i class="s-texlive${e === "xelatex" ? "" : " round"}"></i>${eng(e)} <span>${n(pts.filter((p) => p.engine === e).length)}</span></button><span class="sum">${o.sum(e, pts.filter((p) => p.engine === e))}</span>`).join("");
+  el.innerHTML = `${head}<div class="ctrl"><div class="chips" role="group" aria-label="Engines">${summary}</div><input type="search" list="${o.key}-docs" placeholder="Find a document" aria-label="Find a document"><datalist id="${o.key}-docs">${[...new Set(pts.map((p) => p.doc))].map((d) => `<option value="${esc(d)}">`).join("")}</datalist></div>
+    <div class="plot"><svg viewBox="0 0 880 560" role="img" aria-label="${esc(o.what)}"></svg><div class="tip" hidden></div></div>
+    <div class="pin" hidden></div>${o.foot}
+    <details><summary>Table view</summary><table><thead><tr><th>document</th>${pts.some((p) => p.edit) ? "<th>edit</th>" : ""}<th>engine</th><th>TeX Live</th><th>PhiTeX</th><th>ratio</th></tr></thead><tbody>${[...pts].sort((p, q) => q.phitex_s / q.oracle_s - p.phitex_s / p.oracle_s).map((p) => `<tr><td>${esc(p.doc)}</td>${p.edit ? `<td>${esc(p.edit)}</td>` : ""}<td>${eng(p.engine)}</td><td>${secs(p.oracle_s)}</td><td>${secs(p.phitex_s)}</td><td>${(p.phitex_s / p.oracle_s).toPrecision(2)}×</td></tr>`).join("")}</tbody></table></details>`;
+  const svg = el.querySelector("svg")!, tip = el.querySelector(".tip") as HTMLElement, pin = el.querySelector(".pin") as HTMLElement;
   const W = 880, H = 560, m = { l: 64, r: 24, t: 20, b: 52 };
-  const vals = c.points.flatMap((p) => [p.oracle_s, p.phitex_s]);
-  const lo = Math.floor(Math.log10(Math.min(...vals))), hi = Math.ceil(Math.log10(Math.max(...vals)));
-  const X = (v: number) => m.l + ((Math.log10(v) - lo) / (hi - lo)) * (W - m.l - m.r);
-  const Y = (v: number) => H - m.b - ((Math.log10(v) - lo) / (hi - lo)) * (H - m.t - m.b);
+  // (each axis its own decades: an edit's times are far under a rebuild's)
+  const span = (v: number[]) => [Math.floor(Math.log10(Math.min(...v))), Math.ceil(Math.log10(Math.max(...v)))];
+  const [xlo, xhi] = span(pts.map((p) => p.oracle_s)), [ylo, yhi] = span(pts.map((p) => p.phitex_s));
+  const X = (v: number) => m.l + ((Math.log10(v) - xlo) / (xhi - xlo)) * (W - m.l - m.r);
+  const Y = (v: number) => H - m.b - ((Math.log10(v) - ylo) / (yhi - ylo)) * (H - m.t - m.b);
   const tick = (e: number) => secs(10 ** e).replace(/\.0 s$/, " s");
   let axes = "";
-  for (let e = lo; e <= hi; e++) axes += `<line class="grid" x1="${X(10 ** e)}" x2="${X(10 ** e)}" y1="${m.t}" y2="${H - m.b}"/><line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${Y(10 ** e)}" y2="${Y(10 ** e)}"/><text class="tick" x="${X(10 ** e)}" y="${H - m.b + 20}" text-anchor="middle">${tick(e)}</text><text class="tick" x="${m.l - 8}" y="${Y(10 ** e) + 4}" text-anchor="end">${tick(e)}</text>`;
-  const a = 10 ** lo, z = 10 ** hi;
-  // the diagonals: as fast, and twice as slow or fast
-  for (const [k, cls, txt, t] of [[1, "one", "as fast", 0.9], [2, "half", "2× slower", 0.72], [0.5, "half", "2× faster", 0.9]] as const) {
-    const x0 = Math.max(a, a / k), x1 = Math.min(z, z / k);
+  for (let e = xlo; e <= xhi; e++) axes += `<line class="grid" x1="${X(10 ** e)}" x2="${X(10 ** e)}" y1="${m.t}" y2="${H - m.b}"/><text class="tick" x="${X(10 ** e)}" y="${H - m.b + 20}" text-anchor="middle">${tick(e)}</text>`;
+  for (let e = ylo; e <= yhi; e++) axes += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${Y(10 ** e)}" y2="${Y(10 ** e)}"/><text class="tick" x="${m.l - 8}" y="${Y(10 ** e) + 4}" text-anchor="end">${tick(e)}</text>`;
+  // the diagonals: PhiTeX's time k times TeX Live's
+  for (const [k, cls, txt, t] of o.diags) {
+    // (the line y = kx inside the plot)
+    const x0 = Math.max(10 ** xlo, 10 ** ylo / k), x1 = Math.min(10 ** xhi, 10 ** yhi / k);
+    if (x0 >= x1) continue;
     const ax = X(x0), ay = Y(x0 * k), bx = X(x1), by = Y(x1 * k);
     const lx = ax + (bx - ax) * t, ly = ay + (by - ay) * t, deg = (Math.atan2(by - ay, bx - ax) * 180) / Math.PI;
     axes += `<line class="${cls}" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}"/><text class="tick diag" transform="translate(${lx} ${ly}) rotate(${deg})" y="-6" text-anchor="middle">${txt}</text>`;
   }
-  axes += `<text class="tick strong" x="${(m.l + W - m.r) / 2}" y="${H - 8}" text-anchor="middle">TeX Live, every run the document needs</text><text class="tick strong" transform="translate(16 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">PhiTeX, one build</text>`;
+  axes += `<text class="tick strong" x="${(m.l + W - m.r) / 2}" y="${H - 8}" text-anchor="middle">${o.across}</text><text class="tick strong" transform="translate(16 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">${o.up}</text>`;
   const draw = () => {
-    // (pdfLaTeX's documents circles, XeLaTeX's squares)
-    const dot = (p: Point, on = false) => {
+    // (XeLaTeX's squares, the others circles)
+    const dot = (p: Dot, on = false) => {
       const x = X(p.oracle_s).toFixed(1), y = Y(p.phitex_s).toFixed(1), r = on ? 7 : 3.5, cls = `dot s-texlive${on ? " on" : ""}`;
       return p.engine === "xelatex" ? `<rect class="${cls}" x="${+x - r}" y="${+y - r}" width="${2 * r}" height="${2 * r}"/>` : `<circle class="${cls}" cx="${x}" cy="${y}" r="${r}"/>`;
     };
     // (the pinned one last, over the rest)
-    const dots = c.points.filter((p) => on.has(p.engine) && p !== pinned).map((p) => dot(p)).join("") + (pinned && on.has(pinned.engine) ? dot(pinned, true) : "");
+    const dots = pts.filter((p) => on.has(p.engine) && p !== pinned).map((p) => dot(p)).join("") + (pinned && on.has(pinned.engine) ? dot(pinned, true) : "");
     svg.innerHTML = axes + dots + `<rect class="hitbar" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}"/>`;
     el.querySelectorAll<HTMLElement>(".ser").forEach((b) => b.setAttribute("aria-pressed", String(on.has(b.dataset.e!))));
   };
   const at = (e: PointerEvent) => {
     const r = svg.getBoundingClientRect(), px = ((e.clientX - r.left) / r.width) * W, py = ((e.clientY - r.top) / r.height) * H;
-    let best: Point | null = null, bd = 14 * 14;
-    for (const p of c.points) {
+    let best: Dot | null = null, bd = 14 * 14;
+    for (const p of pts) {
       if (!on.has(p.engine)) continue;
       const d = (X(p.oracle_s) - px) ** 2 + (Y(p.phitex_s) - py) ** 2;
       if (d < bd) (bd = d), (best = p);
     }
     return best;
   };
-  const about = (p: Point) => {
+  const about = (p: Dot) => {
     const r = p.phitex_s / p.oracle_s;
-    return `<b>${esc(p.doc)}</b><div>${eng(p.engine)} <span>${secs(p.oracle_s)}</span></div><div>PhiTeX <span>${secs(p.phitex_s)}</span></div><div>${r < 1 ? `${(1 / r).toFixed(1)}× faster` : `${r.toFixed(1)}× slower`}</div>`;
+    return `<b>${esc(p.doc)}</b>${p.edit ? `<div>${esc(p.edit)}</div>` : ""}<div>${eng(p.engine)}${p.edit ? ", a rebuild" : ""} <span>${secs(p.oracle_s)}</span></div><div>PhiTeX${p.edit ? ", the edit" : ""} <span>${secs(p.phitex_s)}</span></div><div>${r < 1 ? `${(1 / r).toFixed(r < 0.1 ? 0 : 1)}× faster` : `${r.toFixed(1)}× slower`}</div>`;
   };
-  const show = (p: Point | null) => {
+  const show = (p: Dot | null) => {
     pinned = p;
     pin.hidden = !p;
-    if (p) pin.innerHTML = `${about(p)}<div class="dl">${docLinks(p)}</div><button type="button" class="linkish" id="cunpin">Close</button>`;
-    pin.querySelector("#cunpin")?.addEventListener("click", () => show(null));
+    if (p) pin.innerHTML = `${about(p)}<div class="dl">${docLinks(p)}</div><button type="button" class="linkish">Close</button>`;
+    pin.querySelector("button")?.addEventListener("click", () => show(null));
     draw();
   };
   svg.addEventListener("pointermove", (e) => {
@@ -227,16 +231,50 @@ function coldChart(el: HTMLElement, c: Cold | null, mach: Machine | null) {
     if (on.has(e) && on.size > 1) on.delete(e); else on.add(e);
     draw();
   }));
-  (el.querySelector("#cq") as HTMLInputElement).addEventListener("input", (e) => {
+  // (a document's slowest case, where it has several)
+  (el.querySelector("input") as HTMLInputElement).addEventListener("input", (e) => {
     const q = (e.target as HTMLInputElement).value.trim().toLowerCase();
-    const hits = q ? c.points.filter((p) => p.doc.toLowerCase().includes(q)) : [];
-    if (hits.length === 1 || hits.some((p) => p.doc.toLowerCase() === q)) {
-      const p = hits.find((h) => h.doc.toLowerCase() === q) ?? hits[0];
+    const hits = q ? pts.filter((p) => p.doc.toLowerCase().includes(q)) : [];
+    const docs = new Set(hits.map((p) => p.doc.toLowerCase()));
+    if (docs.size === 1 || docs.has(q)) {
+      const p = hits.filter((h) => docs.size === 1 || h.doc.toLowerCase() === q).sort((x, y) => y.phitex_s - x.phitex_s)[0];
       on.add(p.engine);
       show(p);
     }
   });
   draw();
+}
+
+function coldChart(el: HTMLElement, c: Cold | null, mach: Machine | null) {
+  scatter(el, c?.points ?? [], {
+    key: "cold",
+    title: "A clean build, document by document",
+    sub: "Each dot is one document. Under the diagonal, PhiTeX is faster.",
+    pending: "Being measured: each document built by both engines back to back on one machine.",
+    what: "PhiTeX's clean build time against TeX Live's, per document",
+    across: "TeX Live, every run the document needs",
+    up: "PhiTeX, one build",
+    diags: [[1, "one", "as fast", 0.9], [2, "half", "2× slower", 0.72], [0.5, "half", "2× faster", 0.9]],
+    sum: (e, pts) => { const s = c!.summary[e]; return `${s ? `median ${s.p50_ratio}× its time, 9 in 10 under ${s.p90_ratio}×; ` : ""}faster on ${n(pts.filter((p) => p.phitex_s < p.oracle_s).length)}`; },
+    foot: mach ? `<p class="worst">${esc(mach.cpu)}, one thread, one document at a time.</p>` : "",
+  });
+}
+
+function editChart(el: HTMLElement, e: Edit | null, mach: Machine | null) {
+  const pts: Dot[] = (e?.points ?? []).map((p) => ({ ...p, phitex_s: p.ms / 1000 }));
+  const med = (v: number[]) => v.sort((p, q) => p - q)[Math.floor((v.length - 1) / 2)];
+  scatter(el, pts, {
+    key: "edit",
+    title: "An edit, edit by edit",
+    sub: "Each dot is one edit: PhiTeX's time from the save to its new page, against TeX Live rebuilding the edited document.",
+    pending: "Being measured: edits in real documents, each beside a full rebuild by TeX Live.",
+    what: "PhiTeX's time for an edit against TeX Live's rebuild of the edited document, per edit",
+    across: "TeX Live, a full rebuild of the edited document",
+    up: "PhiTeX, the edit",
+    diags: [[1, "one", "as fast", 0.9], [0.1, "half", "10× faster", 0.9], [0.01, "half", "100× faster", 0.9], [0.001, "half", "1000× faster", 0.9]],
+    sum: (_, pts) => { const r = med(pts.map((p) => p.oracle_s / p.phitex_s)); const d = new Set(pts.map((p) => p.doc)).size; return `${n(d)} document${d === 1 ? "" : "s"}, median ${r.toFixed(r < 10 ? 1 : 0)}× faster than its rebuild`; },
+    foot: [e?.note ? `<p class="worst">${esc(e.note)}</p>` : "", mach ? `<p class="worst">${esc(mach.cpu)}, one thread.</p>` : ""].join(""),
+  });
 }
 
 function methods(b: Bench) {

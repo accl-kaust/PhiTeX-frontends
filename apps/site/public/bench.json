@@ -69,7 +69,7 @@
    "title": "Research templates"
   }
  ],
- "covers": "speed so far on the 69 research templates (the manuals and the edits are being timed); TeX Live's manuals' counts are from PhiTeX's test lists until they are measured.",
+ "covers": "speed so far on the 69 research templates and 178 edits in 8 documents (the manuals' speed is being timed); TeX Live's manuals' counts are from PhiTeX's test lists until they are measured.",
  "date": "2026-11-07",
  "differences": [
   {
@@ -711,12 +711,1514 @@
    }
   },
   "edit": {
-   "cases": 521,
-   "under_100ms": 245,
-   "p50_ms": null,
-   "buckets": null,
-   "worst": null,
-   "machine": null
+   "buckets": [
+    {
+     "le_ms": 10,
+     "n": 7
+    },
+    {
+     "le_ms": 30,
+     "n": 25
+    },
+    {
+     "le_ms": 100,
+     "n": 53
+    },
+    {
+     "le_ms": 300,
+     "n": 33
+    },
+    {
+     "le_ms": 1000,
+     "n": 33
+    },
+    {
+     "le_ms": null,
+     "n": 27
+    }
+   ],
+   "cases": 178,
+   "note": "Every edit's PDF is byte-identical to TeX Live's rebuild of the edited document, except in Grail. There, hyperxmp writes the time the .log file was saved into the PDF's metadata, so no two TeX Live builds of it are the same. With that time fixed, TeX Live's PDF of the unedited paper is identical to PhiTeX's.",
+   "p50_ms": 116.9,
+   "points": [
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a letter (mid)",
+     "engine": "pdflatex",
+     "ms": 6.0,
+     "oracle_s": 2.546,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a word (mid)",
+     "engine": "pdflatex",
+     "ms": 6.1,
+     "oracle_s": 2.443,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "adding a sentence (mid)",
+     "engine": "pdflatex",
+     "ms": 41.7,
+     "oracle_s": 2.459,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "adding a paragraph (mid)",
+     "engine": "pdflatex",
+     "ms": 412.4,
+     "oracle_s": 2.459,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "deleting a paragraph (mid)",
+     "engine": "pdflatex",
+     "ms": 384.0,
+     "oracle_s": 2.704,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a footnote (mid)",
+     "engine": "pdflatex",
+     "ms": 15.6,
+     "oracle_s": 2.705,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing an equation (start)",
+     "engine": "pdflatex",
+     "ms": 35.9,
+     "oracle_s": 2.581,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing an equation (mid)",
+     "engine": "pdflatex",
+     "ms": 27.3,
+     "oracle_s": 2.5,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a heading (start)",
+     "engine": "pdflatex",
+     "ms": 90.8,
+     "oracle_s": 2.54,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a heading (mid)",
+     "engine": "pdflatex",
+     "ms": 87.9,
+     "oracle_s": 2.5,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "adding a section (mid)",
+     "engine": "pdflatex",
+     "ms": 740.9,
+     "oracle_s": 2.519,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "deleting a section (start)",
+     "engine": "pdflatex",
+     "ms": 740.3,
+     "oracle_s": 2.48,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "deleting a section (mid)",
+     "engine": "pdflatex",
+     "ms": 412.3,
+     "oracle_s": 2.52,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a label (start)",
+     "engine": "pdflatex",
+     "ms": 186.3,
+     "oracle_s": 2.439,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a label (mid)",
+     "engine": "pdflatex",
+     "ms": 102.2,
+     "oracle_s": 2.48,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a reference (start)",
+     "engine": "pdflatex",
+     "ms": 29.9,
+     "oracle_s": 2.499,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a reference (mid)",
+     "engine": "pdflatex",
+     "ms": 20.0,
+     "oracle_s": 2.5,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a citation (mid)",
+     "engine": "pdflatex",
+     "ms": 42.7,
+     "oracle_s": 2.439,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "adding a figure (mid)",
+     "engine": "pdflatex",
+     "ms": 1114.6,
+     "oracle_s": 2.44,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "deleting a figure (mid)",
+     "engine": "pdflatex",
+     "ms": 1626.3,
+     "oracle_s": 2.439,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing an index entry (start)",
+     "engine": "pdflatex",
+     "ms": 204.0,
+     "oracle_s": 2.48,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing an index entry (mid)",
+     "engine": "pdflatex",
+     "ms": 204.2,
+     "oracle_s": 2.459,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/amsmath/amsldoc.tex",
+     "edit": "changing a macro (mid)",
+     "engine": "pdflatex",
+     "ms": 181.2,
+     "oracle_s": 2.44,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing a letter (start)",
+     "engine": "pdflatex",
+     "ms": 45.5,
+     "oracle_s": 7.976,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing a letter (mid)",
+     "engine": "pdflatex",
+     "ms": 91.2,
+     "oracle_s": 7.973,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing a word (start)",
+     "engine": "pdflatex",
+     "ms": 47.2,
+     "oracle_s": 8.015,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing a word (mid)",
+     "engine": "pdflatex",
+     "ms": 91.1,
+     "oracle_s": 7.973,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "adding a sentence (start)",
+     "engine": "pdflatex",
+     "ms": 47.2,
+     "oracle_s": 7.993,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "adding a sentence (mid)",
+     "engine": "pdflatex",
+     "ms": 110.7,
+     "oracle_s": 7.992,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "adding a paragraph (mid)",
+     "engine": "pdflatex",
+     "ms": 687.7,
+     "oracle_s": 7.975,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "deleting a paragraph (mid)",
+     "engine": "pdflatex",
+     "ms": 687.3,
+     "oracle_s": 7.989,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing a figure caption (start)",
+     "engine": "pdflatex",
+     "ms": 25.6,
+     "oracle_s": 8.233,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing a figure caption (mid)",
+     "engine": "pdflatex",
+     "ms": 32.8,
+     "oracle_s": 9.483,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing an equation (mid)",
+     "engine": "pdflatex",
+     "ms": 26.4,
+     "oracle_s": 8.934,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing a drawing (mid)",
+     "engine": "pdflatex",
+     "ms": 536.9,
+     "oracle_s": 8.755,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing a heading (mid)",
+     "engine": "pdflatex",
+     "ms": 163.6,
+     "oracle_s": 9.017,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "adding a section (mid)",
+     "engine": "pdflatex",
+     "ms": 2133.8,
+     "oracle_s": 8.716,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "deleting a section (mid)",
+     "engine": "pdflatex",
+     "ms": 3052.9,
+     "oracle_s": 8.132,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing a label (mid)",
+     "engine": "pdflatex",
+     "ms": 747.6,
+     "oracle_s": 8.215,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "adding a figure (mid)",
+     "engine": "pdflatex",
+     "ms": 803.2,
+     "oracle_s": 8.976,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "deleting a figure (start)",
+     "engine": "pdflatex",
+     "ms": 558.9,
+     "oracle_s": 8.21,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "deleting a figure (mid)",
+     "engine": "pdflatex",
+     "ms": 409.7,
+     "oracle_s": 8.296,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/beamertheme-metropolis/demo.tex",
+     "edit": "changing a macro (mid)",
+     "engine": "pdflatex",
+     "ms": 690.1,
+     "oracle_s": 8.164,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a letter (start)",
+     "engine": "pdflatex",
+     "ms": 21.6,
+     "oracle_s": 4.652,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a letter (mid)",
+     "engine": "pdflatex",
+     "ms": 31.8,
+     "oracle_s": 4.024,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a word (start)",
+     "engine": "pdflatex",
+     "ms": 24.3,
+     "oracle_s": 4.045,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a word (mid)",
+     "engine": "pdflatex",
+     "ms": 30.0,
+     "oracle_s": 4.025,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "adding a sentence (start)",
+     "engine": "pdflatex",
+     "ms": 32.1,
+     "oracle_s": 4.005,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "adding a sentence (mid)",
+     "engine": "pdflatex",
+     "ms": 38.1,
+     "oracle_s": 4.026,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "adding a paragraph (start)",
+     "engine": "pdflatex",
+     "ms": 31.8,
+     "oracle_s": 4.006,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "adding a paragraph (mid)",
+     "engine": "pdflatex",
+     "ms": 30.8,
+     "oracle_s": 4.007,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "deleting a paragraph (start)",
+     "engine": "pdflatex",
+     "ms": 113.9,
+     "oracle_s": 4.027,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "deleting a paragraph (mid)",
+     "engine": "pdflatex",
+     "ms": 91.6,
+     "oracle_s": 3.985,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a heading (start)",
+     "engine": "pdflatex",
+     "ms": 5.8,
+     "oracle_s": 4.044,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a heading (mid)",
+     "engine": "pdflatex",
+     "ms": 5.7,
+     "oracle_s": 4.047,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "adding a section (start)",
+     "engine": "pdflatex",
+     "ms": 32.0,
+     "oracle_s": 4.027,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "adding a section (mid)",
+     "engine": "pdflatex",
+     "ms": 33.5,
+     "oracle_s": 4.025,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "deleting a section (start)",
+     "engine": "pdflatex",
+     "ms": 22.9,
+     "oracle_s": 4.026,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "deleting a section (mid)",
+     "engine": "pdflatex",
+     "ms": 35.1,
+     "oracle_s": 4.028,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a label (start)",
+     "engine": "pdflatex",
+     "ms": 36.7,
+     "oracle_s": 4.025,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a label (mid)",
+     "engine": "pdflatex",
+     "ms": 36.7,
+     "oracle_s": 4.006,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a citation (start)",
+     "engine": "pdflatex",
+     "ms": 94.7,
+     "oracle_s": 4.045,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a citation (mid)",
+     "engine": "pdflatex",
+     "ms": 94.3,
+     "oracle_s": 4.007,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "adding a figure (start)",
+     "engine": "pdflatex",
+     "ms": 34.6,
+     "oracle_s": 4.006,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "adding a figure (mid)",
+     "engine": "pdflatex",
+     "ms": 32.6,
+     "oracle_s": 4.025,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a macro (start)",
+     "engine": "pdflatex",
+     "ms": 3.6,
+     "oracle_s": 4.046,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/biblatex/examples/01-introduction.tex",
+     "edit": "changing a macro (mid)",
+     "engine": "pdflatex",
+     "ms": 3.7,
+     "oracle_s": 4.045,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a letter (start)",
+     "engine": "xelatex",
+     "ms": 64.1,
+     "oracle_s": 330.884,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a letter (mid)",
+     "engine": "xelatex",
+     "ms": 55.9,
+     "oracle_s": 330.144,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a word (start)",
+     "engine": "xelatex",
+     "ms": 66.1,
+     "oracle_s": 330.305,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a word (mid)",
+     "engine": "xelatex",
+     "ms": 53.1,
+     "oracle_s": 329.868,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a sentence (start)",
+     "engine": "xelatex",
+     "ms": 74.6,
+     "oracle_s": 330.489,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a sentence (mid)",
+     "engine": "xelatex",
+     "ms": 68.6,
+     "oracle_s": 330.413,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a paragraph (start)",
+     "engine": "xelatex",
+     "ms": 3487.3,
+     "oracle_s": 330.83,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a paragraph (mid)",
+     "engine": "xelatex",
+     "ms": 564.3,
+     "oracle_s": 331.042,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "deleting a paragraph (start)",
+     "engine": "xelatex",
+     "ms": 2887.9,
+     "oracle_s": 333.512,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "deleting a paragraph (mid)",
+     "engine": "xelatex",
+     "ms": 1658.5,
+     "oracle_s": 329.509,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a footnote (start)",
+     "engine": "xelatex",
+     "ms": 83.8,
+     "oracle_s": 329.934,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a footnote (mid)",
+     "engine": "xelatex",
+     "ms": 72.9,
+     "oracle_s": 330.044,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a drawing (start)",
+     "engine": "xelatex",
+     "ms": 994.3,
+     "oracle_s": 343.88,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a drawing (mid)",
+     "engine": "xelatex",
+     "ms": 297.8,
+     "oracle_s": 349.93,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a heading (start)",
+     "engine": "xelatex",
+     "ms": 656.6,
+     "oracle_s": 339.0,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a heading (mid)",
+     "engine": "xelatex",
+     "ms": 826.1,
+     "oracle_s": 329.914,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a section (start)",
+     "engine": "xelatex",
+     "ms": 82667.8,
+     "oracle_s": 330.103,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a section (mid)",
+     "engine": "xelatex",
+     "ms": 9787.4,
+     "oracle_s": 330.163,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "deleting a section (start)",
+     "engine": "xelatex",
+     "ms": 89638.6,
+     "oracle_s": 330.08,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "deleting a section (mid)",
+     "engine": "xelatex",
+     "ms": 2688.7,
+     "oracle_s": 330.158,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a label (start)",
+     "engine": "xelatex",
+     "ms": 2992.6,
+     "oracle_s": 330.4,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a label (mid)",
+     "engine": "xelatex",
+     "ms": 608.8,
+     "oracle_s": 332.258,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a reference (start)",
+     "engine": "xelatex",
+     "ms": 77.3,
+     "oracle_s": 330.296,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a reference (mid)",
+     "engine": "xelatex",
+     "ms": 70.6,
+     "oracle_s": 329.659,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a figure (start)",
+     "engine": "xelatex",
+     "ms": 17848.9,
+     "oracle_s": 330.204,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a figure (mid)",
+     "engine": "xelatex",
+     "ms": 9196.5,
+     "oracle_s": 330.217,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "deleting a figure (mid)",
+     "engine": "xelatex",
+     "ms": 66350.1,
+     "oracle_s": 329.817,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a macro (start)",
+     "engine": "xelatex",
+     "ms": 2945.5,
+     "oracle_s": 330.507,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "changing a macro (mid)",
+     "engine": "xelatex",
+     "ms": 540.8,
+     "oracle_s": 331.035,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "changing a letter (start)",
+     "engine": "pdftex",
+     "ms": 13.0,
+     "oracle_s": 1.47,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "changing a letter (mid)",
+     "engine": "pdftex",
+     "ms": 14.6,
+     "oracle_s": 1.471,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "changing a word (start)",
+     "engine": "pdftex",
+     "ms": 18.5,
+     "oracle_s": 1.471,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "changing a word (mid)",
+     "engine": "pdftex",
+     "ms": 14.6,
+     "oracle_s": 1.471,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "adding a sentence (start)",
+     "engine": "pdftex",
+     "ms": 20.5,
+     "oracle_s": 1.47,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "adding a sentence (mid)",
+     "engine": "pdftex",
+     "ms": 72.7,
+     "oracle_s": 1.471,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "adding a paragraph (start)",
+     "engine": "pdftex",
+     "ms": 100.3,
+     "oracle_s": 1.471,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "adding a paragraph (mid)",
+     "engine": "pdftex",
+     "ms": 78.1,
+     "oracle_s": 1.471,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "deleting a paragraph (start)",
+     "engine": "pdftex",
+     "ms": 439.4,
+     "oracle_s": 1.471,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "deleting a paragraph (mid)",
+     "engine": "pdftex",
+     "ms": 305.6,
+     "oracle_s": 1.469,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "changing a footnote (start)",
+     "engine": "pdftex",
+     "ms": 18.0,
+     "oracle_s": 1.47,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "changing a footnote (mid)",
+     "engine": "pdftex",
+     "ms": 17.9,
+     "oracle_s": 1.472,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "changing a macro (start)",
+     "engine": "pdftex",
+     "ms": 19.2,
+     "oracle_s": 1.471,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "a plain TeX test of 4000 paragraphs",
+     "edit": "changing a macro (mid)",
+     "engine": "pdftex",
+     "ms": 17.6,
+     "oracle_s": 1.472,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/pgfplots/pgfplotsexample.tex",
+     "edit": "changing a figure caption (mid)",
+     "engine": "pdflatex",
+     "ms": 30.1,
+     "oracle_s": 1.236,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/pgfplots/pgfplotsexample.tex",
+     "edit": "changing a drawing (start)",
+     "engine": "pdflatex",
+     "ms": 191.5,
+     "oracle_s": 1.216,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/pgfplots/pgfplotsexample.tex",
+     "edit": "changing a drawing (mid)",
+     "engine": "pdflatex",
+     "ms": 135.0,
+     "oracle_s": 1.236,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/pgfplots/pgfplotsexample.tex",
+     "edit": "deleting a figure (start)",
+     "engine": "pdflatex",
+     "ms": 157.0,
+     "oracle_s": 1.176,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/pgfplots/pgfplotsexample.tex",
+     "edit": "deleting a figure (mid)",
+     "engine": "pdflatex",
+     "ms": 21.5,
+     "oracle_s": 1.094,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a letter (start)",
+     "engine": "pdflatex",
+     "ms": 13.9,
+     "oracle_s": 10.471,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a letter (mid)",
+     "engine": "pdflatex",
+     "ms": 42.3,
+     "oracle_s": 10.489,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a word (start)",
+     "engine": "pdflatex",
+     "ms": 13.3,
+     "oracle_s": 10.512,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a word (mid)",
+     "engine": "pdflatex",
+     "ms": 14.3,
+     "oracle_s": 10.532,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "adding a sentence (start)",
+     "engine": "pdflatex",
+     "ms": 39.7,
+     "oracle_s": 10.531,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "adding a sentence (mid)",
+     "engine": "pdflatex",
+     "ms": 346.9,
+     "oracle_s": 10.51,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "adding a paragraph (start)",
+     "engine": "pdflatex",
+     "ms": 220.5,
+     "oracle_s": 10.55,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "adding a paragraph (mid)",
+     "engine": "pdflatex",
+     "ms": 430.7,
+     "oracle_s": 10.49,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "deleting a paragraph (start)",
+     "engine": "pdflatex",
+     "ms": 960.7,
+     "oracle_s": 10.41,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "deleting a paragraph (mid)",
+     "engine": "pdflatex",
+     "ms": 151.4,
+     "oracle_s": 10.471,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a drawing (mid)",
+     "engine": "pdflatex",
+     "ms": 119.9,
+     "oracle_s": 10.491,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a heading (start)",
+     "engine": "pdflatex",
+     "ms": 218.4,
+     "oracle_s": 10.491,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a heading (mid)",
+     "engine": "pdflatex",
+     "ms": 211.3,
+     "oracle_s": 10.472,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "adding a section (start)",
+     "engine": "pdflatex",
+     "ms": 1025.5,
+     "oracle_s": 13.215,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "adding a section (mid)",
+     "engine": "pdflatex",
+     "ms": 1136.9,
+     "oracle_s": 13.117,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "deleting a section (start)",
+     "engine": "pdflatex",
+     "ms": 566.4,
+     "oracle_s": 10.509,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "deleting a section (mid)",
+     "engine": "pdflatex",
+     "ms": 390.9,
+     "oracle_s": 10.491,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a label (start)",
+     "engine": "pdflatex",
+     "ms": 231.3,
+     "oracle_s": 10.431,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a label (mid)",
+     "engine": "pdflatex",
+     "ms": 160.5,
+     "oracle_s": 10.51,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a reference (start)",
+     "engine": "pdflatex",
+     "ms": 31.8,
+     "oracle_s": 10.49,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a reference (mid)",
+     "engine": "pdflatex",
+     "ms": 43.8,
+     "oracle_s": 10.512,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a citation (start)",
+     "engine": "pdflatex",
+     "ms": 45.3,
+     "oracle_s": 10.49,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a citation (mid)",
+     "engine": "pdflatex",
+     "ms": 45.1,
+     "oracle_s": 10.491,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "adding a figure (start)",
+     "engine": "pdflatex",
+     "ms": 983.0,
+     "oracle_s": 10.47,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "adding a figure (mid)",
+     "engine": "pdflatex",
+     "ms": 880.1,
+     "oracle_s": 10.53,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing an index entry (start)",
+     "engine": "pdflatex",
+     "ms": 282.3,
+     "oracle_s": 10.491,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing an index entry (mid)",
+     "engine": "pdflatex",
+     "ms": 278.0,
+     "oracle_s": 10.511,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a macro (start)",
+     "engine": "pdflatex",
+     "ms": 220.1,
+     "oracle_s": 10.55,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "latex/tikz-cd/tikz-cd-doc.tex",
+     "edit": "changing a macro (mid)",
+     "engine": "pdflatex",
+     "ms": 133.5,
+     "oracle_s": 10.493,
+     "same_pdf_as_oracle": true
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a letter (start)",
+     "engine": "xelatex",
+     "ms": 29.8,
+     "oracle_s": 45.477,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a letter (mid)",
+     "engine": "xelatex",
+     "ms": 50.6,
+     "oracle_s": 40.647,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a word (start)",
+     "engine": "xelatex",
+     "ms": 35.4,
+     "oracle_s": 40.384,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a word (mid)",
+     "engine": "xelatex",
+     "ms": 54.9,
+     "oracle_s": 40.312,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "adding a sentence (start)",
+     "engine": "xelatex",
+     "ms": 50.9,
+     "oracle_s": 40.474,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "adding a sentence (mid)",
+     "engine": "xelatex",
+     "ms": 231.0,
+     "oracle_s": 40.396,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "adding a paragraph (start)",
+     "engine": "xelatex",
+     "ms": 1193.8,
+     "oracle_s": 40.718,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "adding a paragraph (mid)",
+     "engine": "xelatex",
+     "ms": 187.2,
+     "oracle_s": 42.652,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "deleting a paragraph (start)",
+     "engine": "xelatex",
+     "ms": 5273.7,
+     "oracle_s": 51.652,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "deleting a paragraph (mid)",
+     "engine": "xelatex",
+     "ms": 1124.8,
+     "oracle_s": 51.159,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a figure caption (start)",
+     "engine": "xelatex",
+     "ms": 162.4,
+     "oracle_s": 40.619,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a figure caption (mid)",
+     "engine": "xelatex",
+     "ms": 121.0,
+     "oracle_s": 40.628,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a footnote (start)",
+     "engine": "xelatex",
+     "ms": 72.0,
+     "oracle_s": 40.543,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a footnote (mid)",
+     "engine": "xelatex",
+     "ms": 37.0,
+     "oracle_s": 41.141,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a drawing (start)",
+     "engine": "xelatex",
+     "ms": 2663.2,
+     "oracle_s": 40.521,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a drawing (mid)",
+     "engine": "xelatex",
+     "ms": 904.4,
+     "oracle_s": 40.538,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a heading (start)",
+     "engine": "xelatex",
+     "ms": 290.5,
+     "oracle_s": 40.373,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a heading (mid)",
+     "engine": "xelatex",
+     "ms": 264.6,
+     "oracle_s": 41.101,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "adding a section (start)",
+     "engine": "xelatex",
+     "ms": 2057.4,
+     "oracle_s": 40.461,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "adding a section (mid)",
+     "engine": "xelatex",
+     "ms": 677.7,
+     "oracle_s": 40.445,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "deleting a section (start)",
+     "engine": "xelatex",
+     "ms": 1268.5,
+     "oracle_s": 50.845,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "deleting a section (mid)",
+     "engine": "xelatex",
+     "ms": 549.2,
+     "oracle_s": 40.379,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a label (start)",
+     "engine": "xelatex",
+     "ms": 123.0,
+     "oracle_s": 40.558,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a label (mid)",
+     "engine": "xelatex",
+     "ms": 124.3,
+     "oracle_s": 40.495,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a reference (start)",
+     "engine": "xelatex",
+     "ms": 35.9,
+     "oracle_s": 40.7,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a reference (mid)",
+     "engine": "xelatex",
+     "ms": 33.7,
+     "oracle_s": 40.513,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a citation (start)",
+     "engine": "xelatex",
+     "ms": 607.5,
+     "oracle_s": 50.714,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a citation (mid)",
+     "engine": "xelatex",
+     "ms": 244.2,
+     "oracle_s": 40.413,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "adding a figure (start)",
+     "engine": "xelatex",
+     "ms": 3095.9,
+     "oracle_s": 40.635,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "adding a figure (mid)",
+     "engine": "xelatex",
+     "ms": 993.1,
+     "oracle_s": 40.51,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "deleting a figure (start)",
+     "engine": "xelatex",
+     "ms": 8607.5,
+     "oracle_s": 38.505,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "deleting a figure (mid)",
+     "engine": "xelatex",
+     "ms": 4938.8,
+     "oracle_s": 38.25,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a macro (start)",
+     "engine": "xelatex",
+     "ms": 9.9,
+     "oracle_s": 40.391,
+     "same_pdf_as_oracle": false
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "changing a macro (mid)",
+     "engine": "xelatex",
+     "ms": 10.2,
+     "oracle_s": 40.452,
+     "same_pdf_as_oracle": false
+    }
+   ],
+   "under_100ms": 85,
+   "worst": [
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "deleting a section (start)",
+     "ms": 89638.6
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a section (start)",
+     "ms": 82667.8
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "deleting a figure (mid)",
+     "ms": 66350.1
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a figure (start)",
+     "ms": 17848.9
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a section (mid)",
+     "ms": 9787.4
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a figure (mid)",
+     "ms": 9196.5
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "deleting a figure (start)",
+     "ms": 8607.5
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "deleting a paragraph (start)",
+     "ms": 5273.7
+    },
+    {
+     "doc": "Grail, an 18-page paper",
+     "edit": "deleting a figure (mid)",
+     "ms": 4938.8
+    },
+    {
+     "doc": "latex/circuitikz/circuitikzmanual.tex",
+     "edit": "adding a paragraph (start)",
+     "ms": 3487.3
+    }
+   ]
   }
  },
  "method": "Clean builds, one thread, on one machine. TeX Live's time is the whole job a latexmk user waits for: pdflatex or xelatex run again and again until the document's files stop changing (the last run is the one that confirms it, as latexmk's is), with every BibTeX, biber and makeindex run the document needs between them, their wall times added up. PhiTeX's time is one `phitex build --exact-pdf -j 1` (the release binary), which does all of that itself, from an empty cache. Both start from a fresh copy of the document's sources, with no files from an earlier build, and both start with their formats already made: TeX Live's are in its installation, PhiTeX's were built once before the first document. Each document was built three times by each, the two alternating on the same node, and each time shown is the median of its three. Edits: PhiTeX's time from saving the file to the finished build in `phitex watch` (the median of five tries; one try when it took over 5 s), beside one full rebuild of the edited document by TeX Live, counted as above."

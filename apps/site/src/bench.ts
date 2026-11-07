@@ -6,7 +6,7 @@ export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "
 export const n = (v: number) => v.toLocaleString("en-US");
 export const ms = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`);
 export const secs = (v: number) => (v >= 600 ? `${Math.round(v / 60)} min` : v >= 100 ? `${Math.round(v)} s` : v >= 1 ? `${v.toFixed(1)} s` : `${Math.round(v * 1000)} ms`);
-export const ENGINES: Record<string, string> = { pdflatex: "pdfLaTeX", xelatex: "XeLaTeX", lualatex: "LuaLaTeX" };
+export const ENGINES: Record<string, string> = { pdflatex: "pdfLaTeX", xelatex: "XeLaTeX", lualatex: "LuaLaTeX", pdftex: "pdfTeX" };
 
 export type Cls = "pdftex-bug" | "slow" | "phitex-bug" | "not-examined";
 /** `identical` counts the slow ones too (their PDFs match; `slow` of them run past CI's time limit); `by_class` only the ways a PDF differs. */
@@ -19,7 +19,8 @@ export interface Links { url?: string; pdfs?: { phitex: string; oracle: string }
 export interface Point extends Links { doc: string; engine: string; oracle_s: number; phitex_s: number; }
 export interface Cold { runs: number; summary: Record<string, { docs: number; p50_ratio: number; p90_ratio: number }>; points: Point[]; }
 /** `points`: each edit, PhiTeX's time to its page and a rebuild of its document by the document's own engine (`oracle_s`). */
-export interface Edit { points?: { doc: string; engine: string; edit: string; ms: number; oracle_s: number }[]; cases: number; under_100ms: number; p50_ms: number | null; buckets: { le_ms: number | null; n: number }[] | null; worst: { doc: string; edit: string; ms: number }[] | null; }
+export interface EditPoint extends Links { doc: string; engine: string; edit: string; ms: number; oracle_s: number; same_pdf_as_oracle?: boolean; }
+export interface Edit { note?: string; points?: EditPoint[]; cases: number; under_100ms: number; p50_ms: number | null; buckets: { le_ms: number | null; n: number }[] | null; worst: { doc: string; edit: string; ms: number }[] | null; }
 export interface Diff extends Links { corpus: string; doc: string; engine: string; cls: Cls; link: string | null; note: string | null; }
 /** A document identical but past CI's time limit. */
 export interface Slow extends Links { corpus: string; doc: string; engine: string; note?: string | null; }
@@ -34,9 +35,10 @@ export interface Bench { method?: string; covers?: string; slow?: Slow[]; schema
  * reads every curve at that time; a dot marks each median.
  */
 export interface Series { name: string; vals: number[]; }
-export function curveChart(el: HTMLElement, o: { title: string; sub: string; series: Series[]; note?: string; mini?: boolean }) {
+/** `verdict`: the sentence said instead of the medians' ratio (where the series are not the same documents). */
+export function curveChart(el: HTMLElement, o: { title: string; sub: string; series: Series[]; note?: string; mini?: boolean; verdict?: string }) {
   const W = 420, H = 300, m = { l: 44, r: 22, t: 16, b: 46 };
-  const S = o.series.map((x, i) => ({ ...x, vals: [...x.vals].sort((p, q) => p - q), cls: i ? `s-texlive ${["", "dash", "dot"][i] ?? "dot"}` : "s-phitex" }));
+  const S = o.series.map((x, i) => ({ ...x, vals: [...x.vals].sort((p, q) => p - q), cls: i ? `s-texlive ${["", "dash", "dot", "dashdot"][i] ?? "dot"}` : "s-phitex" }));
   const all = S.flatMap((x) => x.vals);
   const lo = Math.floor(Math.log10(Math.min(...all))), hi = Math.ceil(Math.log10(Math.max(...all)));
   const X = (v: number) => m.l + ((Math.log10(v) - lo) / (hi - lo)) * (W - m.l - m.r);
@@ -57,7 +59,7 @@ export function curveChart(el: HTMLElement, o: { title: string; sub: string; ser
   const ticks = Array.from({ length: (hi - lo) * 2 + 1 }, (_, i) => 10 ** (lo + i / 2));
   el.innerHTML = `<div class="head"><figcaption><b>${o.title}</b><div class="sub">${o.sub}</div></figcaption>
     <div class="legend">${S.map((x) => `<span>${key(x)}${esc(x.name)}, median ${secs(med(x.vals))}</span>`).join("")}</div>
-    <p class="verdict">PhiTeX's median is ${verdict}.</p></div>
+    <p class="verdict">${o.verdict ?? `PhiTeX's median is ${verdict}`}.</p></div>
     <div class="plot"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.title)}">${g}</svg><div class="tip" hidden></div></div>${o.mini ? "" : `${o.note ?? ""}
     <details><summary>Table view</summary><table><thead><tr><th>within</th>${S.map((x) => `<th>${esc(x.name)}</th>`).join("")}</tr></thead><tbody>${ticks.map((t) => `<tr><td>${secs(t)}</td>${S.map((x) => `<td>${(share(x.vals, t) * 100).toFixed(0)}%</td>`).join("")}</tr>`).join("")}</tbody></table></details>`}`;
   const svg = el.querySelector("svg")!, tip = el.querySelector(".tip") as HTMLElement, cross = el.querySelector(".cross")!;
@@ -84,15 +86,19 @@ export function curves(c: Cold | null, e: Edit | null, into: { pdflatex: HTMLEle
   const title = "After an edit";
   if (!e) return pending(into.edit, title, "Being measured.");
   if (!e.points?.length) return pending(into.edit, title, `<b>${n(e.under_100ms)} of ${n(e.cases)}</b> measured edits show their new page within 100 ms${e.p50_ms != null ? `, a median of ${ms(e.p50_ms)}` : ""}. The curve against a full rebuild comes with the next measurement run.`);
-  const worst = e.worst?.length ? `<p class="worst"><b>Slowest:</b> ${e.worst.map((w) => `${ms(w.ms)} for ${esc(w.edit)} in <code>${esc(w.doc)}</code>`).join("; ")}.</p>` : "";
+  const worst = e.worst?.length ? `<p class="worst"><b>Slowest:</b> ${e.worst.slice(0, 3).map((w) => `${ms(w.ms)} for ${esc(w.edit)} in <code>${esc(w.doc)}</code>`).join("; ")}.</p>` : "";
   // (PhiTeX's every edit; against it, each edited document rebuilt by its own engine)
-  const engs = (["pdflatex", "xelatex"] as const).filter((x) => e.points!.some((p) => p.engine === x));
+  const engs = Object.keys(ENGINES).filter((x) => e.points!.some((p) => p.engine === x));
+  // (each edit against its own document's rebuild: the series' medians are of different documents)
+  const ratio = (x: string) => { const r = e.points!.filter((p) => p.engine === x).map((p) => (p.oracle_s * 1000) / p.ms).sort((p, q) => p - q); return r[Math.floor((r.length - 1) / 2)]; };
+  const times = (r: number) => `${r.toFixed(r < 10 ? 1 : 0)}×`;
   curveChart(into.edit, {
     mini,
     title,
     sub: `${n(e.points.length)} edits in real documents: PhiTeX's time to the new page, and a full rebuild of the same document by its engine.`,
     series: [{ name: "PhiTeX, the edit", vals: e.points.map((p) => p.ms / 1000) }, ...engs.map((x) => ({ name: `${ENGINES[x]}, a rebuild`, vals: e.points!.filter((p) => p.engine === x).map((p) => p.oracle_s) }))],
     note: worst,
+    verdict: `PhiTeX's median edit is ${engs.map((x, i) => `<b>${times(ratio(x))}${i ? "" : " faster"}</b> than ${ENGINES[x]}`).join(", ")} rebuilding the same document`,
   });
 }
 

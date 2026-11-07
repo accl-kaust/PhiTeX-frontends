@@ -83,7 +83,7 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
 .pin { position: relative; margin: 8px 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; background: var(--surface-2); }
 .pin b { display: block; margin-bottom: 2px; color: var(--text); }
 .pin span { font-weight: 600; color: var(--text); margin-left: 6px; font-variant-numeric: tabular-nums; }
-.pin #cunpin { position: absolute; top: 12px; right: 16px; }
+.pin > .linkish { position: absolute; top: 12px; right: 16px; }
 @media (max-width: 560px) { input[type="search"] { min-width: 0; width: 100%; } .ctrl .sum { display: block; width: 100%; margin: -4px 0 4px; } }
 
 
