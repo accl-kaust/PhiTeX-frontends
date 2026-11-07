@@ -12,7 +12,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<s
 }
 
 /** What a value in an `html` template may be: text (or a number), a node, a list of them, or nothing (null, undefined, false). */
-export type Slot = string | number | Node | null | undefined | false | readonly Slot[];
+export type Slot = string | number | boolean | Node | null | undefined | readonly Slot[];
 
 const MARK = "phx-slot-";
 /** Each template's markup, parsed once (its literal parts only, the values' places marked). */
@@ -23,7 +23,8 @@ const parsed = new WeakMap<TemplateStringsArray, DocumentFragment>();
  * are parsed (in a <template>, so rows and list items parse anywhere), and
  * each value is put in its place through the DOM, never parsed: text as a
  * text node, a node as itself, a list as its items; in a quoted attribute
- * (`class="a ${x}"`), as the attribute's text. No value may be an event
+ * (`class="a ${x}"`), as the attribute's text, or, the whole of it and true
+ * or false (or nothing), the attribute there or not (`disabled="${busy}"`). No value may be an event
  * handler (`on…`). The stores' linters flag HTML assigned from strings; this
  * is the extension's one way to write markup.
  */
@@ -35,6 +36,8 @@ export function html(strings: TemplateStringsArray, ...values: Slot[]): Document
       src += s;
       if (i === values.length) return;
       // (inside a tag, after an attribute's opening quote: the attribute's text; else a node's place)
+      // (raw text: a value inside <style>, <textarea>, <title> or <script> would be its marker's text)
+      if (/<(style|textarea|title|script)\b[^>]*>(?![\s\S]*<\/\1>)[\s\S]*$/i.test(src)) throw new Error("html: no value inside <style>, <textarea>, <title> or <script>");
       if (/<[a-zA-Z][^<>]*=\s*"[^"]*$/.test(src)) src += `${MARK}${i}`;
       else if (/<[a-zA-Z][^<>]*$/.test(src)) throw new Error(`html: a value inside a tag must be in a quoted attribute (after ${JSON.stringify(s.slice(-40))})`);
       else src += `<template ${MARK}${i}></template>`;
@@ -50,7 +53,8 @@ export function html(strings: TemplateStringsArray, ...values: Slot[]): Document
     drop(base);
     parsed.set(strings, base);
   }
-  const frag = document.importNode(base, true);
+  // (filled in the parser's own, inert document, then adopted where it is put: no attribute is ever a marker in the page)
+  const frag = base.cloneNode(true) as DocumentFragment;
   const nodes = (v: Slot): (Node | string)[] => (v === null || v === undefined || v === false ? [] : Array.isArray(v) ? v.flatMap(nodes) : [v instanceof Node ? v : String(v)]);
   const walk = (root: ParentNode) => {
     for (const el of [...root.querySelectorAll("*")]) {
@@ -61,6 +65,14 @@ export function html(strings: TemplateStringsArray, ...values: Slot[]): Document
       for (const a of [...el.attributes]) {
         if (!a.value.includes(MARK)) continue;
         if (a.name.startsWith("on")) throw new Error(`html: no value in an event handler (${a.name})`);
+        // (a value that is the whole attribute, true or false: the attribute there or not, disabled="${!ok}";
+        // an aria- or data- one says "true" or "false")
+        const whole = new RegExp(`^${MARK}(\\d+)$`).exec(a.value), v = whole && values[+whole[1]];
+        if (whole && !/^(aria|data)-/.test(a.name) && (v === true || v === false || v === null || v === undefined)) {
+          if (v === true) el.setAttribute(a.name, "");
+          else el.removeAttribute(a.name);
+          continue;
+        }
         el.setAttribute(a.name, a.value.replace(new RegExp(`${MARK}(\\d+)`, "g"), (_, n) => nodes(values[+n]).map((x) => (typeof x === "string" ? x : x.textContent)).join("")));
       }
       if (el instanceof HTMLTemplateElement) walk(el.content);

@@ -17,6 +17,7 @@
 import "../../overleaf/src/platform.ts";
 import { platform } from "../../../common/src/platform.ts";
 import { Panel, type DiffLook, type PanelPrefs, type Prefs, type ViewPrefs } from "../../../common/src/viewer/panel.ts";
+import { html } from "../../../common/src/viewer/html.ts";
 import { PreviewSession, guessMain, type EditorHost, type Options } from "../../../common/src/viewer/session.ts";
 import { charOffset, type Edit } from "../../../common/src/viewer/edits.ts";
 import { Compare, DiffControls, gate, type CompareHost } from "../../../common/src/viewer/compare.ts";
@@ -292,7 +293,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
         badge: "in your browser",
         badgeTitle: "PhiTeX in WebAssembly, in this tab: nothing installed, nothing uploaded",
         byline: "⚡ PhiTeX",
-        about: `<b>⚡ PhiTeX</b>: an incremental TeX engine, here compiled to WebAssembly and running in this tab.
+        about: html`<b>⚡ PhiTeX</b>: an incremental TeX engine, here compiled to WebAssembly and running in this tab.
           Your projects never leave your browser; TeX Live's packages are fetched from Shelf and kept in this browser.
           <div class="about-foot">Free software (AGPL-3.0-only), provided as is, without any warranty.</div>`,
         realPdf: "",

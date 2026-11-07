@@ -11,6 +11,7 @@
 import { Panel, type PanelPrefs, type SettingRow, type SettingsGroup, type ViewPrefs } from "../../../common/src/viewer/panel.ts";
 import { Compare, DiffControls, gate } from "../../../common/src/viewer/compare.ts";
 import type { DiffLook } from "../../../common/src/viewer/panel.ts";
+import { html } from "../../../common/src/viewer/html.ts";
 import { PreviewSession, type CoreEvent, type CoreRes, type CoreTransport, type EditorHost } from "../../../common/src/viewer/session.ts";
 import { StripPages } from "../../../common/src/strippages.ts";
 
@@ -163,7 +164,7 @@ const panel = new Panel(
       badge: watch ? "watch" : "builtin",
       badgeTitle: watch ? "phitex watch: the native engine, the document built as you type" : "The builtin engine: PhiTeX in WebAssembly inside VS Code, the document built as you type",
       byline: "⚡ PhiTeX",
-      about: `<b>⚡ PhiTeX</b>: the document built ${watch ? "by <code>phitex watch</code>" : "inside VS Code"} as you type, its pages here. Nothing leaves this machine.
+      about: html`<b>⚡ PhiTeX</b>: the document built ${watch ? html`by <code>phitex watch</code>` : "inside VS Code"} as you type, its pages here. Nothing leaves this machine.
         <div class="about-foot">Free software (AGPL-3.0-only, <a id="license" target="_blank" rel="noopener">full license</a>),
         provided as is, without any warranty.</div>`,
       realPdf: "",
