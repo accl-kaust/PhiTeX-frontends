@@ -11,6 +11,78 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<s
   return el;
 }
 
+/** What a value in an `html` template may be: text (or a number), a node, a list of them, or nothing (null, undefined, false). */
+export type Slot = string | number | Node | null | undefined | false | readonly Slot[];
+
+const MARK = "phx-slot-";
+/** Each template's markup, parsed once (its literal parts only, the values' places marked). */
+const parsed = new WeakMap<TemplateStringsArray, DocumentFragment>();
+
+/**
+ * Markup from a template's literal parts, which only the code writes: they
+ * are parsed (in a <template>, so rows and list items parse anywhere), and
+ * each value is put in its place through the DOM, never parsed: text as a
+ * text node, a node as itself, a list as its items; in a quoted attribute
+ * (`class="a ${x}"`), as the attribute's text. No value may be an event
+ * handler (`on…`). The stores' linters flag HTML assigned from strings; this
+ * is the extension's one way to write markup.
+ */
+export function html(strings: TemplateStringsArray, ...values: Slot[]): DocumentFragment {
+  let base = parsed.get(strings);
+  if (!base) {
+    let src = "";
+    strings.forEach((s, i) => {
+      src += s;
+      if (i === values.length) return;
+      // (inside a tag, after an attribute's opening quote: the attribute's text; else a node's place)
+      if (/<[a-zA-Z][^<>]*=\s*"[^"]*$/.test(src)) src += `${MARK}${i}`;
+      else if (/<[a-zA-Z][^<>]*$/.test(src)) throw new Error(`html: a value inside a tag must be in a quoted attribute (after ${JSON.stringify(s.slice(-40))})`);
+      else src += `<template ${MARK}${i}></template>`;
+    });
+    base = new DOMParser().parseFromString(`<template>${src}</template>`, "text/html").querySelector("template")!.content;
+    // (the template's own line breaks between elements are its layout, not text: dropped, as JSX does)
+    const drop = (n: Node) => {
+      for (const k of [...n.childNodes]) {
+        if (k.nodeType === Node.TEXT_NODE && /^\s*$/.test(k.textContent!) && k.textContent!.includes("\n")) k.remove();
+        else drop(k instanceof HTMLTemplateElement ? k.content : k);
+      }
+    };
+    drop(base);
+    parsed.set(strings, base);
+  }
+  const frag = document.importNode(base, true);
+  const nodes = (v: Slot): (Node | string)[] => (v === null || v === undefined || v === false ? [] : Array.isArray(v) ? v.flatMap(nodes) : [v instanceof Node ? v : String(v)]);
+  const walk = (root: ParentNode) => {
+    for (const el of [...root.querySelectorAll("*")]) {
+      if (el.localName === "template" && el.attributes.length === 1 && el.attributes[0].name.startsWith(MARK)) {
+        el.replaceWith(...nodes(values[+el.attributes[0].name.slice(MARK.length)]));
+        continue;
+      }
+      for (const a of [...el.attributes]) {
+        if (!a.value.includes(MARK)) continue;
+        if (a.name.startsWith("on")) throw new Error(`html: no value in an event handler (${a.name})`);
+        el.setAttribute(a.name, a.value.replace(new RegExp(`${MARK}(\\d+)`, "g"), (_, n) => nodes(values[+n]).map((x) => (typeof x === "string" ? x : x.textContent)).join("")));
+      }
+      if (el instanceof HTMLTemplateElement) walk(el.content);
+    }
+  };
+  walk(frag);
+  return frag;
+}
+
+/** Text with a few inline tags in it (<b>, <code>, <i>, <kbd>; the news' items): those as elements, the rest as text. */
+export function rich(text: string): DocumentFragment {
+  const f = document.createDocumentFragment();
+  const open: Node[] = [f];
+  for (const part of text.split(/(<\/?(?:b|code|i|kbd)>)/)) {
+    const tag = /^<(\/?)(b|code|i|kbd)>$/.exec(part);
+    if (!tag) part && open[open.length - 1].appendChild(document.createTextNode(part));
+    else if (!tag[1]) open.push(open[open.length - 1].appendChild(document.createElement(tag[2])));
+    else if (open.length > 1) open.pop();
+  }
+  return f;
+}
+
 export const icon = (name: string, cls = "") => h("span", { class: `material-symbols ${cls}`, "aria-hidden": "true", translate: "no" }, name);
 
 // (handlers here are block bodies: an on* handler returning false cancels its event)

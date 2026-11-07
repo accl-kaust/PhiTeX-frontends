@@ -132,7 +132,7 @@ export function folderConsent(terms: Terms, exists = false): Promise<boolean> {
     const cancel = h("button", { type: "button", class: "btn btn-secondary" }, "Cancel");
     const file = (s: string) => h("code", {}, s);
     const license = h("p", { class: "small text-muted mb-0" });
-    license.innerHTML = asIs(terms.license);
+    license.replaceChildren(asIs(terms.license));
     const modal = h("div", { class: "modal fade show d-block project-list-modal", role: "dialog", "aria-modal": "true", "aria-labelledby": `${CONSENT}-title`, tabindex: "-1" },
       h("div", { class: "modal-dialog modal-dialog-centered modal-lg" }, h("div", { class: "modal-content" },
         h("div", { class: "modal-header phitex-folders-head" }, h("h4", { class: "modal-title", id: `${CONSENT}-title` }, icon("folder"), exists ? " Folders: the terms, again" : " Folders: kept in a project of your own")),

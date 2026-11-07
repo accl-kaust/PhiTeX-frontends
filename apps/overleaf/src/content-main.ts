@@ -17,7 +17,7 @@ import { readZip } from "./common/zip.ts";
 import { type DiffRunner, compareButton } from "./diffui.ts";
 import { AGREE, TERMS, asIs } from "./terms.ts";
 import { callout, calloutStyle, type Callout } from "./callout.ts";
-import { h } from "./dom.ts";
+import { h, html, rich } from "./dom.ts";
 import { filesAt, type Version } from "./history.ts";
 import { Compare, gate, LATEXDIFF_LOOK } from "./common/viewer/compare.ts";
 import { SUPPORT, unseen, type News } from "./news.ts";
@@ -468,7 +468,7 @@ function dockInOverleaf(panel: Panel): Dock {
     return new Promise((done) => {
       const m = document.createElement("div");
       m.id = "phitex-consent";
-      m.innerHTML = `<div class="modal-backdrop fade show"></div>
+      m.replaceChildren(html`<div class="modal-backdrop fade show"></div>
         <div class="modal fade show d-block" role="dialog" aria-modal="true" aria-labelledby="phitex-consent-title" tabindex="-1">
           <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
             <div class="modal-header"><h4 class="modal-title" id="phitex-consent-title">⚡ Instant: an unofficial extension</h4></div>
@@ -486,7 +486,7 @@ function dockInOverleaf(panel: Panel): Dock {
               <button type="button" class="btn btn-primary" data-c="yes" disabled>Enable ⚡ Instant</button>
             </div>
           </div></div>
-        </div>`;
+        </div>`);
       document.body.append(m);
       const check = m.querySelector<HTMLInputElement>("#phitex-consent-check")!;
       const yes = m.querySelector<HTMLButtonElement>('[data-c="yes"]')!;
@@ -547,25 +547,15 @@ function dockInOverleaf(panel: Panel): Dock {
     c.id = "phitex-controls";
     c.className = "pdfjs-viewer-controls phitex-keep";
     const gbtn = (id: string, icon: string, label: string) =>
-      `<button type="button" id="${id}" aria-label="${label}" title="${label}" class="d-inline-grid pdf-toolbar-btn pdfjs-toolbar-button btn btn-ghost">` +
-      `<span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">${icon}</span></span></button>`;
-    c.innerHTML =
-      `<div role="group" class="pdfjs-toolbar-buttons btn-group">${gbtn("phitex-prev", "keyboard_arrow_up", "Previous page")}${gbtn("phitex-next", "keyboard_arrow_down", "Next page")}</div>` +
-      `<div class="pdfjs-page-number-input"><form id="phitex-pform"><input id="phitex-page" aria-label="Page" inputmode="numeric" value="1"></form><span id="phitex-pages">/ 1</span></div>` +
-      `<div class="pdfjs-zoom-controls"><div role="group" class="pdfjs-toolbar-buttons btn-group">${gbtn("phitex-zout", "remove", "Zoom out")}${gbtn("phitex-zin", "add", "Zoom in")}</div>` +
-      `<div class="dropdown"><button type="button" id="phitex-zoom" aria-expanded="false" aria-label="PhiTeX zoom level" class="pdf-toolbar-btn pdfjs-zoom-dropdown-button small dropdown-toggle btn btn-link">100%</button>` +
-      `<ul class="dropdown-menu dropdown-menu-end" id="phitex-zoom-menu" role="menu">` +
-      ZOOMS.map(([v, l]) => `<li><button type="button" class="dropdown-item" data-zoom="${v}">${l}</button></li>`).join("") +
-      `<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li></ul></div></div>` +
-      // (compact, as Overleaf's own narrow layout: page and zoom steps behind ⋯)
-      `<div class="dropdown phitex-compact-only"><button type="button" id="phitex-more" aria-label="More" class="d-inline-grid pdf-toolbar-btn pdfjs-toolbar-popover-button btn btn-ghost">` +
-      `<span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">more_horiz</span></span></button>` +
-      `<ul class="dropdown-menu dropdown-menu-end" id="phitex-more-menu" role="menu">` +
-`<li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li><li><hr class="dropdown-divider"></li>` +
-      `<li><button type="button" class="dropdown-item" data-act="prev">Previous page</button></li><li><button type="button" class="dropdown-item" data-act="next">Next page</button></li>` +
-      `<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="zin">Zoom in</button></li><li><button type="button" class="dropdown-item" data-act="zout">Zoom out</button></li></ul></div>` +
-      // (⚡ Instant's Settings: one dialog in every host, the viewer's)
-      gbtn("phitex-settings", "settings", "⚡ Instant settings");
+      html`<button type="button" id="${id}" aria-label="${label}" title="${label}" class="d-inline-grid pdf-toolbar-btn pdfjs-toolbar-button btn btn-ghost"><span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">${icon}</span></span></button>`;
+    // (the last: compact, as Overleaf's own narrow layout, page and zoom steps behind ⋯; then ⚡ Instant's Settings, one dialog in every host, the viewer's)
+    c.replaceChildren(html`<div role="group" class="pdfjs-toolbar-buttons btn-group">${gbtn("phitex-prev", "keyboard_arrow_up", "Previous page")}${gbtn("phitex-next", "keyboard_arrow_down", "Next page")}</div>
+      <div class="pdfjs-page-number-input"><form id="phitex-pform"><input id="phitex-page" aria-label="Page" inputmode="numeric" value="1"></form><span id="phitex-pages">/ 1</span></div>
+      <div class="pdfjs-zoom-controls"><div role="group" class="pdfjs-toolbar-buttons btn-group">${gbtn("phitex-zout", "remove", "Zoom out")}${gbtn("phitex-zin", "add", "Zoom in")}</div>
+      <div class="dropdown"><button type="button" id="phitex-zoom" aria-expanded="false" aria-label="PhiTeX zoom level" class="pdf-toolbar-btn pdfjs-zoom-dropdown-button small dropdown-toggle btn btn-link">100%</button>
+      <ul class="dropdown-menu dropdown-menu-end" id="phitex-zoom-menu" role="menu">${ZOOMS.map(([v, l]) => html`<li><button type="button" class="dropdown-item" data-zoom="${v}">${l}</button></li>`)}<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li></ul></div></div>
+      <div class="dropdown phitex-compact-only"><button type="button" id="phitex-more" aria-label="More" class="d-inline-grid pdf-toolbar-btn pdfjs-toolbar-popover-button btn btn-ghost"><span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">more_horiz</span></span></button>
+      <ul class="dropdown-menu dropdown-menu-end" id="phitex-more-menu" role="menu"><li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li><li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="prev">Previous page</button></li><li><button type="button" class="dropdown-item" data-act="next">Next page</button></li><li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="zin">Zoom in</button></li><li><button type="button" class="dropdown-item" data-act="zout">Zoom out</button></li></ul></div>${gbtn("phitex-settings", "settings", "⚡ Instant settings")}`);
     const q = (id: string) => c!.querySelector<HTMLElement>(`#${id}`)!;
     q("phitex-prev").onclick = () => panel.prev();
     q("phitex-next").onclick = () => panel.next();
@@ -745,11 +735,11 @@ function dockInOverleaf(panel: Panel): Dock {
       anchor: label,
       shiny: true,
       header: [h("span", { class: "phitex-callout-icon", "aria-hidden": "true" }, "⚡"), "New: the unofficial PhiTeX extension"],
-      body: {
-        html: `No more Recompile: PhiTeX repaints this page <b>as you type</b>, incrementally, in milliseconds, right in your browser. Nothing leaves it.
+      body: [
+        html`No more Recompile: PhiTeX repaints this page <b>as you type</b>, incrementally, in milliseconds, right in your browser. Nothing leaves it.
         <div class="phitex-demo" aria-hidden="true"><code>Hello TeX</code><span class="phitex-arrow">⚡→</span><span class="phitex-mini">Hello TeX</span></div>
         <div class="small text-muted" style="margin-top:6px">An unofficial browser extension, not an Overleaf feature. Experimental. Overleaf's PDF is one click away.</div>`,
-      },
+      ],
       actions: [never, no, yes],
       onHide: () => (tipBox = undefined),
     });
@@ -790,12 +780,11 @@ function dockInOverleaf(panel: Panel): Dock {
       anchor: label,
       width: 340,
       header: [h("span", { "aria-hidden": "true" }, "✨"), `What's new in PhiTeX ${items[0].version}`],
-      body: {
-        html:
-          items
-            .map((n) => `<div class="phitex-news-entry"><div class="phitex-news-title">${n.title} <span class="text-muted small">${n.version} · ${n.date}</span></div><ul>${n.items.map((i) => `<li>${i}</li>`).join("")}</ul></div>`)
-            .join("") + `<div class="small text-muted">From the unofficial PhiTeX extension, not Overleaf.</div>`,
-      },
+      // (an item's few inline tags as elements: rich)
+      body: [
+        ...items.map((n) => html`<div class="phitex-news-entry"><div class="phitex-news-title">${n.title} <span class="text-muted small">${n.version} · ${n.date}</span></div><ul>${n.items.map((i) => html`<li>${rich(i)}</li>`)}</ul></div>`),
+        html`<div class="small text-muted">From the unofficial PhiTeX extension, not Overleaf.</div>`,
+      ],
       actions: [...links, ok],
     });
     ok.onclick = () => {
@@ -811,8 +800,9 @@ function dockInOverleaf(panel: Panel): Dock {
    * Feature tips: Overleaf's popover pointing at one of our controls, saying
    * what it does, each once (tipsSeen); What's new shows them all again.
    */
-  const TIPS: { id: string; at: () => Element | null; title: string; body: string; isNew?: boolean }[] = [
-    { id: "compare", at: () => document.getElementById("phitex-cmp"), isNew: true, title: "Compare versions", body: "See what changed since any version in the project's history, marked on the page as <code>latexdiff</code> marks it: additions in blue, deletions struck out. It follows your edits.<div class=\"phitex-cmp-demo\" aria-hidden=\"true\">The results are <span class=\"del\">good</span><span class=\"add\">&nbsp;excellent</span>.<span class=\"ver\"><i class=\"v0\">Submitted v1</i><i class=\"v1\">Submitted v1 vs current</i></span><span class=\"tag\">‹ 1 / 1 ›</span></div>" },
+  // (a body: text with a few inline tags (rich), or a function making its markup, a demo in it)
+  const TIPS: { id: string; at: () => Element | null; title: string; body: string | (() => Node); isNew?: boolean }[] = [
+    { id: "compare", at: () => document.getElementById("phitex-cmp"), isNew: true, title: "Compare versions", body: () => html`See what changed since any version in the project's history, marked on the page as <code>latexdiff</code> marks it: additions in blue, deletions struck out. It follows your edits.<div class="phitex-cmp-demo" aria-hidden="true">The results are <span class="del">good</span><span class="add">&nbsp;excellent</span>.<span class="ver"><i class="v0">Submitted v1</i><i class="v1">Submitted v1 vs current</i></span><span class="tag">‹ 1 / 1 ›</span></div>` },
     { id: "timing", at: () => document.getElementById("phitex-status"), title: "How long it took", body: "The last build, and how long a keystroke takes to reach the page. Click it for the details." },
     { id: "clean", at: () => document.getElementById("phitex-clean"), title: "Clean rebuild", body: "Builds already run as you type. This one reads the project again and typesets it from the start." },
     { id: "dark", at: () => document.querySelector("#toolbar-pdf-controls .theme-toggle-btn"), title: "Dark PDF", body: "Overleaf's dark PDF switch darkens ⚡ Instant's pages too. Off by default: it inverts figures and photos as well." },
@@ -834,7 +824,7 @@ function dockInOverleaf(panel: Panel): Dock {
       label: tip.title,
       anchor: target,
       header: [...(tip.isNew ? [h("span", { class: "badge bg-primary" }, "New")] : []), h("span", {}, tip.title), h("span", { class: "phitex-callout-step" }, `${k + 1} of ${left.length}`)],
-      body: { html: tip.body },
+      body: [typeof tip.body === "string" ? rich(tip.body) : tip.body()],
       actions: [button("skip", "btn-link phitex-callout-never", "Skip"), button("next", "btn-primary", k === left.length - 1 ? "Got it" : "Next")],
     });
     // (seen once shown: a tip never comes back by itself)
@@ -855,13 +845,13 @@ function dockInOverleaf(panel: Panel): Dock {
   const FOLLOW: [string, string][] = [["cursor", "Cursor"], ["select", "Selection"], ["dblclick", "Double-click only"]];
   // (a mini editor line, its caret going word to word, and a mini page whose same word turns yellow in step)
   // (each choice its own: Cursor the caret walking, Selection a range selected, Double-click a click on the page sending the editor there)
-  const HIGHLIGHT_DEMO = `<div class="phitex-hl-demo" data-mode="cursor" aria-hidden="true">
+  const highlightDemo = () => html`<div class="phitex-hl-demo" data-mode="cursor" aria-hidden="true">
       <div class="phitex-hl-ed"><span class="e1">Instant</span> <span class="e2">typing</span> <span class="e3">here</span><i class="phitex-hl-caret"></i></div>
       <div class="phitex-hl-page"><span class="w1">Instant</span> <span class="w2">typing</span> <span class="w3">here</span><i class="phitex-hl-click">⇱</i></div></div>`;
-  const STEPS: { at: () => Element | null; title: string; body: string; inside?: boolean; choice?: boolean }[] = [
+  const STEPS: { at: () => Element | null; title: string; body: string | (() => Node); inside?: boolean; choice?: boolean }[] = [
     { at: () => document.getElementById("phitex-switch"), title: "Two previews, one click", body: "<b>PDF</b> is Overleaf's compiler, as always. <b>⚡ Instant</b> is added by the unofficial PhiTeX extension (not part of Overleaf), live. Switch any time, or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>." },
     { at: () => document.querySelector("phitex-preview"), inside: true, title: "Type, and watch", body: "Edit anything in the editor: this page repaints as you type, usually in a few milliseconds. The status in the toolbar says how fast. No Recompile." },
-    { at: () => document.querySelector("phitex-preview"), inside: true, choice: true, title: "The yellow highlight", body: `Where you are in the source is marked on the page in yellow.${HIGHLIGHT_DEMO}When should it move?` },
+    { at: () => document.querySelector("phitex-preview"), inside: true, choice: true, title: "The yellow highlight", body: () => html`Where you are in the source is marked on the page in yellow.${highlightDemo()}When should it move?` },
     { at: () => document.getElementById("phitex-logs"), title: "What PhiTeX couldn't read", body: "Diagnostics, with a count. Click one to jump to its line. Errors from the build, missing packages, and what LaTeX looked for and did not find." },
     { at: () => document.getElementById("phitex-dlgroup"), title: "Download what you see", body: "This downloads the <b>⚡ Instant</b> PDF (<code>…-instant.pdf</code>). The <b>▾</b> menu has Overleaf's compiled PDF too." },
     { at: () => document.getElementById("phitex-zoom"), title: "Zoom, and the details", body: "Zoom like Overleaf's viewer. At the bottom of this menu: settings and timings (main file, a debug check against a fresh build). Everything runs in your browser; nothing leaves it." },
@@ -884,11 +874,11 @@ function dockInOverleaf(panel: Panel): Dock {
       anchor: target,
       inside: step.inside,
       header: [h("span", {}, step.title), h("span", { class: "phitex-callout-step" }, `${k + 1} of ${STEPS.length}`)],
-      body: {
-        html: `${step.body}
-        <div class="phitex-dots">${STEPS.map((_, i) => `<span class="${i === k ? "on" : ""}"></span>`).join("")}</div>
-        ${step.choice ? `<div class="phitex-choice" role="radiogroup" aria-label="When the highlight moves">${FOLLOW.map(([v, l], i) => `<button type="button" role="radio" class="btn btn-secondary btn-sm" data-f="${v}">${l}${i ? "" : " <small>(recommended)</small>"}</button>`).join("")}</div>` : ""}`,
-      },
+      body: [
+        typeof step.body === "string" ? rich(step.body) : step.body(),
+        html`<div class="phitex-dots">${STEPS.map((_, i) => html`<span class="${i === k ? "on" : ""}"></span>`)}</div>`,
+        step.choice ? html`<div class="phitex-choice" role="radiogroup" aria-label="When the highlight moves">${FOLLOW.map(([v, l], i) => html`<button type="button" role="radio" class="btn btn-secondary btn-sm" data-f="${v}">${l}${i ? "" : html` <small>(recommended)</small>`}</button>`)}</div>` : "",
+      ],
       actions: [
         button("skip", "btn-link phitex-callout-never", "Skip"),
         ...(k ? [button("back", "btn-secondary", "Back")] : []),
@@ -1380,17 +1370,17 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   transport.onEvent((e) => {
     if (e.event !== "release" || !e.release || releaseShown) return;
     const min = e.release.min_extension;
-    const lines: string[] = [];
+    const lines: Node[] = [];
     if (min && older(chrome.runtime.getManifest().version, min))
-      lines.push(`A newer PhiTeX Instant is out (${min}): this one keeps working, but update it for the latest packages and fixes. In Chrome: chrome://extensions → <b>Update</b>.`);
-    if (e.release.notice) lines.push(escapeHtml(e.release.notice));
+      lines.push(html`A newer PhiTeX Instant is out (${min}): this one keeps working, but update it for the latest packages and fixes. In Chrome: chrome://extensions → <b>Update</b>.`);
+    if (e.release.notice) lines.push(document.createTextNode(e.release.notice));
     if (!lines.length) return;
     releaseShown = true;
     if (lines.length && min && older(chrome.runtime.getManifest().version, min)) void chrome.runtime.sendMessage({ type: "update-check" }).catch(() => undefined);
     const t = document.createElement("div");
     t.className = "popover bs-popover-top show phitex-toast";
     t.setAttribute("role", "status");
-    t.innerHTML = `<div class="popover-body">⚡ ${lines.join("<br>")}</div>`;
+    t.replaceChildren(html`<div class="popover-body">⚡ ${lines.map((l, i) => (i ? [h("br"), l] : l))}</div>`);
     Object.assign(t.style, { position: "fixed", right: "16px", bottom: "16px", maxWidth: "340px", zIndex: "1060" });
     document.body.append(t);
     t.onclick = () => t.remove();
@@ -1399,7 +1389,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     const t = document.createElement("div");
     t.className = "popover bs-popover-top show phitex-toast";
     t.setAttribute("role", "status");
-    t.innerHTML = `<div class="popover-body">⚡ ${GONE}. <button type="button" class="btn btn-primary btn-sm">Reload</button></div>`;
+    t.replaceChildren(html`<div class="popover-body">⚡ ${GONE}. <button type="button" class="btn btn-primary btn-sm">Reload</button></div>`);
     Object.assign(t.style, { position: "fixed", right: "16px", bottom: "16px", maxWidth: "340px", zIndex: "1060" });
     document.body.append(t);
     t.querySelector("button")!.onclick = () => location.reload();
@@ -1488,6 +1478,3 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   await start();
 })();
 
-function escapeHtml(t: string): string {
-  return t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-}

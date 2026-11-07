@@ -9,7 +9,7 @@
 import type { Panel } from "./common/viewer/panel.ts";
 import { DiffControls, type DiffRunner as Runner } from "./common/viewer/compare.ts";
 import { type Version, versions } from "./history.ts";
-import { ago } from "./dom.ts";
+import { ago, html } from "./dom.ts";
 
 export type DiffRunner = Runner<Version>;
 
@@ -17,10 +17,7 @@ export function compareButton(host: HTMLElement, panel: Panel, base: () => strin
   if (host.querySelector("#phitex-cmp")) return;
   const g = document.createElement("div");
   g.className = "dropdown btn-group";
-  g.innerHTML =
-    `<button type="button" id="phitex-cmp" aria-label="Compare with a past version" title="Compare with a past version (latexdiff)" aria-expanded="false" class="d-inline-grid pdf-toolbar-btn toolbar-item btn btn-link">` +
-    `<span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">difference</span></span></button>` +
-    `<ul class="dropdown-menu" id="phitex-cmpmenu" role="menu" style="max-height: 60vh; overflow-y: auto; min-width: 300px;"></ul>`;
+  g.replaceChildren(html`<button type="button" id="phitex-cmp" aria-label="Compare with a past version" title="Compare with a past version (latexdiff)" aria-expanded="false" class="d-inline-grid pdf-toolbar-btn toolbar-item btn btn-link"><span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">difference</span></span></button><ul class="dropdown-menu" id="phitex-cmpmenu" role="menu" style="max-height: 60vh; overflow-y: auto; min-width: 300px;"></ul>`);
   host.append(g);
   const btn = g.querySelector<HTMLButtonElement>("#phitex-cmp")!,
     menu = g.querySelector<HTMLElement>("#phitex-cmpmenu")!;
@@ -28,18 +25,17 @@ export function compareButton(host: HTMLElement, panel: Panel, base: () => strin
   let more: number | undefined;
 
   const item = (v: Version) =>
-    `<li><button type="button" class="dropdown-item" data-v="${v.v}" style="display:flex;flex-direction:column;align-items:flex-start;gap:0;white-space:normal">` +
-    `<span>${v.label ? "🏷 " : ""}${esc(v.title)}</span><span class="text-muted small">${ago(v.at)}${v.who.length ? ` · ${esc(v.who.join(", "))}` : ""} · v${v.v}</span></button></li>`;
-  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+    html`<li><button type="button" class="dropdown-item" data-v="${v.v}" style="display:flex;flex-direction:column;align-items:flex-start;gap:0;white-space:normal"><span>${v.label ? "🏷 " : ""}${v.title}</span><span class="text-muted small">${ago(v.at)}${v.who.length ? ` · ${v.who.join(", ")}` : ""} · v${v.v}</span></button></li>`;
   const render = () => {
     const labels = list.filter((v) => v.label),
       ups = list.filter((v) => !v.label);
-    menu.innerHTML =
-      (controls.active ? `<li><button type="button" class="dropdown-item" data-stop="1">✕ Stop comparing</button></li><li><hr class="dropdown-divider"></li>` : "") +
-      `<li><h6 class="dropdown-header">Compare the current version with…</h6></li>` +
-      (labels.length ? `<li><h6 class="dropdown-header">Labels</h6></li>${labels.map(item).join("")}` : "") +
-      `<li><h6 class="dropdown-header">History</h6></li>${ups.map(item).join("") || `<li><span class="dropdown-item-text text-muted small">No history yet</span></li>`}` +
-      (more ? `<li><button type="button" class="dropdown-item text-muted" data-more="1">Older versions…</button></li>` : "");
+    menu.replaceChildren(
+      controls.active ? html`<li><button type="button" class="dropdown-item" data-stop="1">✕ Stop comparing</button></li><li><hr class="dropdown-divider"></li>` : "",
+      html`<li><h6 class="dropdown-header">Compare the current version with…</h6></li>`,
+      labels.length ? html`<li><h6 class="dropdown-header">Labels</h6></li>${labels.map(item)}` : "",
+      html`<li><h6 class="dropdown-header">History</h6></li>${ups.length ? ups.map(item) : html`<li><span class="dropdown-item-text text-muted small">No history yet</span></li>`}`,
+      more ? html`<li><button type="button" class="dropdown-item text-muted" data-more="1">Older versions…</button></li>` : "",
+    );
   };
   const load = async (before?: number) => {
     const r = await versions(base(), fetcher, 30, before);
@@ -60,7 +56,7 @@ export function compareButton(host: HTMLElement, panel: Panel, base: () => strin
     Object.assign(menu.style, { position: "absolute", inset: "100% auto auto 0" });
     menu.classList.add("show");
     btn.setAttribute("aria-expanded", "true");
-    await load().catch((err) => (menu.innerHTML = `<li><span class="dropdown-item-text text-danger small">Couldn't read the history: ${esc(String(err.message ?? err))}</span></li>`));
+    await load().catch((err) => menu.replaceChildren(html`<li><span class="dropdown-item-text text-danger small">Couldn't read the history: ${String(err.message ?? err)}</span></li>`));
   };
   menu.onclick = async (e) => {
     e.stopPropagation();

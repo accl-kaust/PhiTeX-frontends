@@ -18,7 +18,7 @@ export type CalloutOptions = {
   /** The header: an icon (`.phitex-callout-icon`, wiggling when shiny), a title, a step count (`.phitex-callout-step`, at the right). */
   header: (Node | string)[];
   /** The body: nodes, or markup (the editor's own tips are written as markup). */
-  body: (Node | string)[] | { html: string };
+  body: (Node | string)[];
   /** Buttons, at the bottom right; one with class `phitex-callout-never` ("Don't show again", "Skip") at the left. */
   actions?: Node[];
   /** A first-run tip: a glow, a sweep of light, the anchor (or `pulse`) ringed. */
@@ -41,8 +41,7 @@ export function callout(o: CalloutOptions): Callout {
   calloutStyle();
   document.getElementById(o.id)?.remove();
   const body = h("div", { class: "popover-body" });
-  if ("html" in o.body) body.innerHTML = o.body.html;
-  else body.append(...o.body);
+  body.append(...o.body);
   if (o.actions?.length) body.append(h("div", { class: "phitex-callout-actions" }, ...o.actions));
   const el = h("div", { id: o.id, class: `popover bs-popover-bottom show phitex-callout${o.shiny ? " shiny" : ""}${o.inside ? " inside" : ""}`, role: "dialog", "aria-label": o.label },
     h("div", { class: "phitex-callout-clip" }, h("div", { class: "popover-header" }, ...o.header), body));
