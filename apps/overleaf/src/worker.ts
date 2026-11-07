@@ -175,6 +175,8 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
     }
     const { core, session } = await running();
     if (m.op === "open") prefetch(core, await index, (m.files ?? {}) as Record<string, string>, String(m.engine ?? "pdflatex"));
+    // (the figures' paths too, for a latexmkrc's TEXINPUTS folders: the tab sends the texts')
+    if (m.op === "open" && Array.isArray(m.projectFiles)) m.projectFiles = [...new Set([...(m.projectFiles as string[]), ...binaries.keys()])];
     // (a compare's packs kept ahead, once, when the first build is in: its own packs first)
     if (m.op === "open" && !diffWarm) {
       diffWarm = "asked";

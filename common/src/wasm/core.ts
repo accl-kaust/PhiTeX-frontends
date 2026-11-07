@@ -49,8 +49,8 @@ export type Shell = (command: string, files: [string, Uint8Array][]) => Promise<
 /**
  * What the session keeps between sessions, by key (core/src/store.rs):
  * `doc/NAME` the document's own (the host scopes them to the project),
- * `format/NAME` a format's state and `format/NAME/pkgrec` beside it (any
- * project's). `get` answers null for a key it has nothing under.
+ * `format/NAME` a format's state and `format/NAME/pkgrecs/HASH` its
+ * package loads' records, one a load (any project's). `get` answers null for a key it has nothing under.
  */
 export interface Store {
   get(key: string): Promise<Uint8Array | null>;
@@ -134,6 +134,10 @@ export interface Open {
   ini?: boolean;
   /** `\write18`'s allowed commands run by the host (`CoreOptions.shell`). */
   shell?: boolean;
+  /** The project's latexmk rc files by path, and whether its other settings apply (PhiTeX's docs/latexmkrc.md). */
+  latexmk?: { files: Record<string, string>; exact: boolean };
+  /** Every path of the project (a TEXINPUTS `//` folder's subfolders). */
+  projectFiles?: string[];
 }
 
 let cores = 0;
@@ -595,11 +599,11 @@ export class CoreSession implements CoreTransport {
       return bytes ? ({ ok: true, bytes } as CoreRes) : { ok: false, error: "no document open" };
     }
     if (req.op === "open") {
-      const o = req as Extract<CoreReq, { op: "open" }>;
+      const o = req as Extract<CoreReq, { op: "open" }> & Pick<Open, "latexmk" | "projectFiles">;
       try {
         for (const [name, text] of Object.entries(o.files)) if (name !== o.main) this.core.provide(name, { path: "./" + name, bytes: new TextEncoder().encode(text) });
         const text = o.files[o.main] ?? "";
-        this.core.open({ ...this.opts, main: o.main, text, engine: plainTeX(text) ? "pdftex" : (o.engine ?? this.opts.engine) });
+        this.core.open({ ...this.opts, main: o.main, text, engine: plainTeX(text) ? "pdftex" : (o.engine ?? this.opts.engine), latexmk: o.latexmk, projectFiles: o.projectFiles });
       } catch (e) {
         return { ok: false, error: String(e) };
       }

@@ -53,8 +53,7 @@ function readNow(url: string): Uint8Array | null {
 
 /**
  * The formats shipped (formats/names.txt, build.sh: each NAME's
- * NAME.gzdata and NAME.pkgrec.gzdata), as the store's `format/NAME` and
- * `format/NAME/pkgrec`, read before the core starts: without them a first
+ * NAME.gzdata), as the store's `format/NAME`, read before the core starts: without them a first
  * open makes the format here, every language's patterns fetched for it.
  */
 async function shippedFormats(): Promise<Map<string, Uint8Array>> {
@@ -64,7 +63,6 @@ async function shippedFormats(): Promise<Map<string, Uint8Array>> {
   const out = new Map<string, Uint8Array>();
   for (const n of (await r.text()).split("\n").filter(Boolean)) {
     out.set(`format/${n}`, await gz(`formats/${n}.gzdata`));
-    out.set(`format/${n}/pkgrec`, await gz(`formats/${n}.pkgrec.gzdata`));
   }
   return out;
 }
@@ -192,6 +190,8 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
           () => told && post({ event: "pack", id, state: "failed" }),
         );
       };
+      // (the figures' paths too, for a latexmkrc's TEXINPUTS folders: the tab sends the texts')
+      if (Array.isArray(m.projectFiles)) m.projectFiles = [...new Set([...(m.projectFiles as string[]), ...binaries.keys()])];
       await Promise.all([...[...ids].map(early), minted?.then((r) => void (runner = r), (e) => (say("error", `minted: ${e}`), (mintedFailed = String(e))))]);
     }
     const r = (await session.request(m as never)) as { bytes?: Uint8Array };

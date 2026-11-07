@@ -55,7 +55,7 @@ for d in texmf fonts shims packs minted; do [ -d "$assets/$d" ] && cp -r "$asset
 # (the formats: each engine's newest only, the one this core.wasm made; older ones a core never asks for)
 mkdir -p build/web/formats
 for e in $(ls "$assets/formats" | sed -n 's/^\([a-z]*\)-.*\.gzdata$/\1/p' | sort -u); do
-  stem=$(ls -t "$assets/formats/$e"-*.gzdata | grep -v '\.pkgrec\.' | head -1)
+  stem=$(ls -t "$assets/formats/$e"-*.gzdata | head -1)
   stem=$(basename "$stem" .gzdata)
   cp "$assets/formats/$stem".* build/web/formats/
   echo "$stem" >> build/web/formats/list.txt
@@ -78,7 +78,6 @@ while read -r stem; do
   rm -rf "$st"
   mkdir -p "$st"
   gunzip -c "$assets/formats/$stem.gzdata" > "$st/format%2F$stem"
-  gunzip -c "$assets/formats/$stem.pkgrec.gzdata" > "$st/format%2F$stem%2Fpkgrec"
   "${sandbox[@]}" --net env SHELF_URL="${SHELF_URL:-https://shelf-phitex-v1.pages.dev/tl2026/}" node test/harness/core-run.ts "$doc" --engine "$engine" \
     --wasm build/web/dist/core.wasm --store "$st" --texmf build/web/texmf --names "build/web/formats/$stem.texmf.txt" | grep '^built'
   [ -s "build/web/formats/$stem.texmf.txt" ] || { echo "no shelf/texmf/ files recorded for $stem" >&2; exit 1; }

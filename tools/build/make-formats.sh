@@ -5,7 +5,8 @@
 # cold build of a small document (test/harness/core-run.ts --cold --store): an
 # amsmath article for pdfLaTeX, a fontspec article for XeLaTeX
 # (test/scenarios/fontspec/main.tex). The store's `format/NAME` is shipped
-# as NAME.gzdata, `format/NAME/pkgrec` as NAME.pkgrec.gzdata; and
+# as NAME.gzdata (its package loads' records, `format/NAME/pkgrecs/HASH`,
+# are hints the core makes again: not shipped); and
 # NAME.packs.txt, the packs a warm build of the document fetched on that
 # format (the fonts' metrics, pdftex.map: what every first document reads,
 # fetched at once by the worker when the format is read). NAME holds the
@@ -30,8 +31,9 @@ make() {
     local k
     k=$(basename "$f")
     k=${k#format%2F}
-    gzip -9 -c "$f" > "$out/${k//%2F/.}.gzdata"
-    [[ $k == *%2F* ]] || name=$k
+    [[ $k == *%2F* ]] && continue
+    gzip -9 -c "$f" > "$out/$k.gzdata"
+    name=$k
   done
   # (the warm build: the packs a first document needs beside the format)
   node test/harness/core-run.ts "$doc" --engine "$engine" --wasm "$wasm" --store "$st" --packs "$st/packs.txt"

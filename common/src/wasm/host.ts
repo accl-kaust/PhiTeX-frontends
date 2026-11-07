@@ -21,12 +21,14 @@ const KV = "core.kv";
 /**
  * A format's state the extension ships (formats/, scripts/build/make-formats.sh:
  * pdfLaTeX's, made by this very core.wasm, gzipped): `format/NAME` is
- * `formats/NAME.gzdata`, `format/NAME/pkgrec` `formats/NAME.pkgrec.gzdata`.
+ * `formats/NAME.gzdata` (its loads' records, `format/NAME/pkgrecs/HASH`, not shipped: hints the core makes again).
  * NAME holds the engine's identity, so a core.wasm other than the one that
  * made it never asks for it: it builds its own, as without one.
  */
 async function shippedFormat(key: string): Promise<Uint8Array | null> {
-  const name = key.slice("format/".length).replaceAll("/", ".");
+  const name = key.slice("format/".length);
+  // (a load's record: none shipped, so none asked of the server)
+  if (name.includes("/")) return null;
   const r = await ours(`formats/${name}.gzdata`).catch(() => null);
   return r?.ok ? gunzip(r.body!) : null;
 }
@@ -62,7 +64,6 @@ export async function warmFormats(): Promise<void> {
   // (pdfLaTeX's only, most documents' engine: another's format, XeLaTeX's 13 MB, fetched when a document asks for it, not by every visit)
   for (const name of (await r.text()).split("\n").filter((n) => n.startsWith("pdflatex-"))) {
     warm(`formats/${name}.gzdata`);
-    warm(`formats/${name}.pkgrec.gzdata`);
     const t = await platform().asset(`formats/${name}.texmf.txt`);
     if (!t.ok) throw new Error(`formats/${name}.texmf.txt: ${t.status} (scripts/build/build-web.sh writes it)`);
     for (const f of (await t.text()).split("\n").filter(Boolean)) warm(`texmf/${f}`);

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The formats shipped, checked against every core shipped with them: each
-# format (FORMATS_DIR/NAME.gzdata, its pkgrec) put back in a store as the
+# format (FORMATS_DIR/NAME.gzdata) put back in a store as the
 # hosts' store keeps it, and a warm build of make-formats.sh's document by
 # each core (test/harness/core-run.ts --warm). A core that does not use the format
 # makes it again in the user's browser, fetching every language's
@@ -15,14 +15,12 @@ doc() { case $1 in pdflatex) echo test/scenarios/live/main.tex ;; xelatex) echo 
 n=0
 for f in "$formats"/*.gzdata; do
   name=$(basename "$f" .gzdata)
-  [[ $name == *.pkgrec ]] && continue
   engine=${name%%-*}
   [ -n "$(doc "$engine")" ] || { echo "check-formats: no document for $engine ($name)" >&2; exit 1; }
   for wasm in "$@"; do
     st=target/check-formats-store
     rm -rf "$st" && mkdir -p "$st"
     gunzip -c "$f" > "$st/format%2F$name"
-    gunzip -c "$formats/$name.pkgrec.gzdata" > "$st/format%2F$name%2Fpkgrec"
     single=()
     [[ $(basename "$wasm") == core1.wasm ]] && single=(--single)
     echo "check-formats: $name with $wasm"

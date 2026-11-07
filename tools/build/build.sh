@@ -57,7 +57,7 @@ cp "$core1" build/overleaf/dist/core1.wasm
 cp "$diff" build/overleaf/dist/diff.wasm
 cp "$formats"/* build/overleaf/formats/
 # (their names: Firefox's worker reads them before its core starts, worker1.ts)
-(cd build/overleaf/formats && ls -- *.gzdata | grep -v '\.pkgrec\.gzdata$' | sed 's/\.gzdata$//') > build/overleaf/formats/names.txt
+(cd build/overleaf/formats && ls -- *.gzdata | sed 's/\.gzdata$//') > build/overleaf/formats/names.txt
 # (the full license, shipped in the extension, where its links point)
 # (packs/: the list fetched ahead, and any Shelf packs shipped: shelf/data/bundled-packs.txt, none now)
 step "The extension's files (packs, shelf/texmf/, Shelf's index)"
