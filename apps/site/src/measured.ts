@@ -3,7 +3,7 @@
 // renders it. On the dev server `?bench=PATH` reads another file
 // (test/bench-full.json fills every chart, for checking the layout).
 import "./style.css";
-import "./proof.css";
+import "./measured.css";
 import { REPO } from "./links";
 import { ENGINES, curves, esc, ms, n, secs, type Bench, type Cls, type Cold, type Diff, type Engine, type Links, type Machine, type Point } from "./bench";
 

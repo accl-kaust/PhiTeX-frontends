@@ -10,7 +10,7 @@ A static, framework-free site built with Vite and TypeScript.
   `public/anim/` and `public/img/` come from the PhiTeX repo's `assets/`.
 - **`/overleaf`** (`overleaf.html`) — the browser extension that puts PhiTeX
   inside Overleaf, with install links for Chrome, Edge and Firefox.
-- **`/proof.html`** — byte-exactness and benchmarks.
+- **`/measured.html`**: correctness and speed, from bench.json.
 - **`/install.html`** — installing the CLI (Linux, macOS), the extension and the editors.
 - **`/try`** — redirects to the demo, its own site: demo.phitex.org.
 
@@ -33,7 +33,7 @@ tools/sandbox npm test            # wasm harness tests
 ```
 
 `dist/` is a plain static bundle and deploys to any static host. The pages
-are emitted as `index.html`, `overleaf.html`, `proof.html`; for a bare
+are emitted as `index.html`, `overleaf.html`, `measured.html`; for a bare
 `/overleaf` URL, add a host rewrite from `/overleaf` to `/overleaf.html`.
 
 ## Build-time configuration
@@ -54,7 +54,7 @@ VITE_CHROME_URL=https://chrome.google.com/... tools/sandbox npm run build
 ## Layout
 
 ```
-index.html, overleaf.html, proof.html, install.html   the pages
+index.html, overleaf.html, measured.html, install.html   the pages
 src/
   ui.ts          shared chrome: theme, nav, reveal, links
   main.ts        home page: the ribbon, how-it-works steps, ACCL's footer intro

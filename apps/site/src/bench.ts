@@ -1,4 +1,4 @@
-// bench.json, PhiTeX CI's results (proof.html renders them; the home page
+// bench.json, PhiTeX CI's results (measured.html renders them; the home page
 // draws its three speed curves small): the types, and the curves.
 import "./charts.css";
 

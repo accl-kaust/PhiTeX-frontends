@@ -1,6 +1,6 @@
 
-.proof-hero { text-align: center; padding-top: 140px !important; }
-.proof-hero .display { font-size: clamp(40px, 6vw, 64px); line-height: 1.12; }
+.measured-hero { text-align: center; padding-top: 140px !important; }
+.measured-hero .display { font-size: clamp(40px, 6vw, 64px); line-height: 1.12; }
 .placeholder-banner { display: inline-block; margin: 0 0 28px; padding: 8px 16px; border-radius: 999px; background: var(--sample-bg); color: var(--sample-ink); font-size: 14px; border: 1px dashed var(--sample-line); }
 .placeholder-banner b { color: inherit; }
 .hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 960px; margin: 56px auto 0; text-align: left; }

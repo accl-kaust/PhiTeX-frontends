@@ -7,7 +7,7 @@
 i[class^="c-"], i[class*=" c-"], i[class^="s-"] { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--c); vertical-align: baseline; }
 i.round { border-radius: 50%; }
 .pending { color: var(--muted); margin: 16px 0 8px; }
-/* a card: the site's white panel (the proof page's and the home page's charts) */
+/* a card: the site's white panel (the measured page's and the home page's charts) */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-sm); }
 .chart { margin: 0 0 32px; padding: 24px 24px 12px; }
 .chart figcaption b { color: var(--text); font-size: 18px; }

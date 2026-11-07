@@ -55,7 +55,7 @@
       </header>
       <div class="why-grid">
         <article class="tile reveal"><img class="th-light" src="img/edit.png" alt="A paragraph lit on a page; the edit lands in milliseconds" loading="lazy"><img class="th-dark" src="img/edit-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Edits in milliseconds</h3><p>Change a word and only what it touches is rebuilt. A 400-page thesis is as quick as a letter.</p></article>
-        <article class="tile reveal"><img class="th-light" src="img/exact.png" alt="Two PDFs, the same bytes" loading="lazy"><img class="th-dark" src="img/exact-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Exactly as {pdf,Xe}LaTeX</h3><p>Byte for byte the PDF pdfLaTeX makes, cold or after a thousand edits. Nothing changes but the wait. <a href="proof.html">See every document compared&nbsp;→</a></p></article>
+        <article class="tile reveal"><img class="th-light" src="img/exact.png" alt="Two PDFs, the same bytes" loading="lazy"><img class="th-dark" src="img/exact-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Exactly as {pdf,Xe}LaTeX</h3><p>Byte for byte the PDF pdfLaTeX makes, cold or after a thousand edits. Nothing changes but the wait. <a href="measured.html">See every document compared&nbsp;→</a></p></article>
         <article class="tile reveal"><img class="th-light" src="img/editors.png" alt="Overleaf, VS Code, Neovim and Emacs around one page" loading="lazy"><img class="th-dark" src="img/editors-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Any editor, Overleaf included</h3><p>Overleaf, VS Code, Neovim, Emacs, any LSP editor, or a browser tab.</p></article>
         <article class="tile reveal"><img class="th-light" src="img/offline.png" alt="A laptop in flight mode, the page still building" loading="lazy"><img class="th-dark" src="img/offline-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Private and offline</h3><p>Your paper never leaves your machine or your browser. With TeX Live installed, the network is used only to check for updates, and only if you turn that on.</p></article>
         <article class="tile reveal"><img class="th-light" src="img/texlive.png" alt="A shelf where only the packages a paper uses are filled in" loading="lazy"><img class="th-dark" src="img/texlive-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>TeX Live optional</h3><p>Without it, each package your paper uses is downloaded once, on first use, and kept.</p></article>
@@ -143,11 +143,11 @@
         <p class="lede">PhiTeX's PDF is compared byte for byte with pdfLaTeX's and XeLaTeX's on TeX Live's own manuals and the common journal templates, and its speed is measured on the same documents. <span id="m-same"></span></p>
       </header>
       <div class="curves mini" id="m-curves">
-        <figure class="chart card" id="m-pdflatex" data-href="proof.html#k-pdflatex"></figure>
-        <figure class="chart card" id="m-xelatex" data-href="proof.html#k-xelatex"></figure>
-        <figure class="chart card" id="m-edit" data-href="proof.html#k-edit"></figure>
+        <figure class="chart card" id="m-pdflatex" data-href="measured.html#k-pdflatex"></figure>
+        <figure class="chart card" id="m-xelatex" data-href="measured.html#k-xelatex"></figure>
+        <figure class="chart card" id="m-edit" data-href="measured.html#k-edit"></figure>
       </div>
-      <p class="m-more"><a href="proof.html">Every document, compared and timed&nbsp;→</a></p>
+      <p class="m-more"><a href="measured.html">Every document, compared and timed&nbsp;→</a></p>
     </section>
 
     <!-- ───────────── HOW IT WORKS ───────────── -->
@@ -175,7 +175,7 @@
       <header class="sec-head"><p class="eyebrow"><span class="sect">§7</span> FAQ</p><h2>Questions.</h2></header>
       <div class="qs">
         <details class="reveal"><summary>Is my document uploaded?</summary><p>No. On this page and in the browser extension, everything runs locally as WebAssembly; the <code>phitex</code> CLI runs on your own machine. The extension's requests go to overleaf.com, as you, for your own project's files, and to PhiTeX's package shelf for the packages your document uses. None of them carries your text, your file names or who you are. No analytics, no server, no remote code. This site makes no third-party requests either: its fonts and libraries are bundled.</p></details>
-        <details class="reveal"><summary>Does it compile my LaTeX thesis?</summary><p>Yes. pdfLaTeX and XeLaTeX with your packages, BibTeX, biber and makeindex, Unicode and OpenType fonts, and the PDF matches pdfLaTeX's byte for byte. We publish the comparison on TeX Live's own manuals and the common journal templates, with every difference explained: <a href="proof.html">correctness and speed</a>. LuaLaTeX is planned.</p></details>
+        <details class="reveal"><summary>Does it compile my LaTeX thesis?</summary><p>Yes. pdfLaTeX and XeLaTeX with your packages, BibTeX, biber and makeindex, Unicode and OpenType fonts, and the PDF matches pdfLaTeX's byte for byte. We publish the comparison on TeX Live's own manuals and the common journal templates, with every difference explained: <a href="measured.html">correctness and speed</a>. LuaLaTeX is planned.</p></details>
         <details class="reveal"><summary>What does “incremental = fresh build” mean?</summary><p>It's PhiTeX's core invariant: after any sequence of edits, the incremental program equals a fresh build of the same text. The tests check it after random edits, and the extension can check it live against a fresh build.</p></details>
         <details class="reveal"><summary>Do I need TeX Live?</summary><p>No. Without it, PhiTeX downloads each package your document uses once, on first use, checks it, and keeps it for offline builds. With TeX Live installed, it uses yours.</p></details>
         <details class="reveal"><summary>What does it cost?</summary><p>Nothing. PhiTeX is free and open source.</p></details>
@@ -195,7 +195,7 @@
         <h4>PhiTeX</h4>
         <a href="https://demo.phitex.org/" target="_blank" rel="noopener">Try it&nbsp;↗</a>
         <a href="#how">How it works</a>
-        <a href="proof.html">Correctness and speed</a>
+        <a href="measured.html">Correctness and speed</a>
         <a href="#faq">FAQ</a>
       </nav>
       <nav class="foot-links" aria-label="Elsewhere">

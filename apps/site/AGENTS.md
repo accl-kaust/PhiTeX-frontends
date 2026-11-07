@@ -85,7 +85,7 @@ engine's benches or the extension's report.
 ## Structure
 
 - Multi-page Vite app. Each page is an entry in `vite.config.ts`
-  (`index.html`, `overleaf.html`, `proof.html`, `install.html`). `/try` is a
+  (`index.html`, `overleaf.html`, `measured.html`, `install.html`). `/try` is a
   redirect (`public/_redirects`) to the demo's own site, demo.phitex.org.
 - JS is split: `ui.ts` (shared chrome, loaded on every page), `replica.ts`
   (the editable demo, used by home and Overleaf), `main.ts` (home),
