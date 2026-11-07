@@ -11,6 +11,7 @@
 //   at the first write, never by reading: until the user makes a folder or
 //   gives a status (and agrees to the project, main.ts), nothing is made.
 
+import { own } from "./created.ts";
 import { readState, type State } from "./folders.ts";
 import { call, csrf, fetchProjects, listProjects } from "./overleaf.ts";
 import { README_TEX } from "./readme.ts";
@@ -61,7 +62,10 @@ export function projectBackend(name = PROJECT_NAME): Backend & { find(): Promise
       const body = new FormData();
       body.append("name", `${name}.zip`);
       body.append("qqfile", zip({ "main.tex": README_TEX }), `${name}.zip`);
-      const r = await fetch("/project/new/upload", { method: "POST", headers: { "X-Csrf-Token": csrf(), Accept: "application/json" }, body });
+      // (the storage project, never filed in a folder: created.ts)
+      const init = { method: "POST", headers: { "X-Csrf-Token": csrf(), Accept: "application/json" }, body };
+      own.add(init);
+      const r = await fetch("/project/new/upload", init);
       const out = await r.json().catch(() => ({}));
       if (!r.ok || !out.project_id) throw new Error(`Couldn't make the project "${name}" (${out.error ?? r.status})`);
       // (made "NAME (1)" if a project, a trashed one too, has the name: named NAME again; a

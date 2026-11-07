@@ -77,7 +77,11 @@ function footer(v: View, table: Element) {
     more.onclick = () => v.more();
     kids.push(more);
   }
-  const line = h("p", {}, h("span", { "aria-live": "polite" }, loading ? h("span", { class: "spinner-border", role: "status" }) : "", loading ? "Loading projects…" : `Showing ${shown} out of ${total} projects.`));
+  // (the folders in the table too: the open one's, or those a search found)
+  const folders = v.found ? v.found.folders.length : Object.values(v.state.folders).filter((f) => f.parent === v.current).length;
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  const showing = `Showing ${folders ? `${plural(folders, "folder")} and ` : ""}${shown} out of ${plural(total, "project")}.`;
+  const line = h("p", {}, h("span", { "aria-live": "polite" }, loading ? h("span", { class: "spinner-border", role: "status" }) : "", loading ? "Loading projects…" : showing));
   if (hidden > 0 && !loading) {
     const all = h("button", { type: "button", class: "btn btn-link btn-inline-link" }, "Show all projects");
     all.onclick = () => v.all();

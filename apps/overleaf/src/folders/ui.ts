@@ -29,6 +29,7 @@ import { renderSidebar } from "./sidebar.ts";
 import { loadSort, saveSort, sortCompare, statusCell, statusHeader, type Sort } from "./status.ts";
 import { Folders, type Backend } from "./sync.ts";
 import { renderTable } from "./table.ts";
+import { forget, pending, remember, watchCreated } from "./created.ts";
 
 const MOUNTED = "data-olf-mounted";
 const CACHE = "phitex:folders:state";
@@ -328,6 +329,7 @@ export function mount(opts: MountOptions = {}): () => void {
         setProjects(projects);
         loaded = true;
         writeCache(folders.state);
+        fileCreated();
         update();
       })
       .catch((e) => {
@@ -374,9 +376,32 @@ export function mount(opts: MountOptions = {}): () => void {
   document.addEventListener("click", onClick, true);
   const stopDrag = dragAndDrop(v);
 
+  /**
+   * The projects made here kept to file (created.ts), at the load: those the
+   * stored folders have filed (or whose folder is gone) forgotten, the rest
+   * filed now, and kept until a load finds them stored (Overleaf may open a
+   * new project before the save's done). Made without asking: with no
+   * storage project there are no folders to file in.
+   */
+  function fileCreated() {
+    const s = folders.state;
+    const todo = pending();
+    forget(todo.filter(([id, f]) => !s.folders[f] || s.projects[id] !== undefined).map(([id]) => id));
+    const file = todo.filter(([id, f]) => s.folders[f] && s.projects[id] === undefined);
+    if (file.length && settled()) for (const [id, f] of file) folders.do({ op: "file", projects: [id], folder: f });
+  }
+  // (a new project in the folder open, a copy in its original's)
+  const stopCreated = watchCreated((id, from) => {
+    const folder = from ? (folders.state.projects[from] ?? null) : v.browsing ? v.current : null;
+    if (!folder) return;
+    remember(id, folder);
+    if (loaded && settled()) folders.do({ op: "file", projects: [id], folder });
+  });
+
   return () => {
     stop();
     stopDrag();
+    stopCreated();
     unsubscribe();
     window.removeEventListener("popstate", onPop);
     document.removeEventListener("click", onClick, true);
