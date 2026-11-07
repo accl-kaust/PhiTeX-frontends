@@ -260,8 +260,9 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
         }
       },
       onReload: () => session?.refresh({ ...P().files }),
-      // (builds run by themselves on each edit: Rebuild typesets the files as they are once more, Clean rebuild from a fresh session)
-      onRebuild: () => void session?.reopen(),
+      // (builds run by themselves on each edit: Rebuild typesets the files as they are once more, in the session (its format,
+      // packages and threads kept: the core's rebuild op), Clean rebuild from a fresh session)
+      onRebuild: () => void core.request({ op: "rebuild" }),
       onClean: () => void session?.clean({ ...P().files }),
       onCompare: () => void versionsDialog(),
       onClearCache: () => void cacheDialog(),

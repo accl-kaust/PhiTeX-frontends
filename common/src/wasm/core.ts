@@ -221,6 +221,7 @@ export class Core {
             const r = reader(new Uint8Array(memory.buffer).slice(p, p + n));
             const command = new TextDecoder().decode(r.bytes());
             if (o.sync.shell) ran = o.sync.shell(command, r.files());
+            else ran = { ...ran, why: "this host runs no \\write18 command" };
           } catch (e) {
             o.log?.(`\\write18: ${e}\n`);
             ran = { ...ran, why: String(e) };
@@ -390,6 +391,7 @@ export class Core {
       const r = reader(frame);
       const command = new TextDecoder().decode(r.bytes());
       if (this.o.shell) ran = await this.o.shell(command, r.files());
+      else ran = { ...ran, why: "this host runs no \\write18 command" };
     } catch (e) {
       this.o.log?.(`\\write18: ${e}\n`);
       ran = { ...ran, why: String(e) };
