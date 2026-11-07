@@ -90,6 +90,8 @@ rm -rf build/overleaf/dist/folders
 # minted's runner and Pyodide's modules in it (pyodide.ts: it can import
 # nothing at run time); Pyodide's Node-only imports left as they are
 tools/sandbox node_modules/.bin/esbuild apps/overleaf/src/worker1.ts --bundle --log-level=warning --format=esm --target=chrome116 --alias:phitex-minted-runner=./phitex/tools/minted-pyodide/runner.mjs '--external:node:*' --external:ws --outfile=build/overleaf/dist/engine-worker.js
+# (and Pyodide's eval and computed import() in it made to throw: tools/build/no-eval.mjs)
+tools/sandbox node tools/build/no-eval.mjs build/overleaf/dist/engine-worker.js
 step "Fonts and minted (Pyodide)"
 # Latin Modern (GUST Font License), the fonts the pages are drawn in (page2.ts):
 # common/fonts (kept up to date from TeX Live here; CI, which has none, takes

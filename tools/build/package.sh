@@ -30,8 +30,11 @@ if grep -q localhost build/overleaf/dist/common/shelf.js; then echo "shelf.js po
 if find build/overleaf/dist -name '*.map' | grep -q .; then echo "source maps in dist" >&2; exit 1; fi
 
 # (the threaded core and its worker are VS Code's and the web demo's
-# (build/overleaf/dist is their assets), not the extension's)
-(cd build/overleaf && scripts_zip=1 zip -q -r -X "../../$out" "${files[@]}" -x dist/core.wasm dist/worker.js dist/thread.js)
+# (build/overleaf/dist is their assets), not the extension's; nor are Pyodide's
+# modules and tsc's copy of the core's worker: the extension's engine-worker.js
+# bundles them (pyodide.ts), the stores' linters warn at their eval and import())
+notours=(dist/core.wasm dist/worker.js dist/thread.js dist/worker1.js dist/pyodide.js dist/pyodide/pyodide.mjs dist/pyodide/pyodide.asm.mjs)
+(cd build/overleaf && scripts_zip=1 zip -q -r -X "../../$out" "${files[@]}" -x "${notours[@]}")
 echo "$out ($(du -h "$out" | cut -f1))"
 
 unzip -l "$out" | tail -n +4 | head -n -2 | awk '{print "  " $4}'
@@ -42,15 +45,15 @@ rm -rf "$stage" "$fx" && mkdir -p "$stage"
 # (the threaded core out; the formats in: check-formats.sh)
 for f in "${files[@]}" firefox-bg.html; do cp -r "build/overleaf/$f" "$stage/"; done
 [ -s "$stage/formats/names.txt" ] || { echo "the Firefox package has no formats (formats/names.txt): a first open would make one in the browser" >&2; exit 1; }
-rm -f "$stage"/dist/{core.wasm,worker.js,thread.js}
+for f in "${notours[@]}"; do rm -f "$stage/$f"; done
 tools/sandbox node -e '
   const fs = require("fs"), f = process.argv[1] + "/manifest.json", m = JSON.parse(fs.readFileSync(f));
   // (in Firefox an MV3 background is a page)
   m.background = { page: "firefox-bg.html" };
   // (Chrome-only keys: Firefox warns at each one; version_name too)
   for (const k of ["minimum_chrome_version", "version_name"]) delete m[k];
-  // (128: content scripts in the page world; nothing collected, as AMO asks it said)
-  m.browser_specific_settings = { gecko: { id: "phitex-instant@phitex.org", strict_min_version: "128.0", data_collection_permissions: { required: ["none"] } } };
+  // (nothing collected, as AMO asks it said: a key of Firefox 140, of 142 on Android)
+  m.browser_specific_settings = { gecko: { id: "phitex-instant@phitex.org", strict_min_version: "140.0", data_collection_permissions: { required: ["none"] } }, gecko_android: { strict_min_version: "142.0" } };
   fs.writeFileSync(f, JSON.stringify(m, null, 2) + "\n");' "$stage"
 (cd "$stage" && zip -q -r -X "../$(basename "$fx")" .)
 echo "$fx ($(du -h "$fx" | cut -f1))"

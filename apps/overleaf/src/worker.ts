@@ -21,7 +21,7 @@ import "./platform.ts";
 import { platform } from "./common/platform.ts";
 import { Core, CoreSession, WASM_THREADS } from "./common/wasm/core.ts";
 import { mintedShell } from "./common/wasm/minted.ts";
-import { loadMinted } from "./pyodide.ts";
+import { importMinted, loadMinted } from "./pyodide.ts";
 import { coreIndex, coreStore, pack, prefetch, texmfFile, warmDiff, warmFormats } from "./common/wasm/host.ts";
 import { spawnThread } from "./thread.ts";
 import { gib, outgrew, outgrownMessage } from "./common/wasm/threads.ts";
@@ -34,7 +34,7 @@ let project = "";
 const store = coreStore(() => project, async () => (await running()).core);
 
 const at = (p: string) => platform().assetUrl(p);
-const shell = mintedShell(loadMinted);
+const shell = mintedShell(async () => loadMinted(await importMinted()));
 
 /** The project's binary files (figures), given again to a core started after a trap. */
 const binaries = new Map<string, Uint8Array>();
