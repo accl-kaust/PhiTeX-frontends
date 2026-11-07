@@ -89,6 +89,8 @@ let formats = new Map<string, Uint8Array>();
 /** minted's runner, loaded at the open of a project that uses it. */
 let minted: Promise<Runner> | undefined;
 let runner: Runner | undefined;
+/** Why it did not load, if it failed (said in each `\write18`'s answer). */
+let mintedFailed = "";
 /** The project's binary files (figures), kept until the core starts and given to it then. */
 const binaries = new Map<string, Uint8Array>();
 
@@ -118,7 +120,7 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
       },
       stored: (key) => kept.get(scoped(key)) ?? formats.get(key) ?? null,
       // (refused, as "not found", until minted's runner is loaded)
-      shell: (command, files) => (runner ? runOn(runner, command, files) : { status: 127 << 8, wrote: [], removed: [] }),
+      shell: (command, files) => (runner ? runOn(runner, command, files) : { status: 127 << 8, wrote: [], removed: [], why: mintedFailed ? `minted's runner failed to load: ${mintedFailed}` : "minted's runner is not loaded (the project did not load minted when it opened)" }),
     },
     store: {
       get: async (key) => kept.get(scoped(key)) ?? formats.get(key) ?? null,
@@ -190,7 +192,7 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
           () => told && post({ event: "pack", id, state: "failed" }),
         );
       };
-      await Promise.all([...[...ids].map(early), minted?.then((r) => void (runner = r), (e) => say("error", `minted: ${e}`))]);
+      await Promise.all([...[...ids].map(early), minted?.then((r) => void (runner = r), (e) => (say("error", `minted: ${e}`), (mintedFailed = String(e))))]);
     }
     const r = (await session.request(m as never)) as { bytes?: Uint8Array };
     if (r.bytes) return (self as unknown as Worker).postMessage({ ...r, id: m.id }, [r.bytes.buffer as ArrayBuffer]);

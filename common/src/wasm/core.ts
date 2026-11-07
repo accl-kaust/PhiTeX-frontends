@@ -37,10 +37,12 @@ export type Resolve = (name: string) => Promise<{ path: string; bytes: Uint8Arra
 /** Pack `id`, as Shelf serves it; `downloading` called when it goes to the network (not when kept on this machine). */
 export type Fetch = (id: string, downloading?: () => void) => Promise<Uint8Array | null>;
 /** What a `\write18` command did (PhiTeX's ShellRan, without `read`). */
+/** `why`: the command was not run here, and why (the engine says it once, PhiTeX's shell.rs); none when it ran, whatever its status. */
 export interface Ran {
   status: number;
   wrote: [string, Uint8Array][];
   removed: string[];
+  why?: string;
 }
 /** Runs `command` (quoted by the engine) over exactly `files` (minted.ts). */
 export type Shell = (command: string, files: [string, Uint8Array][]) => Promise<Ran>;
@@ -221,6 +223,7 @@ export class Core {
             if (o.sync.shell) ran = o.sync.shell(command, r.files());
           } catch (e) {
             o.log?.(`\\write18: ${e}\n`);
+            ran = { ...ran, why: String(e) };
           }
           core!.shellDone(id, ran);
         }),
@@ -377,9 +380,10 @@ export class Core {
     }
   }
 
-  // (frames as core/src/shell.rs: a call `u32 n, command, files`; files
-  // `u32 count, (u32 n, name, u32 n, bytes) x count`; an answer `i32
-  // status, files written, files removed`)
+  // (frames as PhiTeX's crates/wasm/live/src/shell.rs: a call `u32 n,
+  // command, files`; files `u32 count, (u32 n, name, u32 n, bytes) x
+  // count`; an answer `i32 status, files written, files removed[, u32 n,
+  // why]`, why only where the command was not run)
   private async shell(id: number, frame: Uint8Array): Promise<void> {
     let ran: Ran = { status: 127 << 8, wrote: [], removed: [] };
     try {
@@ -388,13 +392,14 @@ export class Core {
       if (this.o.shell) ran = await this.o.shell(command, r.files());
     } catch (e) {
       this.o.log?.(`\\write18: ${e}\n`);
+      ran = { ...ran, why: String(e) };
     }
     this.shellDone(id, ran);
   }
 
   /** What `\write18` call `id` did, given to the core. */
   private shellDone(id: number, ran: Ran): void {
-    const out = framed([i32(ran.status), files(ran.wrote), files(ran.removed.map((n) => [n, new Uint8Array()]))]);
+    const out = framed([i32(ran.status), files(ran.wrote), files(ran.removed.map((n) => [n, new Uint8Array()])), ...(ran.why ? [sized(new TextEncoder().encode(ran.why))] : [])]);
     const p = this.put(out);
     this.x.ph_shell_done(id, p, out.length);
     this.x.ph_free(p, out.length);

@@ -31,7 +31,15 @@ export function mintedShell(load: LoadRunner): Shell {
   let runner: Promise<Runner> | undefined;
   let queue: Promise<unknown> = Promise.resolve();
   return (command, files) => {
-    const run = async (): Promise<Ran> => runOn(await (runner ??= load()), command, files);
+    const run = async (): Promise<Ran> => {
+      let r: Runner;
+      try {
+        r = await (runner ??= load());
+      } catch (e) {
+        return { status: 127 << 8, wrote: [], removed: [], why: `minted's runner failed to load: ${e}` };
+      }
+      return runOn(r, command, files);
+    };
     const p = queue.then(run, run);
     queue = p.catch(() => undefined);
     return p;
@@ -46,7 +54,8 @@ export function mintedShell(load: LoadRunner): Shell {
 export function runOn(r: Runner, command: string, files: [string, Uint8Array][]): Ran {
   clear(r.pyodide.FS, new Set(files.map(([n]) => n.replace(/^\.\//, ""))));
   const { status, wrote, removed } = r.system(command, files);
-  return { status, wrote: [...wrote], removed };
+  // (the runner's "not found": a command other than latexminted)
+  return { status, wrote: [...wrote], removed, ...(status === 127 << 8 && !wrote.size ? { why: "only latexminted runs here" } : {}) };
 }
 
 /** /work holding only the names in `keep` (and the directories they need). */
