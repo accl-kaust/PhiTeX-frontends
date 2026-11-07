@@ -1,15 +1,16 @@
 {
  "schema": 1,
- "release": "tl2026.8",
- "index": "index-tl2026.8.tsv.gz",
- "pack_table": "packs-tl2026.8.tsv.gz",
- "packs": 7195,
+ "release": "tl2026.9",
+ "index": "index-tl2026.9.tsv.gz",
+ "pack_table": "packs-tl2026.9.tsv.gz",
+ "packs": 7143,
  "min_extension": "0.7.0",
  "notice": null,
  "deps": [
   "pdftex",
   "xetex"
  ],
+ "file_sums": "sha256-48",
  "traced_by": {
   "pdftex": "phitex unknown shelf-trace 2",
   "xetex": "phitex unknown shelf-trace 2"
@@ -209,5 +210,11 @@
     "tex"
    ]
   }
+ },
+ "formats": {
+  "pdflatex-896acacf6206ddee-1a090ee7340d9232": "fmt-pdflatex-896acacf6206ddee-1a090ee7340d9232-5b4ce30b810e",
+  "pdftex-896acacf6206ddee-f78777f0b067fef4": "fmt-pdftex-896acacf6206ddee-f78777f0b067fef4-354c9cf059a1",
+  "xelatex-896acacf6206ddee-c91dea17fdc7668f": "fmt-xelatex-896acacf6206ddee-c91dea17fdc7668f-74e1bc8f5e54",
+  "xetex-896acacf6206ddee-71c3c01e26d2ad9a": "fmt-xetex-896acacf6206ddee-71c3c01e26d2ad9a-fa7a4b1ced68"
  }
 }

@@ -34,6 +34,9 @@ if [ -z "$wasm" ]; then
   tools/sandbox env CARGO_TARGET_DIR="$PWD/target/phitex-wasm" phitex/scripts/wasm-live.sh "$PWD/$wasm"
 fi
 core="$wasm/core.wasm" core1="$wasm/core1.wasm" diff="$wasm/diff.wasm"
+# (the index the formats are made on, and the extension ships: Shelf's current release)
+step "Shelf's release (tools/build/check-shelf.sh)"
+tools/sandbox --net tools/build/check-shelf.sh
 if [ -d "$wasm/formats" ]; then
   formats="$wasm/formats"
 else

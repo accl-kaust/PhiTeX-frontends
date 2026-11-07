@@ -116,9 +116,11 @@ export const CSS = `
 @media (max-width: 760px) {
   .phx-narrow { display: inline-block; }
   .phx-engine, .phx-logo { display: none; }
-  .phx-body { flex-direction: column; }
+  /* (a column: the editor's 40% and the pages' rest, neither grown to its contents, the editor's own text a scroll inside it) */
+  .phx-body { flex-direction: column; min-height: 0; }
   .phx-tree { display: none; position: absolute; z-index: 30; top: 40px; bottom: 0; left: 0; width: min(260px, 80%); box-shadow: 4px 0 16px rgb(0 0 0 / 20%); }
   .phx-web.files-on .phx-tree { display: flex; }
-  .phx-ed { flex: 0 0 40%; border-right: 0; border-bottom: 1px solid var(--line); }
-  .phx-pages { flex: 1 1 60%; }
+  .phx-ed { flex: 0 0 40%; min-height: 0; overflow: hidden; border-right: 0; border-bottom: 1px solid var(--line); }
+  .phx-ed .cm-editor { min-height: 0; }
+  .phx-pages { flex: 1 1 0; min-height: 0; }
 }`;
