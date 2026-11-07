@@ -81,7 +81,7 @@
    "engine": "pdflatex",
    "cls": "pdftex-bug",
    "link": "docs/differences.md#dest-under-matrix",
-   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+   "note": "Inside a rotated or transformed box (\\rotatebox, a landscape page), pdfTeX computes a link target's position from leftover memory instead of the target itself, so the link lands somewhere unrelated, often far above the page. PhiTeX sends the link to the target. The pages themselves are identical; only where these links point differs."
   },
   {
    "corpus": "manuals",
@@ -89,7 +89,7 @@
    "engine": "pdflatex",
    "cls": "pdftex-bug",
    "link": "docs/differences.md#dest-under-matrix",
-   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+   "note": "Inside a rotated or transformed box (\\rotatebox, a landscape page), pdfTeX computes a link target's position from leftover memory instead of the target itself, so the link lands somewhere unrelated, often far above the page. PhiTeX sends the link to the target. The pages themselves are identical; only where these links point differs."
   },
   {
    "corpus": "manuals",
@@ -97,7 +97,7 @@
    "engine": "pdflatex",
    "cls": "pdftex-bug",
    "link": "docs/differences.md#dest-under-matrix",
-   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+   "note": "Inside a rotated or transformed box (\\rotatebox, a landscape page), pdfTeX computes a link target's position from leftover memory instead of the target itself, so the link lands somewhere unrelated, often far above the page. PhiTeX sends the link to the target. The pages themselves are identical; only where these links point differs."
   },
   {
    "corpus": "manuals",
@@ -105,7 +105,7 @@
    "engine": "pdflatex",
    "cls": "pdftex-bug",
    "link": "docs/differences.md#dest-under-matrix",
-   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+   "note": "Inside a rotated or transformed box (\\rotatebox, a landscape page), pdfTeX computes a link target's position from leftover memory instead of the target itself, so the link lands somewhere unrelated, often far above the page. PhiTeX sends the link to the target. The pages themselves are identical; only where these links point differs."
   },
   {
    "corpus": "manuals",
@@ -113,7 +113,7 @@
    "engine": "pdflatex",
    "cls": "pdftex-bug",
    "link": "docs/differences.md#dest-under-matrix",
-   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+   "note": "Inside a rotated or transformed box (\\rotatebox, a landscape page), pdfTeX computes a link target's position from leftover memory instead of the target itself, so the link lands somewhere unrelated, often far above the page. PhiTeX sends the link to the target. The pages themselves are identical; only where these links point differs."
   },
   {
    "corpus": "manuals",
@@ -121,7 +121,7 @@
    "engine": "pdflatex",
    "cls": "pdftex-bug",
    "link": "docs/differences.md#dest-under-matrix",
-   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+   "note": "Inside a rotated or transformed box (\\rotatebox, a landscape page), pdfTeX computes a link target's position from leftover memory instead of the target itself, so the link lands somewhere unrelated, often far above the page. PhiTeX sends the link to the target. The pages themselves are identical; only where these links point differs."
   },
   {
    "corpus": "manuals",
@@ -129,7 +129,7 @@
    "engine": "pdflatex",
    "cls": "pdftex-bug",
    "link": "docs/differences.md#dest-under-matrix",
-   "note": "pdfTeX places a link target inside a transformed box wrongly; PhiTeX writes the place it means."
+   "note": "Inside a rotated or transformed box (\\rotatebox, a landscape page), pdfTeX computes a link target's position from leftover memory instead of the target itself, so the link lands somewhere unrelated, often far above the page. PhiTeX sends the link to the target. The pages themselves are identical; only where these links point differs."
   }
  ],
  "slow": [

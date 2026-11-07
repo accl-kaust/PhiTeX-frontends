@@ -5,10 +5,9 @@
 import "./style.css";
 import "./proof.css";
 import { REPO } from "./links";
+import { ENGINES, curves, esc, ms, n, secs, type Bench, type Cls, type Cold, type Diff, type Engine, type Links, type Machine, type Point } from "./bench";
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-const n = (v: number) => v.toLocaleString("en-US");
 
 $("#theme").addEventListener("click", () => {
   const root = document.documentElement;
@@ -17,23 +16,6 @@ $("#theme").addEventListener("click", () => {
   try { localStorage.setItem("theme", root.dataset.theme); } catch {}
 });
 
-type Cls = "pdftex-bug" | "slow" | "phitex-bug" | "not-examined";
-/** `identical` counts the slow ones too (their PDFs match; `slow` of them run past CI's time limit); `by_class` only the ways a PDF differs. */
-interface Engine { total: number; identical: number; slow?: number; by_class: Partial<Record<Exclude<Cls, "slow">, number>>; }
-interface Corpus { name: string; title: string; about: string; excluded: { total: number; by_engine: Record<string, number>; link: string } | null; engines: Record<string, Engine>; }
-interface Machine { cpu: string; cores: number; mem_gb: number; }
-/** A document's links: its source or manual (`url`), and the two PDFs as built (`pdfs`). */
-interface Links { url?: string; pdfs?: { phitex: string; oracle: string }; }
-interface Point extends Links { doc: string; engine: string; oracle_s: number; phitex_s: number; }
-interface Cold { runs: number; summary: Record<string, { docs: number; p50_ratio: number; p90_ratio: number }>; points: Point[]; }
-/** `points`: each edit, PhiTeX's time to its page and a rebuild of its document by the document's own engine (`oracle_s`). */
-interface Edit { points?: { doc: string; engine: string; edit: string; ms: number; oracle_s: number }[]; cases: number; under_100ms: number; p50_ms: number | null; buckets: { le_ms: number | null; n: number }[] | null; worst: { doc: string; edit: string; ms: number }[] | null; }
-interface Diff extends Links { corpus: string; doc: string; engine: string; cls: Cls; link: string | null; note: string | null; }
-/** A document identical but past CI's time limit. */
-interface Slow extends Links { corpus: string; doc: string; engine: string; note?: string | null; }
-interface Bench { slow?: Slow[]; schema: number; sample?: boolean; note?: string; commit: string; date: string; texlive: string; machine: Machine | null; corpora: Corpus[]; timing: { cold: Cold | null; edit: Edit | null }; differences: Diff[]; }
-
-const ENGINES: Record<string, string> = { pdflatex: "pdfLaTeX", xelatex: "XeLaTeX", lualatex: "LuaLaTeX" };
 const eng = (e: string) => ENGINES[e] ?? esc(e);
 const CLASSES: { key: "identical" | Cls; label: string; short?: string; text: string }[] = [
   { key: "identical", label: "Identical", short: "identical", text: "" },
@@ -44,8 +26,6 @@ const CLASSES: { key: "identical" | Cls; label: string; short?: string; text: st
 ];
 const label = (k: string) => CLASSES.find((c) => c.key === k)?.label ?? k;
 const href = (b: Bench, l: string) => (/^https?:/.test(l) ? l : `${REPO}/blob/${b.commit}/${l}`);
-const ms = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`);
-const secs = (v: number) => (v >= 600 ? `${Math.round(v / 60)} min` : v >= 100 ? `${Math.round(v)} s` : v >= 1 ? `${v.toFixed(1)} s` : `${Math.round(v * 1000)} ms`);
 // A manual's page on texdoc.org (its package: the directory under the doc tree's first), unless the run gave a link.
 const docUrl = (d: { doc: string; url?: string }) => d.url ?? (/^(generic|latex|plain|xetex|xelatex)\/([^/]+)\//.test(d.doc) ? `https://texdoc.org/pkg/${d.doc.split("/")[1]}` : null);
 const docLinks = (d: Links & { doc: string }) => {
@@ -54,10 +34,11 @@ const docLinks = (d: Links & { doc: string }) => {
 };
 
 function render(b: Bench) {
-  if (b.sample) {
+  // (a sample: the lists' counts; a partial run: what it covers so far)
+  if (b.sample || b.covers) {
     const s = $("#sample");
     s.hidden = false;
-    s.innerHTML = `<b>Preliminary:</b> ${esc(b.note ?? "")}`;
+    s.innerHTML = b.sample ? `<b>Preliminary:</b> ${esc(b.note ?? "")}` : `<b>Partial:</b> ${esc(b.covers!)}`;
   }
   const engines = b.corpora.flatMap((c) => Object.values(c.engines));
   const sum = (f: (e: Engine) => number) => engines.reduce((a, e) => a + f(e), 0);
@@ -65,9 +46,17 @@ function render(b: Bench) {
   const of = (k: Cls) => sum((e) => (k === "slow" ? e.slow ?? 0 : e.by_class[k] ?? 0));
   const differ = of("pdftex-bug") + of("phitex-bug") + of("not-examined");
   const edit = b.timing.edit;
+  // (every difference pdfTeX's own bug: said so, with the bug in plain words when there is one)
+  const onlyPdftex = differ > 0 && differ === of("pdftex-bug");
+  if (onlyPdftex) {
+    const bugs = b.differences.filter((d) => d.cls === "pdftex-bug");
+    const links = [...new Set(bugs.map((d) => d.link))];
+    const one = links.length === 1 && bugs[0].note ? ` ${esc(bugs[0].note)}` : "";
+    $("#why-lede").innerHTML = `All ${n(differ)} come from ${links.length === 1 ? "one bug" : "bugs"} in pdfTeX itself, which PhiTeX does not copy.${one}${links.length === 1 && links[0] ? ` <a href="${href(b, links[0])}">Read more…</a>` : ""}`;
+  }
   $("#stats").innerHTML = [
     `<div class="hs"><span class="big">${n(identical)} <small>of ${n(total)}</small></span><span>documents give the same PDF as pdfLaTeX or XeLaTeX, byte for byte${of("slow") ? ` (${of("slow")} of them past CI's time limit)` : ""}</span></div>`,
-    `<div class="hs"><span class="big">${n(differ)}</span><span>${of("phitex-bug") + of("not-examined") ? "differ, each listed below with its reason" : "differ, all where pdfTeX has a bug that PhiTeX does not copy"}</span></div>`,
+    `<div class="hs"><span class="big">${n(differ)}</span><span>${onlyPdftex ? "differ, all because of a bug in pdfTeX itself, which PhiTeX does not copy." : "differ, each listed below with its reason."} <a href="#why">Read more…</a></span></div>`,
     edit ? `<div class="hs"><span class="big">${n(edit.under_100ms)} <small>of ${n(edit.cases)}</small></span><span>measured edits show their new page within 100 ms</span></div>` : "",
   ].join("");
   const m = b.machine;
@@ -102,7 +91,7 @@ function render(b: Bench) {
   }).join("");
   diffTable(b);
 
-  curves(b.timing.cold, edit);
+  curves(b.timing.cold, edit, { pdflatex: $("#k-pdflatex"), xelatex: $("#k-xelatex"), edit: $("#k-edit") });
   coldChart($("#c-cold"), b.timing.cold, b.machine);
   methods(b);
 }
@@ -145,73 +134,6 @@ const tipOn = (el: HTMLElement) => {
     g.addEventListener("pointerleave", () => (tip.hidden = true));
   });
 };
-
-/**
- * Speed curves: for each time across (log scale), the share of documents
- * done within it; the curve further left is faster. The first series is
- * PhiTeX's (solid), the others TeX Live's engines (dashed, dotted). Hovering
- * reads every curve at that time; a dot marks each median.
- */
-interface Series { name: string; vals: number[]; }
-function curveChart(el: HTMLElement, o: { title: string; sub: string; series: Series[]; note?: string }) {
-  const W = 420, H = 300, m = { l: 44, r: 22, t: 16, b: 46 };
-  const S = o.series.map((x, i) => ({ ...x, vals: [...x.vals].sort((p, q) => p - q), cls: i ? `s-texlive ${["", "dash", "dot"][i] ?? "dot"}` : "s-phitex" }));
-  const all = S.flatMap((x) => x.vals);
-  const lo = Math.floor(Math.log10(Math.min(...all))), hi = Math.ceil(Math.log10(Math.max(...all)));
-  const X = (v: number) => m.l + ((Math.log10(v) - lo) / (hi - lo)) * (W - m.l - m.r);
-  const Y = (f: number) => H - m.b - f * (H - m.t - m.b);
-  const share = (s: number[], t: number) => { let i = 0, j = s.length; while (i < j) { const k = (i + j) >> 1; if (s[k] <= t) i = k + 1; else j = k; } return i / s.length; };
-  const path = (s: number[]) => `M${X(10 ** lo)},${Y(0)}` + s.map((v, i) => `H${X(v).toFixed(1)}V${Y((i + 1) / s.length).toFixed(1)}`).join("") + `H${X(10 ** hi)}`;
-  const med = (s: number[]) => s[Math.floor((s.length - 1) / 2)];
-  let g = "";
-  for (const f of [0, 0.25, 0.5, 0.75, 1]) g += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${Y(f)}" y2="${Y(f)}"/><text class="tick" x="${m.l - 6}" y="${Y(f) + 4}" text-anchor="end">${f * 100}%</text>`;
-  for (let e = lo; e <= hi; e++) g += `<text class="tick" x="${X(10 ** e)}" y="${H - m.b + 18}" text-anchor="middle">${secs(10 ** e).replace(/\.0 s$/, " s")}</text>`;
-  g += `<text class="tick strong" x="${(m.l + W - m.r) / 2}" y="${H - 8}" text-anchor="middle">time (log scale)</text>`;
-  // (PhiTeX's last, over the rest)
-  for (const x of [...S].reverse()) g += `<path class="curve ${x.cls}" d="${path(x.vals)}"/><circle class="mdot ${x.cls}" cx="${X(med(x.vals))}" cy="${Y(0.5)}" r="5"/>`;
-  g += `<line class="cross" x1="-10" x2="-10" y1="${m.t}" y2="${H - m.b}"/><rect class="hitbar" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}"/>`;
-  const ours = med(S[0].vals);
-  const verdict = S.slice(1).map((x) => { const r = ours / med(x.vals); return r < 1 ? `<b>${(1 / r).toFixed(r < 0.1 ? 0 : 1)}× faster</b> than ${esc(x.name.replace(/,.*/, ""))}` : `<b>${r.toFixed(1)}× slower</b> than ${esc(x.name.replace(/,.*/, ""))}`; }).join(", ");
-  const key = (x: (typeof S)[number]) => `<i class="${x.cls}"></i>`;
-  const ticks = Array.from({ length: (hi - lo) * 2 + 1 }, (_, i) => 10 ** (lo + i / 2));
-  el.innerHTML = `<div class="head"><figcaption><b>${o.title}</b><div class="sub">${o.sub}</div></figcaption>
-    <div class="legend">${S.map((x) => `<span>${key(x)}${esc(x.name)}, median ${secs(med(x.vals))}</span>`).join("")}</div>
-    <p class="verdict">PhiTeX's median is ${verdict}.</p></div>
-    <div class="plot"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.title)}">${g}</svg><div class="tip" hidden></div></div>${o.note ?? ""}
-    <details><summary>Table view</summary><table><thead><tr><th>within</th>${S.map((x) => `<th>${esc(x.name)}</th>`).join("")}</tr></thead><tbody>${ticks.map((t) => `<tr><td>${secs(t)}</td>${S.map((x) => `<td>${(share(x.vals, t) * 100).toFixed(0)}%</td>`).join("")}</tr>`).join("")}</tbody></table></details>`;
-  const svg = el.querySelector("svg")!, tip = el.querySelector(".tip") as HTMLElement, cross = el.querySelector(".cross")!;
-  svg.addEventListener("pointermove", (e) => {
-    const b = svg.getBoundingClientRect(), px = Math.min(W - m.r, Math.max(m.l, ((e.clientX - b.left) / b.width) * W));
-    const t = 10 ** (lo + ((px - m.l) / (W - m.l - m.r)) * (hi - lo));
-    cross.setAttribute("x1", String(px)); cross.setAttribute("x2", String(px));
-    tip.hidden = false;
-    tip.innerHTML = `<b>within ${secs(t)}</b>` + S.map((x) => `<div>${key(x)}${esc(x.name)} <span>${(share(x.vals, t) * 100).toFixed(0)}%</span></div>`).join("");
-    tip.style.left = `${(px / W) * 100}%`; tip.style.top = "20%";
-  });
-  svg.addEventListener("pointerleave", () => { tip.hidden = true; cross.setAttribute("x1", "-10"); cross.setAttribute("x2", "-10"); });
-}
-
-function curves(c: Cold | null, e: Edit | null) {
-  const pending = (el: HTMLElement, title: string, text: string) => { el.classList.add("waiting"); el.innerHTML = `<figcaption><b>${title}</b></figcaption><p class="pending">${text}</p>`; };
-  for (const [id, en] of [["#k-pdflatex", "pdflatex"], ["#k-xelatex", "xelatex"]] as const) {
-    const pts = c?.points.filter((p) => p.engine === en) ?? [];
-    const title = `A cold build, against ${ENGINES[en]}`;
-    if (!pts.length) pending($(id), title, `Being measured: each document built by PhiTeX and by ${ENGINES[en]} back to back on one machine. Cold builds are often slower than TeX Live's today.`);
-    else curveChart($(id), { title, sub: `${n(pts.length)} documents, each built from nothing, one thread. Share of them done within each time.`, series: [{ name: "PhiTeX", vals: pts.map((p) => p.phitex_s) }, { name: ENGINES[en], vals: pts.map((p) => p.oracle_s) }] });
-  }
-  const title = "After an edit";
-  if (!e) return pending($("#k-edit"), title, "Being measured.");
-  if (!e.points?.length) return pending($("#k-edit"), title, `<b>${n(e.under_100ms)} of ${n(e.cases)}</b> measured edits show their new page within 100 ms${e.p50_ms != null ? `, a median of ${ms(e.p50_ms)}` : ""}. The curve against a full rebuild comes with the next measurement run.`);
-  const worst = e.worst?.length ? `<p class="worst"><b>Slowest:</b> ${e.worst.map((w) => `${ms(w.ms)} for ${esc(w.edit)} in <code>${esc(w.doc)}</code>`).join("; ")}.</p>` : "";
-  // (PhiTeX's every edit; against it, each edited document rebuilt by its own engine)
-  const engs = (["pdflatex", "xelatex"] as const).filter((x) => e.points!.some((p) => p.engine === x));
-  curveChart($("#k-edit"), {
-    title,
-    sub: `${n(e.points.length)} edits in real documents: PhiTeX's time to the new page, and a full rebuild of the same document by its engine.`,
-    series: [{ name: "PhiTeX, the edit", vals: e.points.map((p) => p.ms / 1000) }, ...engs.map((x) => ({ name: `${ENGINES[x]}, a rebuild`, vals: e.points!.filter((p) => p.engine === x).map((p) => p.oracle_s) }))],
-    note: worst,
-  });
-}
 
 /**
  * Every document, one dot: across, the TeX Live engine's cold build; up,

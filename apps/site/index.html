@@ -55,7 +55,7 @@
       </header>
       <div class="why-grid">
         <article class="tile reveal"><img class="th-light" src="img/edit.png" alt="A paragraph lit on a page; the edit lands in milliseconds" loading="lazy"><img class="th-dark" src="img/edit-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Edits in milliseconds</h3><p>Change a word and only what it touches is rebuilt. A 400-page thesis is as quick as a letter.</p></article>
-        <article class="tile reveal"><img class="th-light" src="img/exact.png" alt="Two PDFs, the same bytes" loading="lazy"><img class="th-dark" src="img/exact-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Exactly as {pdf,Xe}LaTeX</h3><p>Byte for byte the PDF pdfLaTeX makes, cold or after a thousand edits. Nothing changes but the wait.</p></article>
+        <article class="tile reveal"><img class="th-light" src="img/exact.png" alt="Two PDFs, the same bytes" loading="lazy"><img class="th-dark" src="img/exact-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Exactly as {pdf,Xe}LaTeX</h3><p>Byte for byte the PDF pdfLaTeX makes, cold or after a thousand edits. Nothing changes but the wait. <a href="proof.html">See every document compared&nbsp;→</a></p></article>
         <article class="tile reveal"><img class="th-light" src="img/editors.png" alt="Overleaf, VS Code, Neovim and Emacs around one page" loading="lazy"><img class="th-dark" src="img/editors-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Any editor, Overleaf included</h3><p>Overleaf, VS Code, Neovim, Emacs, any LSP editor, or a browser tab.</p></article>
         <article class="tile reveal"><img class="th-light" src="img/offline.png" alt="A laptop in flight mode, the page still building" loading="lazy"><img class="th-dark" src="img/offline-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>Private and offline</h3><p>Your paper never leaves your machine or your browser. With TeX Live installed, the network is used only to check for updates, and only if you turn that on.</p></article>
         <article class="tile reveal"><img class="th-light" src="img/texlive.png" alt="A shelf where only the packages a paper uses are filled in" loading="lazy"><img class="th-dark" src="img/texlive-dark.png" alt="" aria-hidden="true" loading="lazy"><h3>TeX Live optional</h3><p>Without it, each package your paper uses is downloaded once, on first use, and kept.</p></article>
@@ -131,41 +131,23 @@
         <h2>Errors that show <em>in the PDF itself.</em></h2>
         <p class="lede">No wall of log. The preview says why the page looks the way it does, at the line to look at, and it never breaks. Incomplete input doesn't trap: an open <code>{</code> just runs to the end, and the last good page stays up, dimmed, with a banner saying why.</p>
       </header>
-      <div class="dg-grid">
-        <div class="dg-code vim reveal" aria-hidden="true">
-          <div class="vim-body"><pre class="vim-pre" id="vim-pre"><span class="ln">12</span> \def\title{<span class="sq">{</span>\bf PhiTeX}
-<span class="ln">13</span> Every keystroke, typeset.
-<span class="ln">14</span>
-<span class="ln">15</span> \input <span class="sq w">chapter2</span>
-<span class="ln">16</span> Café au lait, <span class="sq i">naïve</span> résumé.
-<span class="ln">17</span> as shown by \cite{<span class="sq e">knuth84</span>}.</pre></div>
-          <div class="vim-status"><b>NORMAL</b><span class="vf">main.tex</span><i></i><span>tex</span><span>utf-8</span><span>17:9</span></div>
-          <div class="vim-cmd">"main.tex" 17L, 412B</div>
-        </div>
-        <ul class="dg-list">
-          <li class="reveal warn"><span class="sev">warning</span><b>{ never closed: the group runs to the end of the file</b><span class="loc">main.tex:12 · unclosed-brace</span></li>
-          <li class="reveal warn"><span class="sev">warning</span><b>\input chapter2: no such file in the project</b><span class="loc">main.tex:15 · missing-file</span></li>
-          <li class="reveal info"><span class="sev">info</span><b>ï: this font has no glyph for it; using Latin Modern</b><span class="loc">main.tex:16 · font-fallback</span></li>
-          <li class="reveal warn"><span class="sev">warning</span><b>\cite{knuth84}: no such entry in refs.bib</b><span class="loc">main.tex:17 · missing-citation</span></li>
-        </ul>
-      </div>
       <div class="anim anim-errors reveal"><iframe src="anim/errors.html?embed" title="A citation with no entry: the page shows [?] with a wavy warning line under it, the pointer on it shows the message, and once refs.bib has the entry the page reads [1]" scrolling="no" loading="lazy"></iframe></div>
       <p class="fine">Every message comes from the compiler itself, with the exact place in your source. There's a <code>--json</code> mode for tools too.</p>
     </section>
 
-    <!-- ───────────── WRITERS ───────────── -->
-    <section class="band writers" id="writers">
+    <!-- ───────────── MEASURED ───────────── -->
+    <section class="band" id="measured">
       <header class="sec-head">
-        <p class="eyebrow"><span class="sect">§5</span> A better way to write</p>
-        <h2>Write. <em>PhiTeX handles the rest.</em></h2>
-        <p class="lede">The chores around LaTeX, done for you.</p>
+        <p class="eyebrow"><span class="sect">§5</span> Measured</p>
+        <h2>Measured, <em>in the open.</em></h2>
+        <p class="lede">PhiTeX's PDF is compared byte for byte with pdfLaTeX's and XeLaTeX's on TeX Live's own manuals and the common journal templates, and its speed is measured on the same documents. <span id="m-same"></span></p>
       </header>
-      <div class="wr-grid">
-        <div class="wr reveal"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></span><b>References settle themselves</b><p><code>\ref</code>, <code>\cite</code>, the table of contents, the index: no more “run it twice”. PhiTeX repeats what it must until nothing changes, and only that.</p></div>
-        <div class="wr reveal"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 6.5 16 2.2-6.8L20.5 10z"/><path d="M19 4.5 20.5 6M20 10h2M16 3.5V5"/></svg></span><b>Click the page, land in the source</b><p>Double-click any word on the page and your cursor jumps to it, and the page follows your cursor. With <code>--synctex</code>, your own PDF viewer jumps both ways too, as with pdflatex.</p></div>
-        <div class="wr reveal"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span><b>Easy on the eyes</b><p>Dark mode for the page as well as the editor, crisp at any zoom, and text you can select, copy and search, because the preview is vector, not an image.</p></div>
-        <div class="wr reveal"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.3 7 12 12 20.7 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg></span><b>Your packages, your fonts</b><p>pdfLaTeX and XeLaTeX with the packages you already use, BibTeX and biber, Unicode and OpenType fonts. LuaLaTeX is planned.</p></div>
+      <div class="curves mini" id="m-curves">
+        <figure class="chart card" id="m-pdflatex" data-href="proof.html#k-pdflatex"></figure>
+        <figure class="chart card" id="m-xelatex" data-href="proof.html#k-xelatex"></figure>
+        <figure class="chart card" id="m-edit" data-href="proof.html#k-edit"></figure>
       </div>
+      <p class="m-more"><a href="proof.html">Every document, compared and timed&nbsp;→</a></p>
     </section>
 
     <!-- ───────────── HOW IT WORKS ───────────── -->
@@ -193,7 +175,7 @@
       <header class="sec-head"><p class="eyebrow"><span class="sect">§7</span> FAQ</p><h2>Questions.</h2></header>
       <div class="qs">
         <details class="reveal"><summary>Is my document uploaded?</summary><p>No. On this page and in the browser extension, everything runs locally as WebAssembly; the <code>phitex</code> CLI runs on your own machine. The extension's requests go to overleaf.com, as you, for your own project's files, and to PhiTeX's package shelf for the packages your document uses. None of them carries your text, your file names or who you are. No analytics, no server, no remote code. This site makes no third-party requests either: its fonts and libraries are bundled.</p></details>
-        <details class="reveal"><summary>Does it compile my LaTeX thesis?</summary><p>Yes. pdfLaTeX and XeLaTeX with your packages, BibTeX, biber and makeindex, Unicode and OpenType fonts, and the PDF matches pdfLaTeX's byte for byte. LuaLaTeX is planned.</p></details>
+        <details class="reveal"><summary>Does it compile my LaTeX thesis?</summary><p>Yes. pdfLaTeX and XeLaTeX with your packages, BibTeX, biber and makeindex, Unicode and OpenType fonts, and the PDF matches pdfLaTeX's byte for byte. We publish the comparison on TeX Live's own manuals and the common journal templates, with every difference explained: <a href="proof.html">correctness and speed</a>. LuaLaTeX is planned.</p></details>
         <details class="reveal"><summary>What does “incremental = fresh build” mean?</summary><p>It's PhiTeX's core invariant: after any sequence of edits, the incremental program equals a fresh build of the same text. The tests check it after random edits, and the extension can check it live against a fresh build.</p></details>
         <details class="reveal"><summary>Do I need TeX Live?</summary><p>No. Without it, PhiTeX downloads each package your document uses once, on first use, checks it, and keeps it for offline builds. With TeX Live installed, it uses yours.</p></details>
         <details class="reveal"><summary>What does it cost?</summary><p>Nothing. PhiTeX is free and open source.</p></details>
@@ -213,6 +195,7 @@
         <h4>PhiTeX</h4>
         <a href="https://demo.phitex.org/" target="_blank" rel="noopener">Try it&nbsp;↗</a>
         <a href="#how">How it works</a>
+        <a href="proof.html">Correctness and speed</a>
         <a href="#faq">FAQ</a>
       </nav>
       <nav class="foot-links" aria-label="Elsewhere">

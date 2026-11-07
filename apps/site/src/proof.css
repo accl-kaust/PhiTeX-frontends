@@ -1,11 +1,3 @@
-/* The reasons a document lands where it does (checked with the dataviz validator: distinct under colour blindness; "not examined" is grey on purpose, always labelled) */
-:root { --s-phitex: #366cbf; --s-texlive: #c2571a; --c-identical: #1e6b41; --c-pdftex-bug: #366cbf; --c-slow: #b26b00; --c-phitex-bug: #a23b9f; --c-not-examined: #8d96a5; --c-long: var(--n30); --sample-bg: #f1f4f9; --sample-ink: #28518f; --sample-line: #97b6e5; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s-phitex: #5a8bd6; --s-texlive: #d9773e; --c-identical: #3f9a68; --c-pdftex-bug: #5a8bd6; --c-slow: #bf8128; --c-phitex-bug: #c070d0; --c-not-examined: #6b7385; --c-long: var(--n70); --sample-bg: rgba(101,151,224,.12); --sample-ink: #c3d0e3; --sample-line: #5a8bd6; } }
-:root[data-theme="dark"] { --s-phitex: #5a8bd6; --s-texlive: #d9773e; --c-identical: #3f9a68; --c-pdftex-bug: #5a8bd6; --c-slow: #bf8128; --c-phitex-bug: #c070d0; --c-not-examined: #6b7385; --c-long: var(--n70); --sample-bg: rgba(101,151,224,.12); --sample-ink: #c3d0e3; --sample-line: #5a8bd6; }
-.c-identical { --c: var(--c-identical); } .c-pdftex-bug { --c: var(--c-pdftex-bug); } .c-slow { --c: var(--c-slow); }
-.c-phitex-bug { --c: var(--c-phitex-bug); } .c-not-examined { --c: var(--c-not-examined); } .c-long { --c: var(--c-long); } .s-phitex { --c: var(--s-phitex); } .s-texlive { --c: var(--s-texlive); }
-i[class^="c-"], i[class*=" c-"], i[class^="s-"] { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--c); vertical-align: baseline; }
-i.round { border-radius: 50%; }
 
 .proof-hero { text-align: center; padding-top: 140px !important; }
 .proof-hero .display { font-size: clamp(40px, 6vw, 64px); line-height: 1.12; }
@@ -16,7 +8,6 @@ i.round { border-radius: 50%; }
 .hs .big { font-size: 44px; line-height: 52px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 .hs .big small { font-size: 20px; font-weight: 500; color: var(--faint); }
 .runline { margin: 20px auto 0; font-size: 14px; color: var(--faint); }
-.pending { color: var(--muted); margin: 16px 0 8px; }
 @media (max-width: 760px) { .hero-stats { grid-template-columns: 1fr; } }
 
 .corpus { padding: 24px; margin-bottom: 24px; }
@@ -50,32 +41,6 @@ i.round { border-radius: 50%; }
 .dtable td:first-child, .dtable .chip { white-space: nowrap; }
 .dtable code { font-size: 13px; }
 
-.chart { margin: 0 0 32px; padding: 24px 24px 12px; }
-.chart figcaption b { color: var(--text); font-size: 18px; }
-.chart .sub { display: block; font-size: 14px; color: var(--faint); margin-top: 4px; }
-.chart .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 16px 0 4px; font-size: 14px; color: var(--muted); }
-.chart .legend .bar90 { display: inline-block; width: 2px; height: 12px; margin: 0 8px 0 4px; background: var(--text); vertical-align: middle; }
-.chart .plot { position: relative; }
-.chart svg { width: 100%; height: auto; display: block; }
-.chart svg path[class^="c-"] { fill: var(--c); }
-.chart .grid { stroke: var(--line); stroke-width: 1; }
-.chart .one { stroke: var(--line-2); stroke-width: 1.5; stroke-dasharray: 4 3; }
-.chart .axis { stroke: var(--line-2); stroke-width: 1; }
-.chart .tick { fill: var(--faint); font: 12px var(--sans); }
-.chart .tick.strong { fill: var(--muted); }
-.chart .dlabel { fill: var(--text); font: 600 14px var(--sans); }
-.chart .hitbar { fill: transparent; }
-.chart .range { stroke: var(--line-2); stroke-width: 2; stroke-linecap: round; }
-.chart .p50 { fill: var(--c); stroke: var(--card); stroke-width: 2; }
-.chart .p90 { stroke: var(--text); stroke-width: 2; stroke-linecap: round; }
-.chart .tip { position: absolute; transform: translate(-50%, -100%); pointer-events: none; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13px; box-shadow: 0 8px 20px -8px rgb(16 24 40 / 30%); white-space: nowrap; }
-.chart .tip b { display: block; margin-bottom: 2px; }
-.chart .tip span { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
-.chart .worst { font-size: 14px; color: var(--muted); margin: 8px 0; }
-.chart details { margin: 8px 0; font-size: 14px; }
-.chart details summary { cursor: pointer; color: var(--accent); }
-.chart details table { border-collapse: collapse; margin-top: 8px; }
-.chart details td, .chart details th { padding: 4px 14px 4px 0; text-align: left; font-variant-numeric: tabular-nums; }
 
 .method { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
 .m { padding: 24px; } .m b { display: block; font-size: 18px; margin-bottom: 8px; } .m p { margin: 0; }
@@ -121,23 +86,4 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
 .pin #cunpin { position: absolute; top: 12px; right: 16px; }
 @media (max-width: 560px) { input[type="search"] { min-width: 0; width: 100%; } .ctrl .sum { display: block; width: 100%; margin: -4px 0 4px; } }
 
-/* the three speed curves */
-.curves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 32px; }
-.curves .chart { margin: 0; padding: 20px 20px 8px; }
-.curves .head { min-height: 218px; }
-@media (max-width: 1100px) { .curves .head { min-height: 0; } }
-.curves .chart figcaption b { font-size: 16px; }
-.curves .chart .sub { font-size: 13px; }
-.curves .legend { flex-direction: column; gap: 4px; margin: 12px 0 0; font-size: 13px; }
-.verdict { margin: 8px 0 0; font-size: 15px; color: var(--muted); } .verdict b { color: var(--text); }
-.chart .curve { fill: none; stroke: var(--c); stroke-width: 2.5; stroke-linejoin: round; }
-.chart .curve.dash { stroke-dasharray: 6 4; } .chart .curve.dot { stroke-dasharray: 1.5 4; stroke-linecap: round; }
-.chart .mdot { fill: var(--c); stroke: var(--card); stroke-width: 2; }
-.chart .cross { stroke: var(--line-2); stroke-width: 1; stroke-dasharray: 3 3; }
-.chart .tip i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--c); }
-i.dash, i.dot { height: 3px !important; width: 16px !important; background: repeating-linear-gradient(90deg, var(--c) 0 5px, transparent 5px 8px) !important; vertical-align: middle !important; }
-i.dot { background: repeating-linear-gradient(90deg, var(--c) 0 2px, transparent 2px 5px) !important; }
-@media (max-width: 1100px) { .curves { grid-template-columns: 1fr; } }
-/* a chart with no measurements yet: no axes, greyed */
-.chart.waiting { background: transparent; border: 1px dashed var(--line-2); box-shadow: none; }
-.chart.waiting figcaption b { color: var(--muted); }
+

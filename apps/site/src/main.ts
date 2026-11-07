@@ -1,12 +1,10 @@
 import "./style.css";
 import { $, initChrome } from "./ui.ts";
 import { initReplica } from "./replica.ts";
+import { curves, esc, n, type Bench } from "./bench.ts";
 
 initChrome();
 initReplica();
-
-// ── diagnostics: fill the vim window with ~ empty-line markers ──
-$("#vim-pre")?.insertAdjacentHTML("beforeend", "\n" + Array.from({ length: 9 }, () => '<span class="tw">~</span>').join("\n"));
 
 // The banner, the editors and the CLI are the README's animations (public/anim/, from the PhiTeX repo's assets/),
 // in frames: each plays on its own clock, follows this page's theme, and shows the page's background through.
@@ -405,4 +403,21 @@ function acclReady() {
 function acclArrive() { acclReady()?.then(({ tl }) => { acclBox!.style.opacity = "1"; tl.play(); }); }
 if (acclBox) {
   new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) acclReady(); }, { rootMargin: "800px 0px" }).observe(acclBox);
+}
+
+// ── measured: the proof page's three speed curves, small, from the same bench.json; each opens its chart there ──
+{
+  const at = { pdflatex: $("#m-pdflatex"), xelatex: $("#m-xelatex"), edit: $("#m-edit") };
+  // (on the dev server `?bench=` as on proof.html)
+  const src = (import.meta.env.DEV && new URLSearchParams(location.search).get("bench")) || "bench.json";
+  fetch(src).then((r) => (r.ok ? (r.json() as Promise<Bench>) : Promise.reject(new Error(String(r.status))))).then((b) => {
+    const es = b.corpora.flatMap((c) => Object.values(c.engines));
+    const same = es.reduce((a, e) => a + e.identical, 0), total = es.reduce((a, e) => a + e.total, 0);
+    // (the rest pdfTeX's own bugs: said so; else that each has its reason)
+    const differ = es.reduce((a, e) => a + Object.values(e.by_class).reduce((x, y) => x + (y ?? 0), 0), 0);
+    const theirs = differ > 0 && differ === es.reduce((a, e) => a + (e.by_class["pdftex-bug"] ?? 0), 0);
+    $("#m-same").innerHTML = `${b.sample ? "Preliminary, from the test lists: " : "Today: "}${n(same)} of ${n(total)} documents give the same PDF${b.covers ? ` (so far: ${esc(b.covers)})` : ""}.${differ ? ` ${theirs ? `The other ${n(differ)} differ because of a bug in pdfTeX itself, which PhiTeX does not copy.` : `The other ${n(differ)} are listed, each with its reason.`} <a href="proof.html#why">Read more…</a>` : ""}`;
+    curves(b.timing.cold, b.timing.edit, at, true);
+    for (const el of Object.values(at)) el.insertAdjacentHTML("beforeend", `<a class="m-open" href="${el.dataset.href}">Open the chart&nbsp;→</a>`);
+  }, () => $("#m-curves").remove());
 }
