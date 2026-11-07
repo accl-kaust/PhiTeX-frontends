@@ -781,3 +781,7 @@ kbd { font: 12.5px var(--mono); padding: 1px 6px; border: 1px solid var(--line-2
 @media (max-width: 960px) { .feat, .feat.wide { grid-template-columns: minmax(0, 1fr); gap: 28px; margin-bottom: 88px; } .feat.flip .feat-copy { order: 0; } .also-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) { .also-grid { grid-template-columns: 1fr; } .fd-page { margin: 14px; padding: 20px; font-size: 14px; } .fd-nav { display: none; } }
 @media (prefers-reduced-motion: reduce) { .fd *, .fd *::before, .fd *::after { animation: none !important; } .fd-col .sb, .fd-col .ya { background: transparent; box-shadow: none; } .fd-col .sb::before, .fd-col .ya::before { display: none; } .ol-found { display: none; } .ol-r.drag { display: none; } .n-th::after { content: "(5)"; } }
+
+/* the missing-address page (404.html) */
+.notfound { text-align: center; }
+.notfound .lede { margin: 0 auto; }

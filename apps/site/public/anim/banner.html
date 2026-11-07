@@ -350,6 +350,16 @@ const $ = id => document.getElementById(id);
 const setK = (k, html) => document.querySelectorAll(`[data-k="${k}"]`).forEach(e => { if (e.innerHTML !== html) e.innerHTML = html; });
 const setH = (el, html) => { if (el.innerHTML !== html) el.innerHTML = html; };
 const params = new URLSearchParams(location.search);
+// ?head=…&words=A,B: another title (the site's 404 page): its start, and its last word as the loop starts
+// and ends (A), retyped to B and back
+const HEAD = params.get('head') ?? 'Typesetting at the Speed of ';
+if (params.get('words')) {
+  const [a, b] = params.get('words').split(',');
+  C.word = a;
+  T.edits = [{ at: 0.8, to: b }, { at: 3.4, to: a }];
+  document.getElementById('edited').firstChild.textContent = HEAD;
+  document.getElementById('word').textContent = a;
+}
 setK('pdfName', PDF);
 // the page as the viewer shows it, at its top
 const RIBBON = [0, 1, 2, 3].map(j => [...document.querySelectorAll('#logo .phx-s' + j)]);
@@ -397,7 +407,7 @@ function editor(t) {
   return SRC.map(([no, text]) => {
     const ln = `<span class="ln">${no}</span>`;
     if (text !== null) return ln + tex(text);
-    return `<span class="cur">${ln}${tex('\\title{Typesetting at the Speed of ')}<span class="new">${esc(w)}</span>${blink ? '<span class="caret"></span>' : ''}<span class="br">}</span>${' '.repeat(12)}</span>`;
+    return `<span class="cur">${ln}${tex(`\\title{${HEAD}`)}<span class="new">${esc(w)}</span>${blink ? '<span class="caret"></span>' : ''}<span class="br">}</span>${' '.repeat(12)}</span>`;
   }).join('\n');
 }
 // ── render(t): the one entry point ─────────────────────────────────────────
