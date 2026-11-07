@@ -59,11 +59,9 @@
 (defvar phitex-command '("phitex" "watch" "--lsp")
   "How the language server is started.")
 
-(defvar phitex-channel "nightly"
+(defvar phitex-channel "stable"
   "Which releases `phitex-install' downloads, as install.sh's PHITEX_CHANNEL:
-\"stable\" (the latest release) or \"nightly\" (dev's, rebuilt each night).
-Nightly until v1.0 is tagged: GitHub's latest release skips pre-releases, and
-the nightly is the only release so far (the release checklist flips this).")
+\"stable\" (the latest release) or \"nightly\" (dev's, rebuilt each night).")
 
 (defvar phitex-release-base nil
   "Where `phitex-install' downloads from; nil: `phitex-channel''s releases.")

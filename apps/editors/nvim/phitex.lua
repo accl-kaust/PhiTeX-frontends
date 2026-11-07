@@ -87,12 +87,11 @@ end
 PhitexSettings = PhitexSettings or {}
 
 --- Which releases :PhiTeXInstall downloads (`channel`, as install.sh's PHITEX_CHANNEL: "stable", the latest
---- release, or "nightly", dev's rebuilt each night; nightly until v1.0 is tagged, GitHub's latest release
---- skipping pre-releases: the release checklist flips it), where from (`base`, nil: the channel's), the
+--- release, or "nightly", dev's rebuilt each night), where from (`base`, nil: the channel's), the
 --- minisign public key it is checked against (`key`, nil: the channel's, PhiTeX's ci/minisign.pub for
 --- releases, ci/nightly.pub for the nightly, as install.sh), the folder whose bin/ it fills.
 PhitexInstall = vim.tbl_extend("keep", PhitexInstall or {}, {
-  channel = "nightly",
+  channel = "stable",
   base = nil,
   key = nil,
   prefix = vim.fn.expand("~/.local"),
