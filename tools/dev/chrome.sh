@@ -7,7 +7,7 @@
 cd "$(dirname "$0")/../.."
 # (the extension as built: tools/build/build.sh --dev; a build under way has it
 # only once its engine and formats are made)
-for f in build/overleaf/manifest.json build/overleaf/dist/background.js build/overleaf/dist/core.wasm build/overleaf/dist/folders.js; do
+for f in build/overleaf/manifest.json build/overleaf/dist/background-chrome.js build/overleaf/dist/core.wasm build/overleaf/dist/folders.js; do
   [ -s "$f" ] || { echo "no $f: run tools/build/build.sh --dev first (or wait for the one running)" >&2; exit 1; }
 done
 port="${PHITEX_CDP_PORT:-9222}"

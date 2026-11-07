@@ -45,7 +45,8 @@ rm -rf "$stage" "$fx" && mkdir -p "$stage"
 # (the threaded core out; the formats in: check-formats.sh)
 for f in "${files[@]}" firefox-bg.html; do cp -r "build/overleaf/$f" "$stage/"; done
 [ -s "$stage/formats/names.txt" ] || { echo "the Firefox package has no formats (formats/names.txt): a first open would make one in the browser" >&2; exit 1; }
-for f in "${notours[@]}"; do rm -f "$stage/$f"; done
+# (and Chrome's service worker: Firefox's background is background.js alone, its update check Chrome's)
+for f in "${notours[@]}" dist/background-chrome.js; do rm -f "$stage/$f"; done
 tools/sandbox node -e '
   const fs = require("fs"), f = process.argv[1] + "/manifest.json", m = JSON.parse(fs.readFileSync(f));
   // (in Firefox an MV3 background is a page)

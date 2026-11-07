@@ -1,6 +1,7 @@
-// The service worker (in Firefox, the background page, firefox-bg.html):
-// fetches packs ahead and answers the tabs' asks (an update check, the
-// cache's settings). The core is each tab's own, in its engine iframe (engine.ts).
+// The background, Chrome's and Firefox's (the background page there,
+// firefox-bg.html): fetches packs ahead and answers the tabs' asks (the
+// cache's settings). Chrome's service worker is background-chrome.ts, this
+// and its update check. The core is each tab's own, in its engine iframe (engine.ts).
 
 import "./platform.ts";
 import { prefetch } from "./common/prefetch.ts";
@@ -9,11 +10,6 @@ import { DEFAULT_CAP_MB, allMeta, capBytes, clearPacks, evict, kvGet, kvSet } fr
 import { setAheadOff } from "./common/prefetch.ts";
 
 chrome.runtime.onMessage.addListener((m, _sender, reply) => {
-  // (Shelf asks for a newer extension: the store's update, checked now)
-  if (m?.type === "update-check") {
-    void chrome.runtime.requestUpdateCheck?.().catch(() => undefined);
-    return;
-  }
   // (the panel's Clear cache: the packs kept in this browser, and how much they held)
   if (m?.type === "clear-cache") {
     allMeta()
