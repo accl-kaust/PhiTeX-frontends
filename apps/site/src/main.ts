@@ -416,7 +416,7 @@ if (acclBox) {
     // (the rest pdfTeX's own bugs: said so; else that each has its reason)
     const differ = es.reduce((a, e) => a + Object.values(e.by_class).reduce((x, y) => x + (y ?? 0), 0), 0);
     const theirs = differ > 0 && differ === es.reduce((a, e) => a + (e.by_class["pdftex-bug"] ?? 0), 0);
-    $("#m-same").innerHTML = `${b.sample ? "Preliminary, from the test lists: " : "Today: "}${n(same)} of ${n(total)} documents give the same PDF${b.covers ? ` (so far: ${esc(b.covers)})` : ""}.${differ ? ` ${theirs ? `The other ${n(differ)} differ because of a bug in pdfTeX itself, which PhiTeX does not copy.` : `The other ${n(differ)} are listed, each with its reason.`} <a href="proof.html#why">Read more…</a>` : ""}`;
+    $("#m-same").innerHTML = `${b.sample ? "Preliminary, from the test lists: " : b.covers ? "So far: " : "Today: "}${n(same)} of ${n(total)} documents give the same PDF.${differ ? ` ${theirs ? `The other ${n(differ)} differ because of a bug in pdfTeX itself, which PhiTeX does not copy.` : `The other ${n(differ)} are listed, each with its reason.`} <a href="proof.html#why">Read more…</a>` : ""}`;
     curves(b.timing.cold, b.timing.edit, at, true);
     for (const el of Object.values(at)) el.insertAdjacentHTML("beforeend", `<a class="m-open" href="${el.dataset.href}">Open the chart&nbsp;→</a>`);
   }, () => $("#m-curves").remove());

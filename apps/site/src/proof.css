@@ -87,3 +87,7 @@ input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1
 @media (max-width: 560px) { input[type="search"] { min-width: 0; width: 100%; } .ctrl .sum { display: block; width: 100%; margin: -4px 0 4px; } }
 
 
+.corpus .lists { margin: -8px 0 16px; font-size: 14px; color: var(--faint); }
+.timed { margin: 0 0 32px; padding: 16px 20px; font-size: 15px; }
+.timed summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.timed p { margin: 12px 0 0; color: var(--muted); }

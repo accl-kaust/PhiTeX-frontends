@@ -1,11 +1,6 @@
 {
- "schema": 1,
- "sample": true,
- "note": "counts from PhiTeX's test lists as of 2026-11-07. Full measurements, including timings, are being set up.",
- "commit": "a54ffde2cd50d7dfebf2b86dd3497a10e8b57cdf",
- "date": "2026-11-07",
- "texlive": "TeX Live 2026.1 (svn r78408), Arch Linux packages of the 2026-09-25 archive snapshot, texlive-doc",
- "machine": null,
+ "commit": "f07999400fdd58c3a4708a2778b85ffa9f3dc523",
+ "complete": false,
  "corpora": [
   {
    "name": "manuals",
@@ -42,38 +37,40 @@
      },
      "slow": 1
     }
-   }
+   },
+   "from_lists": true
   },
   {
-   "name": "research",
-   "title": "Research templates",
    "about": "The templates researchers start from: IEEEtran, acmart, llncs, elsarticle, REVTeX, amsart, beamer, theses and more.",
-   "excluded": null,
    "engines": {
     "pdflatex": {
-     "total": 33,
+     "by_class": {
+      "not-examined": 0,
+      "pdftex-bug": 0,
+      "phitex-bug": 0
+     },
      "identical": 33,
-     "by_class": {}
+     "slow": 0,
+     "total": 33
     },
     "xelatex": {
-     "total": 36,
+     "by_class": {
+      "not-examined": 0,
+      "pdftex-bug": 0,
+      "phitex-bug": 0
+     },
      "identical": 36,
-     "by_class": {}
+     "slow": 0,
+     "total": 36
     }
-   }
+   },
+   "excluded": null,
+   "name": "research",
+   "title": "Research templates"
   }
  ],
- "timing": {
-  "cold": null,
-  "edit": {
-   "cases": 521,
-   "under_100ms": 245,
-   "p50_ms": null,
-   "buckets": null,
-   "worst": null,
-   "machine": null
-  }
- },
+ "covers": "speed so far on the 69 research templates (the manuals and the edits are being timed); TeX Live's manuals' counts are from PhiTeX's test lists until they are measured.",
+ "date": "2026-11-07",
  "differences": [
   {
    "corpus": "manuals",
@@ -132,6 +129,17 @@
    "note": "Inside a rotated or transformed box (\\rotatebox, a landscape page), pdfTeX computes a link target's position from leftover memory instead of the target itself, so the link lands somewhere unrelated, often far above the page. PhiTeX sends the link to the target. The pages themselves are identical; only where these links point differs."
   }
  ],
+ "machine": {
+  "cores": 64,
+  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "mem_gb": 503,
+  "nodes": [
+   "acclnode03"
+  ],
+  "note": "KAUST accl cluster nodes of this model, shared with other users' jobs; each document's TeX Live and PhiTeX builds ran back to back, alternating, on one node, on whole cores (one hardware thread of each core, its sibling idle), one build at a time"
+ },
+ "sample": false,
+ "schema": 1,
  "slow": [
   {
    "corpus": "manuals",
@@ -181,5 +189,535 @@
    "engine": "pdflatex",
    "note": null
   }
- ]
+ ],
+ "texlive": "TeX Live 2026.1 (svn r78408), Arch Linux packages of the 2026-09-25 archive snapshot, texlive-doc",
+ "timing": {
+  "cold": {
+   "by_corpus": {
+    "research": {
+     "pdflatex": {
+      "docs": 33,
+      "faster": 32,
+      "p50_ratio": 0.63,
+      "p90_ratio": 0.88
+     },
+     "xelatex": {
+      "docs": 36,
+      "faster": 35,
+      "p50_ratio": 0.49,
+      "p90_ratio": 0.86
+     }
+    }
+   },
+   "points": [
+    {
+     "corpus": "research",
+     "doc": "ieeetran/bare_conf.tex",
+     "engine": "pdflatex",
+     "oracle_s": 0.572,
+     "phitex_s": 0.426
+    },
+    {
+     "corpus": "research",
+     "doc": "classicthesis/ClassicThesis.tex",
+     "engine": "pdflatex",
+     "oracle_s": 10.166,
+     "phitex_s": 8.372
+    },
+    {
+     "corpus": "research",
+     "doc": "ieeetran/bare_jrnl.tex",
+     "engine": "pdflatex",
+     "oracle_s": 0.611,
+     "phitex_s": 0.446
+    },
+    {
+     "corpus": "research",
+     "doc": "acmart/sample-sigconf.tex",
+     "engine": "pdflatex",
+     "oracle_s": 4.005,
+     "phitex_s": 3.565
+    },
+    {
+     "corpus": "research",
+     "doc": "ieeetran/bare_jrnl_compsoc.tex",
+     "engine": "pdflatex",
+     "oracle_s": 0.631,
+     "phitex_s": 0.486
+    },
+    {
+     "corpus": "research",
+     "doc": "acmart/sample-acmsmall.tex",
+     "engine": "pdflatex",
+     "oracle_s": 4.128,
+     "phitex_s": 3.444
+    },
+    {
+     "corpus": "research",
+     "doc": "acmart/sample-sigplan.tex",
+     "engine": "pdflatex",
+     "oracle_s": 3.976,
+     "phitex_s": 3.54
+    },
+    {
+     "corpus": "research",
+     "doc": "acmart/sample-sigconf-biblatex.tex",
+     "engine": "pdflatex",
+     "oracle_s": 9.537,
+     "phitex_s": 6.543
+    },
+    {
+     "corpus": "research",
+     "doc": "acmart/xe-sample-sigconf-xelatex.tex",
+     "engine": "xelatex",
+     "oracle_s": 22.9,
+     "phitex_s": 11.233
+    },
+    {
+     "corpus": "research",
+     "doc": "llncs-paper/llncs-paper.tex",
+     "engine": "pdflatex",
+     "oracle_s": 1.813,
+     "phitex_s": 0.789
+    },
+    {
+     "corpus": "research",
+     "doc": "elsarticle/elsarticle-template-num.tex",
+     "engine": "pdflatex",
+     "oracle_s": 1.08,
+     "phitex_s": 0.667
+    },
+    {
+     "corpus": "research",
+     "doc": "els-cas-dc/cas-dc-sample.tex",
+     "engine": "pdflatex",
+     "oracle_s": 2.699,
+     "phitex_s": 1.451
+    },
+    {
+     "corpus": "research",
+     "doc": "jmlr-pmlr/pmlr-sample.tex",
+     "engine": "pdflatex",
+     "oracle_s": 2.979,
+     "phitex_s": 1.753
+    },
+    {
+     "corpus": "research",
+     "doc": "asmeconf/asmeconf-template.tex",
+     "engine": "pdflatex",
+     "oracle_s": 9.982,
+     "phitex_s": 5.85
+    },
+    {
+     "corpus": "research",
+     "doc": "revtex-aps/apssamp.tex",
+     "engine": "pdflatex",
+     "oracle_s": 1.894,
+     "phitex_s": 1.692
+    },
+    {
+     "corpus": "research",
+     "doc": "revtex-aip/aipsamp.tex",
+     "engine": "pdflatex",
+     "oracle_s": 1.814,
+     "phitex_s": 1.231
+    },
+    {
+     "corpus": "research",
+     "doc": "aastex/aastex701-sample.tex",
+     "engine": "pdflatex",
+     "oracle_s": 6.68,
+     "phitex_s": 5.235
+    },
+    {
+     "corpus": "research",
+     "doc": "mnras/mnras_template.tex",
+     "engine": "pdflatex",
+     "oracle_s": 2.256,
+     "phitex_s": 1.151
+    },
+    {
+     "corpus": "research",
+     "doc": "amscls/amsart-template.tex",
+     "engine": "pdflatex",
+     "oracle_s": 0.57,
+     "phitex_s": 0.405
+    },
+    {
+     "corpus": "research",
+     "doc": "amsbook/amsbook-monograph.tex",
+     "engine": "pdflatex",
+     "oracle_s": 0.961,
+     "phitex_s": 0.566
+    },
+    {
+     "corpus": "research",
+     "doc": "aomart/aomsample.tex",
+     "engine": "pdflatex",
+     "oracle_s": 3.717,
+     "phitex_s": 3.117
+    },
+    {
+     "corpus": "research",
+     "doc": "achemso/achemso-demo.tex",
+     "engine": "pdflatex",
+     "oracle_s": 2.683,
+     "phitex_s": 1.232
+    },
+    {
+     "corpus": "research",
+     "doc": "chem-common/chem-common.tex",
+     "engine": "pdflatex",
+     "oracle_s": 8.934,
+     "phitex_s": 5.658
+    },
+    {
+     "corpus": "research",
+     "doc": "nature/nature-template.tex",
+     "engine": "pdflatex",
+     "oracle_s": 0.573,
+     "phitex_s": 0.467
+    },
+    {
+     "corpus": "research",
+     "doc": "apa7/longsample.tex",
+     "engine": "pdflatex",
+     "oracle_s": 6.15,
+     "phitex_s": 2.655
+    },
+    {
+     "corpus": "research",
+     "doc": "chicago-notes/chicago-notes.tex",
+     "engine": "pdflatex",
+     "oracle_s": 5.863,
+     "phitex_s": 2.076
+    },
+    {
+     "corpus": "research",
+     "doc": "koma-humanities/koma-humanities.tex",
+     "engine": "pdflatex",
+     "oracle_s": 6.927,
+     "phitex_s": 2.117
+    },
+    {
+     "corpus": "research",
+     "doc": "cleanthesis/my-thesis.tex",
+     "engine": "pdflatex",
+     "oracle_s": 9.717,
+     "phitex_s": 5.615
+    },
+    {
+     "corpus": "research",
+     "doc": "uwthesis/uwthesis.tex",
+     "engine": "pdflatex",
+     "oracle_s": 1.491,
+     "phitex_s": 0.949
+    },
+    {
+     "corpus": "research",
+     "doc": "memoir-thesis/memoir-thesis.tex",
+     "engine": "pdflatex",
+     "oracle_s": 2.26,
+     "phitex_s": 1.292
+    },
+    {
+     "corpus": "research",
+     "doc": "thuthesis/thuthesis-example.tex",
+     "engine": "xelatex",
+     "oracle_s": 33.016,
+     "phitex_s": 8.552
+    },
+    {
+     "corpus": "research",
+     "doc": "beamer-ornate/conference-ornate-20min.en.tex",
+     "engine": "pdflatex",
+     "oracle_s": 4.767,
+     "phitex_s": 4.852
+    },
+    {
+     "corpus": "research",
+     "doc": "common-times/common-times.tex",
+     "engine": "pdflatex",
+     "oracle_s": 2.987,
+     "phitex_s": 1.654
+    },
+    {
+     "corpus": "research",
+     "doc": "common-newtx/common-newtx.tex",
+     "engine": "pdflatex",
+     "oracle_s": 3.665,
+     "phitex_s": 2.054
+    },
+    {
+     "corpus": "research",
+     "doc": "common-palatino/common-palatino.tex",
+     "engine": "pdflatex",
+     "oracle_s": 2.358,
+     "phitex_s": 1.191
+    },
+    {
+     "corpus": "research",
+     "doc": "xe-fontspec/xe-fontspec.tex",
+     "engine": "xelatex",
+     "oracle_s": 8.061,
+     "phitex_s": 4.309
+    },
+    {
+     "corpus": "research",
+     "doc": "xe-polyglossia/xe-polyglossia.tex",
+     "engine": "xelatex",
+     "oracle_s": 4.775,
+     "phitex_s": 3.927
+    },
+    {
+     "corpus": "research",
+     "doc": "xe-ctexart/xe-ctexart.tex",
+     "engine": "xelatex",
+     "oracle_s": 4.716,
+     "phitex_s": 4.507
+    },
+    {
+     "corpus": "research",
+     "doc": "ieeetran/bare_conf.tex",
+     "engine": "xelatex",
+     "oracle_s": 4.011,
+     "phitex_s": 3.424
+    },
+    {
+     "corpus": "research",
+     "doc": "classicthesis/ClassicThesis.tex",
+     "engine": "xelatex",
+     "oracle_s": 20.182,
+     "phitex_s": 14.517
+    },
+    {
+     "corpus": "research",
+     "doc": "ieeetran/bare_jrnl.tex",
+     "engine": "xelatex",
+     "oracle_s": 4.031,
+     "phitex_s": 3.42
+    },
+    {
+     "corpus": "research",
+     "doc": "acmart/xe-sample-sigconf.tex",
+     "engine": "xelatex",
+     "oracle_s": 22.892,
+     "phitex_s": 10.928
+    },
+    {
+     "corpus": "research",
+     "doc": "ieeetran/bare_jrnl_compsoc.tex",
+     "engine": "xelatex",
+     "oracle_s": 4.071,
+     "phitex_s": 3.444
+    },
+    {
+     "corpus": "research",
+     "doc": "acmart/xe-sample-acmsmall.tex",
+     "engine": "xelatex",
+     "oracle_s": 22.772,
+     "phitex_s": 13.259
+    },
+    {
+     "corpus": "research",
+     "doc": "acmart/xe-sample-sigplan.tex",
+     "engine": "xelatex",
+     "oracle_s": 22.784,
+     "phitex_s": 13.543
+    },
+    {
+     "corpus": "research",
+     "doc": "acmart/xe-sample-sigconf-biblatex.tex",
+     "engine": "xelatex",
+     "oracle_s": 29.313,
+     "phitex_s": 16.574
+    },
+    {
+     "corpus": "research",
+     "doc": "llncs-paper/llncs-paper.tex",
+     "engine": "xelatex",
+     "oracle_s": 8.511,
+     "phitex_s": 3.821
+    },
+    {
+     "corpus": "research",
+     "doc": "elsarticle/elsarticle-template-num.tex",
+     "engine": "xelatex",
+     "oracle_s": 1.864,
+     "phitex_s": 3.545
+    },
+    {
+     "corpus": "research",
+     "doc": "els-cas-dc/cas-dc-sample.tex",
+     "engine": "xelatex",
+     "oracle_s": 9.155,
+     "phitex_s": 4.349
+    },
+    {
+     "corpus": "research",
+     "doc": "jmlr-pmlr/pmlr-sample.tex",
+     "engine": "xelatex",
+     "oracle_s": 9.9,
+     "phitex_s": 4.707
+    },
+    {
+     "corpus": "research",
+     "doc": "revtex-aps/apssamp.tex",
+     "engine": "xelatex",
+     "oracle_s": 10.119,
+     "phitex_s": 4.571
+    },
+    {
+     "corpus": "research",
+     "doc": "revtex-aip/aipsamp.tex",
+     "engine": "xelatex",
+     "oracle_s": 40.929,
+     "phitex_s": 4.148
+    },
+    {
+     "corpus": "research",
+     "doc": "aastex/aastex701-sample.tex",
+     "engine": "xelatex",
+     "oracle_s": 15.836,
+     "phitex_s": 6.859
+    },
+    {
+     "corpus": "research",
+     "doc": "mnras/mnras_template.tex",
+     "engine": "xelatex",
+     "oracle_s": 9.64,
+     "phitex_s": 4.146
+    },
+    {
+     "corpus": "research",
+     "doc": "amscls/amsart-template.tex",
+     "engine": "xelatex",
+     "oracle_s": 3.943,
+     "phitex_s": 3.479
+    },
+    {
+     "corpus": "research",
+     "doc": "amsbook/amsbook-monograph.tex",
+     "engine": "xelatex",
+     "oracle_s": 6.101,
+     "phitex_s": 3.538
+    },
+    {
+     "corpus": "research",
+     "doc": "aomart/aomsample.tex",
+     "engine": "xelatex",
+     "oracle_s": 12.116,
+     "phitex_s": 6.17
+    },
+    {
+     "corpus": "research",
+     "doc": "achemso/achemso-demo.tex",
+     "engine": "xelatex",
+     "oracle_s": 9.175,
+     "phitex_s": 4.147
+    },
+    {
+     "corpus": "research",
+     "doc": "chem-common/chem-common.tex",
+     "engine": "xelatex",
+     "oracle_s": 14.788,
+     "phitex_s": 8.107
+    },
+    {
+     "corpus": "research",
+     "doc": "nature/nature-template.tex",
+     "engine": "xelatex",
+     "oracle_s": 3.968,
+     "phitex_s": 3.461
+    },
+    {
+     "corpus": "research",
+     "doc": "apa7/longsample.tex",
+     "engine": "xelatex",
+     "oracle_s": 13.518,
+     "phitex_s": 6.297
+    },
+    {
+     "corpus": "research",
+     "doc": "chicago-notes/chicago-notes.tex",
+     "engine": "xelatex",
+     "oracle_s": 13.161,
+     "phitex_s": 5.431
+    },
+    {
+     "corpus": "research",
+     "doc": "koma-humanities/koma-humanities.tex",
+     "engine": "xelatex",
+     "oracle_s": 14.368,
+     "phitex_s": 5.592
+    },
+    {
+     "corpus": "research",
+     "doc": "cleanthesis/my-thesis.tex",
+     "engine": "xelatex",
+     "oracle_s": 16.3,
+     "phitex_s": 9.339
+    },
+    {
+     "corpus": "research",
+     "doc": "uwthesis/uwthesis.tex",
+     "engine": "xelatex",
+     "oracle_s": 8.524,
+     "phitex_s": 3.964
+    },
+    {
+     "corpus": "research",
+     "doc": "memoir-thesis/memoir-thesis.tex",
+     "engine": "xelatex",
+     "oracle_s": 8.76,
+     "phitex_s": 4.205
+    },
+    {
+     "corpus": "research",
+     "doc": "common-times/common-times.tex",
+     "engine": "xelatex",
+     "oracle_s": 9.432,
+     "phitex_s": 4.629
+    },
+    {
+     "corpus": "research",
+     "doc": "common-newtx/common-newtx.tex",
+     "engine": "xelatex",
+     "oracle_s": 11.016,
+     "phitex_s": 5.131
+    },
+    {
+     "corpus": "research",
+     "doc": "common-palatino/common-palatino.tex",
+     "engine": "xelatex",
+     "oracle_s": 9.086,
+     "phitex_s": 4.205
+    }
+   ],
+   "runs": 3,
+   "summary": {
+    "pdflatex": {
+     "docs": 33,
+     "faster": 32,
+     "p50_ratio": 0.63,
+     "p90_ratio": 0.88
+    },
+    "xelatex": {
+     "docs": 36,
+     "faster": 35,
+     "p50_ratio": 0.49,
+     "p90_ratio": 0.86
+    }
+   }
+  },
+  "edit": {
+   "cases": 521,
+   "under_100ms": 245,
+   "p50_ms": null,
+   "buckets": null,
+   "worst": null,
+   "machine": null
+  }
+ },
+ "method": "Clean builds, one thread, on one machine. TeX Live's time is the whole job a latexmk user waits for: pdflatex or xelatex run again and again until the document's files stop changing (the last run is the one that confirms it, as latexmk's is), with every BibTeX, biber and makeindex run the document needs between them, their wall times added up. PhiTeX's time is one `phitex build --exact-pdf -j 1` (the release binary), which does all of that itself, from an empty cache. Both start from a fresh copy of the document's sources, with no files from an earlier build, and both start with their formats already made: TeX Live's are in its installation, PhiTeX's were built once before the first document. Each document was built three times by each, the two alternating on the same node, and each time shown is the median of its three. Edits: PhiTeX's time from saving the file to the finished build in `phitex watch` (the median of five tries; one try when it took over 5 s), beside one full rebuild of the edited document by TeX Live, counted as above."
 }

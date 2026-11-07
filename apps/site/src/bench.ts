@@ -11,8 +11,9 @@ export const ENGINES: Record<string, string> = { pdflatex: "pdfLaTeX", xelatex: 
 export type Cls = "pdftex-bug" | "slow" | "phitex-bug" | "not-examined";
 /** `identical` counts the slow ones too (their PDFs match; `slow` of them run past CI's time limit); `by_class` only the ways a PDF differs. */
 export interface Engine { total: number; identical: number; slow?: number; by_class: Partial<Record<Exclude<Cls, "slow">, number>>; }
-export interface Corpus { name: string; title: string; about: string; excluded: { total: number; by_engine: Record<string, number>; link: string } | null; engines: Record<string, Engine>; }
-export interface Machine { cpu: string; cores: number; mem_gb: number; }
+/** `from_lists`: its counts from PhiTeX's test lists, not yet from a measured run. */
+export interface Corpus { from_lists?: boolean; name: string; title: string; about: string; excluded: { total: number; by_engine: Record<string, number>; link: string } | null; engines: Record<string, Engine>; }
+export interface Machine { cpu: string; cores: number; mem_gb: number; nodes?: string[]; note?: string; }
 /** A document's links: its source or manual (`url`), and the two PDFs as built (`pdfs`). */
 export interface Links { url?: string; pdfs?: { phitex: string; oracle: string }; }
 export interface Point extends Links { doc: string; engine: string; oracle_s: number; phitex_s: number; }
@@ -23,7 +24,8 @@ export interface Diff extends Links { corpus: string; doc: string; engine: strin
 /** A document identical but past CI's time limit. */
 export interface Slow extends Links { corpus: string; doc: string; engine: string; note?: string | null; }
 /** `covers`: a run not yet over every corpus says what it measured. */
-export interface Bench { covers?: string; slow?: Slow[]; schema: number; sample?: boolean; note?: string; commit: string; date: string; texlive: string; machine: Machine | null; corpora: Corpus[]; timing: { cold: Cold | null; edit: Edit | null }; differences: Diff[]; }
+/** `method`: how the times were taken, in words (shown beside the speed charts). */
+export interface Bench { method?: string; covers?: string; slow?: Slow[]; schema: number; sample?: boolean; note?: string; commit: string; date: string; texlive: string; machine: Machine | null; corpora: Corpus[]; timing: { cold: Cold | null; edit: Edit | null }; differences: Diff[]; }
 
 /**
  * Speed curves: for each time across (log scale), the share of documents
@@ -75,9 +77,9 @@ export function curves(c: Cold | null, e: Edit | null, into: { pdflatex: HTMLEle
   const pending = (el: HTMLElement, title: string, text: string) => { el.classList.add("waiting"); el.innerHTML = `<figcaption><b>${title}</b></figcaption><p class="pending">${text}</p>`; };
   for (const en of ["pdflatex", "xelatex"] as const) {
     const pts = c?.points.filter((p) => p.engine === en) ?? [];
-    const title = `A cold build, against ${ENGINES[en]}`;
-    if (!pts.length) pending(into[en], title, `Being measured: each document built by PhiTeX and by ${ENGINES[en]} back to back on one machine. Cold builds are often slower than TeX Live's today.`);
-    else curveChart(into[en], { mini, title, sub: `${n(pts.length)} documents, each built from nothing, one thread. Share of them done within each time.`, series: [{ name: "PhiTeX", vals: pts.map((p) => p.phitex_s) }, { name: ENGINES[en], vals: pts.map((p) => p.oracle_s) }] });
+    const title = `A clean build, against ${ENGINES[en]}`;
+    if (!pts.length) pending(into[en], title, `Being measured: each document built by PhiTeX and by ${ENGINES[en]} back to back on one machine.`);
+    else curveChart(into[en], { mini, title, sub: `${n(pts.length)} documents.`, series: [{ name: "PhiTeX, one build", vals: pts.map((p) => p.phitex_s) }, { name: `${ENGINES[en]}, every run`, vals: pts.map((p) => p.oracle_s) }] });
   }
   const title = "After an edit";
   if (!e) return pending(into.edit, title, "Being measured.");

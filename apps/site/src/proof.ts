@@ -80,7 +80,8 @@ function render(b: Bench) {
     }).join("");
     const x = c.excluded;
     const left = x ? `<p class="excl">Left out: ${n(x.total)} manuals that TeX Live's own engines cannot build, or that need LuaLaTeX (${n(x.by_engine.lualatex ?? 0)}). <a href="${href(b, x.link)}">The list, with each one's reason</a>.</p>` : "";
-    return `<div class="corpus card"><h3>${esc(c.title)}</h3><p>${esc(c.about)}</p>${rows}${left}</div>`;
+    const lists = c.from_lists ? `<p class="lists">From PhiTeX's test lists, which its CI keeps true; this corpus is not yet in a measured run.</p>` : "";
+    return `<div class="corpus card"><h3>${esc(c.title)}</h3><p>${esc(c.about)}</p>${lists}${rows}${left}</div>`;
   }).join("");
   $("#legend").innerHTML = CLASSES.filter((k) => k.key !== "slow").map((k) => `<span><i class="c-${k.key}"></i>${k.label}</span>`).join("");
 
@@ -92,6 +93,9 @@ function render(b: Bench) {
   diffTable(b);
 
   curves(b.timing.cold, edit, { pdflatex: $("#k-pdflatex"), xelatex: $("#k-xelatex"), edit: $("#k-edit") });
+  // (how the times were taken: once, under the curves)
+  $("#timed").hidden = !b.method;
+  if (b.method) $("#timed").innerHTML = `<summary>How these were timed</summary><p>${esc(b.method).replace(/`([^`]+)`/g, "<code>$1</code>")}</p>`;
   coldChart($("#c-cold"), b.timing.cold, b.machine);
   methods(b);
 }
@@ -142,8 +146,8 @@ const tipOn = (el: HTMLElement) => {
  * found by name, and a dot hovered or clicked shows its times and links.
  */
 function coldChart(el: HTMLElement, c: Cold | null, mach: Machine | null) {
-  const head = `<figcaption><b>A cold build, document by document</b><span class="sub">Each dot is one document, built from nothing by PhiTeX and by pdfLaTeX or XeLaTeX on the same machine${c ? `, each time the median of ${c.runs} runs` : ""}. Under the diagonal, PhiTeX is faster.</span></figcaption>`;
-  if (!c?.points.length) return void (el.classList.add("waiting"), el.innerHTML = `${head}<p class="pending">Being measured: each document built by both engines back to back on one machine. Cold builds are often slower than pdfLaTeX's today. PhiTeX's work went to identical output first and to edits second.</p>`);
+  const head = `<figcaption><b>A clean build, document by document</b><span class="sub">Each dot is one document. Under the diagonal, PhiTeX is faster.</span></figcaption>`;
+  if (!c?.points.length) return void (el.classList.add("waiting"), el.innerHTML = `${head}<p class="pending">Being measured: each document built by both engines back to back on one machine.</p>`);
   const engs = [...new Set(c.points.map((p) => p.engine))];
   const on = new Set(engs);
   let pinned: Point | null = null;
@@ -154,7 +158,7 @@ function coldChart(el: HTMLElement, c: Cold | null, mach: Machine | null) {
     return `<button type="button" class="chip-b ser" data-e="${e}" aria-pressed="true"><i class="s-texlive${e === "xelatex" ? "" : " round"}"></i>${eng(e)} <span>${n(pts.length)}</span></button><span class="sum">${s ? `median ${s.p50_ratio}× its time, 9 in 10 under ${s.p90_ratio}×; ` : ""}faster on ${n(faster)}</span>`;
   }).join("");
   el.innerHTML = `${head}<div class="ctrl"><div class="chips" role="group" aria-label="Engines">${summary}</div><input type="search" list="cold-docs" id="cq" placeholder="Find a document" aria-label="Find a document"><datalist id="cold-docs">${c.points.map((p) => `<option value="${esc(p.doc)}">`).join("")}</datalist></div>
-    <div class="plot"><svg viewBox="0 0 880 560" role="img" aria-label="PhiTeX's cold build time against TeX Live's, per document"></svg><div class="tip" hidden></div></div>
+    <div class="plot"><svg viewBox="0 0 880 560" role="img" aria-label="PhiTeX's clean build time against TeX Live's, per document"></svg><div class="tip" hidden></div></div>
     <div class="pin" id="cpin" hidden></div>${mach ? `<p class="worst">${esc(mach.cpu)}, one thread, one document at a time.</p>` : ""}
     <details><summary>Table view</summary><table><thead><tr><th>document</th><th>engine</th><th>TeX Live</th><th>PhiTeX</th><th>ratio</th></tr></thead><tbody>${[...c.points].sort((p, q) => q.phitex_s / q.oracle_s - p.phitex_s / p.oracle_s).map((p) => `<tr><td>${esc(p.doc)}</td><td>${eng(p.engine)}</td><td>${secs(p.oracle_s)}</td><td>${secs(p.phitex_s)}</td><td>${(p.phitex_s / p.oracle_s).toFixed(2)}×</td></tr>`).join("")}</tbody></table></details>`;
   const svg = el.querySelector("svg")!, tip = el.querySelector(".tip") as HTMLElement, pin = el.querySelector("#cpin") as HTMLElement;
@@ -174,7 +178,7 @@ function coldChart(el: HTMLElement, c: Cold | null, mach: Machine | null) {
     const lx = ax + (bx - ax) * t, ly = ay + (by - ay) * t, deg = (Math.atan2(by - ay, bx - ax) * 180) / Math.PI;
     axes += `<line class="${cls}" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}"/><text class="tick diag" transform="translate(${lx} ${ly}) rotate(${deg})" y="-6" text-anchor="middle">${txt}</text>`;
   }
-  axes += `<text class="tick strong" x="${(m.l + W - m.r) / 2}" y="${H - 8}" text-anchor="middle">pdfLaTeX or XeLaTeX (TeX Live)</text><text class="tick strong" transform="translate(16 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">PhiTeX</text>`;
+  axes += `<text class="tick strong" x="${(m.l + W - m.r) / 2}" y="${H - 8}" text-anchor="middle">TeX Live, every run the document needs</text><text class="tick strong" transform="translate(16 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">PhiTeX, one build</text>`;
   const draw = () => {
     // (pdfLaTeX's documents circles, XeLaTeX's squares)
     const dot = (p: Point, on = false) => {
@@ -239,8 +243,8 @@ function methods(b: Bench) {
   const corpora = b.corpora.map((c) => c.title).join(" and ");
   $("#methods").innerHTML = [
     ["Documents", `${esc(corpora)}, each with its sources fixed by hash. The lists are in the engine's repository, with every document left out and why.`],
-    ["Reference", `${esc(b.texlive)}. Its pdfLaTeX and XeLaTeX build each document as many times as it needs, and so does PhiTeX.`],
-    ["Machine", b.machine ? esc(`${b.machine.cpu}, ${b.machine.cores} cores, ${b.machine.mem_gb} GB, Linux. One document at a time.`) : "Named here with the measurement run. One document at a time, on Linux."],
+    ["Reference", `${esc(b.texlive)}. Its pdfLaTeX and XeLaTeX run each document as many times as it needs, with BibTeX, biber and makeindex, as latexmk does. PhiTeX reaches the same PDF in one build.`],
+    ["Machine", b.machine ? esc(`${b.machine.cpu}, ${b.machine.cores} cores, ${b.machine.mem_gb} GB, Linux. ${b.machine.note ? `${b.machine.note[0].toUpperCase()}${b.machine.note.slice(1)}.` : "One document at a time."}`) : "Named here with the measurement run. One document at a time, on Linux."],
     ["Reproducible", `Every number is from one run of PhiTeX's CI on <a href="${REPO}/commit/${esc(b.commit)}">commit ${esc(b.commit.slice(0, 9))}</a>, and the scripts are in its repository. <a href="${esc(src)}">The raw results</a>.`],
   ].map(([t, p]) => `<div class="card m"><b>${t}</b><p>${p}</p></div>`).join("");
 }
