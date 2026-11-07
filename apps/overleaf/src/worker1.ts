@@ -23,6 +23,10 @@ import { order, shipped } from "./common/shelf.ts";
 import { hasPack, putPack } from "./common/packstore.ts";
 import { type Runner, runOn, usesMinted } from "./common/wasm/minted.ts";
 import { loadMinted } from "./pyodide.ts";
+// (minted's modules bundled in: this worker can import nothing at run time, pyodide.ts)
+import { loadPyodide } from "pyodide";
+import createPyodideModule from "pyodide/pyodide.asm.mjs";
+import { createMintedRunner } from "phitex-minted-runner";
 
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
 /** Said to the tab (its console; a dev trace on the mock). */
@@ -177,7 +181,7 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
       for (const id of await formatPacks(engine)) if (await hasPack(id).catch(() => false)) ids.add(id);
       const files = Object.values((m.files ?? {}) as Record<string, string>);
       // (minted's runner too, beside the packs, for a project that uses it)
-      if (usesMinted(files)) minted ??= loadMinted();
+      if (usesMinted(files)) minted ??= loadMinted({ loadPyodide, createPyodideModule, createMintedRunner });
       // (a pack that goes to Shelf said as the core's own fetches are: the tab counts it, Downloads; one kept here, not)
       const early = (id: string) => {
         let told = false;

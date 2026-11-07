@@ -1,0 +1,2 @@
+{ "project": "test/scenarios/minted-xe", "name": "minted-xe",
+  "steps": [ { "idle": 6000 }, { "shot": "minted-xe" } ] }

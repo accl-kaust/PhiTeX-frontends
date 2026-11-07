@@ -1,0 +1,12 @@
+\documentclass{article}
+\usepackage{fontspec}
+\usepackage{minted}
+\setminted{style=staroffice}
+\begin{document}
+\section{Code}
+The type \mintinline{julia}{Vector{Int}} holds the petals.
+
+\begin{minted}{julia}
+petals(n) = [360 / n * i for i in 0:n-1]
+\end{minted}
+\end{document}
