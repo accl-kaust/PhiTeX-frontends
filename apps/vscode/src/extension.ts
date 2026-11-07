@@ -10,6 +10,7 @@
 
 import * as vscode from "vscode";
 import { readdir, readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { AbstractMessageReader, AbstractMessageWriter, CloseAction, ErrorAction, ExecuteCommandRequest, LanguageClient, State, type DataCallback, type LanguageClientOptions, type Message, type ShowDocumentParams, type ShowDocumentResult } from "vscode-languageclient/node";
 import { join } from "node:path";
 import { availableParallelism } from "node:os";
@@ -25,6 +26,7 @@ import { compareHost } from "./compare.ts";
 import type { Down } from "./webview.ts";
 import { StatusItem, type EngineStatus } from "./status.ts";
 import { texEngineOf } from "./texengine.ts";
+import { latexmkFiles } from "../../../common/src/viewer/latexmkrc.ts";
 
 /** The project's text files (what the core reads as source), and the binary ones it is given apart. */
 const TEXT = /\.(tex|sty|cls|bib|bst|cfg|def|clo|fd|ltx|bbx|cbx|lbx|dtx|ins|txt|csv|dat|tikz|pgf|bbl)$/i;
@@ -338,7 +340,15 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   const engine = texEngine(project.files[main]);
   if (engine !== "pdflatex") log.appendLine(`engine: ${engine}`);
   prefetch(core, index, project.files, engine);
-  const r = await session.request({ op: "open", main, files: project.files, engine } as never);
+  // (the folder's latexmkrc, as the browser's extension gives it: its search paths applied, the rest said; read again at each open)
+  const rc = latexmkFiles((p) => {
+    try {
+      return readFileSync(join(folder, p), "utf8");
+    } catch {
+      return undefined;
+    }
+  });
+  const r = await session.request({ op: "open", main, files: project.files, engine, latexmk: rc && { files: rc, exact: false }, projectFiles: rc && [...Object.keys(project.files), ...Object.keys(project.binaries)] } as never);
   if (!r.ok) {
     log.appendLine(`open: ${r.error}`);
     void vscode.window.showErrorMessage(`PhiTeX: ${r.error}`);

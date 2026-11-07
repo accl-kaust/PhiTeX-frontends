@@ -1,0 +1,2 @@
+{ "project": "test/scenarios/latexmkrc", "name": "latexmkrc",
+  "steps": [ { "idle": 6000 }, { "shot": "latexmkrc" } ] }
