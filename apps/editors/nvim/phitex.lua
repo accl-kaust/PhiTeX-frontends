@@ -22,12 +22,19 @@
 -- "dblclick": nothing as you move).
 --
 -- Put this file in your config (e.g. ~/.config/nvim/plugin/phitex.lua), or
--- with lazy.nvim: { "accl-kaust/PhiTeX-frontends", config = function(p) vim.opt.rtp:append(p.dir .. "/apps/editors/nvim"); dofile(p.dir .. "/apps/editors/nvim/phitex.lua") end }.
+-- add the repository with its folder apps/editors/nvim on the runtimepath
+-- (plugin/phitex.lua there runs this file): vim-plug's
+-- Plug 'accl-kaust/PhiTeX-frontends', { 'rtp': 'apps/editors/nvim' }, or
+-- with lazy.nvim: { "accl-kaust/PhiTeX-frontends", config = function(p) dofile(p.dir .. "/apps/editors/nvim/phitex.lua") end }.
 -- With no `phitex` on PATH, it asks before downloading the latest release
 -- into ~/.local/bin (:PhiTeXInstall does the same). That needs minisign and
 -- curl: the release's SHA256SUMS must verify against the release key below,
 -- and the download must match it, or nothing is installed. A project with several .tex files names its
 -- main one in phitex.toml (`main = "paper.tex"`) or in init_options.
+
+-- (once: a plugin manager's loader and a config's dofile may both run it)
+if vim.g.loaded_phitex then return end
+vim.g.loaded_phitex = true
 
 --- This file, as the server is told (initializationOptions.client: docs/spec-editor-protocol.md §1).
 local CLIENT = { name = "phitex.nvim", version = "0.1.0" }
