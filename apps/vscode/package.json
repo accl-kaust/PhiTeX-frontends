@@ -192,11 +192,38 @@
         "phitex.opening": {
           "type": "string",
           "enum": [
+            "random",
             "phitex",
-            "retro",
+            "terminal",
+            "win98",
+            "mac9",
+            "dos",
+            "typewriter",
+            "plane",
+            "ink",
+            "tetris",
+            "glyphs",
+            "kaust",
+            "badapple",
             "off"
           ],
-          "default": "phitex",
+          "enumDescriptions": [
+            "A different one each time (PhiTeX's the first time)",
+            "PhiTeX's logo",
+            "An old monitor running phitex watch",
+            "Windows 98",
+            "Mac OS 9",
+            "MS-DOS",
+            "A typewriter",
+            "A paper plane, folded as the build goes",
+            "Ink drops",
+            "Tetris",
+            "TeX's glyphs falling",
+            "ACCL | KAUST",
+            "Bad Apple!!",
+            "None"
+          ],
+          "default": "random",
           "description": "The loading animation played on the first page's sheet while it is typeset."
         },
         "phitex.underline": {

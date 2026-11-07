@@ -85,6 +85,7 @@
         "LICENSE.txt",
         "dist/common/strippages.js",
         "dist/common/viewer/*.js",
+        "dist/common/viewer/openings/*.js",
         "fonts/*",
         "shims/*"
       ],

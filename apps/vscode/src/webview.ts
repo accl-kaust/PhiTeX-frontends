@@ -312,7 +312,7 @@ addEventListener("message", (m: MessageEvent<Down>) => {
     old.set(d.v, d.old);
     void controls.start(d.v, d.title, d.when);
   }
-  if (d.t === "texts") (now = { main: d.main, files: d.files }), changed.forEach((f) => f());
+  if (d.t === "texts") (now = { main: d.main, files: d.files }), panel.docName(d.main), changed.forEach((f) => f());
   if (d.t === "cmp-ready") (ready?.(d.error), (ready = undefined));
 });
 addEventListener("keydown", (e) => controls.key(e));
