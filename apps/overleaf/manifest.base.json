@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PhiTeX Instant for Overleaf (unofficial)",
   "short_name": "PhiTeX Instant",
-  "version": "0.7.0",
+  "version": "1.0.0",
   "description": "Unofficial, experimental: an instant PhiTeX preview beside Overleaf's PDF, and folders for projects. Not affiliated with Overleaf.",
   "minimum_chrome_version": "116",
   "permissions": [

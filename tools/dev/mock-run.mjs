@@ -551,10 +551,14 @@ for (const s of sc.steps ?? []) {
     console.log(`auxdump → ${base}: carried ${Object.keys(j?.carried ?? {}).length}, files ${Object.keys(j?.files ?? {}).length}, written ${Object.keys(j?.written ?? {}).length}`);
   } else if (s.pdfsave !== undefined) {
     // (the ⚡ PDF as it is now, saved: a fresh build's compared with it)
-    const b64 = await evalIn(`(async () => { const b = await globalThis.__phitexSession.pdf(); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); })()`, true);
+    // (none while the document has an error the core made no PDF for: said, the run going on)
+    const b64 = await evalIn(`(async () => { const b = await globalThis.__phitexSession.pdf(); if (!b) return null; let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); })()`, true);
     const f = path.join(out, `${s.pdfsave}.pdf`);
-    fs.writeFileSync(f, Buffer.from(b64 ?? "", "base64"));
-    console.log(`pdfsave → ${f}: ${fs.statSync(f).size} bytes`);
+    if (typeof b64 !== "string") console.log(`pdfsave ${s.pdfsave}: no PDF (${JSON.stringify(b64)})`);
+    else {
+      fs.writeFileSync(f, Buffer.from(b64, "base64"));
+      console.log(`pdfsave → ${f}: ${fs.statSync(f).size} bytes`);
+    }
   } else if (s.report) {
     // (the debug report, as the user opens it: ⓘ, then "Report a problem…")
     await evalIn(`(() => { const r = document.querySelector("phitex-preview").shadowRoot; r.getElementById("sum").click(); r.querySelector(".reportbtn")?.click(); })()`, true);

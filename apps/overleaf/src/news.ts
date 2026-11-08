@@ -19,6 +19,21 @@ export const SUPPORT: { label: string; href: string } | null = null;
 
 export const NEWS: News[] = [
   {
+    version: "1.0.0",
+    date: "2026-11-08",
+    title: "PhiTeX 1.0",
+    items: [
+      "The engine's first stable release. For a pdfLaTeX document, its PDF is byte for byte what pdfTeX makes, from the first build and after every edit.",
+      "Firefox: the extension runs there too.",
+      "Code listings with <code>minted</code> work: Pygments runs in your browser.",
+      "Typing is faster: a keystroke's page comes sooner, most of all in long documents.",
+      "A <code>latexmkrc</code> at the project's root is read: the folders its <code>TEXINPUTS</code> adds are searched.",
+      "A project made or copied inside a folder on Overleaf's dashboard stays in that folder.",
+      "PNG and JPEG figures show on the ⚡ page.",
+      "A loading animation while the first page is typeset, a different one each time. Pick one, or none, in Settings › Appearance.",
+    ],
+  },
+  {
     version: "0.7.0",
     date: "2026-10-30",
     title: "A new package server, and a clean recompile",
