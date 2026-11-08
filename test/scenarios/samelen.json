@@ -1,0 +1,12 @@
+{ "project": "test/scenarios/samelen", "name": "samelen",
+  "steps": [
+    { "idle": 2000 },
+    { "onpage": "alpha", "ms": 10000 },
+    { "eval": "(() => { const t = mockEditor.text(), i = t.indexOf('alpha'); window.postMessage({ src: 'phitex-hook', type: 'changes', file: 'main.tex', edits: [[i, i + 5, 'ALPHA']], len: t.length, t: performance.now() }, location.origin); return i; })()", "page": true },
+    { "idle": 1500 },
+    { "replace": "2.50", "with": "9.75" },
+    { "idle": 2500 },
+    { "onpage": "9.75", "ms": 10000 },
+    { "onpage": "alpha", "ms": 10000 },
+    { "shot": "samelen" }
+  ] }

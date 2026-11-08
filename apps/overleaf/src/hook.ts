@@ -40,6 +40,22 @@
     rootPath = rootId && folders ? docPath(folders, rootId) : null;
     post({ type: "rootDoc", path: rootPath });
   };
+  // The text's sum once typing pauses (300 ms): the host checks its copy by
+  // it as well as by length, so a change lost or misapplied that keeps the
+  // length (a same-length paste) is found too. FNV-1a over the UTF-16 code
+  // units, as PhiTeX's viewer/src/edits.ts textSum (this script imports nothing).
+  let sumTimer = 0;
+  const sumSoon = (v: any, f: string) => {
+    clearTimeout(sumTimer);
+    sumTimer = window.setTimeout(() => {
+      if (v !== view || f !== file) return;
+      const s: string = v.state.doc.toString();
+      let h = 0x811c9dc5;
+      for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+      post({ type: "changes", file: f, edits: [], len: s.length, sum: h >>> 0, t: performance.now() });
+    }, 300);
+  };
+
   const NativeSocket = window.WebSocket;
   window.WebSocket = class extends NativeSocket {
     constructor(url: string | URL, protocols?: string | string[]) {
@@ -169,7 +185,10 @@
       }
       // (with the text's length after them: the host checks its copy by it;
       // none while the file is not known, the next "open" has them)
-      if (edits.length && file !== null) post({ type: "changes", file, edits, len: this.state.doc.length, t: performance.now() });
+      if (edits.length && file !== null) {
+        post({ type: "changes", file, edits, len: this.state.doc.length, t: performance.now() });
+        sumSoon(this, file);
+      }
       // (a selection that changed: its text highlighted on the ⚡ page)
       if (trs.some((tr: any) => tr.selection)) selectionSoon();
       // (collaborators' cursors: moved by their own transactions, or by the text's)

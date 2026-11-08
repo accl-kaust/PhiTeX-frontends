@@ -186,7 +186,7 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
 
 class OverleafHost implements EditorHost {
   private opens: ((f: string, t: string) => void)[] = [];
-  private changes: ((f: string, e: Edit[], len?: number) => void)[] = [];
+  private changes: ((f: string, e: Edit[], len?: number, sum?: number) => void)[] = [];
   private panel: Panel;
   constructor(panel: Panel) {
     this.panel = panel;
@@ -197,7 +197,7 @@ class OverleafHost implements EditorHost {
       if (m.type === "open") for (const cb of this.opens) cb(m.file, m.text);
       else if (m.type === "changes") {
         const es = m.edits.map(([from, to, text]: [number, number, string]) => ({ from, to, text }));
-        for (const cb of this.changes) cb(m.file, es, m.len);
+        for (const cb of this.changes) cb(m.file, es, m.len, m.sum);
       }
     });
   }
@@ -207,7 +207,7 @@ class OverleafHost implements EditorHost {
   onOpen(cb: (f: string, t: string) => void) {
     this.opens.push(cb);
   }
-  onChanges(cb: (f: string, e: Edit[], len?: number) => void) {
+  onChanges(cb: (f: string, e: Edit[], len?: number, sum?: number) => void) {
     this.changes.push(cb);
   }
   /** The whole text again (the session's copy differs from the editor's): the hook announces the open file. */
