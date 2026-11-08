@@ -1,6 +1,6 @@
 // DESIGN PREVIEW ONLY: a toy "typesetter" that turns the presets' plain TeX
 // into HTML, so the page's look can be settled before the real PhiTeX core
-// (src/vendor/, wasm) is wired in. It is not PhiTeX and claims nothing.
+// is wired in (the demo, phitex.org/try, runs it). It is not PhiTeX and claims nothing.
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
