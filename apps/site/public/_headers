@@ -1,0 +1,3 @@
+# (the Windows installer read by PowerShell's irm as text, then run by iex)
+/install.ps1
+  Content-Type: text/plain; charset=utf-8

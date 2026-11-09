@@ -37,6 +37,19 @@ jobs:
       - run: npm test
       # (news.json from PhiTeX's CHANGELOG.md on main, served at /news.json)
       - run: node scripts/news.mjs https://raw.githubusercontent.com/accl-kaust/PhiTeX/main/CHANGELOG.md public/news.json
+      # (Windows: install.ps1 from PhiTeX at the frontends' pin, served beside
+      # install.sh; the install page's Windows tab shown once PhiTeX's latest
+      # release carries the Windows build. Until both, neither is served)
+      - name: Windows installer
+        run: |
+          pin=$(git rev-parse HEAD:phitex)
+          if curl -fsSL "https://raw.githubusercontent.com/accl-kaust/PhiTeX/$pin/scripts/install.ps1" -o public/install.ps1 \
+            && curl -fsSL https://api.github.com/repos/accl-kaust/PhiTeX/releases/latest | grep -q '"name": *"phitex-x86_64-windows.zip"'; then
+            echo "VITE_WINDOWS=1" >> "$GITHUB_ENV"
+          else
+            rm -f public/install.ps1
+            echo "No Windows build in the latest release (or no install.ps1 at PhiTeX $pin): the page keeps 'Windows: not yet'."
+          fi
       - run: npm run build
         env:
           VITE_REPO_URL: ${{ vars.VITE_REPO_URL }}
