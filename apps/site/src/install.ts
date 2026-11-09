@@ -9,7 +9,7 @@ initChrome();
 // VITE_WINDOWS. Then the tabs, Windows first on a Windows machine)
 if (import.meta.env.VITE_WINDOWS === "1") {
   $$("[data-nowin]").forEach((e) => e.remove());
-  $$<HTMLAnchorElement>("[data-winzip]").forEach((a) => (a.href = `${REPO}/releases/latest/download/phitex-x86_64-windows.zip`));
+  $$<HTMLAnchorElement>("[data-winzip]").forEach((a) => (a.href = `${REPO}/releases/latest/download/phitex-${a.dataset.winzip}-windows.zip`));
   const tabs = $$<HTMLButtonElement>(".os-tabs [role=tab]");
   const show = (os: string) => {
     tabs.forEach((t) => t.setAttribute("aria-selected", String(t.dataset.os === os)));

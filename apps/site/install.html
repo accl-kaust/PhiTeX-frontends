@@ -49,7 +49,7 @@
         <div class="cmd"><pre><code>curl -fsSL https://phitex.org/install.sh | PHITEX_CHANNEL=nightly sh</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
         </div>
         <div class="os-panel" data-os="windows" role="tabpanel" hidden>
-        <p class="lede">Windows 10 and 11, on x86-64, with TeX Live for Windows. In PowerShell:</p>
+        <p class="lede">Windows 10 and 11, on x86-64 and ARM, with TeX Live for Windows. In PowerShell:</p>
         <div class="cmd"><pre><code>irm https://phitex.org/install.ps1 | iex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
         <p class="then">Or the nightly build:</p>
         <div class="cmd"><pre><code>$env:PHITEX_CHANNEL = "nightly"; irm https://phitex.org/install.ps1 | iex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
@@ -62,7 +62,7 @@
           <li data-os-only="unix"><b>Remove</b><span>delete <code>~/.local/bin/phitex</code></span></li>
           <li data-os-only="windows" hidden><b>Remove</b><span>delete <code>%LOCALAPPDATA%\Programs\phitex</code> and <code>%LOCALAPPDATA%\phitex</code></span></li>
           <li data-os-only="windows" hidden><b>MiKTeX</b><span>only with <code>files = "shelf"</code> in your config: packages from Shelf</span></li>
-          <li data-os-only="windows" hidden><b>Download</b><span><a data-winzip href="#"><code>phitex-x86_64-windows.zip</code></a></span></li>
+          <li data-os-only="windows" hidden><b>Download</b><span><a data-winzip="x86_64" href="#"><code>x86-64</code></a> · <a data-winzip="aarch64" href="#"><code>ARM</code></a></span></li>
           <li data-nowin><b>Windows</b><span>coming soon</span></li>
           <li><b>No install</b><span><a href="https://demo.phitex.org/" target="_blank" rel="noopener">try it in your browser&nbsp;↗</a> or use <a href="#overleaf">Overleaf</a></span></li>
         </ul>
