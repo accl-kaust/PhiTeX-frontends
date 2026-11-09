@@ -5,7 +5,7 @@ import { apply, type Edit } from "../../common/src/viewer/edits.ts";
 
 const enc = new TextEncoder(), dec = new TextDecoder();
 
-/** A core that applies byte edits to its files, and logs requests. */
+/** A core that applies edits to its files (UTF-16 offsets, as PhiTeX's since v1.0), and logs requests. */
 function fakeCore() {
   const files: Record<string, Uint8Array> = {};
   const log: CoreReq[] = [];
@@ -20,10 +20,8 @@ function fakeCore() {
         return { ok: true, json: { pages: 1, pending: 0, build_ms: 1 } };
       }
       if (r.op === "edit") {
-        const b = files[r.file], t = enc.encode(r.text);
-        const n = new Uint8Array(b.length - (r.end - r.start) + t.length);
-        n.set(b.subarray(0, r.start)); n.set(t, r.start); n.set(b.subarray(r.end), r.start + t.length);
-        files[r.file] = n;
+        const t = dec.decode(files[r.file]);
+        files[r.file] = enc.encode(t.slice(0, r.start) + r.text + t.slice(r.end));
         return { ok: true, json: { pages: 1, pending: 0, paint_ms: 0, total_ms: 0, stats: { rebuilt: 1, reused: 0, passes: 1 } } };
       }
       if (r.op === "set_file") { files[r.file] = enc.encode(r.text); return { ok: true }; }
@@ -47,7 +45,7 @@ test("diff is one edit", () => {
   }
 });
 
-test("edits across files arrive in order, per flush, as bytes", async () => {
+test("edits across files arrive in order, per flush, in UTF-16 units", async () => {
   const core = fakeCore();
   const ed = host({ "main.tex": "\\input part\n\\bye\n", "part.tex": "Pärt 😀.\n" });
   let tick: (() => void) | null = null;

@@ -1,22 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Batch, byteOffset, merge, apply, sequential, utf8Len, type ByteEdit, type Edit } from "../../common/src/viewer/edits.ts";
+import { Batch, byteOffset, merge, apply, sequential, utf8Len, type CoreEdit, type Edit } from "../../common/src/viewer/edits.ts";
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-/** Apply byte edits to UTF-8 bytes, as PhiTeX does. */
-function applyBytes(s: string, es: ByteEdit[]): string {
-  let b = enc.encode(s);
-  for (const e of es) {
-    const t = enc.encode(e.text);
-    const n = new Uint8Array(b.length - (e.end - e.start) + t.length);
-    n.set(b.subarray(0, e.start));
-    n.set(t, e.start);
-    n.set(b.subarray(e.end), e.start + t.length);
-    b = n;
-  }
-  return dec.decode(b);
+/** Apply the core's edits (UTF-16 offsets, each against the text before it), as PhiTeX does since v1.0. */
+function applyCore(s: string, es: CoreEdit[]): string {
+  for (const e of es) s = s.slice(0, e.start) + e.text + s.slice(e.end);
+  return s;
 }
 
 const samples = ["plain ascii", "Héllo wörld", "∑ x² — “quotes”", "emoji 😀 and 👩‍👩‍👧 family", "日本語のテキスト", "a\u0301 combining", ""];
@@ -85,15 +77,15 @@ test("typing merges into one edit", () => {
   b.push({ from: b.text.length - 3, to: b.text.length - 1, text: "" }); // (backspace over 😀: two code units)
   const es = b.take();
   assert.equal(es.length, 1);
-  assert.equal(applyBytes("Hi \n", es), b.text);
+  assert.equal(applyCore("Hi \n", es), b.text);
 });
 
-test("batch: random edits, in bytes, keep order and meaning", () => {
+test("batch: random edits, as the core takes them, keep order and meaning", () => {
   const r = rnd(42);
   for (let k = 0; k < 500; k++) {
     let s = "Héllo 😀 wörld ∑ \\bye\n";
     const batch = new Batch(s);
-    let bytes = s;
+    let core = s;
     for (let round = 0; round < 5; round++) {
       const n = 1 + Math.floor(r() * 8);
       for (let i = 0; i < n; i++) {
@@ -104,8 +96,8 @@ test("batch: random edits, in bytes, keep order and meaning", () => {
       assert.equal(batch.text, s);
       const es = batch.take();
       assert.ok(es.length <= n);
-      bytes = applyBytes(bytes, es);
-      assert.equal(bytes, s);
+      core = applyCore(core, es);
+      assert.equal(core, s);
     }
   }
 });
