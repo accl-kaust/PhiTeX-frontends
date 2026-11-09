@@ -17,7 +17,8 @@
 
 import "./platform.ts";
 import { platform } from "./common/platform.ts";
-import { Core, CoreSession } from "./common/wasm/core.ts";
+import { Core, CoreSession, lostReason } from "./common/wasm/core.ts";
+import { PAGES_MAX, outgrew, outgrownMessage } from "./common/wasm/threads.ts";
 import { coreIndex, packsOf, pack } from "./common/wasm/host.ts";
 import { order, shipped } from "./common/shelf.ts";
 import { hasPack, putPack } from "./common/packstore.ts";
@@ -127,14 +128,18 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
         return platform().kv.write([[KV, scoped(key), bytes]]);
       },
     },
-    event: post,
-    log: (s) => say("error", s),
-    // (a build's step trapped: this core is gone, the tab told now (it
-    // reopens, which starts a new one); its memory its own, nothing to free)
-    trap: (_tid, error) => {
-      started = undefined;
-      post({ event: "trapped", error: `core trapped (thread 0): ${error.split("\n")[0]}` });
+    // (the core about to abort says why first (`lost`: out of memory, a panic): the tab told that, not the trap after it)
+    event: (e: { event?: string; why?: string; message?: string }) => (e.event === "lost" ? gone(lostReason(e)) : post(e)),
+    log: (s) => {
+      stderr = (stderr + s).slice(-4000);
+      say("error", s);
     },
+    // (a build's step trapped: this core is gone, the tab told now (it
+    // reopens, which starts a new one); its memory its own, nothing to free.
+    // An allocation refused just before (Rust's "memory allocation of N bytes
+    // failed": no `lost` from this core then) is the document outgrowing the
+    // most memory a wasm32 core has: said so, and the tab does not reopen)
+    trap: (_tid, error) => gone(`core trapped (thread 0): ${outgrew(stderr) ? outgrownMessage(PAGES_MAX) : error.split("\n")[0]}`),
   });
   const ix = await index;
   core.setIndex(ix.tsv, ix.release, ix.table, ix.names);
@@ -145,6 +150,23 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
 }
 
 let started: ReturnType<typeof start> | undefined;
+/**
+ * Why the core is gone (it trapped, or said it was lost): every request
+ * answers with it (the tab's session reopens once on "core trapped", or
+ * stops on a document that outgrew the memory), and only an open starts a
+ * new core. Before, the next request of any kind started one, which had
+ * no document: "no document open", and the tab never heard why.
+ */
+let dead: string | undefined;
+/** What the core wrote last (its stderr): an allocation refused before a trap. */
+let stderr = "";
+function gone(why: string): void {
+  if (dead) return;
+  dead = why;
+  started = undefined;
+  say("error", why);
+  post({ event: "trapped", error: why });
+}
 
 self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: unknown }>) => {
   const m = e.data;
@@ -166,6 +188,10 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
       binaries.set(file, bytes);
       if (started) void started.then(({ core }) => core.provide(file, { path: "./" + file, bytes }), () => undefined);
       return post({ id: m.id, ok: true });
+    }
+    if (dead) {
+      if (m.op !== "open") return post({ id: m.id, ok: false, error: dead });
+      [dead, stderr] = [undefined, ""];
     }
     const { core, session } = await (started ??= start());
     // (the packs the project loads, fetched before it opens: all at once, from this browser or Shelf)

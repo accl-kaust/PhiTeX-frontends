@@ -19,7 +19,7 @@
 
 import "./platform.ts";
 import { platform } from "./common/platform.ts";
-import { Core, CoreSession, WASM_THREADS } from "./common/wasm/core.ts";
+import { Core, CoreSession, WASM_THREADS, lostReason } from "./common/wasm/core.ts";
 import { mintedShell } from "./common/wasm/minted.ts";
 import { importMinted, loadMinted } from "./pyodide.ts";
 import { coreIndex, coreStore, pack, prefetch, texmfFile, warmDiff, warmFormats } from "./common/wasm/host.ts";
@@ -112,7 +112,14 @@ async function startCore(): Promise<{ core: Core; session: CoreSession }> {
     resolve: texmfFile,
     store,
     shell,
-    event: post,
+    // (the core about to abort says why first (`lost`): the tab told that, not the trap after it)
+    event: (e: { event?: string; why?: string; message?: string }) => {
+      if (e.event !== "lost") return post(e);
+      const first = !dead;
+      dead ??= lostReason(e, pages);
+      console.error("[phitex core]", dead);
+      if (first) post({ event: "trapped", error: dead });
+    },
     log: (s) => {
       stderr = (stderr + s).slice(-4000);
       console.warn("[phitex core]", s);

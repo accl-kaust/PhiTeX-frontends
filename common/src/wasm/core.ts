@@ -19,7 +19,7 @@
 // PreviewSession talks to the wasm core as it talks to `phitex watch` over
 // its WebSocket.
 
-import { type Spawn, type ThreadData, type ThreadMsg, chooseSize, imports, newMemory } from "./threads.ts";
+import { type Spawn, type ThreadData, type ThreadMsg, PAGES_MAX, chooseSize, imports, newMemory, outgrownMessage } from "./threads.ts";
 import { unsigned, wasi } from "./wasi.ts";
 import type { CoreEvent, CoreReq, CoreRes, CoreTransport } from "../viewer/session.ts";
 
@@ -142,6 +142,30 @@ export interface Open {
 
 let cores = 0;
 
+/**
+ * The core's `lost` event (it aborts next: `{why: "memory" | "panic",
+ * message}`) as a host says it: "core trapped" first, as a trap's (the
+ * viewer's session reopens once on it); a document that outgrew the
+ * memory in `outgrownMessage`'s words (the session stops on those, never
+ * reopening into the same wall). `pages`: the core's size (0: the most).
+ */
+export function lostReason(e: { why?: string; message?: string }, pages = 0): string {
+  return `core trapped (lost): ${e.why === "memory" ? outgrownMessage(pages || PAGES_MAX) : (e.message ?? "the engine stopped")}`;
+}
+
+/**
+ * JSPI (WebAssembly.Suspending and promising), where the browser has it:
+ * the single-threaded core's build then yields to its host every 40 ms
+ * (its `yield` event), and a request is answered mid-build (a page that
+ * streamed drawn while the rest builds). Without it a build runs to its
+ * end as before.
+ */
+type Jspi = { Suspending: new (f: (...a: never[]) => unknown) => unknown; promising: <F extends (...a: never[]) => unknown>(f: F) => (...a: Parameters<F>) => Promise<number> };
+const jspi = (): Jspi | null => {
+  const w = WebAssembly as unknown as Partial<Jspi>;
+  return typeof w.Suspending === "function" && typeof w.promising === "function" ? (w as Jspi) : null;
+};
+
 export class Core {
   private x: Exports;
   private memory: WebAssembly.Memory;
@@ -201,6 +225,16 @@ export class Core {
     const memory = { get buffer() { return core!.memory.buffer; } } as WebAssembly.Memory;
     const text = (p: number, n: number) => new TextDecoder().decode(new Uint8Array(memory.buffer).slice(p, p + n));
     const tell = (e: any) => core!.listeners.forEach((f) => f(e));
+    const J = jspi();
+    // (the core's events; a build's `yield`, inside ph_step, answered with a
+    // promise of the next task: the core suspends there, and the requests
+    // waiting run (ph_request, ph_frame, ...) before it goes on)
+    const event = unsigned((p: number, n: number): Promise<void> | undefined => {
+      const json = text(p, n);
+      if (json.includes('"yield"') && core!.yields()) return core!.suspend();
+      core!.heard({ t: "event", json });
+      return undefined;
+    });
     const inst = new WebAssembly.Instance(module, {
       wasi_snapshot_preview1: wasi(memory, (s) => o.log?.(s), o.env ?? []),
       // (each ask answered before it returns: the core waits for nothing)
@@ -237,15 +271,41 @@ export class Core {
           core!.giveStored(key, o.sync.stored(key));
         }),
         store_put: unsigned((p: number, n: number, b: number, m: number) => void core!.keep(text(p, n), new Uint8Array(memory.buffer).slice(b, b + m))),
-        event: unsigned((p: number, n: number) => core!.heard({ t: "event", json: text(p, n) })),
+        event: J ? new J.Suspending(event) : event,
         lsp: unsigned((p: number, n: number) => core!.heard({ t: "lsp", json: text(p, n) })),
       },
-    });
+    } as WebAssembly.Imports);
     // (no shared counter: Firefox has no SharedArrayBuffer here at all)
     const shared = { module, memory: inst.exports.memory as WebAssembly.Memory, ids: new ArrayBuffer(0) as unknown as SharedArrayBuffer, channel: "", env: o.env ?? [] };
     core = new Core(shared, inst, [], { ...o, spawn: () => {}, resolve: async (name) => o.sync.resolve(name) });
     core.single = true;
+    if (J) core.stepAsync = J.promising(core.x.ph_step);
     return core;
+  }
+
+  /** ph_step through JSPI (WebAssembly.promising), where the browser has it: a build may yield. */
+  private stepAsync?: () => Promise<number>;
+  /** Inside ph_step (entered through JSPI), and suspended at a `yield` in it (a task of the host's running meanwhile). */
+  private inStep = false;
+  private suspended = false;
+  /** What may not be called while a build is suspended (ph_provide: a figure given), done when the step ends. */
+  private afterStep: (() => void)[] = [];
+  private idleWaiters: (() => void)[] = [];
+
+  /** A `yield` heard now is the build's, inside a ph_step it may suspend (not one of a request made while suspended). */
+  private yields(): boolean {
+    return this.inStep && !this.suspended;
+  }
+
+  /** The build suspended until the next task: the requests waiting answered first. */
+  private suspend(): Promise<void> {
+    this.suspended = true;
+    return new Promise((ok) => setTimeout(() => ((this.suspended = false), ok()), 0));
+  }
+
+  /** Resolved when no step is under way (an open waits for it: the core refuses one mid-build). */
+  idle(): Promise<void> {
+    return this.inStep ? new Promise((ok) => this.idleWaiters.push(ok)) : Promise.resolve();
   }
 
   /** Single-threaded: the document stepped, a step a task, until nothing is asked. */
@@ -259,16 +319,28 @@ export class Core {
   private stepSoon(later = false): void {
     if (!this.single || this.stepping) return;
     this.stepping = true;
-    setTimeout(() => {
-      this.stepping = false;
+    setTimeout(async () => {
       // (a step's trap, thread 0's own: the core is gone, as a thread's trap;
       // thrown here it reached no one, the build waited for ever)
       let more = 0;
       try {
-        more = this.x.ph_step();
+        if (this.stepAsync) {
+          // (stepping stays set: a request mid-build asks for no step of its
+          // own, the core keeps its ask, and this step's answer says so)
+          this.inStep = true;
+          try {
+            more = await this.stepAsync();
+          } finally {
+            this.inStep = false;
+            for (const f of this.afterStep.splice(0)) f();
+            for (const f of this.idleWaiters.splice(0)) f();
+          }
+        } else more = this.x.ph_step();
       } catch (e) {
+        this.stepping = false;
         return this.o.trap?.(0, String((e as Error)?.stack ?? e));
       }
+      this.stepping = false;
       if (more) this.stepSoon(more === 2);
     }, later ? 20 : 0);
   }
@@ -286,6 +358,8 @@ export class Core {
       // downloads are this host's to tell (fetch's pack events), so a warm build's
       // packs read from this machine never say "Fetching packages")
       if (e.event === "progress" && e.phase === "fetching") return;
+      // (a build's yield with no JSPI to suspend on: the build goes on, nothing to tell)
+      if (e.event === "yield") return;
       for (const f of this.listeners) f(e);
     } else if (m.t === "lsp") {
       const v = JSON.parse(m.json);
@@ -433,6 +507,8 @@ export class Core {
 
   /** Gives the core a file (a project's, before the build asks for it), or says it is nowhere. */
   provide(name: string, f: { path: string; bytes: Uint8Array } | null): void {
+    // (a figure given while a build is suspended: after its step, the core takes none mid-build)
+    if (this.suspended) return void this.afterStep.push(() => this.provide(name, f));
     const enc = new TextEncoder();
     const [n, p] = [enc.encode(name), enc.encode(f?.path ?? "")];
     const d = f?.bytes ?? new Uint8Array();
@@ -452,6 +528,7 @@ export class Core {
   open(req: Open): void {
     const r = this.call((p, n) => this.x.ph_open(p, n), JSON.stringify(req));
     if (r === 3) throw new Error(new TextDecoder().decode(this.output()));
+    if (r === 4) throw new Error("ph_open: a build is under way (open after idle())");
     if (r !== 0) throw new Error(`ph_open: ${r}`);
     this.stepSoon();
   }
@@ -600,6 +677,8 @@ export class CoreSession implements CoreTransport {
     }
     if (req.op === "open") {
       const o = req as Extract<CoreReq, { op: "open" }> & Pick<Open, "latexmk" | "projectFiles">;
+      // (a build mid-step (a yield) refuses an open: after it)
+      await this.core.idle();
       try {
         for (const [name, text] of Object.entries(o.files)) if (name !== o.main) this.core.provide(name, { path: "./" + name, bytes: new TextEncoder().encode(text) });
         const text = o.files[o.main] ?? "";

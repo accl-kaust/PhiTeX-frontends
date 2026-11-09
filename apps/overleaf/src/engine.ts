@@ -43,10 +43,41 @@ addEventListener("message", async (e) => {
   // (the tab's one port: its frame's parent's, the first)
   if (taken || e.source !== parent || e.data !== "phitex-engine" || !port) return;
   taken = true;
-  const core = await coreWorker();
-  core.onmessage = (m) => port.postMessage(m.data, moved(m.data));
-  core.onerror = (err) => port.postMessage({ event: "console", item: { kind: "error", text: `core worker: ${err.message}` } });
-  port.onmessage = (m) => {
+  /**
+   * The core's worker, and what a new one is given again: the tab's hello
+   * and its figures. A worker that dies (its error event: out of memory, a
+   * crash) is said to the tab as a trap, the requests waiting on it
+   * answered with why, every later one too until an open starts a new
+   * worker. Before, they waited for ever, or a fresh core answered "no
+   * document open".
+   */
+  let hello: unknown;
+  const figures = new Map<string, unknown>();
+  const waiting = new Set<number>();
+  let dead: string | undefined;
+  const begin = async () => {
+    const w = await coreWorker();
+    w.onmessage = (m) => {
+      // (a replayed hello's or figure's reply: the tab had its own)
+      if (m.data?.id === -1) return;
+      if (typeof m.data?.id === "number") waiting.delete(m.data.id);
+      port.postMessage(m.data, moved(m.data));
+    };
+    w.onerror = (err) => {
+      port.postMessage({ event: "console", item: { kind: "error", text: `core worker: ${err.message}` } });
+      if (dead) return;
+      dead = `core trapped (worker): the engine's worker stopped (${err.message || "no reason given"})`;
+      w.terminate();
+      for (const id of waiting) port.postMessage({ id, ok: false, error: dead });
+      waiting.clear();
+      port.postMessage({ event: "trapped", error: dead });
+    };
+    if (hello) w.postMessage(hello);
+    for (const f of figures.values()) w.postMessage(f);
+    return w;
+  };
+  let core = await begin();
+  port.onmessage = async (m) => {
     const r = m.data;
     if (r.op === "latexdiff") {
       (diffRun ??= platform().asset("dist/diff.wasm").then(async (a) => loadDiff(await a.arrayBuffer()))).then(
@@ -55,6 +86,15 @@ addEventListener("message", async (e) => {
       );
       return;
     }
+    // (kept for a new worker: its replies to these go nowhere, the tab has had them)
+    if (r.op === "hello") hello = { ...r, id: -1 };
+    if (r.op === "binary") figures.set(r.file, { ...r, id: -1, bytes: (r.bytes as Uint8Array).slice() });
+    if (dead) {
+      if (r.op !== "open") return port.postMessage({ id: r.id, ok: false, error: dead });
+      dead = undefined;
+      core = await begin();
+    }
+    if (typeof r.id === "number" && r.id >= 0) waiting.add(r.id);
     core.postMessage(r, moved(r));
   };
   // (at most once a day; a newer index is read by the next core)

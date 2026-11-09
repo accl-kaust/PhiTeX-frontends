@@ -13,7 +13,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { Core, CoreSession, WASM_THREADS } from "../../../common/src/wasm/core.ts";
+import { Core, CoreSession, WASM_THREADS, lostReason } from "../../../common/src/wasm/core.ts";
 import { coreIndex, coreStore, pack, prefetch, texmfFile, type CoreIndex } from "../../../common/src/wasm/host.ts";
 import { mintedShell } from "../../../common/src/wasm/minted.ts";
 import { order } from "../../../common/src/shelf.ts";
@@ -43,6 +43,8 @@ function shellOf(root: string, log: (s: string) => void) {
 /** The core for the extension at `root`; `folder()`: the project shown, whose document keys are its own; `trapped`: told when a thread traps (the core is gone). */
 export async function startCore(root: string, folder: () => string, log: (s: string) => void, threads?: number, env?: string[], trapped?: (why: string) => void): Promise<{ core: Core; session: CoreSession; index: CoreIndex }> {
   const t0 = performance.now();
+  /** The core's end told (its `lost`, else its trap): once. */
+  let told = false;
   // (which Shelf host answers first, found while the core compiles)
   void order();
   const core = await Core.start(await WebAssembly.compile(await readFile(join(root, "dist/core.wasm"))), {
@@ -53,9 +55,16 @@ export async function startCore(root: string, folder: () => string, log: (s: str
     shell: shellOf(root, log),
     env,
     log,
+    // (the core about to abort says why first (`lost`): told once, not its trap after it)
+    event: (e: { event?: string; why?: string; message?: string }) => {
+      if (e.event !== "lost") return;
+      const why = lostReason(e, core.pages).replace(/^core trapped \(lost\): /, "");
+      log(`core lost (${e.why}): ${e.message ?? ""}`);
+      if (!told) (told = true), trapped?.(why);
+    },
     trap: (tid, error) => {
       log(`core trapped (thread ${tid}): ${error.split("\n")[0]}`);
-      trapped?.(error.split("\n")[0]);
+      if (!told) (told = true), trapped?.(error.split("\n")[0]);
     },
   });
   // (the engine's threads: the host's to say, wasm has no available_parallelism;

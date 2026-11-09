@@ -1382,10 +1382,14 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detache[dr])?\/?$/;
   // (Shelf's release, release.ts: an extension older than it needs asks for
   // an update, and its notice shows; both once per page, and it keeps working)
   let releaseShown = false;
-  // (the core's worker's own words, its failures: in the dev trace)
+  // (the core's worker's own words, its failures: in the dev trace, and
+  // its errors (what the engine wrote to stderr, why it stopped) in this
+  // tab's console, where a report reads them)
   transport.onEvent((e) => {
-    const c = e as unknown as { event: string; item?: { text?: string } };
-    if (c.event === "console") devMark(`core: ${c.item?.text}`);
+    const c = e as unknown as { event: string; item?: { kind?: string; text?: string } };
+    if (c.event !== "console") return;
+    devMark(`core: ${c.item?.text}`);
+    if (c.item?.kind === "error") console.warn("[phitex core]", c.item.text);
   });
   transport.onEvent((e) => {
     if (e.event !== "release" || !e.release || releaseShown) return;
@@ -1405,6 +1409,10 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detache[dr])?\/?$/;
     document.body.append(t);
     t.onclick = () => t.remove();
   });
+  // (the core gone (a trap, out of memory, its worker dead): the session
+  // asks at once, so the reason is said now (and it reopens, or stops on a
+  // document too large), not at whatever request came next)
+  transport.onEvent((e) => void ((e as { event?: string }).event === "trapped" && session?.resync()));
   transport.onGone(() => {
     const t = document.createElement("div");
     t.className = "popover bs-popover-top show phitex-toast";
