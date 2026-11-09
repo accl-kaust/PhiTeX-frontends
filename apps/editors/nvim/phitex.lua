@@ -169,7 +169,8 @@ local function start(buf)
   local file = vim.api.nvim_buf_get_name(buf)
   local id = vim.lsp.start({
     -- (the engine's settings: at the start, and when it asks)
-    init_options = vim.tbl_extend("force", PhitexSettings, { client = CLIENT }),
+    -- (phitexCursor: phitex/cursor is sent here, so a documentHighlight makes no second forward search)
+    init_options = vim.tbl_extend("force", PhitexSettings, { client = CLIENT, phitexCursor = true }),
     settings = { phitex = PhitexSettings },
     name = "phitex",
     cmd = { "phitex", "watch", "--lsp" },

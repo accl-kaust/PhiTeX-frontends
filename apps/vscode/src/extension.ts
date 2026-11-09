@@ -394,7 +394,8 @@ function clientOptions(folder: string, log: vscode.OutputChannel): LanguageClien
     workspaceFolder: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folder)),
     outputChannel: log,
     // (the engine's settings: at the start, and each change (workspace/configuration))
-    initializationOptions: { ...settings(), client: clientInfo },
+    // (phitexCursor: this client sends phitex/cursor, so the server's documentHighlight makes no forward search of its own: one a move, not two)
+    initializationOptions: { ...settings(), client: clientInfo, phitexCursor: true },
     synchronize: { configurationSection: "phitex" },
     // (never restarted behind the user's back: the watch's viewer's address would change
     // under the preview, the builtin's document is the preview's; an exit is said, with

@@ -210,7 +210,9 @@ one started for a chapter that found its main file a folder up."
                                             :capabilities '(:window (:showDocument (:support t) :workDoneProgress t)
                                                             :workspace (:configuration t)
                                                             :general (:positionEncodings ["utf-16"]))
-                                            :initializationOptions (append phitex-settings (list :client phitex--client)))))
+                                            ;; (:phitexCursor: phitex/cursor is sent here, so lsp-mode's or
+                                            ;; Eglot's documentHighlight makes no second forward search)
+                                            :initializationOptions (append phitex-settings (list :client phitex--client :phitexCursor t)))))
                (protocol (map-nested-elt init '(:capabilities :experimental :phitex :protocol))))
           ;; (a phitex older than this file's protocol: said, the watch kept)
           (unless (and (numberp protocol) (>= protocol phitex--protocol))
