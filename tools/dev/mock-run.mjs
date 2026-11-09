@@ -87,6 +87,14 @@ ws.addEventListener("message", (m) => {
   const d = JSON.parse(m.data);
   if (d.method === "Runtime.executionContextCreated") contexts.push(d.params.context);
   if (d.method === "Runtime.executionContextsCleared") contexts.length = 0;
+  // (a context gone without a clearing: the tab's first, about:blank, when
+  // this attaches before the project's page commits. Kept, it was found
+  // first, and every eval in the page answered nothing: the onboarding's
+  // reload skipped, a type step typed nowhere, the arm64 dry run's ci red)
+  if (d.method === "Runtime.executionContextDestroyed") {
+    const i = contexts.findIndex((c) => c.id === d.params.executionContextId);
+    if (i >= 0) contexts.splice(i, 1);
+  }
   if (d.method === "Runtime.exceptionThrown") events.push({ t: Date.now() - T0, k: "EXCEPTION", d: d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text });
   if (d.method === "Runtime.consoleAPICalled" && /error|warn/.test(d.params.type)) events.push({ t: Date.now() - T0, k: `console.${d.params.type}`, d: d.params.args.map((a) => a.value ?? a.description).join(" ") });
   pending.get(d.id)?.(d);
@@ -94,7 +102,9 @@ ws.addEventListener("message", (m) => {
 const call = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
 await call("Runtime.enable");
 const evalIn = async (expr, cs = false) => {
-  const find = () => (cs ? contexts.find((c) => c.auxData?.type === "isolated" && c.origin.startsWith("chrome-extension://")) : contexts.find((c) => c.auxData?.isDefault));
+  // (the tab's own frame (its id is the target's), not an iframe's (the
+  // engine's, Overleaf's PDF); the newest, a reload's)
+  const find = () => contexts.findLast((c) => c.auxData?.frameId === tab.id && (cs ? c.auxData?.type === "isolated" && c.origin.startsWith("chrome-extension://") : c.auxData?.isDefault));
   // (a context not there yet, or between a navigation's clearing and the new
   // page's: waited for, up to 5 s. Not waited for, a step's eval answered
   // undefined, and a type step typed nowhere: the release dry run's ci red,
@@ -103,6 +113,8 @@ const evalIn = async (expr, cs = false) => {
   for (let i = 0; !ctx && i < 50; i++) (await sleep(100), (ctx = find()));
   if (!ctx) return undefined;
   const r = await call("Runtime.evaluate", { expression: expr, contextId: ctx.id, awaitPromise: true, returnByValue: true });
+  // (the context gone under us: said, not an answer of nothing)
+  if (r.error) console.log(`eval: ${r.error.message} (${cs ? "content script" : "page"})`);
   return r.result?.result?.value;
 };
 // (a remote session building: its watch's build under way; its pkg.building is not cleared there)
@@ -268,14 +280,20 @@ try {
 // tour over the page in a fresh profile), then the project again
 {
   const version = JSON.parse(fs.readFileSync(path.join(root, "build/overleaf/manifest.json"), "utf8")).version;
-  for (let i = 0; i < 40 && !contexts.some((c) => c.auxData?.isDefault); i++) await sleep(250);
+  for (let i = 0; i < 40 && !contexts.some((c) => c.auxData?.frameId === tab.id && c.auxData?.isDefault); i++) await sleep(250);
   await sleep(1000);
   // (PHITEX_WORKERS=1: the one-worker start, to compare; else the two-worker start where it applies)
   // (each run from the same settings: the highlight and the page format as a
   // new user has them, then the scenario's own `storage` over the onboarded state)
-  for (let i = 0; i < 20 && !contexts.some((c) => c.auxData?.type === "isolated"); i++) await sleep(250);
+  for (let i = 0; i < 20 && !contexts.some((c) => c.auxData?.frameId === tab.id && c.auxData?.type === "isolated"); i++) await sleep(250);
   await evalIn(`chrome.storage.local.remove(["follow", "panel"])`, true);
-  if ((await evalIn(onboardScript(version, { workers: process.env.PHITEX_WORKERS === "1" ? 1 : 2, ...(sc.storage ?? {}) }))) === "onboarded") {
+  const onboard = await evalIn(onboardScript(version, { workers: process.env.PHITEX_WORKERS === "1" ? 1 : 2, ...(sc.storage ?? {}) }));
+  // (not onboarded, the run tests the welcome tip, not ⚡ Instant: a failure, said first)
+  if (onboard !== "onboarded") {
+    console.log(`onboarding: ${onboard ?? "the page did not answer"}`);
+    process.exitCode = 1;
+  }
+  if (onboard === "onboarded") {
     // (PHITEX_SLOWZIP=kbit/s: the mock sends the project's ZIP that slowly;
     // a screenshot every 300 ms until the first page, load-<ms>.png: the
     // loading card as a slow connection shows it)
