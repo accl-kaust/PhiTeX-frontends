@@ -283,7 +283,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     const started = (builtin = startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), settings().threads ?? availableParallelism(), undefined, (why) => {
       // (a trap: this core is gone, the next preview starts another; this one's pages kept, dimmed)
       if (builtin === started) builtin = undefined;
-      if (builtinView) disconnected(builtinView, `the builtin engine stopped: ${why}`);
+      if (builtinView) disconnected(builtinView, /[.!?]$/.test(why) ? why : `The built-in engine stopped (${why}).`);
       crashed(`the builtin engine stopped (${why}).`, log);
     }));
     // (its events, once per core: the status bar's)
@@ -622,7 +622,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
       // (stopped as asked, phitex.stop: its last phitex/status said so; else it exited by itself)
       if (status.state === "stopped") return void view.dispose();
       status.set({ state: "crashed" });
-      disconnected(view, "phitex watch exited");
+      disconnected(view, "phitex watch exited.");
       crashed("phitex watch exited.", log);
     }),
   );

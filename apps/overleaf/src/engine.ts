@@ -66,7 +66,7 @@ addEventListener("message", async (e) => {
     w.onerror = (err) => {
       port.postMessage({ event: "console", item: { kind: "error", text: `core worker: ${err.message}` } });
       if (dead) return;
-      dead = `core trapped (worker): the engine's worker stopped (${err.message || "no reason given"})`;
+      dead = `core trapped (worker): The engine crashed${err.message ? ` (${err.message})` : ""}.`;
       w.terminate();
       for (const id of waiting) port.postMessage({ id, ok: false, error: dead });
       waiting.clear();

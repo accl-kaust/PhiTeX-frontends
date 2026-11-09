@@ -60,13 +60,15 @@ test("a document that outgrows its size is told the size it got and what to clos
   assert.ok(outgrew("memory allocation of 496144 bytes failed\n"));
   assert.ok(!outgrew("panicked at src/lib.rs: index out of bounds"));
   const two = outgrownMessage(PAGES_INITIAL);
-  assert.match(two, /more than the 2 GiB of memory PhiTeX's engine got in this tab/);
-  assert.match(two, /other Overleaf tabs showing PhiTeX/);
+  assert.match(two, /needs more than the 2 GiB of memory PhiTeX got in this tab/);
+  assert.match(two, /Other Overleaf tabs using PhiTeX/);
   assert.match(two, /Close them/);
   assert.match(outgrownMessage(49152), /3 GiB/);
   const four = outgrownMessage(PAGES_MAX);
   assert.match(four, /4 GiB/);
-  assert.doesNotMatch(four, /other Overleaf tabs/);
+  assert.doesNotMatch(four, /Overleaf tabs/);
+  // (the viewer's session stops on these words, never restarting into the same wall)
+  for (const m of [two, four]) assert.match(m, /needs more than the [\d.]+ GiB of memory/);
 });
 
 // The real core (built by tools/build/build.sh): its size chosen on this

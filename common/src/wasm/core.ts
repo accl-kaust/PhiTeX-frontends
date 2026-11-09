@@ -150,7 +150,7 @@ let cores = 0;
  * reopening into the same wall). `pages`: the core's size (0: the most).
  */
 export function lostReason(e: { why?: string; message?: string }, pages = 0): string {
-  return `core trapped (lost): ${e.why === "memory" ? outgrownMessage(pages || PAGES_MAX) : (e.message ?? "the engine stopped")}`;
+  return `core trapped (lost): ${e.why === "memory" ? outgrownMessage(pages || PAGES_MAX) : (e.message ?? "The engine stopped.")}`;
 }
 
 /**

@@ -90,7 +90,7 @@ const FREEING_MS = 5000;
  * fit beside them.
  */
 const NO_MEMORY =
-  "Chrome refused the 2 GiB of memory PhiTeX's engine needs at least, most likely because other Overleaf tabs showing PhiTeX hold the rest of what Chrome allows the extension (8 GiB in all on a Linux computer with 16 GB of memory or less). Close one of them, or switch it to Overleaf's own PDF, then reload this one.";
+  "Chrome wouldn't give PhiTeX the 2 GiB of memory it needs, probably because other Overleaf tabs using PhiTeX are holding it. Close one of them or switch it to Overleaf's PDF, then reload this tab.";
 
 /** The core's size (pages), once started: what a document that outgrows it is told it had. */
 let pages = 0;

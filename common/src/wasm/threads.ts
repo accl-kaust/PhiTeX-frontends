@@ -98,8 +98,9 @@ export function outgrew(stderr: string): boolean {
 /** Why the core stopped when the document outgrew its `pages` (`chooseSize`'s): the size it got, and what to close. */
 export function outgrownMessage(pages: number): string {
   const n = gib(pages);
-  if (pages >= PAGES_MAX - SLACK) return `This document needs more than the ${n} GiB of memory PhiTeX's engine can have in the browser, the most it gets. Documents of more than about 300 pages do not build in the browser today: use phitex on your computer (or Overleaf's own PDF) for this one.`;
-  return `This document needs more than the ${n} GiB of memory PhiTeX's engine got in this tab: other Overleaf tabs showing PhiTeX hold the rest of what Chrome allows the extension (8 GiB in all on a Linux computer with 16 GB of memory or less). Close them, or switch them to Overleaf's own PDF, then reload this tab: it then gets 4 GiB.`;
+  // ("needs more than the N GiB of memory" is what the viewer's session knows these by: it stops, not restarts)
+  if (pages >= PAGES_MAX - SLACK) return `This document needs more than the ${n} GiB of memory PhiTeX can use in a browser. Use phitex on your computer for it, or switch to Overleaf's PDF.`;
+  return `This document needs more than the ${n} GiB of memory PhiTeX got in this tab. Other Overleaf tabs using PhiTeX are holding the rest. Close them or switch them to Overleaf's PDF, then reload this tab.`;
 }
 
 /** The core's imports on any thread: thread 0's `spawn` starts a worker, any other thread's asks thread 0 to. */
