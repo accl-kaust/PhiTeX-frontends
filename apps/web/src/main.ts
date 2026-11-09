@@ -246,7 +246,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   const panel = new Panel(
     {
       onPage: (p) => void shown()?.setPage(p),
-      onNeed: (k) => void shown()?.fetch(k),
+      // (the page's fetch: the viewer asks for a page once at a time, settled when it is drawn)
+      onNeed: (k) => shown()?.fetch(k),
       onPdf: () => void downloadPdf(),
       onMain: (m) => setMain(m),
       // (a file's text as the session has it, for Copy for an AI assistant)

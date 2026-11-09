@@ -115,7 +115,8 @@ const relay = new Relay();
 const panel = new Panel(
   {
     onPage: () => {},
-    onNeed: (k) => void shown().fetch(k),
+    // (the page's fetch: the viewer asks for a page once at a time, settled when it is drawn)
+    onNeed: (k) => shown().fetch(k),
     onPdf: () => up({ t: "pdf" }),
     onMain: () => {},
     onReload: () => void session.resync(),

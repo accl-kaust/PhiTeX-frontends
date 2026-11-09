@@ -163,13 +163,13 @@ export class WatchLink implements CoreTransport {
     // (the pages as strips, over the watch's HTTP: a page's frame, the strips' pixels)
     if (o.op === "frame") {
       const { page, scale, win } = req as { page?: number; scale: number; win?: number[] };
-      const r = await fetch(new URL(`frame/${page ?? 0}/${Math.round(scale * 1000)}${part(win)}`, this.base), { cache: "no-store" });
+      const r = await fetch(new URL(`frame/${page ?? 0}/${milli(scale)}${part(win)}`, this.base), { cache: "no-store" });
       return r.ok ? { ok: true, json: await r.json() } : { ok: false, error: `frame: ${r.status}` };
     }
     // (frame_with, as the core answers it: the frame, then the strips the viewer lacks, in one buffer)
     if (o.op === "frame_with") {
       const { page, scale, have, win } = req as { page?: number; scale: number; have: string[]; win?: number[] };
-      const r = await fetch(new URL(`frame/${page ?? 0}/${Math.round(scale * 1000)}${part(win)}`, this.base), { cache: "no-store" });
+      const r = await fetch(new URL(`frame/${page ?? 0}/${milli(scale)}${part(win)}`, this.base), { cache: "no-store" });
       if (!r.ok) return { ok: false, error: `frame: ${r.status}` };
       const f = (await r.json()) as { bands: [key: string, top: number, h: number, left: number, w: number][]; sent?: string[] };
       const held = new Set(have);
@@ -210,6 +210,15 @@ export class WatchLink implements CoreTransport {
 }
 
 /** A page's part in the watch's frame URL (`frame/K/S/L,T,R,B`; none: the whole page). */
+/**
+ * The watch's frame scale, thousandths of a pixel a point, to a ten-millionth
+ * (as PhiTeX's cli.ts asks it): rounded to a thousandth, a page's bitmap came
+ * a pixel and more off its box and was shown stretched.
+ */
+function milli(scale: number): string {
+  return (scale * 1000).toFixed(4);
+}
+
 function part(win?: number[]): string {
   return win ? `/${win.map((x) => x.toFixed(5)).join(",")}` : "";
 }
