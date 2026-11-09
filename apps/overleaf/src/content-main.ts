@@ -1422,15 +1422,18 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     const sink = gate(tee(panel, ch, () => mirrored), () => compare?.showing !== "diff");
     session = new PreviewSession(host, pages, sink, {
       ...opts,
-      // (a double-click's source: bytes of the file as the session has it,
-      // the editor put there)
+      // (a double-click's source, and text selected on the pages: bytes of
+      // the file as the session has it, the editor put there; a selection
+      // leaves the focus on the pages)
       remote: {
-        source: (file, start, end) => {
-          const t = session.text(file);
-          if (t !== undefined) window.postMessage({ src: "phitex-content", type: "gotoRange", file, from: charOffset(t, start), to: charOffset(t, end), focus: true }, location.origin);
-        },
+        source: (file, start, end) => sourceAt(file, start, end, true),
+        select: (file, start, end) => sourceAt(file, start, end, false),
       },
     });
+    const sourceAt = (file: string, start: number, end: number, focus: boolean) => {
+      const t = session.text(file);
+      if (t !== undefined) window.postMessage({ src: "phitex-content", type: "gotoRange", file, from: charOffset(t, start), to: charOffset(t, end), focus }, location.origin);
+    };
     (globalThis as any).__phitexSession = session; // (tests, devtools)
     // (a build in: its fetch round closed, as a build request's answer closes
     // it; the session's remote mode has none, so the last pack fetched
