@@ -17,7 +17,7 @@
 --
 -- Settings (docs/spec-editor-protocol.md §3.5), in PhitexSettings before
 -- this file runs, e.g. PhitexSettings = { threads = 4, follow = "selection" }:
--- threads (default: one per core), main ("paper.tex"), follow ("cursor": the
+-- threads (default: one), main ("paper.tex"), follow ("cursor": the
 -- words at the cursor marked on the page; "selection": only a selection's;
 -- "dblclick": nothing as you move).
 --

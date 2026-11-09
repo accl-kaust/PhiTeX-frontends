@@ -217,7 +217,7 @@ async function vscodeSettings(): Promise<SettingsGroup[]> {
         {
           id: "v-threads",
           label: "Threads",
-          help: "The builtin engine's, from the preview's next open (the watch's: phitex config threads). The output is the same at any count",
+          help: "From the preview's next open. Automatic: the builtin engine one per core (at most 4), phitex watch one. The output is the same at any count",
           kind: "select",
           options: [["0", `Automatic (at most ${Math.min(4, cores)})`], ...Array.from({ length: cores }, (_, i): [string, string] => [String(i + 1), String(i + 1)])],
           value: String(c.threads ?? 0),

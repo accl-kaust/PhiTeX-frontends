@@ -108,10 +108,14 @@ const ago = (iso: string | null) => {
   return s < 90 ? "used just now" : s < 5400 ? `used ${Math.round(s / 60)} min ago` : s < 129600 ? `used ${Math.round(s / 3600)} h ago` : `used ${Math.round(s / 86400)} days ago`;
 };
 
-/** The settings the engine takes (section "phitex": docs/spec-editor-protocol.md §3.5); threads 0, its default (a thread a core). */
+/**
+ * The settings the engine takes (section "phitex": docs/spec-editor-protocol.md §3.5).
+ * Threads 0: null, the server's default (one thread, PhiTeX 1.0); the builtin
+ * engine takes this machine's cores instead (at most 4: core.ts).
+ */
 const settings = () => {
   const c = vscode.workspace.getConfiguration("phitex");
-  const threads = c.get<number>("threads") || availableParallelism();
+  const threads = c.get<number>("threads") || null;
   return { threads, main: c.get<string>("main") || undefined, follow: c.get<string>("follow") ?? "cursor" };
 };
 
@@ -276,7 +280,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   // (the engine's threads: this machine's cores, as in the browser: overleaf/src/worker.ts)
   if (!builtin) {
     status.set({ state: "starting", engine: "wasm" });
-    const started = (builtin = startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), settings().threads, undefined, (why) => {
+    const started = (builtin = startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), settings().threads ?? availableParallelism(), undefined, (why) => {
       // (a trap: this core is gone, the next preview starts another; this one's pages kept, dimmed)
       if (builtin === started) builtin = undefined;
       if (builtinView) disconnected(builtinView, `the builtin engine stopped: ${why}`);

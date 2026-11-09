@@ -157,7 +157,7 @@
           "type": "integer",
           "default": 0,
           "minimum": 0,
-          "markdownDescription": "The builtin engine's threads. `0`: one per core of this machine, at most 4 (more are capped at 4 for now)."
+          "markdownDescription": "The engine's threads. `0`: the builtin engine one per core of this machine, at most 4 (more are capped at 4 for now); the watch (`phitex` on your PATH) one thread."
         },
         "phitex.follow": {
           "type": "string",
