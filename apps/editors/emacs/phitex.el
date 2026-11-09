@@ -1,5 +1,9 @@
 ;;; phitex.el --- PhiTeX's live preview: a minor mode on its own language server  -*- lexical-binding: t; -*-
 
+;; Version: 0.1.0
+;; Package-Requires: ((emacs "29.1"))
+;; URL: https://github.com/accl-kaust/PhiTeX-frontends
+
 ;; `phitex-mode': `phitex watch --lsp' as a TeX buffer's preview server,
 ;; spoken to directly through jsonrpc.el (Emacs 29+: the protocol layer
 ;; eglot itself is built on), so it runs beside whatever else serves the
