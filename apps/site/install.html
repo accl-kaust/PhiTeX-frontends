@@ -43,26 +43,27 @@
           <button type="button" role="tab" data-os="windows" aria-selected="false">Windows</button>
         </div>
         <div class="os-panel" data-os="unix" role="tabpanel">
-        <p class="lede">For Linux and macOS, on x86-64 and ARM. It puts <code>phitex</code> in <code>~/.local/bin</code>, checks it against the release's SHA-256 sums (and their minisign signature, if you have minisign), and touches nothing else.</p>
+        <p class="lede">Linux and macOS, on x86-64 and ARM.</p>
         <div class="cmd"><pre><code>curl -fsSL https://phitex.org/install.sh | sh</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
-        <p class="then">v1.0 is coming; until then, use the nightly build: dev's head, rebuilt each night once its checks pass, signed like releases.</p>
+        <p class="then">Or the nightly build:</p>
         <div class="cmd"><pre><code>curl -fsSL https://phitex.org/install.sh | PHITEX_CHANNEL=nightly sh</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
-        <p class="then"><code>phitex upgrade</code> then follows the nightly; run the installer without <code>PHITEX_CHANNEL</code> to go back to releases. Remove it by deleting <code>~/.local/bin/phitex</code>. Then, in your paper's folder:</p>
         </div>
         <div class="os-panel" data-os="windows" role="tabpanel" hidden>
-        <p class="lede">For Windows 10 and 11 on x86-64. In PowerShell, it puts <code>phitex.exe</code> in <code>%LOCALAPPDATA%\Programs\phitex</code>, adds that folder to your PATH, checks it against the release's SHA-256 sums, and touches nothing else.</p>
+        <p class="lede">Windows 10 and 11, on x86-64. In PowerShell:</p>
         <div class="cmd"><pre><code>irm https://phitex.org/install.ps1 | iex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
-        <p class="then">The nightly build instead: dev's head, rebuilt each night once its checks pass, signed like releases.</p>
+        <p class="then">Or the nightly build:</p>
         <div class="cmd"><pre><code>$env:PHITEX_CHANNEL = "nightly"; irm https://phitex.org/install.ps1 | iex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
-        <p class="then">Or download <a data-winzip href="#"><code>phitex-x86_64-windows.zip</code></a> and put <code>phitex.exe</code> anywhere on your PATH. Remove it by deleting that folder. Open a new terminal, then, in your paper's folder:</p>
         </div>
+        <p class="then">Then, in your paper's folder:</p>
         <div class="cmd"><pre><code>phitex watch paper.tex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
         <ul class="facts">
-          <li><b>Update</b><span><code>phitex upgrade</code>; <code>phitex news</code> says what it brings.</span></li>
-          <li><b>The PDF</b><span>kept in memory: <code>phitex watch</code> writes nothing into your folder. For <code>paper.pdf</code> (and its <code>.synctex</code>) on disk, <code>phitex watch --write paper.tex</code>, or <code>watch-write = true</code> in your own config.</span></li>
-          <li><b>Project files</b><span>a project's <code>phitex.toml</code> can't set <code>shell-escape</code>, <code>viewer</code>, <code>editor</code> or an output folder outside it. Those go in your own config or on the command line.</span></li>
-          <li data-nowin><b>Windows</b><span>not yet: build from <a data-repo href="#" target="_blank" rel="noopener">source</a>.</span></li>
-          <li><b>No install</b><span><a href="https://demo.phitex.org/" target="_blank" rel="noopener">try it in your browser&nbsp;↗</a>, or use <a href="#overleaf">Overleaf</a>.</span></li>
+          <li><b>Update</b><span><code>phitex upgrade</code></span></li>
+          <li><b>PDF file</b><span><code>phitex watch --write paper.tex</code></span></li>
+          <li data-os-only="unix"><b>Remove</b><span>delete <code>~/.local/bin/phitex</code></span></li>
+          <li data-os-only="windows" hidden><b>Remove</b><span>delete <code>%LOCALAPPDATA%\Programs\phitex</code></span></li>
+          <li data-os-only="windows" hidden><b>Download</b><span><a data-winzip href="#"><code>phitex-x86_64-windows.zip</code></a></span></li>
+          <li data-nowin><b>Windows</b><span>coming soon</span></li>
+          <li><b>No install</b><span><a href="https://demo.phitex.org/" target="_blank" rel="noopener">try it in your browser&nbsp;↗</a> or use <a href="#overleaf">Overleaf</a></span></li>
         </ul>
       </div>
     </section>

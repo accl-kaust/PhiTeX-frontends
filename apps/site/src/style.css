@@ -611,9 +611,15 @@ main { position: relative; }
 .install-hero .os-panel[data-os="windows"] .cmd pre::before { content: "PS> "; }
 .cmd .copy { position: absolute; top: 8px; right: 8px; padding: 5px 12px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--card); color: var(--muted); font: 600 12.5px var(--sans); cursor: pointer; }
 .cmd .copy:hover { color: var(--text); border-color: var(--accent); }
-.install-hero .then { margin: 28px 0 0; color: var(--muted); }
-.facts { list-style: none; padding: 0; margin: 36px auto 0; max-width: 720px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 32px; text-align: left; font-size: 15px; color: var(--muted); }
-.facts li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.install-hero .then { margin: 24px 0 0; color: var(--muted); font-style: normal; }
+/* (one column, labels in one line: two columns of uneven notes didn't line up) */
+.facts { list-style: none; padding: 0; margin: 32px auto 0; max-width: 520px; display: grid; gap: 8px; text-align: left; font-size: 15px; color: var(--muted); }
+.facts li { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 16px; align-items: baseline; }
+.facts li[hidden] { display: none; }
+.facts code { overflow-wrap: anywhere; }
+/* (a long command wraps, under the prompt, clear of the Copy button: it ran under the button) */
+.install-hero .cmd pre { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: calc(18px + 2ch); text-indent: -2ch; }
+.install-hero .os-panel[data-os="windows"] .cmd pre { padding-left: calc(18px + 4ch); text-indent: -4ch; }
 .facts b { color: var(--text); font-weight: 600; }
 .ed-picks { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 980px; margin: -24px auto 40px; }
 .ed-pick { display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--card); color: var(--text); font-weight: 600; font-size: 15px; transition: border-color .2s, transform .2s; }
@@ -641,7 +647,7 @@ main { position: relative; }
 .stores.small .ico { width: 26px; height: 26px; }
 .stores.small .lab span { display: none; }
 kbd { font: 12.5px var(--mono); padding: 1px 6px; border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 5px; background: var(--code-bg); }
-@media (max-width: 900px) { .setups { grid-template-columns: minmax(0, 1fr); } .facts { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .setups { grid-template-columns: minmax(0, 1fr); } }
 
 /* /install's title: "Get" and the PhiTeX logo (its stripes run below the line, as the Φ's foot does) */
 .install-title { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 28px; }

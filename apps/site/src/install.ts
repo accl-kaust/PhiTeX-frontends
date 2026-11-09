@@ -13,7 +13,7 @@ if (import.meta.env.VITE_WINDOWS === "1") {
   const tabs = $$<HTMLButtonElement>(".os-tabs [role=tab]");
   const show = (os: string) => {
     tabs.forEach((t) => t.setAttribute("aria-selected", String(t.dataset.os === os)));
-    $$<HTMLElement>(".os-panel").forEach((p) => (p.hidden = p.dataset.os !== os));
+    $$<HTMLElement>(".os-panel, [data-os-only]").forEach((p) => (p.hidden = (p.dataset.os ?? p.dataset.osOnly) !== os));
   };
   tabs.forEach((t) => t.addEventListener("click", () => show(t.dataset.os!)));
   $$(".os-tabs").forEach((e) => e.removeAttribute("hidden"));
