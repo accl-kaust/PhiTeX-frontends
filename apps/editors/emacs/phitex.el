@@ -112,7 +112,8 @@ cp \"$tmp/phitex\" \"$prefix/bin/.phitex.new\"; chmod 755 \"$prefix/bin/.phitex.
 data=${XDG_DATA_HOME:-$HOME/.local/share}/phitex; mkdir -p \"$data\"
 printf '{\"method\": \"script\", \"prefix\": \"%s\", \"asset\": \"%s\", \"channel\": \"%s\"}\\n' \"$prefix\" \"$asset\" \"$channel\" > \"$data/install.json\"
 "
-  "Downloads and checks a release: its arguments are the base, the key, the prefix and the channel.")
+  "Downloads and checks a release.
+Its arguments are the base, the key, the prefix and the channel.")
 
 (defvar phitex--install-declined nil "The download was declined in this Emacs: not asked again.")
 
@@ -134,7 +135,8 @@ printf '{\"method\": \"script\", \"prefix\": \"%s\", \"asset\": \"%s\", \"channe
     (message "PhiTeX: installed in %s/bin" prefix)))
 
 (defun phitex--ensure-binary ()
-  "A `phitex' to run: on `exec-path', in the install folder, or downloaded when the user agrees."
+  "A `phitex' to run.
+On `exec-path', in the install folder, or downloaded when the user agrees."
   (let ((name (car phitex-command))
         (bin (expand-file-name "bin" phitex-install-prefix)))
     (unless (executable-find name)
@@ -217,7 +219,7 @@ one started for a chapter that found its main file a folder up."
           ;; (a phitex older than this file's protocol: said, the watch kept)
           (unless (and (numberp protocol) (>= protocol phitex--protocol))
             (display-warning 'phitex
-                             (format "PhiTeX %s is older than this phitex.el needs: update phitex"
+                             (format "phitex %s is too old for this phitex.el.  Run `phitex upgrade' in a terminal, then M-x phitex-restart"
                                      (or (map-nested-elt init '(:serverInfo :version)) "(of an unknown version)"))
                              :error)))
         (jsonrpc-notify s :initialized (make-hash-table))

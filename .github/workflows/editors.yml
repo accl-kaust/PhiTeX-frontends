@@ -1,0 +1,38 @@
+# The editor plugins on the oldest editor each supports and the latest:
+# phitex.lua loads headless on Neovim (its guard: 0.11), phitex.el
+# byte-compiles with no warning and loads on each Emacs. The VS Code
+# extension's own check is ci.yml's TypeScript (its @types/vscode pinned to
+# engines.vscode, so a newer API fails it).
+name: editors
+on:
+  push:
+    paths: ["apps/editors/**", "test/editors/**", ".github/workflows/editors.yml"]
+  pull_request:
+    paths: ["apps/editors/**", "test/editors/**", ".github/workflows/editors.yml"]
+  workflow_dispatch:
+jobs:
+  neovim:
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [v0.11.0, stable]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.version }}
+      - run: nvim --headless -u NONE -l test/editors/nvim.lua
+  emacs:
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ["28.2", "29.4", "30.1"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.version }}
+      - run: emacs --batch -Q -l test/editors/emacs.el

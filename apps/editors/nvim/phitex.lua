@@ -34,6 +34,11 @@
 
 -- (once: a plugin manager's loader and a config's dofile may both run it)
 if vim.g.loaded_phitex then return end
+-- (the oldest Neovim it runs on, tested by CI (.github/workflows/editors.yml): older, said once, nothing set up)
+if vim.fn.has("nvim-0.11") == 0 then
+  vim.notify("PhiTeX needs Neovim 0.11 or later.", vim.log.levels.ERROR)
+  return
+end
 vim.g.loaded_phitex = true
 
 --- This file, as the server is told (initializationOptions.client: docs/spec-editor-protocol.md §1).
@@ -189,7 +194,7 @@ local function start(buf)
       local p = vim.tbl_get(result, "capabilities", "experimental", "phitex", "protocol")
       if type(p) ~= "number" or p < PROTOCOL then
         local v = vim.tbl_get(result, "serverInfo", "version") or "(of an unknown version)"
-        vim.schedule(function() vim.notify("PhiTeX: PhiTeX " .. v .. " is older than this editor's phitex.lua needs: update phitex.", vim.log.levels.ERROR) end)
+        vim.schedule(function() vim.notify("PhiTeX: phitex " .. v .. " is too old for this phitex.lua. Run `phitex upgrade` in a terminal, then :PhiTeXRestart.", vim.log.levels.ERROR) end)
       end
     end,
     on_exit = function(code, signal, client_id)

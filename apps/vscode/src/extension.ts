@@ -601,7 +601,17 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   // (a phitex older than this extension's protocol: said, the preview opened all the same)
   const init = client.initializeResult;
   if (!(Number(init?.capabilities.experimental?.phitex?.protocol) >= PROTOCOL)) {
-    void vscode.window.showErrorMessage(`PhiTeX: PhiTeX ${init?.serverInfo?.version ?? "(of an unknown version)"} is older than this extension needs: update phitex.`);
+    // (Upgrade: phitex upgrade in a terminal, where it asks before it installs; then PhiTeX: Restart)
+    void vscode.window
+      .showErrorMessage(`PhiTeX: phitex ${init?.serverInfo?.version ?? "(of an unknown version)"} is too old for this extension. Run \`phitex upgrade\`, then PhiTeX: Restart.`, "Upgrade")
+      .then((a) => {
+        if (a !== "Upgrade") return;
+        const t = vscode.window.createTerminal("phitex upgrade");
+        t.show();
+        // (quoted only with a space in its path: PowerShell runs a quoted path by `&`)
+        const run = /\s/.test(cmd) ? (process.platform === "win32" ? `& ${JSON.stringify(cmd)}` : JSON.stringify(cmd)) : cmd;
+        t.sendText(`${run} upgrade`);
+      });
   }
   const link = new WatchLink(page0);
   current = { folder, view, save: () => void savePdf(link, folder, main) };
