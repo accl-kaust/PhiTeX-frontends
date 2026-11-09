@@ -94,7 +94,13 @@ ws.addEventListener("message", (m) => {
 const call = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
 await call("Runtime.enable");
 const evalIn = async (expr, cs = false) => {
-  const ctx = cs ? contexts.find((c) => c.auxData?.type === "isolated" && c.origin.startsWith("chrome-extension://")) : contexts.find((c) => c.auxData?.isDefault);
+  const find = () => (cs ? contexts.find((c) => c.auxData?.type === "isolated" && c.origin.startsWith("chrome-extension://")) : contexts.find((c) => c.auxData?.isDefault));
+  // (a context not there yet, or between a navigation's clearing and the new
+  // page's: waited for, up to 5 s. Not waited for, a step's eval answered
+  // undefined, and a type step typed nowhere: the release dry run's ci red,
+  // its "Typedwords" never typed)
+  let ctx = find();
+  for (let i = 0; !ctx && i < 50; i++) (await sleep(100), (ctx = find()));
   if (!ctx) return undefined;
   const r = await call("Runtime.evaluate", { expression: expr, contextId: ctx.id, awaitPromise: true, returnByValue: true });
   return r.result?.result?.value;
@@ -372,9 +378,10 @@ for (const s of sc.steps ?? []) {
   const t = Date.now() - T0;
   if (s.type !== undefined) {
     const at = await evalIn(pos(s));
-    if (at < 0) {
+    // (no answer at all, the page's context gone, is a failure too: typed nowhere before)
+    if (typeof at !== "number" || at < 0) {
       // (the run goes on, so the trace is still written)
-      console.log(`step: anchor not found: ${JSON.stringify(s)}`);
+      console.log(`step: ${at === undefined ? "the editor did not answer" : "anchor not found"}: ${JSON.stringify(s)}`);
       steps.push({ t, k: "STEP FAILED", d: s });
       continue;
     }
