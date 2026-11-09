@@ -169,19 +169,59 @@ local function ensure_binary()
   return install()
 end
 
-local function start(buf)
-  if not ensure_binary() then return nil end
+--- The running watches, as `phitex sessions --json` lists them (one started in a
+--- terminal, any editor's): none with no phitex, or one too old to list them.
+local function sessions()
+  if vim.fn.executable("phitex") ~= 1 then return {} end
+  local ok, r = pcall(function() return vim.system({ "phitex", "sessions", "--json" }, { text = true }):wait(3000) end)
+  if not ok or r.code ~= 0 then return {} end
+  local fine, list = pcall(vim.json.decode, r.stdout or "")
+  return fine and type(list) == "table" and list or {}
+end
+
+--- The running watch for `file`: the one whose main file it is, else the deepest folder holding it.
+local function session_for(file)
+  local best
+  for _, s in ipairs(sessions()) do
+    local root, main = s.root, s.main
+    if type(root) == "string" and type(s.lsp) == "table" and (main == file or vim.startswith(file, root .. "/")) then
+      if main == file then return s end
+      if not best or #root > #best.root then best = s end
+    end
+  end
+  return best
+end
+
+--- Clients attached to a watch this Neovim did not start, by id.
+local attached = {}
+
+--- The buffer's watch: `mode` (vim.g.phitex_attach, "auto" by default) "auto"
+--- uses a running one whose folder holds the file (`phitex sessions`: one
+--- started in a terminal), else starts one; "always" only a running one;
+--- "never" always starts one.
+local function start(buf, mode)
+  mode = mode or vim.g.phitex_attach or "auto"
   local file = vim.api.nvim_buf_get_name(buf)
+  local session = mode ~= "never" and session_for(file) or nil
+  if mode == "always" and not session then
+    vim.notify("PhiTeX: no phitex watch is running for this file (phitex sessions lists them).", vim.log.levels.ERROR)
+    return nil
+  end
+  if not session and not ensure_binary() then return nil end
+  local init = vim.tbl_extend("force", PhitexSettings, { client = CLIENT, phitexCursor = true })
+  -- (a watch started elsewhere: its language server on 127.0.0.1, by its token)
+  if session then init.token = session.lsp.token end
   local id = vim.lsp.start({
     -- (the engine's settings: at the start, and when it asks)
     -- (phitexCursor: phitex/cursor is sent here, so a documentHighlight makes no second forward search)
-    init_options = vim.tbl_extend("force", PhitexSettings, { client = CLIENT, phitexCursor = true }),
+    init_options = init,
     settings = { phitex = PhitexSettings },
     name = "phitex",
-    cmd = { "phitex", "watch", "--lsp" },
+    cmd = session and vim.lsp.rpc.connect(session.lsp.host, session.lsp.port) or { "phitex", "watch", "--lsp" },
     -- (a project is phitex.toml's folder, else the file's own: a TeX
-    -- project often sits in a folder of a larger git repository)
-    root_dir = vim.fs.root(buf, { "phitex.toml" }) or vim.fs.dirname(vim.api.nvim_buf_get_name(buf)),
+    -- project often sits in a folder of a larger git repository; attached,
+    -- the watch's own)
+    root_dir = session and session.root or vim.fs.root(buf, { "phitex.toml" }) or vim.fs.dirname(vim.api.nvim_buf_get_name(buf)),
     -- init_options = { main = "paper.tex" },
     handlers = {
       ["phitex/status"] = function(_, s, ctx)
@@ -190,7 +230,11 @@ local function start(buf)
       end,
     },
     -- (a phitex older than this file's protocol: said, the watch kept)
-    on_init = function(_, result)
+    on_init = function(c, result)
+      if session then
+        attached[c.id] = true
+        vim.schedule(function() vim.notify(string.format("PhiTeX: attached to the watch of %s (pid %s).", session.main, session.pid)) end)
+      end
       local p = vim.tbl_get(result, "capabilities", "experimental", "phitex", "protocol")
       if type(p) ~= "number" or p < PROTOCOL then
         local v = vim.tbl_get(result, "serverInfo", "version") or "(of an unknown version)"
@@ -199,6 +243,12 @@ local function start(buf)
     end,
     on_exit = function(code, signal, client_id)
       status[client_id] = nil
+      -- (attached: the watch keeps running where it was started)
+      if attached[client_id] then
+        attached[client_id] = nil
+        vim.schedule(function() vim.notify("PhiTeX: detached from the watch (it keeps running where it was started).") end)
+        return
+      end
       -- (an exit not asked for: said, with how to start it again)
       if code ~= 0 or signal ~= 0 then
         vim.schedule(function() vim.notify(string.format("PhiTeX: phitex watch exited (code %d). :PhiTeXRestart starts it again.", code), vim.log.levels.ERROR) end)
@@ -273,6 +323,11 @@ vim.api.nvim_create_user_command("PhiTeXInstall", function() install() end, { de
 vim.api.nvim_create_user_command("PhiTeXViewer", function() exec("phitex.openViewer") end, { desc = "PhiTeX: open the pages in a browser" })
 vim.api.nvim_create_user_command("PhiTeXStop", function() exec("phitex.stop") end, { desc = "PhiTeX: stop the watch" })
 vim.api.nvim_create_user_command("PhiTeXRebuild", function() exec("phitex.rebuild") end, { desc = "PhiTeX: build again from scratch" })
+vim.api.nvim_create_user_command("PhiTeXAttach", function()
+  local buf = vim.api.nvim_get_current_buf()
+  for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf, name = "phitex" })) do c:stop() end
+  vim.defer_fn(function() start(buf, "always") end, 300)
+end, { desc = "PhiTeX: attach to a phitex watch already running for this file (one started in a terminal)" })
 vim.api.nvim_create_user_command("PhiTeXRestart", function()
   local buf = vim.api.nvim_get_current_buf()
   for _, c in ipairs(vim.lsp.get_clients({ name = "phitex" })) do c:stop() end

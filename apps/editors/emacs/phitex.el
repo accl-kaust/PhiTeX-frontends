@@ -195,22 +195,67 @@ See docs/spec-editor-protocol.md §1.")
              phitex--roots)
     best))
 
-(defun phitex--connect (root)
+(defcustom phitex-attach 'auto
+  "Whether `phitex-mode' uses a `phitex watch' already running.
+`auto': the watch whose folder holds the file (as `phitex sessions'
+lists them: one started in a terminal), else one started here.
+`always': only a running watch.  `never': always one started here."
+  :type '(choice (const auto) (const always) (const never))
+  :group 'phitex)
+
+(defvar phitex--attached (make-hash-table :test #'eq)
+  "The servers attached to a watch this Emacs did not start.")
+
+(defun phitex--sessions ()
+  "The running watches, as `phitex sessions --json' lists them.
+None with no phitex, or one too old to list them."
+  (when (executable-find (car phitex-command))
+    (with-temp-buffer
+      (when (eq 0 (ignore-errors (call-process (car phitex-command) nil '(t nil) nil "sessions" "--json")))
+        (goto-char (point-min))
+        (ignore-errors (json-parse-buffer :object-type 'plist :array-type 'list :null-object nil))))))
+
+(defun phitex--session-for (file)
+  "The running watch for FILE.
+The one whose main file it is, else the deepest folder holding it."
+  (let ((file (expand-file-name file)) best)
+    (dolist (s (phitex--sessions))
+      (let ((root (plist-get s :root)) (main (plist-get s :main)))
+        (when (and (stringp root) (plist-get s :lsp)
+                   (or (equal main file) (string-prefix-p (file-name-as-directory root) file))
+                   (not (equal (plist-get best :main) file))
+                   (or (null best) (equal main file) (> (length root) (length (plist-get best :root)))))
+          (setq best s))))
+    best))
+
+(defun phitex--connect (root &optional mode)
   "The server of the project at ROOT, started if none.
 A watch already running for the folder of this buffer's file is used:
-one started for a chapter that found its main file a folder up."
+one started for a chapter that found its main file a folder up, or (by
+`phitex-attach', or MODE) one started in a terminal (`phitex sessions')."
   (or (let ((s (gethash root phitex--servers))) (and s (jsonrpc-running-p s) s))
       (and buffer-file-name (phitex--serving buffer-file-name))
-      (let* ((default-directory root)
-             (_ (phitex--ensure-binary))
-             (proc (make-process :name "phitex" :command phitex-command :connection-type 'pipe
-                                 :coding 'utf-8-emacs-unix :noquery t
-                                 :stderr (get-buffer-create "*phitex stderr*")))
+      (let* ((mode (or mode phitex-attach))
+             (session (and (not (eq mode 'never)) buffer-file-name (phitex--session-for buffer-file-name)))
+             (_ (when (and (eq mode 'always) (not session))
+                  (user-error "PhiTeX: no phitex watch is running for this file (phitex sessions lists them)")))
+             (root (if session (plist-get session :root) root))
+             (lsp (plist-get session :lsp))
+             (proc (if session
+                       ;; (a watch started elsewhere: its language server on 127.0.0.1, by its token)
+                       (make-network-process :name "phitex" :host (plist-get lsp :host) :service (plist-get lsp :port)
+                                             :coding 'utf-8-emacs-unix :noquery t)
+                     (let ((default-directory root))
+                       (phitex--ensure-binary)
+                       (make-process :name "phitex" :command phitex-command :connection-type 'pipe
+                                     :coding 'utf-8-emacs-unix :noquery t
+                                     :stderr (get-buffer-create "*phitex stderr*")))))
              (s (make-instance 'jsonrpc-process-connection :name (format "phitex %s" root) :process proc
                                :request-dispatcher #'phitex--request
                                :notification-dispatcher #'phitex--notification
                                :on-shutdown (lambda (s) (phitex--ended s root)))))
         (puthash root s phitex--servers)
+        (when session (puthash s t phitex--attached))
         (let* ((init (jsonrpc-request s :initialize
                                       (list :processId (emacs-pid) :rootUri (phitex--uri root)
                                             :capabilities '(:window (:showDocument (:support t) :workDoneProgress t)
@@ -218,7 +263,8 @@ one started for a chapter that found its main file a folder up."
                                                             :general (:positionEncodings ["utf-16"]))
                                             ;; (:phitexCursor: phitex/cursor is sent here, so lsp-mode's or
                                             ;; Eglot's documentHighlight makes no second forward search)
-                                            :initializationOptions (append phitex-settings (list :client phitex--client :phitexCursor t)))))
+                                            :initializationOptions (append phitex-settings (list :client phitex--client :phitexCursor t)
+                                                                           (and lsp (list :token (plist-get lsp :token)))))))
                (protocol (map-nested-elt init '(:capabilities :experimental :phitex :protocol))))
           ;; (a phitex older than this file's protocol: said, the watch kept)
           (unless (and (numberp protocol) (>= protocol phitex--protocol))
@@ -227,6 +273,7 @@ one started for a chapter that found its main file a folder up."
                                      (or (map-nested-elt init '(:serverInfo :version)) "(of an unknown version)"))
                              :error)))
         (jsonrpc-notify s :initialized (make-hash-table))
+        (when session (message "PhiTeX: attached to the watch of %s (pid %s)" (plist-get session :main) (plist-get session :pid)))
         s)))
 
 (defun phitex--ended (server root)
@@ -235,8 +282,11 @@ one started for a chapter that found its main file a folder up."
   (remhash server phitex--roots)
   (dolist (b (phitex--buffers server))
     (with-current-buffer b (setq phitex--server nil)))
-  (unless (equal (plist-get phitex--status :state) "stopped")
-    (message "PhiTeX: phitex watch exited (M-x phitex-restart starts it again)"))
+  (cond ((gethash server phitex--attached)
+         (remhash server phitex--attached)
+         (message "PhiTeX: detached from the watch in %s (it keeps running where it was started)" root))
+        ((not (equal (plist-get phitex--status :state) "stopped"))
+         (message "PhiTeX: phitex watch exited (M-x phitex-restart starts it again)")))
   (setq phitex--status nil)
   (force-mode-line-update t))
 
@@ -446,6 +496,15 @@ Its own language server, beside any other the buffer has."
   "Stop the watch."
   (interactive)
   (phitex--exec "phitex.stop"))
+
+(defun phitex-attach ()
+  "Attach this buffer to a `phitex watch' already running for its file.
+One started in a terminal, as `phitex sessions' lists them."
+  (interactive)
+  (when (and phitex--server (jsonrpc-running-p phitex--server))
+    (jsonrpc-shutdown phitex--server))
+  (setq phitex--server (phitex--connect (phitex--root) 'always))
+  (unless phitex-mode (phitex-mode 1)))
 
 (defun phitex-restart ()
   "Start the watch again."

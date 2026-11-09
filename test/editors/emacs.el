@@ -6,6 +6,6 @@
 (let ((src (expand-file-name "apps/editors/emacs/phitex.el")))
   (unless (byte-compile-file src) (error "phitex.el did not byte-compile"))
   (load (concat src "c") nil t))
-(dolist (f '(phitex-mode))
+(dolist (f '(phitex-mode phitex-attach))
   (unless (fboundp f) (error "%s is not defined" f)))
 (message "phitex.el loads on Emacs %s" emacs-version)

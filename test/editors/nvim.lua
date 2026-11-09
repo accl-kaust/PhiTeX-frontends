@@ -4,7 +4,7 @@
 vim.opt.rtp:prepend(vim.fn.getcwd() .. "/apps/editors/nvim")
 local ok, err = pcall(vim.cmd, "runtime! plugin/phitex.lua")
 assert(ok, err)
-for _, c in ipairs({ "PhiTeXInstall", "PhiTeXViewer", "PhiTeXStop", "PhiTeXRebuild", "PhiTeXRestart", "PhiTeXSavePdf", "PhiTeXCaches", "PhiTeXClearCache" }) do
+for _, c in ipairs({ "PhiTeXInstall", "PhiTeXViewer", "PhiTeXStop", "PhiTeXRebuild", "PhiTeXRestart", "PhiTeXAttach", "PhiTeXSavePdf", "PhiTeXCaches", "PhiTeXClearCache" }) do
   assert(vim.fn.exists(":" .. c) == 2, "no :" .. c)
 end
 print("phitex.lua loads on Neovim " .. tostring(vim.version()))
