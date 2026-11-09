@@ -23,7 +23,7 @@ import { Compare, gate, LATEXDIFF_LOOK } from "./common/viewer/compare.ts";
 import { SUPPORT, unseen, type News } from "./news.ts";
 import { Panel, type DiffLook, type PanelPrefs, type Prefs, type SettingRow, type SettingsGroup, type ViewPrefs, type ViewState } from "./common/viewer/panel.ts";
 import { resetAll } from "./settings.ts";
-import { channel, follow, tee, type Ask } from "./mirror.ts";
+import { answer, channel, follow, mirrorOut, remoteCore, tee, type Ask } from "./mirror.ts";
 import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
 import { StripPages } from "./common/strippages.ts";
 
@@ -33,7 +33,7 @@ const prefs: Prefs = {
   save: (p) => void chrome.storage.local.set({ panel: p }),
 };
 
-const project = () => location.pathname.replace(/\/$/, "").replace(/\/detached$/, "");
+const project = () => location.pathname.replace(/\/$/, "").replace(/\/detache[dr]$/, "");
 /** Overleaf's "Open PDF in separate tab": this tab mirrors the editor's (mirror.ts). */
 /**
  * fetch as the page (its cookies, its origin): Firefox's content scripts
@@ -51,6 +51,8 @@ const pageFetch: typeof fetch = (u, o) => {
 };
 
 const DETACHED = /^\/project\/[0-9a-f]{24}\/detached\/?$/.test(location.pathname);
+/** The editor tab while its PDF is in a separate tab (Overleaf's /detacher, pushed when the PDF is opened in another tab, loaded so when reloaded): it never floats a preview, the PDF tab shows it. */
+const detacher = () => /\/detacher\/?$/.test(location.pathname);
 
 // (debug scripts, on the local mock only, never overleaf.com: the storage
 // as after the onboarding, so no run clicks through the terms and the tour;
@@ -942,7 +944,7 @@ function dockInOverleaf(panel: Panel): Dock {
     if (!pane || !left || !right) {
       // (Overleaf renders its layout late: wait for it before falling back to the window)
       if (performance.now() - started < FALLBACK_AFTER_MS) return;
-      if (mirrored || DETACHED) return panel.shown(false);
+      if (mirrored || DETACHED || detacher()) return panel.shown(false);
       panel.dock(null);
       panel.shown(true);
       document.getElementById("phitex-tip")?.remove();
@@ -1043,7 +1045,7 @@ function dockInOverleaf(panel: Panel): Dock {
 }
 
 /** Only Overleaf's editor (/project/<24 hex id>), not its other pages under /project/. */
-const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
+const EDITOR = /^\/project\/[0-9a-f]{24}(\/detache[dr])?\/?$/;
 
 (async () => {
   if (!EDITOR.test(location.pathname) && !location.hostname.startsWith("localhost")) return;
@@ -1214,7 +1216,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
         // (the diff's pages as strips too, composed here)
         return new StripPages(t, panel, panel.stripsChip());
       },
-      sink: (on) => gate(tee(panel, ch, () => mirrored), on, ["goto"]),
+      sink: (on) => gate(tee(panel, mirrorOut(ch), () => mirrored), on, ["goto"]),
       goto: (file, from, to) => window.postMessage({ src: "phitex-content", type: "gotoRange", file, from, to, focus: false }, location.origin),
       save(bytes, type, name) {
         const url = URL.createObjectURL(new Blob([bytes], { type }));
@@ -1253,7 +1255,13 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   });
   /** The session: the core connected, the project loaded, closed docs followed. */
   async function go(): Promise<void> {
-  if (DETACHED) return follow(ch, panel);
+  if (DETACHED) {
+    // (its pages drawn here, at this tab's zoom, from the editor tab's core's strips)
+    const own = new StripPages(remoteCore(ch), panel, panel.stripsChip());
+    pages = own;
+    (globalThis as any).__phitexPages = own; // (tests, devtools)
+    return follow(ch, panel, (k) => own.request({ op: "png", page: k }));
+  }
   // (the detached tab's asks; what the session tells the panel goes there too)
   ch.addEventListener("message", (e: MessageEvent<Ask>) => {
     const a = e.data;
@@ -1266,6 +1274,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
     if (a.t === "page") void session?.setPage(a.k);
     if (a.t === "sync") void session?.toSource(a.k, a.x, a.y);
     if (a.t === "goto") window.postMessage({ src: "phitex-content", type: "goto", file: a.file, line: a.line }, location.origin);
+    if (a.t === "core") void answer(ch, a, pages);
   });
   // (when the page highlights the editor's place: "cursor" as it moves,
   // "select" what is selected, "dblclick" only on a double-click; the popup's)
@@ -1358,7 +1367,18 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
   const transport = new FrameTransport();
   // (the pages as strips: the core draws them, this tab composes them; MuPDF
   // can't run here, overleaf.com's policy forbids the tab WebAssembly)
-  pages = new StripPages(transport, panel, panel.stripsChip());
+  // (a detached tab draws its own pages from this core's strips: this tab's
+  // own, its panel off screen, drawn small, not at the zoom over again)
+  const offScreen = () => mirrored && !document.querySelector("phitex-preview")?.checkVisibility();
+  pages = new StripPages(
+    transport,
+    {
+      pixelsPerPoint: () => (offScreen() ? 0.25 : panel.pixelsPerPoint()),
+      pageView: (k) => (offScreen() ? null : panel.pageView(k)),
+      painted: (ms) => panel.painted(ms),
+    },
+    panel.stripsChip(),
+  );
   // (Shelf's release, release.ts: an extension older than it needs asks for
   // an update, and its notice shows; both once per page, and it keeps working)
   let releaseShown = false;
@@ -1419,7 +1439,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detached)?\/?$/;
       // (a XeLaTeX project: approximated with pdfLaTeX, unless chosen for it)
       shims: async (main) => (projectEngine || !approximable(main) ? null : shimTexts((p) => platform().asset(p))),
     };
-    const sink = gate(tee(panel, ch, () => mirrored), () => compare?.showing !== "diff");
+    const sink = gate(tee(panel, mirrorOut(ch), () => mirrored), () => compare?.showing !== "diff");
     session = new PreviewSession(host, pages, sink, {
       ...opts,
       // (a double-click's source, and text selected on the pages: bytes of
