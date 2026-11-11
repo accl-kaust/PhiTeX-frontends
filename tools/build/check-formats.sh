@@ -11,7 +11,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 formats=$1
 shift
-doc() { case $1 in pdflatex) echo test/scenarios/live/main.tex ;; xelatex) echo test/scenarios/fontspec/main.tex ;; esac; }
+doc() { case $1 in pdflatex) echo test/scenarios/live/main.tex ;; xelatex) echo test/scenarios/fontspec/main.tex ;; pdftex) echo test/formats/pdftex/main.tex ;; xetex) echo test/formats/xetex/main.tex ;; esac; }
 n=0
 for f in "$formats"/*.gzdata; do
   name=$(basename "$f" .gzdata)

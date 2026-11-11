@@ -66,12 +66,15 @@ done
 # the list is always the one these files make; its packs from Shelf, by its
 # Pages address, which every network reaches)
 # (each engine's first build from the document its format was made from or
-# with: pdfLaTeX the article sample, XeLaTeX make-formats.sh's fontspec one)
+# with: pdfLaTeX the article sample, XeLaTeX make-formats.sh's fontspec one,
+# pdfTeX and XeTeX make-formats.sh's plain ones)
 while read -r stem; do
   engine=${stem%%-*}
   case $engine in
     pdflatex) doc=apps/web/samples/article/main.tex ;;
     xelatex) doc=test/scenarios/fontspec/main.tex ;;
+    pdftex) doc=test/formats/pdftex/main.tex ;;
+    xetex) doc=test/formats/xetex/main.tex ;;
     *) echo "no first build to record for $engine's format" >&2; exit 1 ;;
   esac
   st=apps/web/build/names-store
@@ -80,7 +83,8 @@ while read -r stem; do
   gunzip -c "$assets/formats/$stem.gzdata" > "$st/format%2F$stem"
   "${sandbox[@]}" --net env SHELF_URL="${SHELF_URL:-https://shelf-phitex-v1.pages.dev/tl2026/}" node test/harness/core-run.ts "$doc" --engine "$engine" \
     --wasm build/web/dist/core.wasm --store "$st" --texmf build/web/texmf --names "build/web/formats/$stem.texmf.txt" | grep '^built'
-  [ -s "build/web/formats/$stem.texmf.txt" ] || { echo "no shelf/texmf/ files recorded for $stem" >&2; exit 1; }
+  # (recorded, even empty: a plain format's first build reads none of shelf/texmf/'s LaTeX files)
+  [ -e "build/web/formats/$stem.texmf.txt" ] || { echo "no shelf/texmf/ list recorded for $stem" >&2; exit 1; }
 done < build/web/formats/list.txt
 cp "$assets"/shelf-index.tsv.gzdata "$assets"/shelf-packs.tsv.gzdata "$assets"/shelf-release.json build/web/
 cp "$assets"/LICENSE.txt "$assets"/NOTICE.txt build/web/ 2>/dev/null || true

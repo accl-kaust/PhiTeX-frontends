@@ -17,7 +17,7 @@
 
 import "./platform.ts";
 import { platform } from "./common/platform.ts";
-import { Core, CoreSession, lostReason } from "./common/wasm/core.ts";
+import { Core, CoreSession, engineFor, lostReason } from "./common/wasm/core.ts";
 import { PAGES_MAX, outgrew, outgrownMessage } from "./common/wasm/threads.ts";
 import { coreIndex, packsOf, pack } from "./common/wasm/host.ts";
 import { order, shipped } from "./common/shelf.ts";
@@ -52,20 +52,25 @@ function readNow(url: string): Uint8Array | null {
   return x.status === 200 && x.response ? new Uint8Array(x.response as ArrayBuffer) : null;
 }
 
-/**
- * The formats shipped (formats/names.txt, build.sh: each NAME's
- * NAME.gzdata), as the store's `format/NAME`, read before the core starts: without them a first
- * open makes the format here, every language's patterns fetched for it.
- */
-async function shippedFormats(): Promise<Map<string, Uint8Array>> {
+/** The formats shipped (formats/names.txt, build.sh), by name: read at the start, each unpacked only at its engine's first open (formatsFor). */
+async function shippedNames(): Promise<string[]> {
   const r = await fetch(at("formats/names.txt"));
   if (!r.ok) throw new Error(`formats/names.txt: ${r.status} (tools/build/build.sh writes it)`);
+  return (await r.text()).split("\n").filter(Boolean);
+}
+let names: string[] = [];
+
+/**
+ * `engine`'s shipped formats (NAME.gzdata, its names starting with the
+ * engine's), gunzipped into `formats` as the store's `format/NAME`, before
+ * its first open asks for them (the core's `stored` answers at once):
+ * without them that open makes the format here, every language's patterns
+ * fetched for it. Only the engine opened: four formats (XeTeX's alone
+ * 12 MB packed) unpacked in every tab's engine was memory few documents use.
+ */
+async function formatsFor(engine: string): Promise<void> {
   const gz = async (p: string) => new Uint8Array(await new Response((await fetch(at(p))).body!.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
-  const out = new Map<string, Uint8Array>();
-  for (const n of (await r.text()).split("\n").filter(Boolean)) {
-    out.set(`format/${n}`, await gz(`formats/${n}.gzdata`));
-  }
-  return out;
+  for (const n of names.filter((n) => n.startsWith(`${engine}-`) && !formats.has(`format/${n}`))) formats.set(`format/${n}`, await gz(`formats/${n}.gzdata`));
 }
 
 /** The packs a warm build on `engine`'s shipped formats reads (formats/NAME.packs.txt), by id. */
@@ -83,8 +88,8 @@ const ready = new Map<string, Uint8Array>();
 let kept = new Map<string, Uint8Array>();
 let hosts: string[] = [];
 let ours = new Set<string>();
-/** The formats the extension ships, gunzipped: a format kept nowhere is read from them (the core's `stored` asks at once). */
-let formats = new Map<string, Uint8Array>();
+/** The formats the extension ships, gunzipped, those of the engines opened so far: a format kept nowhere is read from them (the core's `stored` asks at once). */
+const formats = new Map<string, Uint8Array>();
 /** minted's runner, loaded at the open of a project that uses it. */
 let minted: Promise<Runner> | undefined;
 let runner: Runner | undefined;
@@ -98,7 +103,7 @@ const index = coreIndex();
 
 async function start(): Promise<{ core: Core; session: CoreSession }> {
   const t0 = performance.now();
-  [kept, hosts, ours, formats] = await Promise.all([platform().kv.all<Uint8Array>(KV), order(), shipped(), shippedFormats()]);
+  [kept, hosts, ours, names] = await Promise.all([platform().kv.all<Uint8Array>(KV), order(), shipped(), shippedNames()]);
   const core = Core.startSingle(await module, {
     sync: {
       resolve: (name) => {
@@ -196,7 +201,10 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
     const { core, session } = await (started ??= start());
     // (the packs the project loads, fetched before it opens: all at once, from this browser or Shelf)
     if (m.op === "open") {
-      const engine = String(m.engine ?? "pdflatex");
+      // (the engine the core is opened with: a plain document's plain one, as CoreSession decides)
+      const engine = engineFor(((m.files ?? {}) as Record<string, string>)[String(m.main)] ?? "", String(m.engine ?? "pdflatex")) ?? "pdflatex";
+      // (its shipped format unpacked now, while the packs below are fetched: the core asks for it as the open starts)
+      const unpacked = formatsFor(engine);
       const ids = packsOf(await index, (m.files ?? {}) as Record<string, string>, engine);
       // (and those of the packs a warm build on the engine's shipped format
       // reads (make-formats.sh's formats/NAME.packs.txt) kept in this browser:
@@ -218,7 +226,7 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
       };
       // (the figures' paths too, for a latexmkrc's TEXINPUTS folders: the tab sends the texts')
       if (Array.isArray(m.projectFiles)) m.projectFiles = [...new Set([...(m.projectFiles as string[]), ...binaries.keys()])];
-      await Promise.all([...[...ids].map(early), minted?.then((r) => void (runner = r), (e) => (say("error", `minted: ${e}`), (mintedFailed = String(e))))]);
+      await Promise.all([unpacked, ...[...ids].map(early), minted?.then((r) => void (runner = r), (e) => (say("error", `minted: ${e}`), (mintedFailed = String(e))))]);
     }
     const r = (await session.request(m as never)) as { bytes?: Uint8Array };
     if (r.bytes) return (self as unknown as Worker).postMessage({ ...r, id: m.id }, [r.bytes.buffer as ArrayBuffer]);

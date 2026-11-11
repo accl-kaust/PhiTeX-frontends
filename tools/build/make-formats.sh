@@ -4,7 +4,9 @@
 # and its package loads' records, made by CORE_WASM itself, on Node, from a
 # cold build of a small document (test/harness/core-run.ts --cold --store): an
 # amsmath article for pdfLaTeX, a fontspec article for XeLaTeX
-# (test/scenarios/fontspec/main.tex). The store's `format/NAME` is shipped
+# (test/scenarios/fontspec/main.tex), plain TeX for pdfTeX and plain XeTeX
+# for XeTeX (test/formats/: so a plain document's first open never makes its
+# format in the browser either, whatever Shelf serves). The store's `format/NAME` is shipped
 # as NAME.gzdata (its package loads' records, `format/NAME/pkgrecs/HASH`,
 # are hints the core makes again: not shipped); and
 # NAME.packs.txt, the packs a warm build of the document fetched on that
@@ -41,4 +43,6 @@ make() {
 }
 make pdflatex test/scenarios/live/main.tex
 make xelatex test/scenarios/fontspec/main.tex
+make pdftex test/formats/pdftex/main.tex
+make xetex test/formats/xetex/main.tex
 ls -la "$out"

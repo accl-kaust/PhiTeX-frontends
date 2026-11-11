@@ -681,7 +681,7 @@ export class CoreSession implements CoreTransport {
       try {
         for (const [name, text] of Object.entries(o.files)) if (name !== o.main) this.core.provide(name, { path: "./" + name, bytes: new TextEncoder().encode(text) });
         const text = o.files[o.main] ?? "";
-        this.core.open({ ...this.opts, main: o.main, text, engine: plainTeX(text) ? "pdftex" : (o.engine ?? this.opts.engine), latexmk: o.latexmk, projectFiles: o.projectFiles });
+        this.core.open({ ...this.opts, main: o.main, text, engine: engineFor(text, o.engine ?? this.opts.engine), latexmk: o.latexmk, projectFiles: o.projectFiles });
       } catch (e) {
         return { ok: false, error: String(e) };
       }
@@ -700,8 +700,20 @@ export class CoreSession implements CoreTransport {
 }
 
 /**
- * A plain TeX document (no \documentclass, ends with \bye): pdfTeX's plain
- * format, not LaTeX's (the viewer's engines are LaTeX's only).
+ * The engine a document is built with: `engine` (the host's: Overleaf's
+ * compiler, VS Code's setting), or, for a plain TeX document, its plain
+ * engine: XeTeX under XeLaTeX, pdfTeX under any other (the viewer's
+ * engines are LaTeX's only). The worker unpacks that engine's shipped
+ * format before the open (worker1.ts), so both ask here.
+ */
+export function engineFor(text: string, engine?: string): string | undefined {
+  if (!plainTeX(text)) return engine;
+  return engine === "xelatex" || engine === "xetex" ? "xetex" : "pdftex";
+}
+
+/**
+ * A plain TeX document (no \documentclass, ends with \bye): a plain
+ * format's, not LaTeX's.
  */
 function plainTeX(text: string): boolean {
   const body = text.replace(/(^|[^\\])%.*$/gm, "$1");
