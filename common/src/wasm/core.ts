@@ -226,15 +226,15 @@ export class Core {
     const text = (p: number, n: number) => new TextDecoder().decode(new Uint8Array(memory.buffer).slice(p, p + n));
     const tell = (e: any) => core!.listeners.forEach((f) => f(e));
     const J = jspi();
-    // (the core's events; a build's `yield`, inside ph_step, answered with a
-    // promise of the next task: the core suspends there, and the requests
-    // waiting run (ph_request, ph_frame, ...) before it goes on)
-    const event = unsigned((p: number, n: number): Promise<void> | undefined => {
-      const json = text(p, n);
-      if (json.includes('"yield"') && core!.yields()) return core!.suspend();
-      core!.heard({ t: "event", json });
-      return undefined;
-    });
+    // (a build's `yield`, its own import, called on ph_step's stack alone:
+    // answered with a promise of the next task, the core suspends there and
+    // the requests waiting run (ph_request, ph_frame, ...) before it goes on.
+    // The one import wrapped as Suspending: V8 throws "SuspendError: trying
+    // to suspend without WebAssembly.promising" at any call of such an import
+    // outside promising, whatever it returns, and the events came through
+    // one: an event said in ph_open (a .latexmkrc's engine setting, not
+    // applied) failed the open. Without JSPI (Firefox): nothing to do)
+    const yieldNow = (): Promise<void> | undefined => (core!.yields() ? core!.suspend() : undefined);
     const inst = new WebAssembly.Instance(module, {
       wasi_snapshot_preview1: wasi(memory, (s) => o.log?.(s), o.env ?? []),
       // (each ask answered before it returns: the core waits for nothing)
@@ -271,7 +271,8 @@ export class Core {
           core!.giveStored(key, o.sync.stored(key));
         }),
         store_put: unsigned((p: number, n: number, b: number, m: number) => void core!.keep(text(p, n), new Uint8Array(memory.buffer).slice(b, b + m))),
-        event: J ? new J.Suspending(event) : event,
+        event: unsigned((p: number, n: number) => core!.heard({ t: "event", json: text(p, n) })),
+        yield: J ? new J.Suspending(yieldNow) : () => {},
         lsp: unsigned((p: number, n: number) => core!.heard({ t: "lsp", json: text(p, n) })),
       },
     } as WebAssembly.Imports);
@@ -358,8 +359,6 @@ export class Core {
       // downloads are this host's to tell (fetch's pack events), so a warm build's
       // packs read from this machine never say "Fetching packages")
       if (e.event === "progress" && e.phase === "fetching") return;
-      // (a build's yield with no JSPI to suspend on: the build goes on, nothing to tell)
-      if (e.event === "yield") return;
       for (const f of this.listeners) f(e);
     } else if (m.t === "lsp") {
       const v = JSON.parse(m.json);

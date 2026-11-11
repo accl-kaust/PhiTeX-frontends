@@ -127,6 +127,8 @@ export function imports(d: Omit<ThreadData, "tid" | "arg">, spawn: Spawn | null,
       store_put: unsigned((p: number, n: number, b: number, m: number) => post({ t: "store_put", key: text(p, n), bytes: new Uint8Array(d.memory.buffer).slice(b, b + m) })),
       event: unsigned((p: number, n: number) => post({ t: "event", json: text(p, n) })),
       lsp: unsigned((p: number, n: number) => post({ t: "lsp", json: text(p, n) })),
+      // (a single-threaded build's turn for the host: the threaded core never calls it, given so it links either way)
+      yield: () => {},
     },
   };
 }

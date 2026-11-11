@@ -212,9 +212,9 @@
   }
  },
  "formats": {
-  "pdflatex-896acacf6206ddee-1a090ee7340d9232": "fmt-pdflatex-896acacf6206ddee-1a090ee7340d9232-5b4ce30b810e",
-  "pdftex-896acacf6206ddee-f78777f0b067fef4": "fmt-pdftex-896acacf6206ddee-f78777f0b067fef4-354c9cf059a1",
-  "xelatex-896acacf6206ddee-c91dea17fdc7668f": "fmt-xelatex-896acacf6206ddee-c91dea17fdc7668f-74e1bc8f5e54",
-  "xetex-896acacf6206ddee-71c3c01e26d2ad9a": "fmt-xetex-896acacf6206ddee-71c3c01e26d2ad9a-fa7a4b1ced68"
+  "pdflatex-afc93d6fecd3c8ee-1a090ee7340d9232": "fmt-pdflatex-afc93d6fecd3c8ee-1a090ee7340d9232-43e9c955f18d",
+  "pdftex-afc93d6fecd3c8ee-f78777f0b067fef4": "fmt-pdftex-afc93d6fecd3c8ee-f78777f0b067fef4-8948c6e81ade",
+  "xelatex-afc93d6fecd3c8ee-c91dea17fdc7668f": "fmt-xelatex-afc93d6fecd3c8ee-c91dea17fdc7668f-56f79b4de6e9",
+  "xetex-afc93d6fecd3c8ee-71c3c01e26d2ad9a": "fmt-xetex-afc93d6fecd3c8ee-71c3c01e26d2ad9a-871a1351ae30"
  }
 }
