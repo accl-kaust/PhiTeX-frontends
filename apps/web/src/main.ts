@@ -506,8 +506,12 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       onOpen: (cb) => void (openCb = cb),
       onChanges: (cb) => void (changedCb = cb),
     };
-    // (only while it is the project's: a stopped session's late answers never reach the panel)
-    const s: PreviewSession = new PreviewSession(host, pages, gate(panel, () => session === s && compare.showing !== "diff"), {
+    // (only while it is the project's: a stopped session's late answers never reach the panel.
+    // Its own constructor's calls too (its cites wired to the panel, citesBy): made before it
+    // was `s`, a gate reading `s` threw there, "Cannot access 's' before initialization", and
+    // the demo never opened)
+    let made: PreviewSession | undefined;
+    const s: PreviewSession = new PreviewSession(host, pages, gate(panel, () => (!made || session === made) && compare.showing !== "diff"), {
       ...sessionOptions(),
       // (the core runs a live document, as the extension's: the session in its
       // remote mode, the document's events its own, its problems among them;
@@ -522,6 +526,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       const t = s.text(file);
       if (t !== undefined && openFile(file)) editor.select(charOffset(t, start), charOffset(t, end), focus);
     };
+    made = s;
     session = s;
     // (a build in: its fetch round closed, as a build request's answer closes
     // it; the remote mode has none, so the last pack fetched would stay "loading")
