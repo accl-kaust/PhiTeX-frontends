@@ -328,7 +328,9 @@ const DOCK_CSS = `
   .phitex-on .toolbar-pdf-left > :not(.compile-button-group):not(#phitex-switch):not(#phitex-left) { display: none !important; }
   .phitex-badge:empty { display: none; }
   #phitex-dlgroup { position: relative; align-items: center; }
-  #phitex-dlgroup .phitex-caret { width: 16px; min-width: 16px; margin-left: -4px; padding: 0; }
+  /* (side by side, never over each other: the caret pulled over the download button hid its hover box's right edge, its icon looked off its centre) */
+  #phitex-dlgroup #phitex-dl { padding: 0 4px; place-items: center; }
+  #phitex-dlgroup .phitex-caret { width: 16px; min-width: 16px; margin-left: 0; padding: 0; place-items: center; }
   #phitex-dlgroup .phitex-caret .material-symbols { font-size: 16px; }
   #phitex-dlmenu .dropdown-item { display: flex; justify-content: space-between; gap: 12px; }
   .phitex-toast { animation: phitex-callout-in .35s cubic-bezier(.2,1.2,.4,1); cursor: pointer; }
