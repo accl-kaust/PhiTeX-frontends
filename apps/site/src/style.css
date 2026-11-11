@@ -532,9 +532,11 @@ p.where b { color: var(--text); }
 /* the logo's ribbon, out of the banner's logo and on down the page (src/main.ts): it leaves the logo's right end, runs
    behind the editor, and winds down the margins and across between sections as far as you have read */
 main { position: relative; }
-.ribbon { position: absolute; left: 0; top: 0; width: 100%; z-index: 1; pointer-events: none; overflow: visible; }
+.ribbon { position: absolute; left: 0; top: 0; width: 100%; z-index: 1; pointer-events: none; }
+/* its tiles (src/main.ts, TILE): each shows its own band of the page, as wide as it runs */
+.ribbon svg { position: absolute; left: 0; width: 100%; overflow: visible; clip-path: inset(0 -100vw); will-change: transform; }
 /* (on a narrow screen it runs off the right edge and back: nothing of it beyond the edge, to scroll to) */
-@media (max-width: 999px) { .ribbon { overflow: hidden; } }
+@media (max-width: 999px) { .ribbon, .ribbon svg { overflow: hidden; } }
 .ribbon path { fill: none; stroke-linecap: butt; }
 .banner-hero, main > section.band { z-index: 2; }
 

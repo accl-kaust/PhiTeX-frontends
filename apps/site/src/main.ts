@@ -35,7 +35,11 @@ if (howAnim && steps.length) {
 // centres and widths across (ACCL's teal, lime, gold, orange, top to bottom).
 type Pt = [number, number];
 const BANNER = { endX: 549, logoH: 178, mid: 158.5, stripes: [[144.4, 2.8, "#00a8a4"], [151.7, 5, "#d3c72a"], [161, 7.2, "#f0b225"], [172.9, 9.6, "#f58f2d"]] as [number, number, string][] };
-const ribbon = document.querySelector<SVGSVGElement>("svg.ribbon");
+// The ribbon is drawn in tiles, an SVG for each TILE px down the page: Safari repaints the whole of an SVG when one of
+// its paths changes, and the page's ribbon is as tall as the page (half a second a frame on an M1, the page's height
+// at 2x). A piece is drawn in each tile it reaches; each tile shows only its own band.
+const ribbon = document.querySelector<HTMLElement>("div.ribbon");
+const TILE = 512;
 const bannerFrame = document.querySelector<HTMLIFrameElement>(".anim-banner iframe");
 // the footer's PhiTeX logo: an <img>, put inline once fetched, so its stripes (.phx-s0..3, orange to teal, each drawn
 // from the Φ's foot to the right end, pathLength 1) are where the ribbon reads its geometry and runs its flow through
@@ -49,12 +53,12 @@ const ACCL_MARK = { x: 192.82, y: 174.88, scale: 7.377, top: 3, left: 0.58, foot
 const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let drawn = 0, target = 0, table: number[] = [], total = 1, scrolled = still;
 // each piece's span along the ribbon and down it (y0..y1, with room for its stripes), and the dashes last written to it
-let pieces: { l0: number; l1: number; y0: number; y1: number; el: SVGPathElement; j: number; dash: string }[] = [], pageEnd = 1;   // where the page's ribbon ends
+let pieces: { l0: number; l1: number; y0: number; y1: number; els: SVGPathElement[]; j: number; dash: string }[] = [], pageEnd = 1;   // where the page's ribbon ends
 let skip: [number, number][] = [];   // stretches of the page (the scrolled explanation) the ribbon runs past at once
 let skipL: [number, number][] = [];  // the same, as lengths along the ribbon (fractions of it)
 // a crossing in waves: its centre's samples, their place along it, and the stripes drawn on it, made again each frame
 type Wave = { amp: number; s: number; len: number; perp: Pt } | null;
-type Waving = { ps: Pt[]; wave: Wave[]; offs: number[]; els: SVGPathElement[]; l0: number; y0: number; y1: number };
+type Waving = { ps: Pt[]; wave: Wave[]; offs: number[]; els: SVGPathElement[][]; l0: number; y0: number; y1: number };
 let wavings: Waving[] = [];
 const WAVE = { length: 520, speed: 70 };   // px, and px per second along the ribbon
 
@@ -200,14 +204,14 @@ function layRibbon() {
   const down = Math.min(10, gutter - half * sc - 8);
   const pg = legs.find((l) => l.page);
   if (pg && down > 3) pg.pts.forEach((p, k, a) => { const q = a[k + 1]; if (q && Math.abs(q[0] - p[0]) < 1 && Math.abs(q[1] - p[1]) > 300 && !pg.wavy.has(k)) pg.wavy.set(k, down); });
-  ribbon.setAttribute("viewBox", `0 0 ${W} ${H}`);
   ribbon.style.height = `${H}px`;
   // Each stripe a stroked line at its offset (which may move across it along a leg; its width is the one at the
   // piece's middle: the two logos' stripes are as wide as each other to a tenth of a px), in pieces: a crossing in
   // waves is a piece of its own, made again each frame. Lengths run on along
   // the legs (the logo between them counts `after` px), and every piece's dashes count in the centre line's length
   // (pathLength), so the stripes, inner and outer on a bend, are drawn as far as each other.
-  let svg = "", base = 0;
+  const svg: { d: string; y0: number; y1: number }[] = [];
+  let base = 0;
   const made: { l0: number; l1: number; y0: number; y1: number; j: number }[] = [], waves: Omit<Waving, "els">[] = [];
   table = [];
   pageEnd = 0;
@@ -235,7 +239,7 @@ function layRibbon() {
       if (waving) waves.push({ ps: sub, wave: wave.slice(i0, i1 + 1), offs: BANNER.stripes.map((_, j) => lane(j, im)[0]), l0: base + l0, y0, y1 });
       BANNER.stripes.forEach(([, , colour], j) => {
         const dd = stripeD(sub, (i) => lane(j, i0 + i)[0]);
-        svg += `<path d="${dd}" stroke="${colour}" stroke-width="${lane(j, im)[1].toFixed(2)}" pathLength="${(l1 - l0).toFixed(1)}" stroke-dasharray="0 ${(l1 - l0 + 1).toFixed(1)}"${waving ? ` data-wave="${waves.length - 1}"` : ""}/>`;
+        svg.push({ y0, y1, d: `<path data-p="${made.length}" d="${dd}" stroke="${colour}" stroke-width="${lane(j, im)[1].toFixed(2)}" pathLength="${(l1 - l0).toFixed(1)}" stroke-dasharray="0 ${(l1 - l0 + 1).toFixed(1)}"${waving ? ` data-wave="${waves.length - 1}" data-j="${j}"` : ""}/>` });
         made.push({ l0: base + l0, l1: base + l1, y0, y1, j });
       });
     }
@@ -249,10 +253,20 @@ function layRibbon() {
   total = base;
   pageEnd /= total;
   table = table.map((l) => l / total);
-  ribbon.innerHTML = clip ? `<defs><clipPath id="ribbon-end"><rect x="-50" y="-50" width="${W + 100}" height="${clip.top + 50}"/><rect x="${clip.left.toFixed(2)}" y="${clip.top - 1}" width="${W + 50}" height="${(clip.foot - clip.top + 1).toFixed(2)}"/></clipPath></defs><g clip-path="url(#ribbon-end)">${svg}</g>` : svg;
-  const els = [...ribbon.querySelectorAll("path")];
-  pieces = made.map((m, i) => ({ ...m, el: els[i], dash: "" }));
-  wavings = waves.map((w, k) => ({ ...w, els: els.filter((e) => e.dataset.wave === String(k)) }));
+  // (a piece goes in every tile within 40 px of it: its y0..y1 already has room for its stripes, this for its waves)
+  let tiles = "";
+  for (let t = 0; t * TILE < H; t++) {
+    const top = t * TILE, h = Math.min(TILE, H - top), body = svg.filter((p) => p.y1 + 40 > top && p.y0 - 40 < top + h).map((p) => p.d).join("");
+    if (!body) continue;
+    const id = `ribbon-end-${t}`;
+    tiles += `<svg viewBox="0 ${top} ${W} ${h}" style="top:${top}px;height:${h}px">` + (clip ? `<defs><clipPath id="${id}"><rect x="-50" y="-50" width="${W + 100}" height="${clip.top + 50}"/><rect x="${clip.left.toFixed(2)}" y="${clip.top - 1}" width="${W + 50}" height="${(clip.foot - clip.top + 1).toFixed(2)}"/></clipPath></defs><g clip-path="url(#${id})">${body}</g>` : body) + "</svg>";
+  }
+  ribbon.innerHTML = tiles;
+  const els = [...ribbon.querySelectorAll<SVGPathElement>("path")];
+  const of: SVGPathElement[][] = made.map(() => []);
+  for (const e of els) of[+e.dataset.p!].push(e);
+  pieces = made.map((m, i) => ({ ...m, els: of[i], dash: "" }));
+  wavings = waves.map((w, k) => { const mine = els.filter((e) => e.dataset.wave === String(k)); return { ...w, els: BANNER.stripes.map((_, j) => mine.filter((e) => e.dataset.j === String(j))) }; });
   logoLengths = flowLengths();
   // the explanation scrolls a long way beside its pinned animation: the ribbon runs past it at once
   skip = [...document.querySelectorAll<HTMLElement>(".how-scrolly")].map((e) => { const t = rel(e.getBoundingClientRect()); return [t - 200, t + e.offsetHeight]; });
@@ -321,7 +335,7 @@ function paintRibbon(now: number) {
   const ahead = BANNER.stripes.map(() => Infinity);   // on each stripe, the first length on screen and drawn
   for (const p of pieces) {
     if (!seen(p.y0, p.y1)) continue;
-    const { l0, l1, el, j } = p;
+    const { l0, l1, els, j } = p;
     // what of [l0, l1] is drawn: up to D, less the gaps; as dashes and gaps counted from l0, then the rest blank
     const len = l1 - l0, a = Math.min(len, Math.max(0, D - l0)), dash: number[] = [];
     if (a > 0) ahead[j] = Math.min(ahead[j], l0);
@@ -332,7 +346,7 @@ function paintRibbon(now: number) {
     }
     dash.push(a - at, len + 1);
     const d = dash.map((x) => x.toFixed(1)).join(" ");
-    if (d !== p.dash) { el.style.strokeDasharray = d; p.dash = d; }
+    if (d !== p.dash) { for (const el of els) el.style.strokeDasharray = d; p.dash = d; }
   }
   // a gap not yet on screen: when its front reaches the first drawn length there
   out.forEach((gs, j) => { for (const [, g1] of gs) if (g1 < ahead[j] && speed[j]) next = Math.min(next, (ahead[j] - g1) / speed[j]); });
@@ -342,7 +356,7 @@ function paintRibbon(now: number) {
     for (const w of wavings) {
       if (w.l0 > D || w.y1 + top < 0 || w.y0 + top > innerHeight) continue;
       const ps = w.ps.map((p, i): Pt => { const wv = w.wave[i]; if (!wv) return p; const k = waveAt(wv, sec); return [p[0] + wv.perp[0] * k, p[1] + wv.perp[1] * k]; });
-      w.els.forEach((el, j) => el.setAttribute("d", stripeD(ps, () => w.offs[j])));
+      w.els.forEach((els, j) => { const d = stripeD(ps, () => w.offs[j]); for (const el of els) el.setAttribute("d", d); });
       busy = true;
     }
   }
