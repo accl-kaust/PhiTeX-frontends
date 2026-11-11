@@ -3,9 +3,11 @@
 import "./style.css";
 import { initChrome } from "./ui.ts";
 import { initReplica } from "./replica.ts";
+import { initWhatsNew } from "./whatsnew.ts";
 
 initChrome();
 initReplica();
+initWhatsNew();
 
 // The comparison and the collaborators' page grow as their words are typed in: each is held at its tallest (every
 // word in, as it is with no animation), so the page around it never moves. Measured again when its width changes.

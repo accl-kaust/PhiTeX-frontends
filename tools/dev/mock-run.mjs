@@ -286,7 +286,8 @@ try {
   // (each run from the same settings: the highlight and the page format as a
   // new user has them, then the scenario's own `storage` over the onboarded state)
   for (let i = 0; i < 20 && !contexts.some((c) => c.auxData?.frameId === tab.id && c.auxData?.type === "isolated"); i++) await sleep(250);
-  await evalIn(`chrome.storage.local.remove(["follow", "panel"])`, true);
+  // (the engine too: a scenario that sets it (plain-xetex's XeLaTeX) left every later run on it)
+  await evalIn(`chrome.storage.local.remove(["follow", "panel", "engine", "engines"])`, true);
   const onboard = await evalIn(onboardScript(version, { workers: process.env.PHITEX_WORKERS === "1" ? 1 : 2, ...(sc.storage ?? {}) }));
   // (not onboarded, the run tests the welcome tip, not ⚡ Instant: a failure, said first)
   if (onboard !== "onboarded") {
@@ -476,6 +477,11 @@ for (const s of sc.steps ?? []) {
   else if (s.wait !== undefined) await sleep(s.wait);
   else if (s.reload !== undefined) {
     for (let k = 0; k < s.reload; k++) {
+      // (`"settle": ms`: a moment with the page before each reload, as a person reloads. The
+      // extension keeps a pack the build fetched without waiting for the write (the core's
+      // fetch is synchronous): one fetched just before the first page, the tab reloaded at
+      // once, is lost and fetched again. Known, for 1.0.1: kept from a context that outlives the tab)
+      if (s.settle) await sleep(s.settle);
       await call("Page.reload");
       const t1 = Date.now();
       let pages = 0, st;

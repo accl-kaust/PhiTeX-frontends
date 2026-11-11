@@ -89,12 +89,16 @@ export function compareHost(view: vscode.WebviewPanel, p: CompareProject): vscod
   });
 
   async function pick(): Promise<void> {
+    // (no git, or none yet: what Compare needs, said. The versions are the user's own commits,
+    // made with their git or VS Code's Source Control: PhiTeX never commits)
+    const scm = "Commit your versions with git on the command line or in VS Code's Source Control view";
     const git = vscode.extensions.getExtension<{ getAPI(v: 1): GitApi }>("vscode.git");
-    const api = git && (git.isActive ? git.exports : await git.activate()).getAPI(1);
-    const repo = api?.getRepository(vscode.Uri.file(p.folder));
-    if (!repo) return void vscode.window.showInformationMessage("PhiTeX: Compare needs the folder's history: it isn't in a git repository.");
+    const api = git && vscode.workspace.getConfiguration("git").get<boolean>("enabled") !== false ? (git.isActive ? git.exports : await git.activate()).getAPI(1) : undefined;
+    if (!api) return void vscode.window.showInformationMessage(`PhiTeX: Compare shows your document against an earlier version from git, and VS Code's Git is turned off. Turn on the git.enabled setting. ${scm}, then Compare again.`, "Open the setting").then((a) => a && vscode.commands.executeCommand("workbench.action.openSettings", "git.enabled"));
+    const repo = api.getRepository(vscode.Uri.file(p.folder));
+    if (!repo) return void vscode.window.showInformationMessage(`PhiTeX: Compare shows your document against an earlier version from git, and this folder isn't a git repository yet. Start one with git init, or Initialize Repository in VS Code's Source Control view. ${scm}, then Compare again.`, "Open Source Control").then((a) => a && vscode.commands.executeCommand("workbench.view.scm"));
     const commits = await repo.log({ maxEntries: 200 }).catch(() => [] as GitCommit[]);
-    if (!commits.length) return void vscode.window.showInformationMessage("PhiTeX: this repository has no commits to compare with yet.");
+    if (!commits.length) return void vscode.window.showInformationMessage(`PhiTeX: this repository has no commits to compare with yet. ${scm}, then Compare again.`, "Open Source Control").then((a) => a && vscode.commands.executeCommand("workbench.view.scm"));
     type Item = vscode.QuickPickItem & { c: GitCommit };
     const choice = await vscode.window.showQuickPick<Item>(
       commits.map((c) => ({ label: c.message.split("\n")[0], description: c.hash.slice(0, 7), detail: [c.authorName, ago(c.authorDate)].filter(Boolean).join(" · "), c })),

@@ -153,28 +153,111 @@
         </figure>
       </div>
 
-      <div class="also also-new">
-        <h3 class="also-h">New in 1.0</h3>
-        <div class="also-grid">
-          <div class="reveal"><b>Link previews</b><p>Rest the pointer on a <code>\ref</code>, <code>\eqref</code> or <code>\pageref</code> and a small window shows that spot of the target page. On a web link it shows the address. Click the window to go there.</p></div>
-          <div class="reveal"><b>Citation cards</b><p>Hover a citation for a card per cited work: number, title, authors, year, venue. A group or a range like [2,&nbsp;4] or [1–3] shows every work in it, the one under the pointer marked. A long list stays compact and scrolls, even at 40 works.</p></div>
-          <div class="reveal"><b>Back and forward</b><p>Follow a link and a small <i>Back to page N</i> pill appears. Its <i>+N</i> menu lists the earlier places, like <i>Clicked [2,&nbsp;4]</i> with the page and the line you were reading, to jump straight back; → goes forward. Where you land lights up briefly, so you see what the link pointed at.</p></div>
-          <div class="reveal"><b>Loading animations</b><p>Settings › Appearance plays every loading animation as a small preview. Pick any number of them, or none, and one of those plays each time. By default, all but one novelty.</p></div>
-          <div class="reveal"><b>Faster first opens</b><p>The extension ships its own prebuilt TeX formats for pdfLaTeX, XeLaTeX, plain TeX and plain XeTeX, so a first open never has to build one in your browser.</p></div>
+      <div class="also also-new nw" role="region" aria-roledescription="carousel" aria-label="New in 1.0">
+        <div class="nw-head">
+        <div class="nw-ctl">
+          <button class="nw-arrow" type="button" data-step="-1" aria-label="Previous feature"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+          <div class="nw-tabs" role="tablist" aria-label="Features new in 1.0">
+            <button type="button" role="tab" id="nw-t-peek" aria-controls="nw-peek" aria-selected="true">Link previews</button>
+            <button type="button" role="tab" id="nw-t-cite" aria-controls="nw-cite" aria-selected="false" tabindex="-1">Citation cards</button>
+            <button type="button" role="tab" id="nw-t-back" aria-controls="nw-back" aria-selected="false" tabindex="-1">Back and forward</button>
+            <button type="button" role="tab" id="nw-t-load" aria-controls="nw-load" aria-selected="false" tabindex="-1">Loading animations</button>
+            <button type="button" role="tab" id="nw-t-fmt" aria-controls="nw-fmt" aria-selected="false" tabindex="-1">Faster first opens</button>
+          </div>
+          <button class="nw-arrow" type="button" data-step="1" aria-label="Next feature"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
         </div>
-      </div>
+        </div>
+        <div class="nw-track">
 
-      <div class="also">
-        <h3 class="also-h">And in the preview itself</h3>
-        <div class="also-grid">
-          <div class="reveal"><b>Click the page</b><p>Click a word in the PDF and land on it in the source; move the cursor and the page follows.</p></div>
-          <div class="reveal"><b>Errors on the page</b><p>Problems underlined where they happen, in Overleaf's log style, at the line.</p></div>
-          <div class="reveal"><b>XeLaTeX</b><p>fontspec and polyglossia: any font by name, any script, right to left too.</p></div>
-          <div class="reveal"><b>minted</b><p>Pygments runs in WebAssembly, on your machine. No shell escape needed.</p></div>
-          <div class="reveal"><b>Contents</b><p>An outline beside the pages, the section you are in highlighted.</p></div>
-          <div class="reveal"><b>Dark PDF</b><p>Off, on, or matching Overleaf's theme.</p></div>
-          <div class="reveal"><b>View log</b><p>The full TeX transcript of the last build, when you want it.</p></div>
-          <div class="reveal"><b>Download</b><p>The instant PDF, any time, named <code>main-instant.pdf</code>.</p></div>
+          <div class="nw-slide on" id="nw-peek" role="tabpanel" aria-roledescription="slide" aria-labelledby="nw-t-peek">
+            <div class="nw-copy"><p class="nw-n">1 of 5</p><h4>Link previews</h4><p>Rest the pointer on a <code>\ref</code>, <code>\eqref</code> or <code>\pageref</code> and a small window shows that spot of the target page. On a web link it shows the address. Its Go there button takes you there, and its pin keeps it open, to move and resize.</p></div>
+            <figure class="fd nw-fig nw-peek" aria-hidden="true">
+              <div class="fd-bar"><span>main.pdf</span><span class="fd-nav">Page 3 of 12</span></div>
+              <div class="fd-page">
+                <p class="fd-h">3&nbsp;&nbsp;Results</p>
+                <p>The loss levels off as the rate decays, as <span class="nw-a">Figure&nbsp;1<i class="nw-ptr p1"></i></span> shows.</p>
+                <div class="nw-at">
+                  <div class="nw-pop nw-pv">
+                    <div class="nw-pop-bar"><span>Page 7</span><span class="nw-go">Go there</span><span class="nw-pin"><svg viewBox="0 0 16 16"><path d="M10.5 1.5l4 4-2 1-2.5 2.5.5 3-1.5 1.5-3-3-3.5 3.5-.5-.5L5.5 10l-3-3L4 5.5l3 .5L9.5 3.5z"/></svg><i class="nw-ptr p2"></i></span></div>
+                    <div class="nw-crop">
+                      <svg class="nw-plot" viewBox="0 0 200 70" preserveAspectRatio="none"><path class="ax" d="M8 4v58h188"/><path class="ln" d="M10 10C30 40 44 50 70 54S130 58 194 59"/><path class="ln b" d="M10 18C34 44 54 52 80 56S140 60 194 61"/></svg>
+                      <p>Figure 1: Training loss, two seeds.</p>
+                    </div>
+                    <i class="nw-grip"></i>
+                  </div>
+                </div>
+                <p>Equation (2) bounds it from below, and Table&nbsp;3 lists each run.</p>
+              </div>
+            </figure>
+          </div>
+
+          <div class="nw-slide" id="nw-cite" role="tabpanel" aria-roledescription="slide" aria-labelledby="nw-t-cite">
+            <div class="nw-copy"><p class="nw-n">2 of 5</p><h4>Citation cards</h4><p>Hover a citation for a card per cited work: number, title, authors, year, venue. A group or a range like [2,&nbsp;4] or [1–3] shows every work in it, the one under the pointer marked. A long list stays compact and scrolls, even at 40 works.</p></div>
+            <figure class="fd nw-fig nw-cite" aria-hidden="true">
+              <div class="fd-bar"><span>main.pdf</span><span class="fd-nav">Page 2 of 12</span></div>
+              <div class="fd-page">
+                <p class="fd-h">2&nbsp;&nbsp;Background</p>
+                <p>TeX breaks a paragraph into lines by weighing the whole paragraph at once <span class="nw-c">[<span class="nw-a">2</span>,&nbsp;<span class="nw-a">4</span>]<i class="nw-ptr"></i></span>.</p>
+                <div class="nw-at">
+                  <div class="nw-pop nw-cards">
+                    <div class="nw-card k2"><b>2</b><span><em>The TeXbook</em><small>Donald E. Knuth · 1984 · Addison-Wesley</small></span></div>
+                    <div class="nw-card k4"><b>4</b><span><em>Breaking Paragraphs into Lines</em><small>Donald E. Knuth, Michael F. Plass · 1981 · Software: Practice and Experience</small></span></div>
+                  </div>
+                </div>
+                <p>Its boxes and glue are the model every later system kept.</p>
+              </div>
+            </figure>
+          </div>
+
+          <div class="nw-slide" id="nw-back" role="tabpanel" aria-roledescription="slide" aria-labelledby="nw-t-back">
+            <div class="nw-copy"><p class="nw-n">3 of 5</p><h4>Back and forward</h4><p>Follow a link and a small <i>Back to page N</i> pill appears. Its <i>+N</i> menu lists the earlier places, like <i>Clicked [2,&nbsp;4]</i> with the page and the line you were reading, to jump straight back; → goes forward. Where you land lights up briefly, so you see what the link pointed at.</p></div>
+            <figure class="fd nw-fig nw-back" aria-hidden="true">
+              <div class="fd-bar"><span>main.pdf</span><span class="fd-nav"><span class="nw-pg a">Page 1 of 12</span><span class="nw-pg b">Page 9 of 12</span></span></div>
+              <div class="nw-stage">
+                <div class="fd-page nw-from">
+                  <p class="fd-h">1&nbsp;&nbsp;Introduction</p>
+                  <p>Line breaking looks at the whole paragraph at once <span class="nw-c">[2,&nbsp;4]<i class="nw-ptr"></i></span>, and so the spacing stays even from the first line to the last.</p>
+                  <p>Section&nbsp;2 recalls how.</p>
+                </div>
+                <div class="fd-page nw-to">
+                  <p class="fd-h">References</p>
+                  <p class="nw-ref">[1]&nbsp;L. Lamport. <i>LaTeX: A Document Preparation System.</i> 1994.</p>
+                  <p class="nw-ref nw-lit">[2]&nbsp;D. E. Knuth. <i>The TeXbook.</i> Addison-Wesley, 1984.</p>
+                  <p class="nw-ref">[3]&nbsp;F. Mittelbach et al. <i>The LaTeX Companion.</i> 2023.</p>
+                </div>
+                <div class="nw-pill"><span class="nw-bk">← Back to page 1</span><span class="nw-more">+2<i class="nw-ptr"></i></span><span class="nw-fw">→</span>
+                  <div class="nw-menu"><span class="on">Clicked [2,&nbsp;4]<small>Page 1, line 12</small></span><span>Clicked Figure&nbsp;1<small>Page 3, line 4</small></span><span>Clicked Section&nbsp;2<small>Page 1, line 20</small></span></div>
+                </div>
+              </div>
+            </figure>
+          </div>
+
+          <div class="nw-slide" id="nw-load" role="tabpanel" aria-roledescription="slide" aria-labelledby="nw-t-load">
+            <div class="nw-copy"><p class="nw-n">4 of 5</p><h4>Loading animations</h4><p>Settings › Appearance plays every loading animation as a small preview. Pick any number of them, or none, and one of those plays each time.</p></div>
+            <figure class="fd nw-fig nw-load">
+              <div class="nw-tile"><button class="nw-play" type="button" hidden>▶ Play</button></div>
+              <div class="nw-looks" role="radiogroup" aria-label="Loading animation to show"></div>
+              <figcaption class="nw-cap">The animations themselves, from the extension's viewer.</figcaption>
+            </figure>
+          </div>
+
+          <div class="nw-slide" id="nw-fmt" role="tabpanel" aria-roledescription="slide" aria-labelledby="nw-t-fmt">
+            <div class="nw-copy"><p class="nw-n">5 of 5</p><h4>Faster first opens</h4><p>The extension ships its own prebuilt TeX formats for pdfLaTeX, XeLaTeX, plain TeX and plain XeTeX, so a first open never has to build one in your browser.</p></div>
+            <figure class="fd nw-fig nw-fmt" aria-hidden="true">
+              <div class="fd-bar"><span>First open</span><span class="fd-nav">main.tex</span></div>
+              <div class="nw-open">
+                <div class="nw-steps">
+                  <span class="s1">Reading the project</span>
+                  <span class="s2">Format: pdfLaTeX<em>prebuilt, in the extension</em></span>
+                  <span class="s3">Fetching packages</span>
+                  <span class="s4">Typesetting<em>Page 1</em></span>
+                  <div class="nw-fmts"><b>pdfLaTeX</b><b>XeLaTeX</b><b>plain TeX</b><b>plain XeTeX</b></div>
+                </div>
+                <div class="nw-mini"><i class="t"></i><i class="a"></i><i></i><i></i><i class="s"></i><i></i><i></i><i></i><i class="s"></i><i></i><i></i></div>
+              </div>
+            </figure>
+          </div>
+
         </div>
       </div>
     </section>
@@ -201,13 +284,13 @@
       <header class="sec-head">
         <p class="eyebrow">How it works</p>
         <h2>Your browser does the compiling.</h2>
-        <p class="lede">The PhiTeX core runs as WebAssembly in the extension's offscreen document. It reads Overleaf's editor transactions as you type, collaborators' edits too, and repaints the preview. It never changes your documents.</p>
+        <p class="lede">When you open a project, the extension fetches it from Overleaf, as you, and opens it in the PhiTeX core, which runs as WebAssembly right in the Overleaf tab. Each keystroke reaches the core as an edit. It typesets again only the pieces of the document that edit can change, and redraws only the pages that changed.</p>
       </header>
 
       <div class="ol-facts">
-        <div class="fact reveal"><b>All local</b><p>The PhiTeX core runs in your browser as WebAssembly, in the extension's offscreen document. Your documents go to no server of ours, and no code is loaded remotely.</p></div>
-        <div class="fact reveal"><b>Your documents, untouched</b><p>The extension reads Overleaf's editor transactions as you type and never changes your documents. Folders, once you make one, are kept in a project of their own.</p></div>
-        <div class="fact reveal"><b>Your whole project</b><p>Every file, every package, every figure: PhiTeX builds the project exactly as Overleaf would, only as you type.</p></div>
+        <div class="fact reveal"><b>All local</b><p>The core runs in a worker of the Overleaf tab, one for each tab, and ends when the tab closes. Your documents go to no server of ours, and no code is loaded remotely.</p></div>
+        <div class="fact reveal"><b>Your documents, untouched</b><p>It reads Overleaf's editor as you and your collaborators type, and fetches the files you don't have open again when they change. It never writes to them. Folders, once you make one, are kept in a project of their own.</p></div>
+        <div class="fact reveal"><b>Your whole project</b><p>Every file and figure comes from the project itself. Packages and fonts come by name from PhiTeX's mirror of TeX Live and stay in your browser; the formats ship with the extension. A pdfLaTeX document comes out byte for byte as pdfTeX 1.40.29 makes it.</p></div>
         <div class="fact reveal store"><b>Chrome, Firefox, Edge</b><p>One click to install, free, from each browser's store. It works on every Overleaf project.</p></div>
       </div>
     </section>
@@ -250,7 +333,7 @@
         <details class="reveal"><summary>Does it change my Overleaf project?</summary><p>No. The extension reads Overleaf's editor transactions to keep its own preview in sync, and never changes your documents or their history. The one thing it ever writes is your folders: the first time you make one, it creates a project named <code>.phitex-data</code> to keep them in, hidden from your project list.</p></details>
         <details class="reveal"><summary>Does Compare change anything?</summary><p>No. It reads past versions from Overleaf's history, as the History view does, and typesets the comparison in your browser. Nothing is written back.</p></details>
         <details class="reveal"><summary>Is it the same engine as the CLI?</summary><p>Yes, the same PhiTeX core, compiled to WebAssembly. The PDF is byte-identical to pdfTeX, and the instant result always equals a full rebuild. <a href="index.html">See the compiler →</a></p></details>
-        <details class="reveal"><summary>Are there known limits?</summary><p>Two in PhiTeX 1.0, both on very large TikZ documents, and both fixed in a 1.0.x update. In the browser, a document the size of the TikZ manual (1,180 pages) runs out of memory around page 1,000; build it with the <code>phitex</code> CLI instead. On that manual, the live preview also takes about 1.9 times as long as a build without it. Normal documents aren't affected.</p></details>
+        <details class="reveal"><summary>Are there known limits?</summary><p>Two in PhiTeX 1.0, both on very large TikZ documents, and both will be fixed in a 1.0.x update. In the browser, a document the size of the TikZ manual (1,180 pages) runs out of memory around page 1,000; build it with the <code>phitex</code> CLI instead. On that manual, the live preview also takes about 1.9 times as long as a build without it. Normal documents aren't affected.</p></details>
         <details class="reveal"><summary>Is it free and open source?</summary><p>Yes. The PhiTeX engine is free software under the GNU Affero General Public License v3.0 (<code>AGPL-3.0-only</code>).</p></details>
       </div>
     </section>

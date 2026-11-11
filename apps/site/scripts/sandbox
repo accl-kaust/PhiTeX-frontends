@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run a command in a bubblewrap sandbox: this repo writable; PhiTeX, its
-# pinned export and phitex-overleaf read-only.
+# pinned export, the frontends' phitex/ submodule and phitex-overleaf read-only.
 # (Adapted from phitex-overleaf's scripts/sandbox, itself from PhiTeX's.)
 #
 #   scripts/sandbox [--net] <command> [args...]
@@ -14,6 +14,8 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 overleaf="${PHITEX_OVERLEAF:-$HOME/code/flinner/phitex-overleaf}"
 phitex="${PHITEX_SRC:-$HOME/code/flinner/PhiTeX}"
 export_="${PHITEX_REPO:-$HOME/code/tmp/phitex-241bd29}"
+# (the frontends' PhiTeX submodule: the Overleaf page bundles its viewer's loading animations from it)
+submodule="$(cd "$repo/../.." && pwd)/phitex"
 
 net=(--unshare-net)
 if [ "${1:-}" = "--net" ]; then net=(--share-net); shift; fi
@@ -33,6 +35,7 @@ args=(
   --ro-bind-try "$overleaf" "$overleaf"
   --ro-bind-try "$phitex" "$phitex"
   --ro-bind-try "$export_" "$export_"
+  --ro-bind-try "$submodule" "$submodule"
   --chdir "$PWD"
   --clearenv
   --setenv HOME "$HOME"

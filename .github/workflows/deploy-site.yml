@@ -11,7 +11,7 @@ name: deploy-site
 on:
   push:
     branches: [main]
-    paths: ["apps/site/**", ".github/workflows/deploy-site.yml"]
+    paths: ["apps/site/**", "phitex", ".github/workflows/deploy-site.yml"]
   workflow_dispatch:
   schedule:
     - cron: "17 3 * * *"
@@ -28,6 +28,11 @@ jobs:
         working-directory: apps/site
     steps:
       - uses: actions/checkout@v7
+      # (the Overleaf page bundles the viewer's loading animations from it: src/whatsnew.ts)
+      - name: PhiTeX (the submodule; the viewer's sources are its; public, over HTTPS)
+        working-directory: .
+        run: |
+          git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --depth 1 phitex
       - uses: actions/setup-node@v7
         with:
           node-version: 24

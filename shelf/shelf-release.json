@@ -2,7 +2,7 @@
  "schema": 1,
  "release": "tl2026.9",
  "index": "index-tl2026.9.tsv.gz",
- "pack_table": "packs-tl2026.9.tsv.gz",
+ "pack_table": "packs-tl2026.9-cb12ebd30b9c.tsv.gz",
  "packs": 7143,
  "min_extension": "0.7.0",
  "notice": null,

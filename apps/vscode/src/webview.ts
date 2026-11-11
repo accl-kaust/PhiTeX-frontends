@@ -34,7 +34,9 @@ export type Up =
   /** One of VS Code's commands (phitex.caches; the Settings editor at a setting). */
   | { t: "cmd"; cmd: string; args?: unknown[] }
   /** A compare's file saved (its .tex, or its PDF as base64). */
-  | { t: "save"; name: string; text?: string; b64?: string };
+  | { t: "save"; name: string; text?: string; b64?: string }
+  /** Ctrl+click or a middle click on a link: this preview again, in a tab of its own, at page `k` (0-based), `top` points down it. */
+  | { t: "openAt"; k: number; top: number | null };
 /** What the extension host says to the webview. */
 export type Down =
   | { t: "res"; id: number; r: CoreRes & { render?: { page: number; key: string } }; ch?: 2 }
@@ -109,6 +111,8 @@ class Relay implements CoreTransport {
 
 /** Which engine builds (relay.ts's viewHtml says): the panel's words. */
 const watch = (window as unknown as { PHITEX_ENGINE?: string }).PHITEX_ENGINE === "watch";
+/** A preview opened at a place (a link Ctrl+clicked in another: relay.ts's viewHtml), else none. */
+const startAt = (window as unknown as { PHITEX_AT?: [number, number | null] }).PHITEX_AT;
 const relay = new Relay();
 // (the last frame's numbers, in the corner, with phitex.trace's trace too)
 
@@ -130,7 +134,12 @@ const panel = new Panel(
     onContents: () => void shown().outline(),
     onBoxes: (file, start, end) => shown().boxesOf(file, start, end),
     // (the version from the folder's git history, picked in the extension host: compare.ts there)
-    onCompare: watch ? undefined : () => up({ t: "compare" }),
+    // (every preview, the builtin engine's and phitex watch's, git or not: without git, the
+    // extension host says what Compare needs (compare.ts). A tab opened at a place has none:
+    // the preview it came from has)
+    onCompare: startAt ? undefined : () => up({ t: "compare" }),
+    // (a link Ctrl+clicked or middle-clicked: this preview in a tab of its own, at its target)
+    onOpenAt: (k, top) => up({ t: "openAt", k, top }),
     // (the caches: the extension's command, which lists them and clears one)
     onClearCache: () => up({ t: "cmd", cmd: "phitex.caches" }),
     // (the last build's log: in the panel, and in an editor tab beside)
@@ -175,7 +184,10 @@ const panel = new Panel(
       reading: watch ? "Reading the document from phitex watch." : "Reading the project.",
       keptIn: "this machine",
       preparing: "",
-      steps: ["Loading the PhiTeX compiler", "Fetching packages", "Typesetting"],
+      // (the first step: what this preview waits for. The builtin engine, the extension's own
+      // PhiTeX as WebAssembly, started in VS Code; else the phitex program, started as `phitex
+      // watch`. "Loading the PhiTeX compiler" read as a download or an install: neither happens)
+      steps: [watch ? "Starting phitex watch" : "Starting the engine", "Fetching packages", "Typesetting"],
     },
   },
 );
@@ -244,6 +256,8 @@ pane.style.cssText = "position:fixed;inset:0";
 document.body.append(pane);
 panel.dock(pane);
 panel.shown(true);
+// (opened at a place: the pages start there, and light it once this tab is shown)
+if (startAt) panel.startAt(startAt[0], startAt[1]);
 
 const host: EditorHost = { loadProject: async () => ({}), onOpen() {}, onChanges() {} };
 // (a double-click: the engine opens the source in the editor, window/showDocument;

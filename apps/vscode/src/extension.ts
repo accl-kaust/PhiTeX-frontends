@@ -21,7 +21,7 @@ import { findMain, relPath } from "./changes.ts";
 import { prefetch, startCore } from "./core.ts";
 import { lspChannel, type CoreIndex, type LspChannel } from "../../../common/src/wasm/host.ts";
 import { nodePlatform } from "./platform.ts";
-import { relay, viewHtml, WatchLink } from "./relay.ts";
+import { relay, viewHtml, WatchLink, type Relayed } from "./relay.ts";
 import { compareHost } from "./compare.ts";
 import type { Down } from "./webview.ts";
 import { StatusItem, type EngineStatus } from "./status.ts";
@@ -247,6 +247,28 @@ function crashed(why: string, log: vscode.OutputChannel): void {
   });
 }
 
+/**
+ * Ctrl+click or a middle click on a link in `from`: the same preview in a new tab beside it,
+ * at the link's target, on the same core (a relay of its own: the core serves both, as the
+ * watch does two browser tabs). It closes with the preview it came from (whose core it uses:
+ * that one's closing stops it); its own links open more. Not restored after a restart: its
+ * view type has no serializer.
+ */
+function tabsAt(ext: vscode.Uri, from: vscode.WebviewPanel, engine: "builtin" | "watch", core: Relayed, folder: string, pdf: () => void, log: vscode.OutputChannel): (k: number, top: number | null) => void {
+  const open = (k: number, top: number | null): void => {
+    const v = vscode.window.createWebviewPanel("phitex.previewAt", `⚡ PhiTeX · page ${k + 1}`, { viewColumn: from.viewColumn ?? vscode.ViewColumn.Beside, preserveFocus: false }, {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [vscode.Uri.joinPath(ext, "dist"), vscode.Uri.joinPath(ext, "fonts")],
+    });
+    v.webview.html = viewHtml(v.webview, ext, engine, [k, top]);
+    const r = relay(v, core, folder, pdf, (s) => log.appendLine(s), tabsAt(ext, v, engine, core, folder, pdf, log));
+    const gone = from.onDidDispose(() => v.dispose());
+    v.onDidDispose(() => (r.dispose(), gone.dispose()));
+  };
+  return open;
+}
+
 /** A preview tab VS Code restored after a restart, waiting for its preview (the next tab made takes it). */
 let restored: vscode.WebviewPanel | undefined;
 
@@ -316,7 +338,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   const client = ownCommands(new LanguageClient("phitex", "PhiTeX", async () => ({ reader: new ChannelReader(channel), writer: new ChannelWriter(channel) }), clientOptions(folder, log)));
   let closed = false;
   const subs: vscode.Disposable[] = [
-    relay(view, session, folder, () => void savePdf(session, folder, main), (s) => log.appendLine(s)),
+    relay(view, session, folder, () => void savePdf(session, folder, main), (s) => log.appendLine(s), tabsAt(ctx.extensionUri, view, "builtin", session, folder, () => void savePdf(session, folder, main), log)),
     // (Compare, View log, Clear cache: what the webview asks of this host)
     compareHost(view, { root, folder, main, files: Object.keys(project.files), binaries: project.binaries, log: (s) => log.append(s.endsWith("\n") ? s : s + "\n") }),
   ];
@@ -620,8 +642,12 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   link.onEvent((e) => status.event(e as never));
   if (status.state === "starting") status.set({ state: "ready" });
   view.webview.html = viewHtml(view.webview, ext, "watch");
+  // (the project's texts and figures, for Compare's own core: the builtin engine's preview reads them as it opens)
+  const project = await loadProject(folder);
   subs.push(
-    relay(view, link, folder, () => void savePdf(link, folder, main), (s) => log.appendLine(s)),
+    relay(view, link, folder, () => void savePdf(link, folder, main), (s) => log.appendLine(s), tabsAt(ext, view, "watch", link, folder, () => void savePdf(link, folder, main), log)),
+    // (Compare, as in the builtin engine's preview: the version from git, typeset by a core of this host's own)
+    compareHost(view, { root: ext.fsPath, folder, main, files: Object.keys(project.files), binaries: project.binaries, log: (s) => log.append(s.endsWith("\n") ? s : s + "\n") }),
     { dispose: () => link.close() },
   );
   subs.push(

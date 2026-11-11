@@ -4,5 +4,6 @@ import { defineConfig } from "vite";
 export default defineConfig({
   base: "./",
   build: { target: "es2022", assetsInlineLimit: 0, rollupOptions: { input: { main: "index.html", overleaf: "overleaf.html", measured: "measured.html", install: "install.html", notfound: "404.html" } } },
-  server: { host: "127.0.0.1", port: 5173 },
+  // (the Overleaf page's loading animations are the viewer's own, from the frontends' PhiTeX submodule: src/whatsnew.ts)
+  server: { host: "127.0.0.1", port: 5173, fs: { allow: [".", "../../phitex/viewer/src"] } },
 });

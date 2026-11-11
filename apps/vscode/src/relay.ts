@@ -13,14 +13,14 @@ import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
 /** The webview's page: the panel's script from the extension's dist/, nothing else; `engine`: which one builds (its words). */
-export function viewHtml(view: vscode.Webview, ext: vscode.Uri, engine: "builtin" | "watch"): string {
+export function viewHtml(view: vscode.Webview, ext: vscode.Uri, engine: "builtin" | "watch", at?: [number, number | null]): string {
   const root = view.asWebviewUri(ext).toString().replace(/\/?$/, "/");
   const nonce = Math.random().toString(36).slice(2);
   const src = view.cspSource;
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${src} data: blob:; font-src ${src} data:; style-src ${src} 'unsafe-inline'; script-src 'nonce-${nonce}' ${src} 'wasm-unsafe-eval'; connect-src ${src};">
 <meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0;height:100vh"><script nonce="${nonce}">window.PHITEX_ROOT=${JSON.stringify(root)};window.PHITEX_FONTS=${JSON.stringify(root + "fonts/")};window.PHITEX_ENGINE=${JSON.stringify(engine)};</script><script nonce="${nonce}" src="${root}dist/webview.js"></script></body></html>`;
+<body style="margin:0;height:100vh"><script nonce="${nonce}">window.PHITEX_ROOT=${JSON.stringify(root)};window.PHITEX_FONTS=${JSON.stringify(root + "fonts/")};window.PHITEX_ENGINE=${JSON.stringify(engine)};${at ? `window.PHITEX_AT=${JSON.stringify(at)};` : ""}</script><script nonce="${nonce}" src="${root}dist/webview.js"></script></body></html>`;
 }
 
 /** A core a preview's relay can stop hearing: `onEvent` gives back the call that stops its events. */
@@ -34,7 +34,7 @@ export type Relayed = Omit<CoreTransport, "onEvent"> & { onEvent(cb: (e: CoreEve
  * is disposed"), which kept every later preview from hearing an event (no
  * build, no page: the opening sheet for ever).
  */
-export function relay(view: vscode.WebviewPanel, core: Relayed, folder: string, pdf: () => void, log?: (s: string) => void): vscode.Disposable {
+export function relay(view: vscode.WebviewPanel, core: Relayed, folder: string, pdf: () => void, log?: (s: string) => void, openAt?: (k: number, top: number | null) => void): vscode.Disposable {
   const off = core.onEvent((e: CoreEvent) => void view.webview.postMessage({ t: "event", e } satisfies Down));
   const asks = view.webview.onDidReceiveMessage(async (m: Up) => {
     // (the webview's trace: errors and blocks always, the rest with phitex.trace)
@@ -43,6 +43,7 @@ export function relay(view: vscode.WebviewPanel, core: Relayed, folder: string, 
       return;
     }
     if (m.t === "pdf") pdf();
+    if (m.t === "openAt") return openAt?.(m.k, m.top);
     // (a compare's own document's, channel 2: compare.ts's)
     if (m.t !== "req" || m.ch) return;
     // (latexdiff: here, the diff wasm, as Overleaf's offscreen page runs it;

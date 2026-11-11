@@ -9,11 +9,12 @@
   banner at story time t (seconds, 0..DURATION), so a renderer can step it
   frame by frame. The numbers live in CONFIG, the beats in TIMELINE.
 
-  Story, left to right: `phitex watch paper.tex` builds the paper cold on every
-  core (its live tree as phitex prints it, the logo's ribbon flowing) and the
-  page appears; a word in it changes, and only its paragraph runs again, in
-  milliseconds; the PDF is byte for byte pdflatex's. Then the
-  terminal and the page clear, so the last frame equals the first and it loops.
+  Story, left to right: `phitex watch paper.tex` builds the paper (its live
+  tree as PhiTeX 1.0 prints it: every line in the terminal is a recorded
+  screen of a real run) and the page appears in the browser; a word in the
+  title changes, and the page follows. Then the terminal and the page clear,
+  so the last frame equals the first and it loops. Under reduced motion it
+  holds one screen still: the edit rebuilt and on the screen.
 
   URL parameters:
     ?theme=light|dark   force a theme (default: the system's)
@@ -196,9 +197,6 @@ body { font-family: var(--sans); overflow: hidden; -webkit-font-smoothing: antia
 #pdf .url { margin-left: 14px; flex: 1; height: 26px; border-radius: 13px; background: var(--viewer-bg); display: flex; align-items: center; padding: 0 14px;
             font: 13px var(--mono); color: var(--muted); }
 #sheet { position: absolute; left: 81px; top: 58px; transform: scale(2.05); transform-origin: 0 0; }   /* the page zoomed in, its top as the viewer opens it */
-#vbar { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
-        font: 12.5px var(--mono); color: var(--muted); background: var(--card); border-top: 1px solid var(--card-edge); white-space: nowrap; overflow: hidden; }
-#vbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: none; }
 #pdflabel { display: none; justify-content: space-between; font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); height: 24px; }
 #pdflabel b { font-weight: 600; letter-spacing: .02em; text-transform: none; }
 #page {
@@ -254,6 +252,10 @@ body.portrait #pdf { left: 70px; top: 570px; }
 body.render #controls { display: none; }
 html:has(body.embed), body.embed, body.embed #stage { background: transparent; }
 body.embed #stage::after { display: none; }
+/* (embedded, the frame's edge is the stage's: each window's shadow fades out inside the margins around it, never cut) */
+body.embed #term { box-shadow: inset 0 0 0 1px var(--term-edge), 0 1px 3px rgba(0,0,0,.08), 0 12px 24px -6px rgba(8, 18, 40, .32); }
+body.embed #pdf { box-shadow: 0 0 0 1px var(--card-edge), 0 1px 2px rgb(16 24 40 / 6%), 0 10px 22px -6px rgb(16 24 40 / 16%); }
+body.embed #stage::before { -webkit-mask-image: radial-gradient(closest-side, #000 40%, transparent 92%); }
 </style>
 </head>
 <body>
@@ -266,7 +268,7 @@ body.embed #stage::after { display: none; }
   </div>
 
   <div id="pdf" class="abs">
-    <div class="chrome"><i></i><i></i><i></i><span class="url">127.0.0.1:37765</span></div>
+    <div class="chrome"><i></i><i></i><i></i><span class="url">127.0.0.1:26917/e91c24de73f8ec27cb07f8589f6d8925/</span></div>
     <div id="sheet">
     <div id="pdflabel"><span data-k="pdfName"></span><b data-k="pdfState"></b></div>
     <div id="page">
@@ -284,7 +286,6 @@ body.embed #stage::after { display: none; }
       <div id="veil"></div>
     </div>
     </div>
-    <div id="vbar"><span class="dot"></span><span id="vtext"></span></div>
   </div>
 
 </div>
@@ -297,59 +298,70 @@ body.embed #stage::after { display: none; }
   <button id="theme">Theme</button>
 </div>
 <script>
-// ── numbers: one place, everything derived from them ──────────────────────
-// Before publishing, every number here must come from a real run (a real paper, its cold build, the word edit, and
-// the PDF's sha256 beside pdflatex's); these are illustrative.
-const CONFIG = {
-  version: '0.1.0',
-  dir: '~/paper',
-  file: 'paper.tex',
-  engine: 'pdflatex',             // the engine the PDF is byte-identical to
-  threads: 16,
-  pages: 10,
-  coldS: 1.60,                    // the cold build, seconds
-  editMs: 9.8,                    // the word edit, rebuilt
-  line: 5,                        // the edited line of paper.tex: the title
-  word: ['Thought', 'Typing'],    // the title's last word, before and after the edit
-  sha256: null,                   // the PDF's sha256 after the edit (both engines'); illustrative until a real run
-  seed: 7,
-};
+// ── the terminal: PhiTeX 1.0's own output, recorded ───────────────────────
+// Every line the terminal shows is PhiTeX 1.0's, as `phitex watch paper.tex` printed it on a terminal 84 columns wide
+// (script(1); crates/cli/src/ui.rs's spinner and live tree, watch.rs's build and status lines): a 38-page paper's
+// clean build on the default one thread, a browser on its viewer, then the title's last word changed (paper.tex:4).
+// REC is that run's screens under the viewer line, one per redraw, its colours as the terminal's (ui.rs's Style).
+// The screens of the build come at the spinner's own pace (80 ms); the ones after it are spaced to be read.
+const C = { dir: '~/paper', file: 'paper.tex', pages: 38, word: ['Thought', 'Typing'] };
+const PDF = C.file.replace(/\.tex$/, '.pdf');
+const COLS = 84;                  // the recording's terminal, in columns
+const HEADER = '<span class="t-b">PhiTeX</span> <span class="t-dim">1.0</span>  <span class="t-b">paper.tex</span> → <span class="t-b">paper.pdf</span>  <span class="t-dim">pdflatex · 1 thread</span>';
+const FILES = "files: nothing written here while watching, the pages are in the viewer (a PDF viewer on paper.pdf won't update); --write or `phitex config watch-write on` writes the PDF and its .synctex.gz after each build";
+const VIEWER = '<span class="t-dim">viewer</span>  <span class="t-cyan">http://127.0.0.1:26917/e91c24de73f8ec27cb07f8589f6d8925/</span>  <span class="t-dim">(o opens it)</span>';
+const REC = [
+[0, "<span class=\"t-cyan\">⠋</span> pdflatex paper.tex · 0.0 s"],
+[0, "<span class=\"t-cyan\">⠙</span> pdflatex paper.tex · 0.1 s"],
+[0, "<span class=\"t-cyan\">⠹</span> pdflatex paper.tex · 0.2 s"],
+[0, "<span class=\"t-cyan\">⠸</span> pdflatex paper.tex · 0.2 s"],
+[1, "<span class=\"t-cyan\">⠋</span> pdflatex paper.tex: build 1 (clean build) · format · 0.0 s"],
+[1, "<span class=\"t-cyan\">⠙</span> pdflatex paper.tex: build 1 (clean build) · typesetting · 0.1 s"],
+[1, "<span class=\"t-cyan\">⠹</span> pdflatex paper.tex: build 1 (clean build) · typesetting · 0.2 s"],
+[1, "<span class=\"t-cyan\">⠸</span> pdflatex paper.tex: build 1 (clean build) · typesetting · 0.2 s"],
+[1, "<span class=\"t-cyan\">⠼</span> pdflatex paper.tex: build 1 (clean build)                               <span class=\"t-b\">    0.3 s</span>", "  <span class=\"t-dim\">├─</span> <span class=\"t-green\">✓</span> format         <span class=\"t-dim\">  19.6 ms</span>", "  <span class=\"t-dim\">└─</span> <span class=\"t-cyan\">⠼</span> typesetting     302.3 ms", "       <span class=\"t-b\">before the first page</span> <span class=\"t-dim\">· 1 running · 0 idle</span>", "       <span class=\"t-dim\">└─</span> text   an included file<span class=\"t-dim\"></span>"],
+[1, "<span class=\"t-cyan\">⠴</span> pdflatex paper.tex: build 1 (clean build)                               <span class=\"t-b\">    0.4 s</span>", "  <span class=\"t-dim\">├─</span> <span class=\"t-green\">✓</span> format         <span class=\"t-dim\">  19.6 ms</span>", "  <span class=\"t-dim\">└─</span> <span class=\"t-cyan\">⠴</span> typesetting     382.5 ms", "       <span class=\"t-b\">before the first page</span> <span class=\"t-dim\">· 1 running · 0 idle</span>", "       <span class=\"t-dim\">└─</span> page   the output routine<span class=\"t-dim\"></span>"],
+[1, "<span class=\"t-cyan\">⠦</span> pdflatex paper.tex: build 1 (clean build)                               <span class=\"t-b\">    0.5 s</span>", "  <span class=\"t-dim\">├─</span> <span class=\"t-green\">✓</span> format         <span class=\"t-dim\">  19.6 ms</span>", "  <span class=\"t-dim\">└─</span> <span class=\"t-cyan\">⠦</span> typesetting     462.7 ms<span class=\"t-dim\">   1.1 cores busy · 372.7 MB</span>", "       <span class=\"t-b\">page 2</span> <span class=\"t-dim\">· 0 running · 1 idle</span>"],
+[1, "<span class=\"t-cyan\">⠧</span> pdflatex paper.tex: build 1 (clean build)                               <span class=\"t-b\">    0.6 s</span>", "  <span class=\"t-dim\">├─</span> <span class=\"t-green\">✓</span> format         <span class=\"t-dim\">  19.6 ms</span>", "  <span class=\"t-dim\">└─</span> <span class=\"t-cyan\">⠧</span> typesetting     542.9 ms<span class=\"t-dim\">   1.1 cores busy · 372.7 MB</span>", "       <span class=\"t-b\">page 7</span> <span class=\"t-dim\">· 1 running · 0 idle</span>", "       <span class=\"t-dim\">└─</span> text   paper.tex:108<span class=\"t-dim\"></span>"],
+[1, "<span class=\"t-cyan\">⠇</span> pdflatex paper.tex: build 1 (clean build)                               <span class=\"t-b\">    0.6 s</span>", "  <span class=\"t-dim\">├─</span> <span class=\"t-green\">✓</span> format         <span class=\"t-dim\">  19.6 ms</span>", "  <span class=\"t-dim\">└─</span> <span class=\"t-cyan\">⠇</span> typesetting     623.4 ms<span class=\"t-dim\">   1.1 cores busy · 372.7 MB</span>", "       <span class=\"t-b\">page 14</span> <span class=\"t-dim\">· 1 running · 0 idle</span>", "       <span class=\"t-dim\">└─</span> text   paper.tex:198<span class=\"t-dim\"></span>"],
+[1, "<span class=\"t-cyan\">⠏</span> pdflatex paper.tex: build 1 (clean build)                               <span class=\"t-b\">    0.7 s</span>", "  <span class=\"t-dim\">├─</span> <span class=\"t-green\">✓</span> format         <span class=\"t-dim\">  19.6 ms</span>", "  <span class=\"t-dim\">└─</span> <span class=\"t-cyan\">⠏</span> typesetting     703.6 ms<span class=\"t-dim\">   1.1 cores busy · 372.7 MB</span>", "       <span class=\"t-b\">page 21</span> <span class=\"t-dim\">· 1 running · 0 idle</span>", "       <span class=\"t-dim\">└─</span> text   paper.tex:288<span class=\"t-dim\"></span>"],
+[1, "<span class=\"t-cyan\">⠋</span> pdflatex paper.tex: build 1 (clean build)                               <span class=\"t-b\">    0.8 s</span>", "  <span class=\"t-dim\">├─</span> <span class=\"t-green\">✓</span> format         <span class=\"t-dim\">  19.6 ms</span>", "  <span class=\"t-dim\">└─</span> <span class=\"t-cyan\">⠋</span> typesetting     783.8 ms<span class=\"t-dim\">   1.1 cores busy · 372.7 MB</span>", "       <span class=\"t-b\">page 28</span> <span class=\"t-dim\">· 0 running · 1 idle</span>"],
+[1, "<span class=\"t-cyan\">⠙</span> pdflatex paper.tex: build 1 (clean build)                               <span class=\"t-b\">    0.9 s</span>", "  <span class=\"t-dim\">├─</span> <span class=\"t-green\">✓</span> format         <span class=\"t-dim\">  19.6 ms</span>", "  <span class=\"t-dim\">└─</span> <span class=\"t-cyan\">⠙</span> typesetting     863.9 ms<span class=\"t-dim\">   1.1 cores busy · 372.7 MB</span>", "       <span class=\"t-b\">page 34</span> <span class=\"t-dim\">· 1 running · 0 idle</span>", "       <span class=\"t-dim\">└─</span> page   the output routine<span class=\"t-dim\"></span>"],
+[1, "<span class=\"t-cyan\">⠹</span> pdflatex paper.tex: build 1 (clean build)                               <span class=\"t-b\">    1.0 s</span>", "  <span class=\"t-dim\">├─</span> <span class=\"t-green\">✓</span> format         <span class=\"t-dim\">  19.6 ms</span>", "  <span class=\"t-dim\">└─</span> <span class=\"t-cyan\">⠹</span> typesetting     944.1 ms<span class=\"t-dim\">   1.0 cores busy · 395.9 MB</span>", "       <span class=\"t-b\">page 38</span> <span class=\"t-dim\">· 0 running · 1 idle</span>"],
+[1, "<span class=\"t-cyan\">⠸</span> pdflatex paper.tex: build 1 (clean build)                               <span class=\"t-b\">    1.0 s</span>", "  <span class=\"t-dim\">├─</span> <span class=\"t-green\">✓</span> format         <span class=\"t-dim\">  19.6 ms</span>", "  <span class=\"t-dim\">└─</span> <span class=\"t-cyan\">⠸</span> typesetting       1.02 s<span class=\"t-dim\">   1.0 cores busy · 395.9 MB</span>", "       <span class=\"t-b\">page 38</span> <span class=\"t-dim\">· 0 running · 1 idle</span>"],
+[1, "<span class=\"t-green\">✓</span>  1  <span class=\"t-cyan\">clean build</span>  38 pages                       <span class=\"t-b\">1.10 s</span>", "<span class=\"t-green\">●</span> <span class=\"t-dim\">paper.tex · build 1 · 38 pages · 1.10 s · no viewer open</span>                  <span class=\"t-dim\">h: keys</span>"],
+[1, "<span class=\"t-green\">✓</span>  1  <span class=\"t-cyan\">clean build</span>  38 pages                       <span class=\"t-b\">1.10 s</span>", "<span class=\"t-dim\">viewer: a browser joined (1 open)</span>", "<span class=\"t-green\">●</span> <span class=\"t-dim\">paper.tex · build 1 · 38 pages · 1.10 s · no viewer open</span>                  <span class=\"t-dim\">h: keys</span>"],
+[1, "<span class=\"t-green\">✓</span>  1  <span class=\"t-cyan\">clean build</span>  38 pages                       <span class=\"t-b\">1.10 s</span>", "<span class=\"t-dim\">viewer: a browser joined (1 open)</span>", "<span class=\"t-green\">●</span> <span class=\"t-dim\">paper.tex · build 1 · 38 pages · 1.10 s · 1 viewer</span>                        <span class=\"t-dim\">h: keys</span>"],
+[1, "<span class=\"t-green\">✓</span>  1  <span class=\"t-cyan\">clean build</span>  38 pages                       <span class=\"t-b\">1.10 s</span>", "<span class=\"t-dim\">viewer: a browser joined (1 open)</span>", "<span class=\"t-green\">●</span> <span class=\"t-dim\">paper.tex · build 1 · 38 pages · 1.10 s · ⚡ 1.13 s to the screen · 1 viewer</span>"],
+[1, "<span class=\"t-green\">✓</span>  1  <span class=\"t-cyan\">clean build</span>  38 pages                       <span class=\"t-b\">1.10 s</span>", "<span class=\"t-dim\">viewer: a browser joined (1 open)</span>", "<span class=\"t-cyan\">⠋</span> pdflatex paper.tex: build 2 (paper.tex) · typesetting · 0.0 s"],
+[1, "<span class=\"t-green\">✓</span>  1  <span class=\"t-cyan\">clean build</span>  38 pages                       <span class=\"t-b\">1.10 s</span>", "<span class=\"t-dim\">viewer: a browser joined (1 open)</span>", "<span class=\"t-green\">●</span> <span class=\"t-dim\">paper.tex · build 1 · 38 pages · 1.10 s · ⚡ 1.13 s to the screen · 1 viewer</span>"],
+[1, "<span class=\"t-green\">✓</span>  1  <span class=\"t-cyan\">clean build</span>  38 pages                       <span class=\"t-b\">1.10 s</span>", "<span class=\"t-dim\">viewer: a browser joined (1 open)</span>", "<span class=\"t-green\">✓</span>  2  <span class=\"t-cyan\">paper.tex:4</span>  page 1                        <span class=\"t-b\">16.0 ms</span>  <span class=\"t-green\">69× faster</span>", "<span class=\"t-green\">●</span> <span class=\"t-dim\">paper.tex · build 1 · 38 pages · 1.10 s · ⚡ 1.13 s to the screen · 1 viewer</span>"],
+[1, "<span class=\"t-green\">✓</span>  1  <span class=\"t-cyan\">clean build</span>  38 pages                       <span class=\"t-b\">1.10 s</span>", "<span class=\"t-dim\">viewer: a browser joined (1 open)</span>", "<span class=\"t-green\">✓</span>  2  <span class=\"t-cyan\">paper.tex:4</span>  page 1                        <span class=\"t-b\">16.0 ms</span>  <span class=\"t-green\">69× faster</span>", "<span class=\"t-green\">●</span> <span class=\"t-dim\">paper.tex · build 2 · 38 pages · 16.0 ms · warnings updating · 1 viewer</span>   <span class=\"t-dim\">h: keys</span>"],
+[1, "<span class=\"t-green\">✓</span>  1  <span class=\"t-cyan\">clean build</span>  38 pages                       <span class=\"t-b\">1.10 s</span>", "<span class=\"t-dim\">viewer: a browser joined (1 open)</span>", "<span class=\"t-green\">✓</span>  2  <span class=\"t-cyan\">paper.tex:4</span>  page 1                        <span class=\"t-b\">16.0 ms</span>  <span class=\"t-green\">69× faster</span>", "<span class=\"t-green\">●</span> <span class=\"t-dim\">paper.tex · build 2 · 38 pages · 16.0 ms · 1 viewer</span>                       <span class=\"t-dim\">h: keys</span>"],
+[1, "<span class=\"t-green\">✓</span>  1  <span class=\"t-cyan\">clean build</span>  38 pages                       <span class=\"t-b\">1.10 s</span>", "<span class=\"t-dim\">viewer: a browser joined (1 open)</span>", "<span class=\"t-green\">✓</span>  2  <span class=\"t-cyan\">paper.tex:4</span>  page 1                        <span class=\"t-b\">16.0 ms</span>  <span class=\"t-green\">69× faster</span>", "<span class=\"t-green\">●</span> <span class=\"t-dim\">paper.tex · build 2 · 38 pages · 16.0 ms · ⚡ 52.4 ms to the screen · 1 viewer</span>"]
+];
 
 // ── story beats, seconds ───────────────────────────────────────────────────
 const TIMELINE = {
   type: [0.25, 0.85],             // `phitex watch paper.tex` typed
-  header: 1.0,
-  build: [1.15, 2.05],            // the cold build, every lane busy (its 1.60 s, sped up)
-  ribbon: [1.1, 2.3],             // the logo's ribbon drains and flows in again meanwhile
-  page: [2.0, 2.35],              // the page appears, top down
-  edit: 2.9,                      // the word changes in paper.tex: its paragraph goes stale
-  rebuilt: 3.25,                  // ... and is built again, on one lane
-  same: 3.85,                     // byte-identical to pdflatex
-  hash: [3.95, 4.45],             // the sha256, resolving
-  clear: [5.8, 6.3],              // the terminal and the page clear: the last frame is the first
-  duration: 6.4,
+  header: 1.0,                    // PhiTeX's header and its files note
+  build: 1.15,                    // REC[0]: the spinner, then (REC[4]) the viewer's line and the build
+  tick: 0.08,                     // the spinner's pace, as recorded
+  page: [2.75, 3.1],              // the page in the browser, top down, as it joins
+  edit: 4.2,                      // the word changed in paper.tex: its paragraph goes stale
+  rebuilt: 4.3,                   // ... built again
+  clear: [6.6, 7.1],              // the terminal and the page clear: the last frame is the first
+  duration: 7.2,
 };
-const C = CONFIG, T = TIMELINE, D = T.duration;
-const PDF = C.file.replace(/\.tex$/, '.pdf');
+const T = TIMELINE, D = T.duration;
+// (when each of REC's screens comes: the build's at the spinner's pace, the rest at the story's beats)
+const AT = REC.map((_, k) => k <= 17 ? T.build + k * T.tick : [2.59, 2.75, 2.8, 3.0, T.edit, 4.26, T.rebuilt, 4.33, 4.4, 4.55][k - 18]);
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const lin = (t, [a, b]) => clamp((t - a) / (b - a));
 const ease = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-function mulberry(seed) {
-  return () => {
-    seed = seed + 0x6D2B79F5 | 0;
-    let x = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    x = x + Math.imul(x ^ x >>> 7, 61 | x) ^ x;
-    return ((x ^ x >>> 14) >>> 0) / 4294967296;
-  };
-}
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const sp = (cls, s) => `<span class="${cls}">${s}</span>`;
-const pad = (s, n) => String(s).padEnd(n);
-const fmtS = s => s < 1 ? `${(s * 1000).toFixed(1)} ms` : `${s.toFixed(2)} s`;
-const R = mulberry(C.seed);
-const HASH = C.sha256 || Array.from({ length: 64 }, () => '0123456789abcdef'[Math.floor(R() * 16)]).join('');
 
 // ── DOM ────────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -359,62 +371,20 @@ const params = new URLSearchParams(location.search);
 setK('termTitle', `${C.dir} — phitex watch`);
 setK('pdfName', PDF);
 
-// ── the terminal, as `phitex watch` prints it on a terminal (crates/cli/src/watch.rs and ui.rs): its banner and the
-// viewer's line; while a build runs, the spinner and its live tree (the phases, the page reached, what the workers run,
-// alike ones counted together); each build's line; and under them the dim status line with the keys
-const LIVE = {                    // the cold build's live tree and the edit's figures, illustrative
-  format: 12.0, cores: 15.6, mem: '412 MB', running: 14,
-  rows: [['text', 'paper.tex:142', 9], ['text', 'paper.tex:118', 3], ['box', 'paper.tex:88', 1], ['page', 'the output routine', 1]],
-  nodes: 560, parallel: 12.4, editNodes: 9, screenMs: 21.4,
-};
-const TICKS = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
-const COLS = 84;                  // the terminal's width, in columns
 const cursor = t => Math.floor(t * 2.2) % 2 ? '' : '<span class="cursor"></span>';
-const ms = s => s >= 1 ? `${s.toFixed(2)} s` : `${(s * 1000).toFixed(1)} ms`;
-const rpad = (s, n) => String(s).padStart(n);
-const vis = h => h.replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&amp;/g, '&').length;
-const padH = (h, n) => h + ' '.repeat(Math.max(0, n - vis(h)));            // padded to a visible width
-const Dm = s => sp('t-dim', s), B = s => sp('t-b', s), G = s => sp('t-green', s), CY = s => sp('t-cyan', s);
-function idle(text, ok) {
-  // (as ui.rs's idle_line: the keys at the right end when there is room, else the text alone, cut only if it is wider)
-  const keys = 'h: keys', room = COLS - 2, fits = text.length + 3 + keys.length <= room;
-  const shown = fits || text.length <= room ? text : text.slice(0, room - 1) + '…';
-  return `<div class="idle"><span>${ok ? G('●') : Dm('●')} ${Dm(esc(shown))}</span>${fits ? Dm(keys) : ''}</div>`;
-}
-function spinner(t, what, elapsed, tree) {
-  const tick = TICKS[Math.floor(t * 12.5) % TICKS.length];
-  return [`${CY(tick)} ${padH(esc(what), COLS - 11)}${B(rpad(elapsed.toFixed(1) + ' s', 9))}`, ...(tree ? tree(tick) : [])].join('\n');
-}
-function buildLine(n, place, facts, wall, tail) {
-  return `${G('✓')} ${rpad(n, 2)}  ${padH(CY(esc(place)), 10)}  ${padH(facts.join(Dm(' · ')), 26)}  ${padH(B(rpad(ms(wall), 9)), 9)}  ${tail}`.trimEnd();
-}
+// (a line wider than the terminal wraps at its last column, as a terminal wraps it)
+const wrapped = (s, cls) => s.match(new RegExp(`.{1,${COLS}}`, 'g')).map(l => `<span class="${cls}">${esc(l)}</span>`);
 function terminal(t) {
   const cmd = `phitex watch ${C.file}`, n = Math.round(lin(t, T.type) * cmd.length);
-  const rows = [`${G('$')} ${cmd.slice(0, n)}${t < T.header ? cursor(t) : ''}`];
+  const rows = [`<span class="t-green">$</span> ${cmd.slice(0, n)}${t < T.header ? cursor(t) : ''}`];
   if (t < T.header) return rows.join('\n');
-  rows.push(`${B('PhiTeX')} ${Dm(C.version)}  ${B(C.file)} → ${B(PDF)}  ${Dm(`${C.engine} · ${C.threads} threads`)}`,
-            `${Dm('viewer')}  ${CY('http://127.0.0.1:37765/')}  ${Dm('(o opens it)')}`);
-  const what = `${C.engine} ${C.file}`;
-  if (t < T.build[1]) {                                  // the cold build: the tree once it has run a while
-    const u = lin(t, T.build), el = u * C.coldS;
-    rows.push(spinner(t, `${what}: build 1 (cold)`, el, el < .3 ? null : tick => [
-      `  ${Dm('├─')} ${G('✓')} ${padH('format', 14)} ${Dm(rpad(ms(LIVE.format / 1000), 9))}`,
-      `  ${Dm('└─')} ${CY(tick)} ${padH('engine', 14)} ${rpad(ms(el - LIVE.format / 1000), 9)}${Dm(`   ${LIVE.cores.toFixed(1)} cores busy · ${LIVE.mem}`)}`,
-      `       ${B('page ' + Math.max(1, Math.min(C.pages, Math.ceil(u * C.pages))))} ${Dm(`· ${LIVE.running} running · ${C.threads - LIVE.running} idle`)}`,
-      ...LIVE.rows.map(([k, at, x], j) => `       ${Dm(j + 1 === LIVE.rows.length ? '└─' : '├─')} ${padH(k, 6)} ${at}${x > 1 ? Dm(' ×' + x) : ''}`),
-    ]));
-    return rows.join('\n');
-  }
-  rows.push(buildLine(1, 'cold', [`${C.pages} pages`, `${LIVE.nodes} nodes`], C.coldS, CY(LIVE.parallel.toFixed(1) + '× parallel')));
-  if (t >= T.edit && t < T.rebuilt) {                    // the edit's build: its spinner a moment (slowed, to be seen)
-    rows.push(spinner(t, `${what}: build 2 (${C.file})`, 0));
-    return rows.join('\n');
-  }
-  const edited = t >= T.rebuilt;
-  if (edited) rows.push(buildLine(2, `${C.file}:${C.line}`, ['page 1', `${LIVE.editNodes}/${LIVE.nodes} nodes`], C.editMs / 1000,
-    G(Math.round(C.coldS * 1000 / C.editMs) + '× faster')));
-  rows.push(idle(edited ? `${C.file} · build 2 · ${C.pages} pages · ${ms(C.editMs / 1000)} · ⚡ ${ms(LIVE.screenMs / 1000)} to the screen · 1 viewer`
-                        : `${C.file} · build 1 · ${C.pages} pages · ${ms(C.coldS)} · 1 viewer`, true));
+  rows.push(HEADER, ...wrapped(FILES, 't-dim'));
+  let k = -1;
+  for (let j = 0; j < REC.length; j++) if (t >= AT[j]) k = j;
+  if (k < 0) return rows.join('\n');
+  const [viewer, ...lines] = REC[k];
+  if (viewer) rows.push(VIEWER);
+  rows.push(...lines);
   return rows.join('\n');
 }
 
@@ -424,7 +394,7 @@ function render(t) {
   const out = 1 - ease(lin(t, T.clear));              // the clear at the loop's end
   setH($('tbody'), terminal(t));
   $('tbody').style.opacity = out;
-  // the page: built top down after the cold build; the edited word, its paragraph stale, then built again
+  // the page: in the browser as it joins after the clean build; the edited word, its paragraph stale, then built again
   const shown = ease(lin(t, T.page));
   $('veil').style.clipPath = `inset(${(shown * 100).toFixed(1)}% 0 0 0)`;
   $('veil').style.opacity = t >= T.clear[0] ? 1 - out : 1;
@@ -433,15 +403,10 @@ function render(t) {
   setH($('word'), C.word[edited ? 1 : 0]);
   $('edited').style.setProperty('--dirty', t >= T.edit && t < T.rebuilt ? 1 : clamp(1 - (t - T.rebuilt) / .25) * (t >= T.rebuilt ? 1 : 0));
   $('word').style.setProperty('--hl', edited ? (.28 * clamp(1 - (t - T.rebuilt - .9) / .6)).toFixed(3) : 0);
-  // the viewer's own status line, along its bottom
-  $('vtext').textContent = t < T.page[0] ? 'building…' : t >= T.edit && t < T.rebuilt ? `${C.engine} ${C.file}: build 2…`
-    : edited ? `${C.file} · build 2 · ${C.pages} pages · ${ms(C.editMs / 1000)} · ⚡ ${ms(LIVE.screenMs / 1000)} to the screen`
-    : `${C.file} · build 1 · ${C.pages} pages · ${ms(C.coldS)}`;
-  $('vbar').style.opacity = out;
-  setK('pdfState', t < T.page[0] || t >= T.clear[0] + .25 ? '' : t >= T.edit && t < T.rebuilt ? '<span style="color:var(--amber)">building</span>'
-    : t >= T.same ? '<span style="color:var(--green)">✓ same bytes as ' + C.engine + '</span>' : 'page 1 of ' + C.pages);
 }
 window.render = render;
+// (reduced motion: the screen that says the most, the edit rebuilt and on the screen, held still)
+window.STILL = 4.6;
 
 // ── preview: fit, play, scrub ──────────────────────────────────────────────
 const renderMode = params.has('render');
@@ -470,7 +435,8 @@ function fit() {
   if (!renderMode && !embed) $('viewport').style.marginTop = `${Math.max(0, (innerHeight - 52 - H * s) / 2)}px`;
 }
 addEventListener('resize', fit);
-let playing = !renderMode && !params.has('t'), t0 = performance.now(), cur = Number(params.get('t')) || 0;
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let playing = !renderMode && !params.has('t') && !still, t0 = performance.now(), cur = params.has('t') ? Number(params.get('t')) : still ? window.STILL : 0;
 const scrub = $('scrub'); scrub.max = D;
 // off screen (scrolled away, or a hidden tab) it draws nothing: an iframe's observer sees the top page's viewport
 let onScreen = true;

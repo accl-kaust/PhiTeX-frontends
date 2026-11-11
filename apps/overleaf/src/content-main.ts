@@ -1096,6 +1096,10 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detache[dr])?\/?$/;
       void chrome.storage.local.get("mains").then(({ mains }) => chrome.storage.local.set({ mains: { ...(mains as Record<string, string> | undefined), [project()]: m } }));
       void session?.setMain(m);
     },
+    // (Ctrl+click or a middle click on a link: the project in a tab of its own, its preview
+    // at the link's target. The project's editor, not Overleaf's detached PDF page: opening
+    // that one makes Overleaf take the PDF out of this tab, and this preview with it)
+    onOpenAt: (k, top) => void window.open(`${project()}#at=${k + 1},${Math.round(top ?? 0)}`, "_blank"),
     // (the hook moves the editor's cursor there: the one thing it writes)
     onGoto: (file, line) => DETACHED ? ask({ t: "goto", file, line }) : window.postMessage({ src: "phitex-content", type: "goto", file, line }, location.origin),
     onSyncSource: (k, x, y) => (DETACHED ? ask({ t: "sync", k, x, y }) : void shown()?.toSource(k, x, y)),
@@ -1136,6 +1140,11 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detache[dr])?\/?$/;
     onLog: () => shown()?.log() ?? Promise.resolve(null),
     onBoxes: (file, start, end) => shown()?.boxesOf(file, start, end) ?? Promise.resolve([]),
   }, prefs, { host: "overleaf", fileUrl: (p) => chrome.runtime.getURL(p) });
+  // (a tab opened at a place (a link Ctrl+clicked in another): its pages start there, lit once shown)
+  {
+    const at = /^#at=(\d+),(\d+)$/.exec(location.hash);
+    if (at) panel.startAt(Number(at[1]) - 1, Number(at[2]));
+  }
   void chrome.storage.local.get("viewPrefs").then(({ viewPrefs }) => panel.viewPrefs((viewPrefs as Partial<ViewPrefs> | undefined) ?? {}));
   /** The extension's rows of the Settings dialog: what the popup sets, kept where it keeps them. */
   async function overleafSettings(): Promise<SettingsGroup[]> {
