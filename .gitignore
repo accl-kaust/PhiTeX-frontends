@@ -2,6 +2,7 @@
 target/
 node_modules/
 store/*.zip
+store/*.vsix
 store/vscode/
 # (each published version unpacked for its store listing: 1.6 GB, kept here
 # only; the cluster drivers snapshot what git doesn't ignore)

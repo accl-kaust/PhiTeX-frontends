@@ -7,8 +7,11 @@ PhiTeX is a TeX engine that rebuilds incrementally. An edit re-runs only
 what it changed, so ordinary text and headings reach the page in a few
 milliseconds.
 
-It is experimental. When PhiTeX's pages and a regular `pdflatex` run
-disagree, `pdflatex` is right.
+PhiTeX 1.0's PDF is the one `pdflatex` makes, byte for byte, and the
+tests check that after every edit. If you ever find a difference, it's a
+bug: please report it.
+
+![The preview beside the source: a paper with equations, references and a bibliography, typeset as you type](media/screenshot-preview.png)
 
 ## Getting started
 
@@ -23,17 +26,34 @@ kept for next time, so later builds start in seconds.
 
 - **Pages as you type**: every edit is typeset at once, with no save and no
   Recompile button.
+- **pdfLaTeX and XeLaTeX**: fontspec, unicode-math and polyglossia, with
+  TeX Live's OpenType fonts or your own. A `% !TEX program = …` line picks
+  the engine, else the preamble does (`phitex.texEngine`).
+- **Link previews**: rest the pointer on a `\ref`, an `\eqref` or a
+  `\pageref` and a small window shows that spot of the target page. Pin it,
+  move it, resize it from its corner.
+- **Citation cards**: hover a citation for a card per cited work. A group or
+  a range like [1–3] shows every work in it, the one under the pointer
+  marked.
+- **Back and forward**: follow a link and a Back pill appears, with the
+  places you came from; the mouse's back and forward buttons work too.
+  Ctrl+click (or a middle click) opens the target in a new preview tab.
 - **Source ↔ page**: the word at your cursor is marked on the page.
   Double-click the page to jump to its source; select text on the page to
   select it in the editor.
-- **Compare with a past version**: pick a commit from the folder's git
+- **Compare with a past version**: mark a From and a To in the folder's git
   history. The changes are marked on the pages as `latexdiff` marks them,
-  and the marks follow your edits.
+  and the marks follow your edits. Without git it says what it needs; you
+  commit with your own git or Source Control.
 - **Problems**: errors and warnings are listed in the preview and underlined
   on the page where they happen. **View log** shows the build's log.
+- **Bibliographies and indexes**: BibTeX, biber and makeindex run inside the
+  build, so references settle by themselves.
 - **minted**: code blocks are highlighted by Pygments, which runs inside the
   extension.
 - **Contents**: the document's outline beside the pages.
+- **Loading animations**: Settings › Appearance plays each one; pick any
+  number, or none (`phitex.opening`).
 
 ## Engines
 
@@ -50,9 +70,13 @@ kept for next time, so later builds start in seconds.
 |---|---|---|
 | `phitex.engine` | `builtin` | Which engine typesets the preview: `builtin` or `phitex watch`. |
 | `phitex.path` | `phitex` | The `phitex` command for the `phitex watch` engine: a name on the PATH or a full path. |
+| `phitex.texEngine` | `auto` | The builtin engine's TeX: `auto` (a `% !TEX program` line, else the preamble), `pdflatex` or `xelatex`. |
 | `phitex.main` | (empty) | The project's main `.tex` file, relative to its folder. Empty: the open file if it has `\documentclass`, else the folder's file that has it. |
 | `phitex.follow` | `cursor` | What the pages mark of where you are in the source: `cursor`, `selection` or `dblclick`. |
 | `phitex.threads` | `0` | The builtin engine's threads. `0`: one per core of this machine, at most 4. |
+| `phitex.darkPdf` | `off` | Dark pages: `off`, `on`, or `theme` (when VS Code's theme is dark). |
+| `phitex.opening` | `random` | The loading animations: `random`, `all`, `off`, or those picked, comma separated. |
+| `phitex.underline` | `true` | A wavy line on the pages under what each error and warning is about. |
 | `phitex.trace` | `false` | Write what the preview does to the PhiTeX output, for a bug report. |
 
 ## Privacy
@@ -73,8 +97,7 @@ There are no analytics, no accounts and no tracking.
 
 ## Limits
 
-- **pdfLaTeX only, for now**: the builtin engine doesn't run XeLaTeX or
-  LuaLaTeX projects yet.
+- **LuaLaTeX** projects don't run yet; pdfLaTeX and XeLaTeX do.
 - **Images**: PDF, PNG and JPEG figures work.
 - **Shell escape** is restricted, as in TeX Live's `pdflatex`, and only
   `minted`'s command runs.
@@ -83,9 +106,8 @@ There are no analytics, no accounts and no tracking.
   do, the problems list names it.
 - **Speed varies with what you edit.** Editing a macro that a big TikZ
   picture uses on every point can take a second or more.
-- **Bibliographies and cross-references** settle a moment after you stop
-  typing, as `latexmk` would. BibTeX and makeindex run; biber and xindy
-  don't.
+- **Very large TikZ documents**: one the size of the TikZ manual (1,180
+  pages) runs out of memory in the builtin engine; use `phitex watch`.
 
 ## License
 

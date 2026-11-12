@@ -1,6 +1,6 @@
 # Privacy policy: PhiTeX Instant for Overleaf (unofficial)
 
-*Last updated: 3 October 2026*
+*Last updated: 12 November 2026 (version 1.0)*
 
 **PhiTeX Instant collects no data.** Nothing about you or your documents
 is sent to the extension's authors or to anyone else.
@@ -9,13 +9,21 @@ is sent to the extension's authors or to anyone else.
   are editing (from the editor, and the project's files from overleaf.com,
   as you, signed in: its text files, and its ZIP for figures) so that its
   engine can typeset it. That happens entirely in your browser.
+  For Compare, it reads the project's history from overleaf.com the same
+  way (its versions and labels, and a past version's files). Link previews
+  and citation cards are drawn from the pages it typeset; they make no
+  request.
 - **What it sends.** Your documents are never sent anywhere. Besides those
   reads from overleaf.com, it makes one kind of request: for a TeX package
   it doesn't bundle, a plain download of that package from Shelf
   (`v1.shelf.phitex.org`, or `shelf-phitex-v1.pages.dev` where that cannot be reached; static files on Cloudflare Pages), such as
   `…/tl2026/h/pgf-3f9a2c41b0de.pack`. The request carries only the package's name,
   which comes from TeX Live's public list. It carries no document text, no
-  file name of yours, and no identifier or cookie. Like any website,
+  file name of yours, and no identifier or cookie. In the background, every
+  few hours, it also fetches the packages most papers use, so that a
+  first open finds them: the list is the same for everyone and says
+  nothing about your documents (*Fetch common packages ahead* in the
+  settings turns it off). Like any website,
   Cloudflare sees the request and your IP address. Shelf keeps no logs of
   its own. There are no analytics, no tracking and no remote code.
 - **What it stores.** Its own settings, in your browser's extension
@@ -25,6 +33,12 @@ is sent to the extension's authors or to anyone else.
   IndexedDB, so they are fetched only once. No document content is stored.
   *Package cache → Clear* in the settings deletes the packages. *Reset
   extension* deletes the settings. Removing the extension deletes both.
+- **Folders, in your Overleaf account.** If you make a folder on
+  Overleaf's project list, the extension asks first, then keeps your
+  folders in a project of your own Overleaf account named `.phitex-data`
+  (a file `data/folders.json`: folder names and which projects are in
+  them). It is yours like any project: Overleaf stores it, and deleting it
+  deletes the folders. Nothing is made until you make a folder.
 - **Debug reports, only if you send one.** *Report a problem…* shows an
   anonymized report: versions, timings, errors, TeX package names and a
   log of what the extension did, with no document text, nothing you typed,

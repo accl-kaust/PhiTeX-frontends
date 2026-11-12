@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- The store's promo tiles, rendered by store/shots.mjs: ?w=440&h=280 (small), ?w=1400&h=560 (marquee) -->
+<html><head><meta charset="utf-8"><style>
+@font-face { font-family: "Noto Sans"; font-weight: 400; src: url("../apps/site/public/fonts/noto-sans-latin-400-normal.woff2"); }
+@font-face { font-family: "Noto Sans"; font-weight: 700; src: url("../apps/site/public/fonts/noto-sans-latin-700-normal.woff2"); }
+@font-face { font-family: "CMU Serif"; font-weight: 400; src: url("../apps/site/public/fonts/cmu-serif-500-roman.woff2"); }
+@font-face { font-family: "CMU Serif"; font-style: italic; font-weight: 400; src: url("../apps/site/public/fonts/cmu-serif-500-italic.woff2"); }
+html, body { margin: 0; }
+body { width: var(--w); height: var(--h); overflow: hidden; background: radial-gradient(120% 140% at 0% 0%, #2f3a4c 0%, #1b222c 60%); color: #fff; font-family: "Noto Sans", sans-serif; position: relative; }
+.tile { position: absolute; inset: 0; display: flex; align-items: center; gap: calc(var(--h) * .09); padding: 0 calc(var(--h) * .13); }
+.icon { width: calc(var(--h) * .34); height: calc(var(--h) * .34); flex: none; background: #fff; border-radius: 22%; display: grid; place-items: center; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.icon img { width: 82%; }
+h1 { margin: 0; white-space: nowrap; font-size: calc(var(--h) * .135); line-height: 1.1; font-weight: 700; letter-spacing: -.01em; }
+h1 .bolt { color: #f5c542; }
+p.sub { margin: .35em 0 0; white-space: nowrap; font-size: calc(var(--h) * .068); color: #d0d5dd; }
+p.fine { margin: 1.1em 0 0; white-space: nowrap; font-size: calc(var(--h) * .046); color: #8d96a5; }
+.page { position: absolute; right: calc(var(--h) * .12); top: calc(var(--h) * .12); bottom: -10%; width: calc(var(--h) * .72); background: #fff; color: #1b222c; border-radius: 4px; box-shadow: 0 20px 60px rgba(0,0,0,.45); padding: calc(var(--h) * .06); font-family: "CMU Serif", serif; font-size: calc(var(--h) * .026); line-height: 1.35; transform: rotate(2deg); display: none; }
+.page h2 { font-weight: 400; font-size: 1.6em; text-align: center; margin: .2em 0 .8em; }
+.page .eq { text-align: center; font-style: italic; margin: .8em 0; }
+.page .peek { position: absolute; left: -38%; top: 46%; width: 70%; background: #fff; border: 1px solid #d0d5dd; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.3); padding: .8em 1em; font-family: "Noto Sans", sans-serif; font-size: .85em; transform: rotate(-2deg); }
+.page .peek b { display: block; font-size: 1.05em; margin-bottom: .3em; }
+.page .peek span { color: #495365; }
+.wide .page { display: block; }
+.wide .tile { right: 38%; gap: calc(var(--h) * .07); padding: 0 calc(var(--h) * .11); }
+.wide .icon { width: calc(var(--h) * .27); height: calc(var(--h) * .27); }
+</style></head>
+<body><div class="tile">
+  <div class="icon"><img src="../apps/overleaf/icons/icon128.png" alt=""></div>
+  <div><h1>PhiTeX <span class="bolt">⚡</span> Instant</h1><p class="sub">A live LaTeX preview for Overleaf</p><p class="fine">Runs in your browser · Unofficial</p></div>
+</div>
+<div class="page"><h2>Typesetting at the Speed of Typing</h2>
+<p>A document is a program, and an edit is a small change to it. Knuth's TeX [3] runs that program from the first page each time; an incremental build [1, 2] keeps its results, and reruns only the part an edit reaches.</p>
+<p class="eq">D = p<sub>n</sub> ∘ p<sub>n−1</sub> ∘ ⋯ ∘ p<sub>1</sub> &nbsp;&nbsp;&nbsp;&nbsp;(1)</p>
+<p>An edit to p<sub>k</sub> invalidates the states after it only where they read what p<sub>k</sub> wrote. The cost of a rebuild is therefore at most a fresh build's, and on most edits one paragraph's.</p>
+<div class="peek"><b>[1] Self-Adjusting Computation</b><span>U. A. Acar, 2005 · PhD thesis, Carnegie Mellon University</span></div>
+</div>
+<script>
+const q = new URLSearchParams(location.search), w = +(q.get("w") ?? 440), h = +(q.get("h") ?? 280);
+document.body.style.setProperty("--w", w + "px"); document.body.style.setProperty("--h", h + "px");
+if (w / h > 2) document.body.classList.add("wide");
+// (the words on one line each, as large as the tile's room allows)
+document.fonts.ready.then(() => {
+  const t = document.querySelector(".tile"), box = t.lastElementChild, room = t.clientWidth - box.offsetLeft - parseFloat(getComputedStyle(t).paddingRight);
+  const k = Math.min(1, room / box.scrollWidth);
+  if (k < 1) box.querySelectorAll("h1, p").forEach((e) => (e.style.fontSize = parseFloat(getComputedStyle(e).fontSize) * k + "px"));
+  document.body.dataset.ready = "1";
+});
+</script></body></html>
