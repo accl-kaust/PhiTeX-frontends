@@ -4,7 +4,7 @@
   "icon": "icon.png",
   "description": "Instant LaTeX preview: pages update as you type, typeset by PhiTeX in VS Code itself.",
   "version": "1.0.1",
-  "publisher": "ammarseliaman",
+  "publisher": "accl-kaust",
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
