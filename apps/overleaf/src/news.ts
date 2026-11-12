@@ -19,6 +19,16 @@ export const SUPPORT: { label: string; href: string } | null = null;
 
 export const NEWS: News[] = [
   {
+    version: "1.0.1",
+    date: "2026-11-12",
+    title: "Fixes",
+    items: [
+      "A citation's card shows the work it cites. In 1.0.0 it could show the entry before it.",
+      "After a keystroke, the status shows how long the page took (\u201cBuilt · 35 ms\u201d), never an older, longer wait.",
+      "Bad Apple plays from its first frame, and a loading animation you just picked plays the next time you open a document.",
+    ],
+  },
+  {
     version: "1.0.0",
     date: "2026-11-08",
     title: "PhiTeX 1.0",
