@@ -28,6 +28,15 @@ ls build/overleaf/formats/pdflatex-*.gzdata > /dev/null 2>&1 || { echo "no pdfLa
 if find build/overleaf/dist build/overleaf/minted build/overleaf/packs build/overleaf/texmf -name "*.zip" -o -name "*.gz" -o -name "*.whl" -o -name "*.tgz" | grep -q .; then echo "an archive in the package (Edge refuses it)" >&2; exit 1; fi
 if grep -q localhost build/overleaf/dist/common/shelf.js; then echo "shelf.js points at localhost: not a release build" >&2; exit 1; fi
 if find build/overleaf/dist -name '*.map' | grep -q .; then echo "source maps in dist" >&2; exit 1; fi
+# (every file the manifest names is in the package: Edge refuses one that names a file it lacks,
+# as 1.0.1's first upload did, nine dist/common modules bundled into content-main.js since)
+tools/sandbox node -e '
+  const fs = require("fs"), path = require("path"), d = "build/overleaf", m = JSON.parse(fs.readFileSync(d + "/manifest.json"));
+  const named = [...(m.web_accessible_resources ?? []).flatMap((w) => w.resources), ...(m.content_scripts ?? []).flatMap((c) => [...(c.js ?? []), ...(c.css ?? [])]), m.background?.service_worker, m.action?.default_popup, ...Object.values(m.icons ?? {})].filter(Boolean);
+  const glob = (p) => { const dir = path.join(d, path.dirname(p)), re = new RegExp("^" + path.basename(p).replace(/[.]/g, "[.]").replace(/[*]/g, ".*") + "$"); return fs.existsSync(dir) && fs.readdirSync(dir).some((f) => re.test(f)); };
+  const missing = named.filter((p) => (p.includes("*") ? !glob(p) : !fs.existsSync(path.join(d, p))));
+  if (missing.length) { console.error("the manifest names files the package lacks: " + missing.join(", ")); process.exit(1); }
+  if ((m.short_name ?? "").length > 12) { console.error("short_name over 12 characters (Edge warns): " + m.short_name); process.exit(1); }'
 
 # (the threaded core and its worker are VS Code's and the web demo's
 # (build/overleaf/dist is their assets), not the extension's; nor are Pyodide's

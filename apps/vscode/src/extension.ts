@@ -222,7 +222,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
           : [{ label: "$(zap) Open the preview", description: "Ctrl+Alt+P", run: () => open() }]),
         { label: "$(arrow-swap) Switch engine", description: `to ${other}`, run: () => vscode.commands.executeCommand("phitex.switchEngine") },
         { label: "$(output) Show the log", run: () => log.show() },
-        { label: "$(gear) Settings", run: () => vscode.commands.executeCommand("workbench.action.openSettings", "@ext:accl-kaust.phitex-instant") },
+        { label: "$(gear) Settings", run: () => vscode.commands.executeCommand("workbench.action.openSettings", "@ext:ammarseliaman.phitex-instant") },
       ];
       const pick = await vscode.window.showQuickPick(items, { title: "PhiTeX", placeHolder: status.state === "off" ? "Not running" : `Running: ${engineSetting()}` });
       await pick?.run();
