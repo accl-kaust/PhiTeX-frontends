@@ -80,6 +80,7 @@ b { font-weight: 600; color: var(--text); }
 .brand { display: inline-flex; align-items: baseline; text-decoration: none; color: var(--text); }
 .brand:hover { text-decoration: none; }
 .wm { font-family: var(--serif); font-weight: 400; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
 .wm .P { margin-right: -.06em; color: var(--accent); }
 .wm .E { display: inline-block; transform: translateY(.215em); margin: 0 -.115em 0 -.1667em; }
 .brand .wm { font-size: 30px; }
