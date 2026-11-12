@@ -23,6 +23,8 @@ export class StripPages implements CoreTransport {
   private panel: StripPanel;
   private strips: Strips;
   /** A change on its way to the screen: ms from the edit to `settled`, and when that came. */
+  /** The first page's time told (the opening's): later ones are the session's to tell. */
+  private told = false;
   private change: { since: number; at: number } | null = null;
   /** Every page's text, for finding (asked again after each build). */
   private texts: Promise<TextLine[][]> | null = null;
@@ -49,6 +51,11 @@ export class StripPages implements CoreTransport {
     t.onEvent?.((e) => {
       if (e.event !== "settled") return;
       this.texts = null;
+      // (the first page only, the opening's: each keystroke's page the session times, from the
+      // keystroke (PreviewSession.queuedLatency). Timed here too, from each settle to the next
+      // page drawn, a settle that changed no page kept its clock running until some later draw
+      // (a zoom, a link's window): "Built · 1.2 s", "5.4 s", the page in at 50 ms)
+      if (this.told) return;
       const since = (e as { since_ms?: number | null }).since_ms;
       this.change = typeof since === "number" ? { since, at: performance.now() } : null;
     });
@@ -70,6 +77,7 @@ export class StripPages implements CoreTransport {
     const c = this.change;
     if (!c) return;
     this.change = null;
+    this.told = true;
     requestAnimationFrame(() => {
       const ms = c.since + performance.now() - c.at;
       this.panel.painted?.(ms);
