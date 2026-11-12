@@ -262,7 +262,12 @@ if (startAt) panel.startAt(startAt[0], startAt[1]);
 const host: EditorHost = { loadProject: async () => ({}), onOpen() {}, onChanges() {} };
 // (a double-click: the engine opens the source in the editor, window/showDocument;
 // text selected on the pages: its source selected there, the focus left here)
-const session = new PreviewSession(host, pages, watch ? panel : gate(panel, () => compare.editorShown()), {
+// (the gate lets the session's own constructor's calls through (its cites wired to the panel,
+// citesBy): made before `compare` below, a gate reading it threw there, the rest of this
+// script never ran, and the pages never came: "Starting the engine" for good, as the web
+// demo's did, 8f5c98d)
+let compared = false;
+const session = new PreviewSession(host, pages, watch ? panel : gate(panel, () => !compared || compare.editorShown()), {
   checkEveryMs: 0,
   remote: {
     source: (file, start, end) => void relay.request({ op: "source", file, start, end }),
@@ -318,6 +323,7 @@ const compare = new Compare<string>({
   loadLook: async () => (vscode.getState() as { look?: Partial<DiffLook> } | undefined)?.look,
   saveLook: (look) => vscode.setState({ ...(vscode.getState() as object | undefined), look }),
 });
+compared = true;
 const controls = new DiffControls(panel, compare);
 /** The session the panel shows: the compare's while its diff is in view. */
 const shown = () => compare.shown();

@@ -11,6 +11,7 @@
 import * as vscode from "vscode";
 import { readdir, readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
+import { execFile } from "node:child_process";
 import { AbstractMessageReader, AbstractMessageWriter, CloseAction, ErrorAction, ExecuteCommandRequest, LanguageClient, State, type DataCallback, type LanguageClientOptions, type Message, type ShowDocumentParams, type ShowDocumentResult } from "vscode-languageclient/node";
 import { join } from "node:path";
 import { availableParallelism } from "node:os";
@@ -291,6 +292,11 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   }
   const folder = ws.uri.fsPath;
   if (engineSetting() === "phitex watch") return previewWatch(ctx.extensionUri, folder, ed, log);
+  if (!builtin) {
+    const go = await downloads(ctx);
+    if (go === "watch") return previewWatch(ctx.extensionUri, folder, ed, log);
+    if (!go) return;
+  }
   if (builtinView && lost.has(builtinView)) builtinView.dispose();
   if (builtinView && builtinFolder === folder) return builtinView.reveal(vscode.ViewColumn.Beside, true);
   builtinView?.dispose();
@@ -521,6 +527,38 @@ const watches = new Set<LanguageClient>();
 const stopping = new Set<Promise<void>>();
 /** A folder's preview by its watch: one a folder, shown again when asked again. */
 const watchViews = new Map<string, vscode.WebviewPanel | "starting">();
+/** Whether the phitex command runs (its --version), for the watch engine: the user's own TeX Live. */
+const phitexRuns = (cmd: string) => new Promise<boolean>((ok) => execFile(cmd, ["--version"], { timeout: 5000 }, (e) => ok(!e)));
+
+/**
+ * The builtin engine's downloads, asked once before the first: it reads TeX Live's packages
+ * from PhiTeX's package server, never the machine's TeX Live, so a first build fetched them
+ * unasked, beside a TeX Live of the user's own. "builtin": allowed (kept, not asked again);
+ * "watch": the user's TeX Live through the phitex command (phitex.engine set, nothing
+ * fetched); null: neither, no preview.
+ */
+async function downloads(ctx: vscode.ExtensionContext): Promise<"builtin" | "watch" | null> {
+  if (ctx.globalState.get("phitex.downloads") === "allowed") return "builtin";
+  const cmd = vscode.workspace.getConfiguration("phitex").get<string>("path") || "phitex";
+  const watch = await phitexRuns(cmd);
+  const local = "Use my TeX Live", allow = "Allow downloads";
+  const pick = await vscode.window.showInformationMessage(
+    "PhiTeX: download TeX Live packages?",
+    {
+      modal: true,
+      detail:
+        "The builtin engine downloads the TeX Live packages a document uses from PhiTeX's package server (v1.shelf.phitex.org) and keeps them, for offline use. Nothing about your documents is sent.\n\n" +
+        (watch
+          ? `Or PhiTeX can typeset with your own TeX Live through the phitex command (${cmd}), and download nothing.`
+          : 'To use your own TeX Live instead, install the phitex command (phitex.org/install.html) and set "PhiTeX: Engine" to "phitex watch".'),
+    },
+    ...(watch ? [local, allow] : [allow]),
+  );
+  if (pick === allow) return void (await ctx.globalState.update("phitex.downloads", "allowed")), "builtin";
+  if (pick === local) return void (await vscode.workspace.getConfiguration("phitex").update("engine", "phitex watch", vscode.ConfigurationTarget.Global)), "watch";
+  return null;
+}
+
 async function previewWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor | undefined, log: vscode.OutputChannel): Promise<void> {
   // (one whose watch exited: closed, a new one started)
   const was = watchViews.get(folder);

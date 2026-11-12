@@ -19,8 +19,11 @@ Open a `.tex` file and press **Ctrl+Alt+P** (**Cmd+Alt+P** on a Mac), or
 click the ⚡ button in the editor's title bar. The preview opens beside the
 editor.
 
-The first build of a project downloads the TeX packages it uses. They are
-kept for next time, so later builds start in seconds.
+The builtin engine downloads the TeX packages a project uses, and asks
+before its first download. They are kept for next time, so later builds
+start in seconds. To use your own TeX Live instead and download nothing,
+choose **Use my TeX Live** there: the preview then runs on the `phitex`
+command (the setting `phitex.engine`, `"phitex watch"`).
 
 ## What it does
 
