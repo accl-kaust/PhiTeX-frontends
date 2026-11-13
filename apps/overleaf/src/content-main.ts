@@ -310,17 +310,26 @@ const DOCK_CSS = `
   body:has(.phitex-on) .synctex-controls { z-index: 13 !important; }
   /* in PhiTeX mode, Overleaf's viewer controls go, all but its invert-colors button (which works on ours too) */
   .phitex-on #toolbar-pdf-controls *:not(:has(.theme-toggle-btn)):not(.theme-toggle-btn):not(.theme-toggle-btn *) { display: none !important; }
-  /* safe: when the toolbar is too narrow, the right side spills rightwards, never over the switch */
-  .phitex-on .toolbar-pdf-right { display: flex; align-items: center; justify-content: safe flex-end; min-width: 0; }
+  /* the right side as wide as its buttons, the left side what is left: too narrow a toolbar
+     cuts the left side's status text short (below), never the right side's buttons off */
+  .phitex-on .toolbar-pdf-right { display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto !important; }
+  .phitex-on .toolbar-pdf-left { flex: 1 1 auto !important; }
   /* its controls' wrapper keeps only the invert button: no room held for the hidden rest */
   .phitex-on #toolbar-pdf-controls, .phitex-on #toolbar-pdf-controls > * { flex: 0 0 auto !important; width: auto !important; }
-  .phitex-on .toolbar-pdf-left { flex-shrink: 0; }
   #phitex-controls:not(.compact) .phitex-compact-only { display: none; }
   #phitex-controls.compact .pdfjs-toolbar-buttons, #phitex-controls.compact .pdfjs-page-number-input { display: none; }
-  #phitex-switch { margin-left: 8px; display: inline-flex; align-items: center; position: relative; }
+  #phitex-switch { margin: 0 4px 0 8px; display: inline-flex; align-items: center; position: relative; }
   #phitex-switch .toggle-switch { margin: 0; }
+  /* a narrow PDF pane: "PDF | ⚡" (what the title says in full) */
+  #phitex-switch .phitex-sw-word { padding: 0 0 0 .3em !important; }
+  #phitex-switch.narrow .phitex-sw-word { display: none; }
+  /* what is left over after that: the status text gives way, cut short (its times are a click away) */
+  .phitex-on .toolbar-pdf-left { min-width: 0; }
+  #phitex-left { min-width: 0; }
+  .phitex-on .toolbar-pdf-left > *, #phitex-left > * { flex-shrink: 0; }
+  .phitex-on .toolbar-pdf-left > #phitex-left, #phitex-left > #phitex-status { flex-shrink: 1; min-width: 0; }
   /* Overleaf's editor switch pads each label's inner edge more than its outer one: ours centers its text in the pill */
-  #phitex-switch .toggle-switch-label span { padding: 0 var(--spacing-05, 12px) !important; }
+  #phitex-switch .toggle-switch-label > span { padding: 0 var(--spacing-05, 12px) !important; }
   #phitex-controls, #phitex-left { display: none !important; }
   .phitex-on #phitex-controls { display: flex !important; flex: 0 0 auto !important; width: auto !important; }
   .phitex-on #phitex-left { display: inline-flex !important; align-items: center; }
@@ -343,6 +352,10 @@ const DOCK_CSS = `
     max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
   #phitex-status .phitex-st-text { font-weight: 600; }
   #phitex-status .phitex-st-more { opacity: .75; }
+  /* cut short from its end (the times first, then the words), never from its middle */
+  #phitex-status { justify-content: flex-start; }
+  #phitex-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #phitex-status .phitex-st-text { flex-shrink: 1; } #phitex-status .phitex-st-more { flex-shrink: 1000; }
   #phitex-status.err .phitex-st-text { color: var(--content-danger-dark, #e36d66); }
   [data-theme="light"] #phitex-status.err .phitex-st-text { color: var(--content-danger, #b83a33); }
   #phitex-status:empty, #phitex-status .phitex-st-text:empty + .phitex-st-more { display: none; }
@@ -438,6 +451,8 @@ function dockInOverleaf(panel: Panel): Dock {
   const FALLBACK_AFTER_MS = 8000;
   /** The full controls' width (⌃ ⌄, page, − +, zoom), and some air. */
   const FULL_CONTROLS_PX = 260;
+  /** What the toolbar's right side needs with the full controls (measured, FULL_CONTROLS_PX until then). */
+  let fullRight = FULL_CONTROLS_PX;
   const started = performance.now();
   const style = document.createElement("style");
   style.textContent = DOCK_CSS;
@@ -535,7 +550,7 @@ function dockInOverleaf(panel: Panel): Dock {
       <input type="radio" name="phitex-view" id="phitex-v-pdf" class="toggle-switch-input" value="pdf">
       <label for="phitex-v-pdf" class="toggle-switch-label" title="Overleaf's compiled PDF"><span>PDF</span></label>
       <input type="radio" name="phitex-view" id="phitex-v-phitex" class="toggle-switch-input" value="phitex">
-      <label for="phitex-v-phitex" class="toggle-switch-label" title="⚡ Instant: added by the unofficial PhiTeX extension, not part of Overleaf (experimental) · Alt+Shift+P"><span>⚡ Instant</span></label>
+      <label for="phitex-v-phitex" class="toggle-switch-label" title="⚡ Instant: added by the unofficial PhiTeX extension, not part of Overleaf (experimental) · Alt+Shift+P"><span>⚡<span class="phitex-sw-word">Instant</span></span></label>
     </fieldset></form>`;
     sw.addEventListener("change", (e) => void set((e.target as HTMLInputElement).value as "pdf" | "phitex"));
     left.append(sw);
@@ -639,6 +654,17 @@ function dockInOverleaf(panel: Panel): Dock {
   }
 
   /** In Overleaf's left toolbar, where its logs and download are: ours (PhiTeX's diagnostics and PDF). */
+  /**
+   * Overleaf's Recompile, the switch, then what the mode shows (⚡ Instant's
+   * buttons, or Overleaf's logs and download): the switch stays put when it is
+   * flipped. (After the mode's buttons, it moved by their difference.)
+   */
+  function place(left: Element, sw: HTMLElement, l: HTMLElement): void {
+    const group = left.querySelector(":scope > .compile-button-group");
+    if (group ? group.nextElementSibling !== sw : left.firstElementChild !== sw) group ? group.after(sw) : left.prepend(sw);
+    if (sw.nextElementSibling !== l) sw.after(l);
+  }
+
   function leftEl(left: Element): HTMLElement {
     let l = document.getElementById("phitex-left");
     if (l && left.contains(l)) return l;
@@ -697,9 +723,7 @@ function dockInOverleaf(panel: Panel): Dock {
     document.addEventListener("click", () => menu.classList.remove("show"));
     // (compare with a past version: diffui.ts)
     compareButton(l, panel, project, pageFetch, diffRunner);
-    const group = left.querySelector(".compile-button-group");
-    if (group) group.after(l);
-    else left.prepend(l);
+    left.append(l);
     mirrorStatus();
     return l;
   }
@@ -931,6 +955,22 @@ function dockInOverleaf(panel: Panel): Dock {
     true,
   );
 
+  /** The left side's width as laid out in full: its first shown child to its last, the status text uncut. */
+  function leftSpan(left: Element): number {
+    const kids = [...left.children].filter((e) => (e as HTMLElement).offsetWidth).map((e) => e.getBoundingClientRect());
+    const st = document.getElementById("phitex-status");
+    const cut = st?.offsetWidth ? st.scrollWidth - st.clientWidth : 0;
+    return kids.length ? Math.max(...kids.map((r) => r.right)) - Math.min(...kids.map((r) => r.left)) + cut + 8 : 0;
+  }
+  /** The right side's: its first shown button to its last. */
+  function rightSpan(right: Element): number {
+    const shown = [...right.querySelectorAll("button")].filter((b) => b.offsetWidth).map((b) => b.getBoundingClientRect());
+    return shown.length ? Math.max(...shown.map((r) => r.right)) - Math.min(...shown.map((r) => r.left)) : 0;
+  }
+  let swFull = 149, swNarrow = 89;
+  /** What the toolbar needs in full, in each mode (0 until it has shown). */
+  const needs = { pdf: 0, phitex: 0 };
+
   function tick(): void {
     // (a hidden tab: nothing to place; the next visible tick does it)
     if (document.hidden) return;
@@ -953,7 +993,7 @@ function dockInOverleaf(panel: Panel): Dock {
       return;
     }
     const sw = switchEl(left);
-    leftEl(left);
+    place(left, sw, leftEl(left));
     // (Overleaf's Recompile, in ⚡ Instant: our clean recompile too, the
     // button the writer already reaches for; Overleaf still compiles its own)
     const rc = left.querySelector<HTMLButtonElement>(".compile-button-group button");
@@ -970,13 +1010,23 @@ function dockInOverleaf(panel: Panel): Dock {
     }
     if (rc) rc.title = mode === "phitex" ? "Recompile: Overleaf's PDF, and ⚡ Instant from scratch (PhiTeX)" : (rc.title.startsWith("Recompile: Overleaf") ? "" : rc.title);
     // (compact when the full controls do not fit what the toolbar has left: measured here,
-    // not taken from Overleaf's own choice, which counts our switch against its room)
+    // not taken from Overleaf's own choice, which counts our switch against its room.
+    // What the right side needs in full is measured while it is in full: everything
+    // the right side holds, from its first shown button to its last (Overleaf's invert
+    // button, the gaps, our settings), and some air)
     const ctl = controlsEl(right);
+    const bar = pane.querySelector<HTMLElement>(".toolbar-pdf") ?? pane;
     if (mode === "phitex") {
-      const bar = pane.querySelector<HTMLElement>(".toolbar-pdf") ?? pane;
-      const used = left.getBoundingClientRect().width + (right.querySelector(".theme-toggle-btn")?.getBoundingClientRect().width ?? 0);
-      ctl.classList.toggle("compact", bar.clientWidth - used < FULL_CONTROLS_PX);
+      if (!ctl.classList.contains("compact") && ctl.offsetWidth) fullRight = rightSpan(right) + 16;
+      ctl.classList.toggle("compact", bar.clientWidth - leftSpan(left) < fullRight);
     }
+    // (then, if the bar still has no room: the switch says "PDF | ⚡", back in full once the
+    // room it takes is there again. Decided on the wider of the two modes' needs, each
+    // measured while it shows, so flipping the switch never changes its width too)
+    if (sw.classList.contains("narrow")) swNarrow = sw.offsetWidth || swNarrow;
+    else swFull = sw.offsetWidth || swFull;
+    needs[mode] = leftSpan(left) + rightSpan(right) + 16 + (sw.classList.contains("narrow") ? swFull - swNarrow : 0);
+    sw.classList.toggle("narrow", Math.max(needs.pdf, needs.phitex) > bar.clientWidth);
     (sw.querySelector(`input[value="${mode}"]`) as HTMLInputElement).checked = true;
     if (newsPending) {
       sw.querySelector('label[for="phitex-v-phitex"]')?.classList.add("phitex-dot-new");
