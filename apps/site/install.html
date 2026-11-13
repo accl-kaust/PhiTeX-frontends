@@ -168,6 +168,10 @@ ln -s ~/.local/share/phitex-frontends/apps/editors/nvim ~/.local/share/nvim/site
               <div class="cmd"><pre><code>(load "~/.emacs.d/phitex.el")
 (add-hook 'LaTeX-mode-hook #'phitex-mode)   ; and/or latex-mode-hook</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
             <li><kbd>M-x</kbd> <code>phitex-open-viewer</code> opens the page.</li>
+            <li>Optional, when another program edits your files (a script, a coding agent, <code>git pull</code>): let the buffer follow the file on disk, so what you read is what is built:
+              <div class="cmd"><pre><code>(global-auto-revert-mode 1)
+(setq auto-revert-verbose nil)</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+              A buffer with unsaved changes is never reverted.</li>
           </ol>
           <p class="fine">With no <code>phitex</code> on your <code>PATH</code>, the mode offers to download the latest release into <code>~/.local/bin</code> (<kbd>M-x</kbd> <code>phitex-install</code>), checked against its minisign signature; it needs <code>curl</code> and <code>minisign</code>.</p>
         </article>
