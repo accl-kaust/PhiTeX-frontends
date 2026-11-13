@@ -704,6 +704,13 @@ kbd { font: 12.5px var(--mono); padding: 1px 6px; border: 1px solid var(--line-2
 @keyframes fd-ins { 0%, 21% { font-size: 0; color: transparent; text-decoration-color: transparent; } 27% { font-size: 1em; color: #2a5cc9; text-decoration-color: transparent; } 31%, 92% { font-size: 1em; color: #2a5cc9; text-decoration-color: currentColor; } 97%, 100% { font-size: 0; color: transparent; } }
 @keyframes fd-del { 0%, 21% { color: inherit; text-decoration-color: transparent; } 27%, 92% { color: #c23a32; text-decoration-color: #c23a32; } 97%, 100% { color: inherit; text-decoration-color: transparent; } }
 
+/* colour lines: each line of the page fades ink → colour, the next colour → ink (overleaf.ts deals the gradients per line) */
+.fd-switch { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border: 0; border-radius: 999px; background: transparent; font: inherit; color: var(--text); cursor: pointer; }
+.fd-switch::before { content: ""; width: 30px; height: 18px; border-radius: 999px; background: var(--line) radial-gradient(circle at 9px 50%, #fff 6px, transparent 6.5px); transition: background .2s; }
+.fd-switch[aria-pressed="true"]::before { background: var(--accent) radial-gradient(circle at 21px 50%, #fff 6px, transparent 6.5px); }
+.fd-wasp .fd-page { text-align: left; hyphens: none; }
+.fd-wasp .fd-page.on .wl { -webkit-background-clip: text; background-clip: text; color: transparent; }
+
 /* collaborators: each one's word marked in their colour, moving on; one of them typing */
 .fd-col .fd-page { line-height: 1.95; }
 .fd-col .w { position: relative; border-radius: 2px; padding: 0 1px; margin: 0 -1px; }

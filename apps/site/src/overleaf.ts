@@ -25,6 +25,44 @@ for (const page of document.querySelectorAll<HTMLElement>(".fd-cmp .fd-page, .fd
   document.fonts.ready.then(fit);
 }
 
+// Colour lines: the page's words dealt into the lines they fall on, each word given its line's
+// gradient (sized to the line, shifted to the word) so the line reads as one fade: ink → colour on
+// one line, colour → ink on the next, the colour changing every two lines (blue, red), as the
+// viewer's own Colour lines does. Dealt again when the width changes; the switch turns it off.
+const INK = "#111", WASP = ["#1f3fe0", "#d42020"];
+for (const fig of document.querySelectorAll<HTMLElement>(".fd-wasp")) {
+  const page = fig.querySelector<HTMLElement>(".fd-page")!;
+  const body = page.querySelector<HTMLElement>("p:not(.fd-h)")!;
+  body.innerHTML = body.textContent!.trim().split(/\s+/).map((w) => `<span class="wl">${w}</span>`).join(" ");
+  const words = [...body.querySelectorAll<HTMLElement>(".wl")];
+  const deal = () => {
+    const lines: HTMLElement[][] = [];
+    let top = NaN;
+    for (const w of words) {
+      if (w.offsetTop !== top) lines.push([]), (top = w.offsetTop);
+      lines[lines.length - 1].push(w);
+    }
+    lines.forEach((line, i) => {
+      const c = WASP[Math.floor(i / 2) % 2], g = i % 2 ? `${c}, ${INK}` : `${INK}, ${c}`;
+      const x0 = line[0].offsetLeft, last = line[line.length - 1], width = last.offsetLeft + last.offsetWidth - x0;
+      for (const w of line) {
+        w.style.backgroundImage = `linear-gradient(90deg, ${g})`;
+        w.style.backgroundSize = `${width}px 100%`;
+        w.style.backgroundPosition = `${x0 - w.offsetLeft}px 0`;
+      }
+    });
+  };
+  let w = 0;
+  new ResizeObserver(() => { if (body.offsetWidth !== w) { w = body.offsetWidth; deal(); } }).observe(body);
+  document.fonts.ready.then(deal);
+  const sw = fig.querySelector<HTMLButtonElement>(".fd-switch")!;
+  sw.addEventListener("click", () => {
+    const on = sw.getAttribute("aria-pressed") !== "true";
+    sw.setAttribute("aria-pressed", String(on));
+    page.classList.toggle("on", on);
+  });
+}
+
 // Click-to-load the Overleaf demo video (no YouTube request until play).
 const v = document.querySelector<HTMLElement>(".video[data-yt]");
 v?.querySelector(".video-play")?.addEventListener("click", () => {
