@@ -166,18 +166,44 @@
     othersSoon();
   }
 
+  /** Editors whose hook failed (guard): never hooked again. */
+  const broken = new WeakSet<object>();
+
   /** `v` the editor from now on: patched once, taken again whenever it is the one found (identified anew). */
   function hook(v: any): void {
+    // (an editor that made the hook fail once is left as Overleaf made it)
+    if (broken.has(v)) return;
     view = v;
     file = null;
     setTimeout(identify, 100);
     if (v.__phitex) return;
     v.__phitex = true;
-    const update = v.update;
+    const update = v.update, setState = v.setState;
+    // (Overleaf's own method always runs first and its result is returned as
+    // is; what we do after it never reaches the editor: if it throws, as it
+    // could after an Overleaf update changes what we read, the hook takes
+    // itself out, the editor gets its own methods back, and the preview
+    // stops following this editor rather than the editor breaking)
+    const guard = (what: string, f: () => void) => {
+      try {
+        f();
+      } catch (e) {
+        console.warn(`PhiTeX: stopped following the editor (${what}):`, e);
+        v.update = update;
+        v.setState = setState;
+        v.__phitex = false;
+        broken.add(v);
+        if (view === v) view = null;
+      }
+    };
     v.update = function (trs: any[]) {
       const r = update.call(this, trs);
+      guard("update", () => observe(this, trs));
+      return r;
+    };
+    const observe = (ed: any, trs: any[]) => {
       // (an editor no longer the one: its changes are not the file's)
-      if (this !== view) return r;
+      if (ed !== view) return;
       const edits: any[] = [];
       for (const tr of trs) {
         const c = changesOf(tr);
@@ -186,22 +212,22 @@
       // (with the text's length after them: the host checks its copy by it;
       // none while the file is not known, the next "open" has them)
       if (edits.length && file !== null) {
-        post({ type: "changes", file, edits, len: this.state.doc.length, t: performance.now() });
-        sumSoon(this, file);
+        post({ type: "changes", file, edits, len: ed.state.doc.length, t: performance.now() });
+        sumSoon(ed, file);
       }
       // (a selection that changed: its text highlighted on the ⚡ page)
       if (trs.some((tr: any) => tr.selection)) selectionSoon();
       // (collaborators' cursors: moved by their own transactions, or by the text's)
       othersSoon();
-      return r;
     };
-    const setState = v.setState;
     v.setState = function (s: any) {
       const r = setState.call(this, s);
-      if (this !== view) return r;
-      // (a file switch: the DOM's name settles after the state)
-      file = null;
-      setTimeout(identify, 100);
+      guard("setState", () => {
+        if (this !== view) return;
+        // (a file switch: the DOM's name settles after the state)
+        file = null;
+        setTimeout(identify, 100);
+      });
       return r;
     };
   }
