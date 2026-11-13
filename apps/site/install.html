@@ -137,7 +137,7 @@ mkdir -p ~/.local/share/nvim/site/pack/phitex/start
 ln -s ~/.local/share/phitex-frontends/apps/editors/nvim ~/.local/share/nvim/site/pack/phitex/start/phitex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
               Or just the one file, in your config:
               <div class="cmd"><pre><code>curl -fsSLo ~/.config/nvim/plugin/phitex.lua \
-  https://raw.githubusercontent.com/accl-kaust/PhiTeX-frontends/dev/apps/editors/nvim/phitex.lua</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+  https://raw.githubusercontent.com/accl-kaust/PhiTeX-frontends/main/apps/editors/nvim/phitex.lua</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
               Any other manager works the same way: add the repository with <code>apps/editors/nvim</code> on the runtimepath.</li>
             <li>Open a <code>.tex</code> file. <code>&lt;leader&gt;lv</code> opens the page; double-click it to jump back to the source.</li>
             <li>Optional, the build's state in your statusline:
@@ -163,7 +163,7 @@ ln -s ~/.local/share/phitex-frontends/apps/editors/nvim ~/.local/share/nvim/site
   :custom (phitex-settings '(:follow "selection")))</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
               Or download it:
               <div class="cmd"><pre><code>curl -fsSLo ~/.emacs.d/phitex.el \
-  https://raw.githubusercontent.com/accl-kaust/PhiTeX-frontends/dev/apps/editors/emacs/phitex.el</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
+  https://raw.githubusercontent.com/accl-kaust/PhiTeX-frontends/main/apps/editors/emacs/phitex.el</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div>
               and turn it on in TeX buffers, in your init file:
               <div class="cmd"><pre><code>(load "~/.emacs.d/phitex.el")
 (add-hook 'LaTeX-mode-hook #'phitex-mode)   ; and/or latex-mode-hook</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
