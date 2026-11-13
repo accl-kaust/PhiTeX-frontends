@@ -223,14 +223,17 @@ None with no phitex, or one too old to list them."
 
 (defun phitex--session-for (file)
   "The running watch for FILE.
-The one whose main file it is, else the deepest folder holding it."
-  (let ((file (expand-file-name file)) best)
+The one whose main file it is, else the deepest folder holding it.
+Paths are compared resolved (`file-truename'): a file opened through a
+symlink (~/Documents → ~/Seafile/Documents) is the watch's all the same."
+  (let ((file (file-truename (expand-file-name file))) best)
     (dolist (s (phitex--sessions))
-      (let ((root (plist-get s :root)) (main (plist-get s :main)))
+      (let ((root (and (stringp (plist-get s :root)) (file-truename (plist-get s :root))))
+            (main (and (stringp (plist-get s :main)) (file-truename (plist-get s :main)))))
         (when (and (stringp root) (plist-get s :lsp)
                    (or (equal main file) (string-prefix-p (file-name-as-directory root) file))
-                   (not (equal (plist-get best :main) file))
-                   (or (null best) (equal main file) (> (length root) (length (plist-get best :root)))))
+                   (not (and best (equal (file-truename (plist-get best :main)) file)))
+                   (or (null best) (equal main file) (> (length root) (length (file-truename (plist-get best :root))))))
           (setq best s))))
     best))
 

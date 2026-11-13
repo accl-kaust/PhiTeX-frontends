@@ -178,14 +178,20 @@ local function sessions()
   return fine and type(list) == "table" and list or {}
 end
 
+--- A path resolved (symlinks followed), as the watch lists it; itself if it can't be.
+local function real(p) return type(p) == "string" and (vim.uv.fs_realpath(p) or p) or p end
+
 --- The running watch for `file`: the one whose main file it is, else the deepest folder holding it.
+--- Paths are compared resolved: a file opened through a symlink (~/Documents → ~/Seafile/Documents)
+--- is the watch's all the same.
 local function session_for(file)
   local best
+  file = real(file)
   for _, s in ipairs(sessions()) do
-    local root, main = s.root, s.main
+    local root, main = real(s.root), real(s.main)
     if type(root) == "string" and type(s.lsp) == "table" and (main == file or vim.startswith(file, root .. "/")) then
       if main == file then return s end
-      if not best or #root > #best.root then best = s end
+      if not best or #root > #real(best.root) then best = s end
     end
   end
   return best
