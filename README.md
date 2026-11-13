@@ -113,7 +113,7 @@ TeX's errors as diagnostics. The pages are in a browser tab that the
 command serves. The mode line (Emacs) or `PhitexStatus()` (Neovim) shows
 the last build's time and its problems.
 
-- **Emacs**: `phitex-mode`, by use-package (`:vc`) or by loading
+- **Emacs**: `phitex-mode`, by use-package (`:vc` or straight.el) or by loading
   `phitex.el`.
 - **Neovim 0.11**: lazy.nvim, or the file in your config.
 

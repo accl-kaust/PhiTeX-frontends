@@ -30,10 +30,18 @@
 ;; Load this file and turn the mode on in TeX buffers:
 ;;   (load "~/path/to/phitex.el")
 ;;   (add-hook 'LaTeX-mode-hook #'phitex-mode) ; and/or latex-mode-hook
-;; or with use-package (Emacs 30's :vc; on 29, straight or elpaca the same way):
+;; or with use-package, Emacs 30's :vc:
 ;;   (use-package phitex
 ;;     :vc (:url "https://github.com/accl-kaust/PhiTeX-frontends"
 ;;          :lisp-dir "apps/editors/emacs" :rev :newest)
+;;     :hook ((LaTeX-mode latex-mode) . phitex-mode)
+;;     :custom (phitex-settings '(:follow "selection")))
+;; or with straight.el (with straight as use-package's default, this, not :vc;
+;; :nonrecursive t skips the repository's PhiTeX submodule, which this file
+;; doesn't need):
+;;   (use-package phitex
+;;     :straight (phitex :type git :host github :repo "accl-kaust/PhiTeX-frontends"
+;;                       :files ("apps/editors/emacs/*.el") :depth 1 :nonrecursive t)
 ;;     :hook ((LaTeX-mode latex-mode) . phitex-mode)
 ;;     :custom (phitex-settings '(:follow "selection")))
 ;; With no `phitex' on PATH, the mode asks before downloading the latest
