@@ -7,7 +7,7 @@ copied into `store/`. Firefox also asks for the source:
 `store/phitex-instant-<version>-source.zip`, with `BUILD.md` at its top.
 
 The VS Code extension's listing (Marketplace, Open VSX) is its own README,
-`apps/vscode/README.md`; its package is `build/phitex-instant-<version>.vsix`
+`apps/vscode/README.md`; its package is `build/phitex-<version>.vsix`
 (`tools/build/build-vscode.sh --package`).
 
 ## Store listing

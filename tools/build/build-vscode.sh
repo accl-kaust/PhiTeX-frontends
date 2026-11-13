@@ -6,7 +6,7 @@
 # formats, shelf/texmf/, the packs, the fonts.
 #
 #   tools/build/build-vscode.sh            # build/vscode/: the extension, unpacked (dist/, texmf/, ...)
-#   tools/build/build-vscode.sh --package  # and build/phitex-instant-<v>.vsix
+#   tools/build/build-vscode.sh --package  # and build/phitex-<v>.vsix
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 [ -s build/overleaf/dist/core.wasm ] || { echo "no build/overleaf/dist/core.wasm: tools/build/build.sh first" >&2; exit 1; }

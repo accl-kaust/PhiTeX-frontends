@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Every frontend, built here: the browser extension (tools/build/package.sh:
 # build/phitex-instant-<version>.zip), the web frontend (build/web), VS Code's
-# (build/phitex-instant-<version>.vsix): all of it in build/. (demo.phitex.org is built and
+# (build/phitex-<version>.vsix): all of it in build/. (demo.phitex.org is built and
 # deployed by CI on each push to main: .github/workflows/deploy-demo.yml.)
 # Always the branch's latest on GitHub, here: the branch checked out and
 # fast-forwarded to github/BRANCH, its PhiTeX checked out, its packages
@@ -32,5 +32,5 @@ tools/build/package.sh
 step "The VS Code extension (tools/build/build-vscode.sh --package)"
 tools/build/build-vscode.sh --package
 step "Done"
-ls -1t build/phitex-instant-*.zip build/phitex-instant-*.vsix 2>/dev/null | head -2
+ls -1t build/phitex-instant-*.zip build/phitex-*.vsix 2>/dev/null | head -2
 echo "build/web (the web demo, as CI deploys it)"

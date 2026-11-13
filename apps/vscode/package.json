@@ -1,5 +1,5 @@
 {
-  "name": "phitex-instant",
+  "name": "phitex",
   "displayName": "PhiTeX ⚡ Instant",
   "icon": "icon.png",
   "description": "Instant LaTeX preview: pages update as you type, typeset by PhiTeX in VS Code itself.",
