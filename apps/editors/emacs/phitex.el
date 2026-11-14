@@ -230,8 +230,17 @@ See docs/spec-editor-protocol.md §1.")
 (defun phitex--root ()
   (expand-file-name (or (locate-dominating-file default-directory "phitex.toml") default-directory)))
 
+(defvar-local phitex--last-uri nil
+  "This buffer's URI when it last had a file name.
+`revert-buffer' clears `buffer-file-name' while it reads the file back in,
+and the changes it makes then are this file's all the same.")
+
 (defun phitex--uri (&optional file)
-  (concat "file://" (url-hexify-string (expand-file-name (or file buffer-file-name)) url-path-allowed-chars)))
+  (if (or file buffer-file-name)
+      (let ((uri (concat "file://" (url-hexify-string (expand-file-name (or file buffer-file-name)) url-path-allowed-chars))))
+        (unless file (setq phitex--last-uri uri))
+        uri)
+    phitex--last-uri))
 
 (defun phitex--file (uri)
   (decode-coding-string (url-unhex-string (string-remove-prefix "file://" uri)) 'utf-8))
