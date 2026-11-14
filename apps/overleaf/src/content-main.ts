@@ -308,8 +308,11 @@ const DOCK_CSS = `
   .phitex-on .pdf-viewer { visibility: hidden !important; pointer-events: none !important; }
   /* Overleaf's logs (its compiler's) too, while Instant shows: back as they were on the PDF tab */
   .phitex-on .new-logs-pane, .phitex-on .logs-pane { visibility: hidden !important; pointer-events: none !important; }
-  /* Overleaf's SyncTeX arrows, beside the .pdf (not in it), over the ⚡ panel (its z-index 12) */
-  body:has(.phitex-on) .synctex-controls { z-index: 13 !important; }
+  /* Overleaf's SyncTeX arrows, beside the .pdf (not in it), over the ⚡ panel (its z-index 12).
+     The body's own class, never body:has(.phitex-on): Chrome then restyles the whole page on
+     any node added anywhere (Overleaf's Vim cursor and PDF text layer on each cursor move:
+     3,300 elements two or three times a keystroke, 50 -> 200 ms a line) */
+  body.phitex-on-page .synctex-controls { z-index: 13 !important; }
   /* in PhiTeX mode, Overleaf's viewer controls go, all but its invert-colors button (which works on ours too) */
   .phitex-on #toolbar-pdf-controls *:not(:has(.theme-toggle-btn)):not(.theme-toggle-btn):not(.theme-toggle-btn *) { display: none !important; }
   /* the right side as wide as its buttons, the left side what is left: too narrow a toolbar
@@ -1045,6 +1048,7 @@ function dockInOverleaf(panel: Panel): Dock {
     }
     panel.dock(pane, pane.querySelector(".toolbar-pdf"));
     pane.classList.toggle("phitex-on", mode === "phitex");
+    if (document.body.classList.contains("phitex-on-page") !== (mode === "phitex")) document.body.classList.toggle("phitex-on-page", mode === "phitex");
     panel.shown(mode === "phitex");
   }
   let tipsTried = false;
@@ -1066,6 +1070,7 @@ function dockInOverleaf(panel: Panel): Dock {
     hideTip();
     for (const id of ["phitex-switch", "phitex-controls", "phitex-left", "phitex-news", "phitex-consent"]) document.getElementById(id)?.remove();
     document.querySelector(".phitex-on")?.classList.remove("phitex-on");
+    document.body.classList.remove("phitex-on-page");
     panel.shown(false);
   }
   chrome.storage.onChanged.addListener((c) => {
