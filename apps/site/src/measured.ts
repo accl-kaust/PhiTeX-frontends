@@ -61,7 +61,8 @@ function render(b: Bench) {
   ].join("");
   const m = b.machine;
   $("#runline").innerHTML = [
-    `PhiTeX <a href="${REPO}/commit/${esc(b.commit)}"><code>${esc(b.commit.slice(0, 9))}</code></a>`,
+    // (the release measured, when the sweep was a release's: PhiTeX's bench.yml names it)
+    `PhiTeX ${b.release ? `<a href="${REPO}/releases/tag/${esc(b.release)}">${esc(b.release)}</a> ` : ""}<a href="${REPO}/commit/${esc(b.commit)}"><code>${esc(b.commit.slice(0, 9))}</code></a>`,
     esc(b.date), esc(b.texlive.replace(/,.*/, "")),
     m ? esc(`${m.cpu}, ${m.cores} cores, ${m.mem_gb} GB`) : "",
   ].filter(Boolean).join(" · ");

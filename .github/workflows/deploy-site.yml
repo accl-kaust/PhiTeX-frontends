@@ -1,8 +1,9 @@
 # phitex.org (apps/site/, merged from the PhiTeX.org repository): the static site
 # built and deployed to Cloudflare Pages project phitex-org on each push to
 # main that changes apps/site/, and each day (news.json follows PhiTeX's
-# CHANGELOG.md on its main: a release is seen within a day; run the workflow
-# by hand to publish one at once). The demo (deploy-demo.yml) is deployed
+# CHANGELOG.md on its main, and the measured page PhiTeX's latest release's
+# bench.json: a release is seen within a day; run the workflow by hand, or
+# PhiTeX's bench.yml sends bench-updated, to publish one at once). The demo (deploy-demo.yml) is deployed
 # apart, on the rest.
 #
 # Secret: CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit), the demo's. The
@@ -13,6 +14,9 @@ on:
     branches: [main]
     paths: ["apps/site/**", "phitex", ".github/workflows/deploy-site.yml"]
   workflow_dispatch:
+  # (PhiTeX's bench.yml, a release measured: its bench.json shown at once; else the daily run below picks it up)
+  repository_dispatch:
+    types: [bench-updated]
   schedule:
     - cron: "17 3 * * *"
 concurrency:
@@ -54,6 +58,17 @@ jobs:
           else
             rm -f public/install.ps1
             echo "No Windows build in the latest release (or no install.ps1 at PhiTeX $pin): the page keeps 'Windows: not yet'."
+          fi
+      # (the measured page's numbers: the latest PhiTeX release's bench.json, which its
+      # bench.yml attaches; the committed copy stays when a release has none or it is not JSON)
+      - name: bench.json from PhiTeX's latest release
+        run: |
+          if curl -fsSL https://github.com/accl-kaust/PhiTeX/releases/latest/download/bench.json -o /tmp/bench.json \
+            && node -e 'const b = JSON.parse(require("fs").readFileSync("/tmp/bench.json", "utf8")); if (!b.commit || !Array.isArray(b.corpora)) process.exit(1)'; then
+            mv /tmp/bench.json public/bench.json
+            echo "bench.json: PhiTeX $(node -p 'const b = require("./public/bench.json"); [b.release, b.commit.slice(0, 9), b.date].filter(Boolean).join(" ")')"
+          else
+            echo "No bench.json on PhiTeX's latest release: the committed one is served."
           fi
       - run: npm run build
         env:

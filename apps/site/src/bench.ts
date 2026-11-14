@@ -26,7 +26,7 @@ export interface Diff extends Links { corpus: string; doc: string; engine: strin
 export interface Slow extends Links { corpus: string; doc: string; engine: string; note?: string | null; }
 /** `covers`: a run not yet over every corpus says what it measured. */
 /** `method`: how the times were taken, in words (shown beside the speed charts). */
-export interface Bench { method?: string; covers?: string; slow?: Slow[]; schema: number; sample?: boolean; note?: string; commit: string; date: string; texlive: string; machine: Machine | null; corpora: Corpus[]; timing: { cold: Cold | null; edit: Edit | null }; differences: Diff[]; }
+export interface Bench { release?: string; method?: string; covers?: string; slow?: Slow[]; schema: number; sample?: boolean; note?: string; commit: string; date: string; texlive: string; machine: Machine | null; corpora: Corpus[]; timing: { cold: Cold | null; edit: Edit | null }; differences: Diff[]; }
 
 /**
  * Speed curves: for each time across (log scale), the share of documents
