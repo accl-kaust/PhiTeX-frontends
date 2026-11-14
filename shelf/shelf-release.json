@@ -2,8 +2,8 @@
  "schema": 1,
  "release": "tl2026.9",
  "index": "index-tl2026.9.tsv.gz",
- "pack_table": "packs-tl2026.9-cb12ebd30b9c.tsv.gz",
- "packs": 7143,
+ "pack_table": "packs-tl2026.9-743f026217d8.tsv.gz",
+ "packs": 7155,
  "min_extension": "0.7.0",
  "notice": null,
  "deps": [
@@ -212,9 +212,21 @@
   }
  },
  "formats": {
+  "pdflatex-81876643f3e0b734-1a090ee7340d9232": "fmt-pdflatex-81876643f3e0b734-1a090ee7340d9232-7757101e27d2",
   "pdflatex-afc93d6fecd3c8ee-1a090ee7340d9232": "fmt-pdflatex-afc93d6fecd3c8ee-1a090ee7340d9232-43e9c955f18d",
+  "pdflatex-d3a8c4028697fdeb-1a090ee7340d9232": "fmt-pdflatex-d3a8c4028697fdeb-1a090ee7340d9232-2d8f5f291fda",
+  "pdflatex-f6a2dec741ccc308-1a090ee7340d9232": "fmt-pdflatex-f6a2dec741ccc308-1a090ee7340d9232-7c9120388008",
+  "pdftex-81876643f3e0b734-f78777f0b067fef4": "fmt-pdftex-81876643f3e0b734-f78777f0b067fef4-985e13736994",
   "pdftex-afc93d6fecd3c8ee-f78777f0b067fef4": "fmt-pdftex-afc93d6fecd3c8ee-f78777f0b067fef4-8948c6e81ade",
+  "pdftex-d3a8c4028697fdeb-f78777f0b067fef4": "fmt-pdftex-d3a8c4028697fdeb-f78777f0b067fef4-b30bb4ef3309",
+  "pdftex-f6a2dec741ccc308-f78777f0b067fef4": "fmt-pdftex-f6a2dec741ccc308-f78777f0b067fef4-37c34e185c1b",
+  "xelatex-81876643f3e0b734-c91dea17fdc7668f": "fmt-xelatex-81876643f3e0b734-c91dea17fdc7668f-fa651de97cc2",
   "xelatex-afc93d6fecd3c8ee-c91dea17fdc7668f": "fmt-xelatex-afc93d6fecd3c8ee-c91dea17fdc7668f-56f79b4de6e9",
-  "xetex-afc93d6fecd3c8ee-71c3c01e26d2ad9a": "fmt-xetex-afc93d6fecd3c8ee-71c3c01e26d2ad9a-871a1351ae30"
+  "xelatex-d3a8c4028697fdeb-c91dea17fdc7668f": "fmt-xelatex-d3a8c4028697fdeb-c91dea17fdc7668f-7fc442448a34",
+  "xelatex-f6a2dec741ccc308-c91dea17fdc7668f": "fmt-xelatex-f6a2dec741ccc308-c91dea17fdc7668f-9b9d6c169a9c",
+  "xetex-81876643f3e0b734-71c3c01e26d2ad9a": "fmt-xetex-81876643f3e0b734-71c3c01e26d2ad9a-54cb66678907",
+  "xetex-afc93d6fecd3c8ee-71c3c01e26d2ad9a": "fmt-xetex-afc93d6fecd3c8ee-71c3c01e26d2ad9a-871a1351ae30",
+  "xetex-d3a8c4028697fdeb-71c3c01e26d2ad9a": "fmt-xetex-d3a8c4028697fdeb-71c3c01e26d2ad9a-609e07c161d9",
+  "xetex-f6a2dec741ccc308-71c3c01e26d2ad9a": "fmt-xetex-f6a2dec741ccc308-71c3c01e26d2ad9a-63fe6e4c2876"
  }
 }
