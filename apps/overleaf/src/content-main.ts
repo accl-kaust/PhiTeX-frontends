@@ -163,8 +163,10 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
         }),
       );
     }
-    panel.reading({ h: "Project read · checking packages…", detail: `${Object.keys(files).length} files, ${Object.keys(bin).length} figures and other files` });
-    panel.files(Object.keys(files), [], `in ${((performance.now() - t) / 1000).toFixed(1)} s, with ${Object.keys(bin).length} figures and other files`);
+    const nf = Object.keys(files).length, nb = Object.keys(bin).length;
+    const others = nb === 1 ? "1 figure or other file" : `${nb} figures and other files`;
+    panel.reading({ h: "Project read · checking packages…", detail: `${nf} ${nf === 1 ? "file" : "files"}, ${others}` });
+    panel.files(Object.keys(files), [], `in ${((performance.now() - t) / 1000).toFixed(1)} s, with ${others}`);
     return files;
   }
   // (a refresh, of the docs not open: each by its id, those the tree shows;
