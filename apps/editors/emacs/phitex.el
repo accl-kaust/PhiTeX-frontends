@@ -257,7 +257,7 @@ file opened through a symlink is that watch's, never a second one's."
 
 (defcustom phitex-attach 'auto
   "Whether `phitex-mode' uses a `phitex watch' already running.
-`auto': the watch whose folder holds the file (as `phitex sessions'
+`auto': the watch whose folder holds the file (as `phitex session list'
 lists them: one started in a terminal), else one started here.
 `always': only a running watch.  `never': always one started here."
   :type '(choice (const auto) (const always) (const never))
@@ -267,11 +267,15 @@ lists them: one started in a terminal), else one started here.
   "The servers attached to a watch this Emacs did not start.")
 
 (defun phitex--sessions ()
-  "The running watches, as `phitex sessions --json' lists them.
+  "The running watches, as `phitex session list --json' lists them.
+A phitex from before that command lists them as `phitex sessions --json'.
 None with no phitex, or one too old to list them."
   (when (executable-find (car phitex-command))
     (with-temp-buffer
-      (when (eq 0 (ignore-errors (call-process (car phitex-command) nil '(t nil) nil "sessions" "--json")))
+      (when (cl-some (lambda (args)
+                       (erase-buffer)
+                       (eq 0 (ignore-errors (apply #'call-process (car phitex-command) nil '(t nil) nil args))))
+                     '(("session" "list" "--json") ("sessions" "--json")))
         (goto-char (point-min))
         (ignore-errors (json-parse-buffer :object-type 'plist :array-type 'list :null-object nil))))))
 
@@ -295,13 +299,13 @@ symlink (~/Documents → ~/Seafile/Documents) is the watch's all the same."
   "The server of the project at ROOT, started if none.
 A watch already running for the folder of this buffer's file is used:
 one started for a chapter that found its main file a folder up, or (by
-`phitex-attach', or MODE) one started in a terminal (`phitex sessions')."
+`phitex-attach', or MODE) one started in a terminal (`phitex session list')."
   (or (let ((s (gethash root phitex--servers))) (and s (jsonrpc-running-p s) s))
       (and buffer-file-name (phitex--serving buffer-file-name))
       (let* ((mode (or mode phitex-attach))
              (session (and (not (eq mode 'never)) buffer-file-name (phitex--session-for buffer-file-name)))
              (_ (when (and (eq mode 'always) (not session))
-                  (user-error "PhiTeX: no phitex watch is running for this file (phitex sessions lists them)")))
+                  (user-error "PhiTeX: no phitex watch is running for this file (phitex session list lists them)")))
              (root (if session (plist-get session :root) root))
              (lsp (plist-get session :lsp))
              (proc (if session
@@ -617,7 +621,7 @@ After `phitex-diagnostics-delay' seconds."
 
 (defun phitex-attach ()
   "Attach this buffer to a `phitex watch' already running for its file.
-One started in a terminal, as `phitex sessions' lists them."
+One started in a terminal, as `phitex session list' lists them."
   (interactive)
   (when (and phitex--server (jsonrpc-running-p phitex--server))
     (jsonrpc-shutdown phitex--server))

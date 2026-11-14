@@ -235,11 +235,16 @@ local function ensure_binary()
   return install()
 end
 
---- The running watches, as `phitex sessions --json` lists them (one started in a
---- terminal, any editor's): none with no phitex, or one too old to list them.
+--- The running watches, as `phitex session list --json` lists them (one started in a
+--- terminal, any editor's; a phitex from before that command: `phitex sessions --json`):
+--- none with no phitex, or one too old to list them.
 local function sessions()
   if vim.fn.executable("phitex") ~= 1 then return {} end
-  local ok, r = pcall(function() return vim.system({ "phitex", "sessions", "--json" }, { text = true }):wait(3000) end)
+  local ok, r
+  for _, args in ipairs({ { "phitex", "session", "list", "--json" }, { "phitex", "sessions", "--json" } }) do
+    ok, r = pcall(function() return vim.system(args, { text = true }):wait(3000) end)
+    if ok and r.code == 0 then break end
+  end
   if not ok or r.code ~= 0 then return {} end
   local fine, list = pcall(vim.json.decode, r.stdout or "")
   return fine and type(list) == "table" and list or {}
@@ -268,7 +273,7 @@ end
 local attached = {}
 
 --- The buffer's watch: `mode` (PhitexSettings.attach, "auto" by default) "auto"
---- uses a running one whose folder holds the file (`phitex sessions`: one
+--- uses a running one whose folder holds the file (`phitex session list`: one
 --- started in a terminal), else starts one; "always" only a running one;
 --- "never" always starts one.
 local function start(buf, mode)
@@ -276,7 +281,7 @@ local function start(buf, mode)
   local file = vim.api.nvim_buf_get_name(buf)
   local session = mode ~= "never" and session_for(file) or nil
   if mode == "always" and not session then
-    vim.notify("PhiTeX: no phitex watch is running for this file (phitex sessions lists them).", vim.log.levels.ERROR)
+    vim.notify("PhiTeX: no phitex watch is running for this file (phitex session list lists them).", vim.log.levels.ERROR)
     return nil
   end
   if not session and not ensure_binary() then return nil end
