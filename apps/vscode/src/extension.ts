@@ -31,7 +31,8 @@ import { latexmkFiles } from "../../../common/src/viewer/latexmkrc.ts";
 
 /** The project's text files (what the core reads as source), and the binary ones it is given apart. */
 const TEXT = /\.(tex|sty|cls|bib|bst|cfg|def|clo|fd|ltx|bbx|cbx|lbx|dtx|ins|txt|csv|dat|tikz|pgf|bbl)$/i;
-const BINARY = /\.(png|jpe?g|pdf|eps|gif)$/i;
+/** (fonts too: xelatex finds the project's own first, kpathsea's "." before TeX Live, so its copy wins over Shelf's of the same name) */
+const BINARY = /\.(png|jpe?g|pdf|eps|gif|otf|ttf|ttc|pfb|pfa|afm|tfm|vf)$/i;
 /** Folders never read (VCS, build output, dependencies). */
 const SKIP = new Set([".git", "node_modules", ".vscode", "out", "build", ".phitex-diff"]);
 /** The most files read from a folder (a project, not a home directory). */
