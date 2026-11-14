@@ -191,11 +191,13 @@ See docs/spec-editor-protocol.md §1.")
   "Each server's folder, as its phitex/status says: where its watch runs.")
 
 (defun phitex--serving (file)
-  "A running server whose watch runs in a folder holding FILE (the deepest)."
-  (let (best len)
+  "A running server whose watch runs in a folder holding FILE (the deepest).
+Compared resolved (`file-truename'), as the watch names its folder: a
+file opened through a symlink is that watch's, never a second one's."
+  (let ((file (file-truename (expand-file-name file))) best len)
     (maphash (lambda (s root)
                (when (and (jsonrpc-running-p s) (stringp root) (> (length root) 0)
-                          (string-prefix-p (file-name-as-directory root) (expand-file-name file))
+                          (string-prefix-p (file-name-as-directory (file-truename root)) file)
                           (or (null len) (> (length root) len)))
                  (setq best s len (length root))))
              phitex--roots)
@@ -264,7 +266,9 @@ one started for a chapter that found its main file a folder up, or (by
                                :notification-dispatcher #'phitex--notification
                                :on-shutdown (lambda (s) (phitex--ended s root)))))
         (puthash root s phitex--servers)
-        (when session (puthash s t phitex--attached))
+        ;; (attached: its folder known now, before its first phitex/status,
+        ;; so the project's other buffers join this connection)
+        (when session (puthash s t phitex--attached) (puthash s root phitex--roots))
         (let* ((init (jsonrpc-request s :initialize
                                       (list :processId (emacs-pid) :rootUri (phitex--uri root)
                                             :capabilities '(:window (:showDocument (:support t) :workDoneProgress t)
@@ -394,7 +398,10 @@ Its own language server, beside any other the buffer has."
   (if phitex-mode
       (if (not buffer-file-name)
           (progn (setq phitex-mode nil) (message "PhiTeX: the buffer has no file"))
-        (setq phitex--server (phitex--connect (phitex--root)))
+        ;; (`phitex-attach' connected it already: the same connection, never a
+        ;; second one to the same watch)
+        (unless (and phitex--server (jsonrpc-running-p phitex--server))
+          (setq phitex--server (phitex--connect (phitex--root))))
         (phitex--open)
         (add-hook 'before-change-functions #'phitex--before-change nil t)
         (add-hook 'after-change-functions #'phitex--after-change nil t)
@@ -435,7 +442,10 @@ Its own language server, beside any other the buffer has."
            (browse-url (plist-get params :uri))
          ;; (a double-click takes the focus; text selected on the pages
          ;; (takeFocus false) is shown, marked, in the window it is in)
-         (let* ((buf (find-file-noselect (phitex--file (plist-get params :uri))))
+         ;; (the watch names the file resolved: the buffer visiting it
+         ;; through a symlink is the one shown, without a warning each time)
+         (let* ((buf (let ((find-file-suppress-same-file-warnings t))
+                       (find-file-noselect (phitex--file (plist-get params :uri)))))
                 (win (if (eq (plist-get params :takeFocus) t)
                          (progn (pop-to-buffer buf) (selected-window))
                        (display-buffer buf))))
@@ -554,7 +564,8 @@ One started in a terminal, as `phitex sessions' lists them."
   (when (and phitex--server (jsonrpc-running-p phitex--server))
     (jsonrpc-shutdown phitex--server))
   (setq phitex--server (phitex--connect (phitex--root) 'always))
-  (unless phitex-mode (phitex-mode 1)))
+  ;; (the mode on already: the buffer opened on the new connection)
+  (if phitex-mode (phitex--open) (phitex-mode 1)))
 
 (defun phitex-restart ()
   "Start the watch again."
