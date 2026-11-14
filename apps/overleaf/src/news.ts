@@ -30,6 +30,7 @@ export const NEWS: News[] = [
       "j and k glide while held, and J and K zoom smoothly, as the wheel does.",
       "The PDF | \u26a1 switch stays put when you flip it, and a narrow PDF pane keeps every button.",
       "XeLaTeX finds fonts the way xelatex does, your project's own first.",
+      "Long sessions stay healthy: after many builds in one session, tables (tabular, align and friends) could suddenly break until a restart. Fixed.",
     ],
   },
   {
