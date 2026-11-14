@@ -15,11 +15,31 @@
 -- Commands: :PhiTeXInstall, :PhiTeXViewer, :PhiTeXStop, :PhiTeXRestart, :PhiTeXRebuild,
 -- :PhiTeXSavePdf [path], :PhiTeXCaches, :PhiTeXClearCache [build|packages|all].
 --
--- Settings (docs/spec-editor-protocol.md §3.5), in PhitexSettings before
--- this file runs, e.g. PhitexSettings = { threads = 4, follow = "selection" }:
--- threads (default: one), main ("paper.tex"), follow ("cursor": the
--- words at the cursor marked on the page; "selection": only a selection's;
--- "dblclick": nothing as you move).
+-- Settings, in PhitexSettings before this file runs, e.g.
+-- PhitexSettings = { threads = 4, follow = "selection", mark_selection = false }.
+-- The engine's (docs/spec-editor-protocol.md §3.5), sent to the watch:
+--   threads         the engine's threads (default: one)
+--   main            the main file, from the project's folder ("paper.tex"; default:
+--                   phitex.toml's, else the one .tex with a \documentclass)
+--   follow          when the page shows where you are: "cursor" (default: the word at
+--                   the cursor, and a visual selection's text, as you move),
+--                   "selection" (only a selection's), "dblclick" (nothing as you move)
+--   files           where TeX's files come from: "texlive" (default: your TeX
+--                   installation's) or "shelf" (PhiTeX's own, fetched as needed)
+-- This Neovim's own:
+--   attach          a watch already running (in a terminal) used: "auto" (default:
+--                   the one whose folder holds the file, else one started here),
+--                   "always", "never"
+--   mark_selection  text selected on the page marked here, highlight PhitexSelection
+--                   (linked to Visual) (default: true)
+--   dblclick_focus  a double-click on the page moves to the source's window (default:
+--                   true; false: shown, the focus kept)
+--   follow_delay    milliseconds after the cursor stops before it is sent (30)
+--   viewer_key      the normal-mode key opening the page ("<leader>lv"; false: none)
+--   command         how the watch is started ({ "phitex", "watch", "--lsp" })
+-- Diagnostics are Neovim's own: vim.diagnostic.config() decides when they show.
+-- The download's, in PhitexInstall: channel ("stable" or "nightly"), base, key, prefix
+-- (below).
 --
 -- Put this file in your config (e.g. ~/.config/nvim/plugin/phitex.lua), or
 -- add the repository with its folder apps/editors/nvim on the runtimepath
@@ -84,7 +104,54 @@ local function size(b)
   return string.format("%.0f kB", b / 1024)
 end
 
-PhitexSettings = PhitexSettings or {}
+PhitexSettings = vim.tbl_extend("keep", PhitexSettings or {}, {
+  attach = "auto",
+  mark_selection = true,
+  dblclick_focus = true,
+  follow_delay = 30,
+  viewer_key = "<leader>lv",
+  command = { "phitex", "watch", "--lsp" },
+})
+
+--- The engine's settings of PhitexSettings, the ones the watch is sent.
+local function engine()
+  local s = PhitexSettings
+  return { threads = s.threads, main = s.main, follow = s.follow, files = s.files }
+end
+
+--- Text selected on the page, marked in its buffer; where the cursor was put with it.
+local MARK = vim.api.nvim_create_namespace("phitex_selection")
+local marked
+vim.api.nvim_set_hl(0, "PhitexSelection", { link = "Visual", default = true })
+
+local function unmark()
+  if marked and vim.api.nvim_buf_is_valid(marked.buf) then vim.api.nvim_buf_clear_namespace(marked.buf, MARK, 0, -1) end
+  marked = nil
+end
+
+--- window/showDocument: a double-click's place (takeFocus), or text selected on the page,
+--- shown, marked as mark_selection says.
+local function show_document(_, params, ctx)
+  local c = vim.lsp.get_client_by_id(ctx.client_id)
+  if params.external or not c then return vim.lsp.handlers["window/showDocument"](_, params, ctx) end
+  local focus = params.takeFocus == true and PhitexSettings.dblclick_focus ~= false
+  local ok = vim.lsp.util.show_document({ uri = params.uri, range = params.selection }, c.offset_encoding, { reuse_win = true, focus = focus })
+  unmark()
+  local sel = params.selection
+  if ok and sel and PhitexSettings.mark_selection ~= false
+    and (sel.start.line ~= sel["end"].line or sel.start.character ~= sel["end"].character) then
+    local buf = vim.uri_to_bufnr(params.uri)
+    local function col(p)
+      local line = vim.api.nvim_buf_get_lines(buf, p.line, p.line + 1, false)[1] or ""
+      return vim.str_byteindex(line, c.offset_encoding, math.min(p.character, vim.str_utfindex(line, c.offset_encoding)), false)
+    end
+    vim.api.nvim_buf_set_extmark(buf, MARK, sel.start.line, col(sel.start), {
+      end_row = sel["end"].line, end_col = col(sel["end"]), hl_group = "PhitexSelection", strict = false,
+    })
+    marked = { buf = buf, at = { sel.start.line + 1, col(sel.start) } }
+  end
+  return { success = ok or false }
+end
 
 --- Which releases :PhiTeXInstall downloads (`channel`, as install.sh's PHITEX_CHANNEL: "stable", the latest
 --- release, or "nightly", dev's rebuilt each night), where from (`base`, nil: the channel's), the
@@ -200,12 +267,12 @@ end
 --- Clients attached to a watch this Neovim did not start, by id.
 local attached = {}
 
---- The buffer's watch: `mode` (vim.g.phitex_attach, "auto" by default) "auto"
+--- The buffer's watch: `mode` (PhitexSettings.attach, "auto" by default) "auto"
 --- uses a running one whose folder holds the file (`phitex sessions`: one
 --- started in a terminal), else starts one; "always" only a running one;
 --- "never" always starts one.
 local function start(buf, mode)
-  mode = mode or vim.g.phitex_attach or "auto"
+  mode = mode or PhitexSettings.attach or "auto"
   local file = vim.api.nvim_buf_get_name(buf)
   local session = mode ~= "never" and session_for(file) or nil
   if mode == "always" and not session then
@@ -213,22 +280,23 @@ local function start(buf, mode)
     return nil
   end
   if not session and not ensure_binary() then return nil end
-  local init = vim.tbl_extend("force", PhitexSettings, { client = CLIENT, phitexCursor = true })
+  local init = vim.tbl_extend("force", engine(), { client = CLIENT, phitexCursor = true })
   -- (a watch started elsewhere: its language server on 127.0.0.1, by its token)
   if session then init.token = session.lsp.token end
   local id = vim.lsp.start({
     -- (the engine's settings: at the start, and when it asks)
     -- (phitexCursor: phitex/cursor is sent here, so a documentHighlight makes no second forward search)
     init_options = init,
-    settings = { phitex = PhitexSettings },
+    settings = { phitex = engine() },
     name = "phitex",
-    cmd = session and vim.lsp.rpc.connect(session.lsp.host, session.lsp.port) or { "phitex", "watch", "--lsp" },
+    cmd = session and vim.lsp.rpc.connect(session.lsp.host, session.lsp.port) or PhitexSettings.command,
     -- (a project is phitex.toml's folder, else the file's own: a TeX
     -- project often sits in a folder of a larger git repository; attached,
     -- the watch's own)
     root_dir = session and session.root or vim.fs.root(buf, { "phitex.toml" }) or vim.fs.dirname(vim.api.nvim_buf_get_name(buf)),
     -- init_options = { main = "paper.tex" },
     handlers = {
+      ["window/showDocument"] = show_document,
       ["phitex/status"] = function(_, s, ctx)
         status[ctx.client_id] = s
         vim.cmd.redrawstatus()
@@ -284,6 +352,8 @@ vim.api.nvim_create_autocmd("FileType", {
       pending = false
       local c = vim.lsp.get_clients({ bufnr = ev.buf, name = "phitex" })[1]
       if not c or vim.api.nvim_get_current_buf() ~= ev.buf then return end
+      -- (the page's selection marked here goes once the cursor moves from where it was put)
+      if marked and marked.buf == ev.buf and not vim.deep_equal(vim.api.nvim_win_get_cursor(0), marked.at) then unmark() end
       local follow = PhitexSettings.follow or "cursor"
       local selecting = vim.fn.mode():match("^[vV\22]") ~= nil
       local ended = selected and not selecting
@@ -305,10 +375,12 @@ vim.api.nvim_create_autocmd("FileType", {
       callback = function()
         if pending then return end
         pending = true
-        timer:start(30, 0, vim.schedule_wrap(send))
+        timer:start(PhitexSettings.follow_delay or 30, 0, vim.schedule_wrap(send))
       end,
     })
-    vim.keymap.set("n", "<leader>lv", "<cmd>PhiTeXViewer<cr>", { buffer = ev.buf, desc = "PhiTeX: open the pages" })
+    if PhitexSettings.viewer_key then
+      vim.keymap.set("n", PhitexSettings.viewer_key, "<cmd>PhiTeXViewer<cr>", { buffer = ev.buf, desc = "PhiTeX: open the pages" })
+    end
   end,
 })
 

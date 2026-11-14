@@ -21,11 +21,29 @@
 ;; phitex-restart, phitex-rebuild, phitex-save-pdf, phitex-caches,
 ;; phitex-clear-cache.
 ;;
-;; Settings (docs/spec-editor-protocol.md §3.5): `phitex-settings', e.g.
-;; (setq phitex-settings '(:threads 4 :follow "selection")): threads
-;; (default: one), main ("paper.tex"), follow ("cursor": the words
-;; at the cursor marked on the page; "selection": only a selection's;
-;; "dblclick": nothing as you move).
+;; The engine's settings (docs/spec-editor-protocol.md §3.5), sent to the
+;; watch: `phitex-settings', e.g. (setq phitex-settings '(:threads 4 :follow "selection")):
+;;   :threads  the engine's threads (default: one)
+;;   :main     the main file, from the project's folder ("paper.tex"; default:
+;;             phitex.toml's, else the one .tex with a \documentclass)
+;;   :follow   when the page shows where you are: "cursor" (default: the word
+;;             at the cursor, and the region's text, as you move), "selection"
+;;             (only a region's), "dblclick" (nothing as you move)
+;;   :files    where TeX's files come from: "texlive" (default: your TeX
+;;             installation's) or "shelf" (PhiTeX's own, fetched as needed)
+;; This Emacs's own (M-x customize-group RET phitex):
+;;   `phitex-attach'             a watch already running (in a terminal) used:
+;;                               auto (default), always, never
+;;   `phitex-mark-selection'     text selected on the page marked here, face
+;;                               `phitex-selection' (default: t)
+;;   `phitex-dblclick-focus'     a double-click on the page selects the source's
+;;                               window (default: t; nil: shown, focus kept)
+;;   `phitex-follow-delay'       idle seconds before the cursor is sent (0.03)
+;;   `phitex-diagnostics-delay'  idle seconds before Flymake shows a build's
+;;                               problems (0.2)
+;;   `phitex-command'            how the watch is started (phitex watch --lsp)
+;; and for the download: `phitex-channel' ("stable" or "nightly"),
+;; `phitex-release-base', `phitex-release-key', `phitex-install-prefix'.
 ;;
 ;; Load this file and turn the mode on in TeX buffers:
 ;;   (load "~/path/to/phitex.el")
@@ -61,8 +79,41 @@
 (require 'flymake)
 (require 'url-util)
 
+(defgroup phitex nil
+  "PhiTeX's live preview."
+  :group 'tex
+  :prefix "phitex-")
+
 (defvar phitex-settings nil
-  "The engine's settings, a plist (:threads :main :follow).")
+  "The engine's settings, a plist (:threads :main :follow :files).")
+
+(defcustom phitex-mark-selection t
+  "Whether text selected on the page is marked in its buffer.
+Face `phitex-selection'.  The mark goes with the next selection, or
+once the cursor moves."
+  :type 'boolean
+  :group 'phitex)
+
+(defcustom phitex-dblclick-focus t
+  "Whether a double-click on the page selects the source's window.
+nil: the place is shown in a window, the focus left where it is."
+  :type 'boolean
+  :group 'phitex)
+
+(defcustom phitex-follow-delay 0.03
+  "Seconds Emacs is idle before the cursor's place is sent to the page."
+  :type 'number
+  :group 'phitex)
+
+(defcustom phitex-diagnostics-delay 0.2
+  "Seconds Emacs is idle before Flymake shows a build's problems.
+Never between keystrokes."
+  :type 'number
+  :group 'phitex)
+
+(defface phitex-selection '((t :inherit region))
+  "Text selected on the page, marked in its buffer."
+  :group 'phitex)
 
 (defvar phitex-command '("phitex" "watch" "--lsp")
   "How the language server is started.")
@@ -174,6 +225,7 @@ See docs/spec-editor-protocol.md §1.")
 (defvar-local phitex--report nil "Flymake's report function, for diagnostics that arrive later.")
 (defvar-local phitex--timer nil)
 (defvar phitex--shown nil "The source of the text last selected on the pages, an overlay.")
+(defvar phitex--shown-at nil "Where the cursor was put with `phitex--shown': moved from, the mark goes.")
 
 (defun phitex--root ()
   (expand-file-name (or (locate-dominating-file default-directory "phitex.toml") default-directory)))
@@ -363,11 +415,16 @@ one started for a chapter that found its main file a folder up, or (by
 
 (defun phitex--cursor ()
   "Tell the watch where the cursor and its region are, once Emacs pauses.
-The latest after 0.03 s idle: the cursor's word marked on the page, the
-region's text too (an empty range clearing it); as `phitex-settings'
-:follow says (\"cursor\": every move; \"selection\": only a region's,
-and as it ends; \"dblclick\": never)."
+The latest after `phitex-follow-delay' idle: the cursor's word marked
+on the page, the region's text too (an empty range clearing it); as
+`phitex-settings' :follow says (\"cursor\": every move; \"selection\":
+only a region's, and as it ends; \"dblclick\": never)."
   (when phitex--timer (cancel-timer phitex--timer))
+  ;; (the page's selection marked here goes once the cursor moves)
+  (when (and phitex--shown (eq (overlay-buffer phitex--shown) (current-buffer))
+             (not (eql (point) phitex--shown-at)))
+    (delete-overlay phitex--shown)
+    (setq phitex--shown nil))
   (let* ((region (use-region-p))
          (ended (and phitex--selected (not region))))
     (when (and phitex--server
@@ -377,7 +434,7 @@ and as it ends; \"dblclick\": never)."
       (let ((buf (current-buffer)))
         (setq phitex--timer
               (run-with-idle-timer
-               0.03 nil
+               phitex-follow-delay nil
                (lambda ()
                  (when (buffer-live-p buf)
                    (with-current-buffer buf
@@ -446,7 +503,7 @@ Its own language server, beside any other the buffer has."
          ;; through a symlink is the one shown, without a warning each time)
          (let* ((buf (let ((find-file-suppress-same-file-warnings t))
                        (find-file-noselect (phitex--file (plist-get params :uri)))))
-                (win (if (eq (plist-get params :takeFocus) t)
+                (win (if (and (eq (plist-get params :takeFocus) t) phitex-dblclick-focus)
                          (progn (pop-to-buffer buf) (selected-window))
                        (display-buffer buf))))
            (when sel
@@ -455,10 +512,10 @@ Its own language server, beside any other the buffer has."
                      (end (phitex--point (plist-get sel :end))))
                  (set-window-point win beg)
                  (when (eq win (selected-window)) (goto-char beg))
-                 (when phitex--shown (delete-overlay phitex--shown))
-                 (when (< beg end)
-                   (setq phitex--shown (make-overlay beg end))
-                   (overlay-put phitex--shown 'face 'region)))))))
+                 (when phitex--shown (delete-overlay phitex--shown) (setq phitex--shown nil))
+                 (when (and phitex-mark-selection (< beg end))
+                   (setq phitex--shown (make-overlay beg end) phitex--shown-at beg)
+                   (overlay-put phitex--shown 'face 'phitex-selection)))))))
        (list :success t)))
     ('workspace/configuration (vector (or phitex-settings :json-false)))
     ((or 'window/workDoneProgress/create 'client/registerCapability) nil)
@@ -507,11 +564,12 @@ each cost ~13 ms a build for 50 of them in a long paper)."
   "The pending Flymake update: diagnostics shown once typing pauses.")
 
 (defun phitex--diags-soon ()
-  "Show the diagnostics once Emacs is idle (0.2 s), never between keystrokes."
+  "Show the diagnostics once Emacs is idle, never between keystrokes.
+After `phitex-diagnostics-delay' seconds."
   (when phitex--diags-timer (cancel-timer phitex--diags-timer))
   (let ((buf (current-buffer)))
     (setq phitex--diags-timer
-          (run-with-idle-timer 0.2 nil
+          (run-with-idle-timer phitex-diagnostics-delay nil
                                (lambda ()
                                  (when (buffer-live-p buf)
                                    (with-current-buffer buf
