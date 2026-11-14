@@ -417,7 +417,7 @@ Its own language server, beside any other the buffer has."
      (when-let* ((b (find-buffer-visiting (phitex--file (plist-get params :uri)))))
        (with-current-buffer b
          (setq phitex--diags (append (plist-get params :diagnostics) nil))
-         (when phitex--report (phitex--flymake phitex--report)))))
+         (phitex--diags-soon))))
     ('phitex/status
      (when (plist-get params :root) (puthash server (plist-get params :root) phitex--roots))
      (setq phitex--status params) (force-mode-line-update t))
@@ -454,18 +454,59 @@ Its own language server, beside any other the buffer has."
     ((or 'window/workDoneProgress/create 'client/registerCapability) nil)
     (_ (jsonrpc-error :code -32601 :message (format "%s: not handled" method)))))
 
+(defun phitex--line-starts (lines)
+  "Each of LINES (LSP, from 0) mapped to its start.
+Found in one pass down the buffer."
+  (let ((starts (make-hash-table)) (at 0))
+    (save-excursion
+      (goto-char (point-min))
+      (dolist (l (sort (delete-dups (copy-sequence lines)) #'<))
+        (forward-line (- l at))
+        (setq at l)
+        (puthash l (point) starts)))
+    starts))
+
+(defun phitex--point-from (starts pos)
+  "LSP position POS as a point, its line's start from STARTS."
+  (save-excursion
+    (goto-char (gethash (plist-get pos :line) starts (point-max)))
+    (let ((col (plist-get pos :character)))
+      (while (and (> col 0) (not (eolp)))
+        (setq col (- col (if (> (char-after) #xFFFF) 2 1)))
+        (forward-char)))
+    (point)))
+
 (defun phitex--flymake (report &rest _)
-  "Flymake's backend: the server's diagnostics, now and as they come (REPORT)."
+  "Flymake's backend: the server's diagnostics, now and as they come (REPORT).
+Their places found in one pass down the buffer (one walk from the top for
+each cost ~13 ms a build for 50 of them in a long paper)."
   (setq phitex--report report)
-  (funcall report
-           (mapcar (lambda (d)
-                     (let* ((r (plist-get d :range))
-                            (beg (phitex--point (plist-get r :start)))
-                            (end (max (1+ beg) (phitex--point (plist-get r :end)))))
-                       (flymake-make-diagnostic (current-buffer) beg (min end (point-max))
-                                                (pcase (plist-get d :severity) (1 :error) (2 :warning) (_ :note))
-                                                (plist-get d :message))))
-                   phitex--diags)))
+  (let* ((ranges (mapcar (lambda (d) (plist-get d :range)) phitex--diags))
+         (starts (phitex--line-starts
+                  (mapcan (lambda (r) (list (plist-get (plist-get r :start) :line) (plist-get (plist-get r :end) :line))) ranges))))
+    (funcall report
+             (cl-mapcar (lambda (d r)
+                          (let* ((beg (phitex--point-from starts (plist-get r :start)))
+                                 (end (max (1+ beg) (phitex--point-from starts (plist-get r :end)))))
+                            (flymake-make-diagnostic (current-buffer) beg (min end (point-max))
+                                                     (pcase (plist-get d :severity) (1 :error) (2 :warning) (_ :note))
+                                                     (plist-get d :message))))
+                        phitex--diags ranges))))
+
+(defvar-local phitex--diags-timer nil
+  "The pending Flymake update: diagnostics shown once typing pauses.")
+
+(defun phitex--diags-soon ()
+  "Show the diagnostics once Emacs is idle (0.2 s), never between keystrokes."
+  (when phitex--diags-timer (cancel-timer phitex--diags-timer))
+  (let ((buf (current-buffer)))
+    (setq phitex--diags-timer
+          (run-with-idle-timer 0.2 nil
+                               (lambda ()
+                                 (when (buffer-live-p buf)
+                                   (with-current-buffer buf
+                                     (setq phitex--diags-timer nil)
+                                     (when phitex--report (phitex--flymake phitex--report)))))))))
 
 ;;; phitex/status: the mode line's "⚡ 67 ms ✗2"
 
