@@ -62,11 +62,13 @@ export class StripPages implements CoreTransport {
   }
 
   async request(op: object): Promise<CoreRes> {
-    const o = op as { op: string; page?: number };
+    const o = op as { op: string; page?: number; scale?: number; view?: Win };
     if (o.op === "png") {
-      const p = await this.strips.page(o.page ?? 0, this.panel.pixelsPerPoint(), this.panel.pageView(o.page ?? 0)).catch((e) => (console.warn("[phitex] page", e), null));
+      // (a link's window zoomed in: its own scale and part of the page, not the pages' zoom, and no repaint to time)
+      const zoom = typeof o.scale === "number" && o.scale > 0;
+      const p = await this.strips.page(o.page ?? 0, zoom ? o.scale! : this.panel.pixelsPerPoint(), zoom ? (o.view ?? null) : this.panel.pageView(o.page ?? 0)).catch((e) => (console.warn("[phitex] page", e), null));
       if (!p) return { ok: false, json: { error: "no such page" } };
-      this.painted();
+      if (!zoom) this.painted();
       return { ok: true, canvas: p.el, size: [p.w, p.h], links: p.links };
     }
     return this.t.request(op as never);
