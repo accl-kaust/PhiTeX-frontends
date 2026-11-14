@@ -19,6 +19,20 @@ export const SUPPORT: { label: string; href: string } | null = null;
 
 export const NEWS: News[] = [
   {
+    version: "1.0.2",
+    date: "2026-11-14",
+    title: "Zoom, Colour lines, and speed",
+    items: [
+      "Zoom into a link's preview: Ctrl+scroll, a pinch, or its magnifier buttons. Pinned, it keeps its zoom, and you drag to look around.",
+      "Colour lines: a reading aid that shades each line in its own colour, so your eyes don't lose their place. It has its own Settings tab, and keeps two columns apart.",
+      "Two-column papers: selecting text takes what you drag over, not half the page.",
+      "Moving the cursor in Overleaf's editor is fast again with \u26a1 Instant on (it restyled the whole page on every line).",
+      "j and k glide while held, and J and K zoom smoothly, as the wheel does.",
+      "The PDF | \u26a1 switch stays put when you flip it, and a narrow PDF pane keeps every button.",
+      "XeLaTeX finds fonts the way xelatex does, your project's own first.",
+    ],
+  },
+  {
     version: "1.0.1",
     date: "2026-11-12",
     title: "Fixes",
