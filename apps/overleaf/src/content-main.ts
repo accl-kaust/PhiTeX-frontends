@@ -1211,7 +1211,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detache[dr])?\/?$/;
         rows: [
           { id: "o-view", label: "Opens with", help: "What Overleaf's PDF pane shows when a project opens", kind: "choice", options: [["pdf", "PDF"], ["phitex", "⚡ Instant"]], value: s.view === "phitex" ? "phitex" : "pdf", set: (v) => put({ view: v }) },
           { id: "o-engine", label: "Engine", help: "Auto: what the project's preamble needs (a project given its own keeps it). LuaLaTeX: coming", kind: "choice", options: [["auto", "Auto"], ["pdflatex", "pdfLaTeX"], ["xelatex", "XeLaTeX"]], value: (s.engine as string | undefined) ?? "auto", set: (v) => put({ engine: v }) },
-          { id: "o-follow", label: "Highlight follows", help: "In yellow: the word you're at as the cursor moves, what you select, or a double-click alone", kind: "choice", options: [["cursor", "Cursor"], ["selection", "Selection"], ["dblclick", "Double-click"]], value: (s.follow as string | undefined) ?? "cursor", set: (v) => put({ follow: v }) },
+          { id: "follow", label: "Highlight follows", help: "In yellow: the word you're at as the cursor moves, what you select, or a double-click alone", kind: "choice", options: [["cursor", "Cursor"], ["selection", "Selection"], ["dblclick", "Double-click"]], value: (s.follow as string | undefined) ?? "cursor", set: (v) => put({ follow: v }) },
           toggle("o-others", "Collaborators on the PDF", "Where each collaborator is, in their colour; the page never moves for them", !s.othersOff, (on) => put({ othersOff: !on })),
         ],
       },
