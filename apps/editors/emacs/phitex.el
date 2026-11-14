@@ -19,7 +19,7 @@
 ;; typesetting, the last build's time, its problems) shows in the mode line
 ;; ("⚡ 67 ms ✗2"). Commands: phitex-open-viewer, phitex-stop,
 ;; phitex-restart, phitex-rebuild, phitex-save-pdf, phitex-caches,
-;; phitex-clear-cache.
+;; phitex-clear-cache, phitex-doctor (checks the setup for this buffer).
 ;;
 ;; The engine's settings (docs/spec-editor-protocol.md §3.5), sent to the
 ;; watch: `phitex-settings', e.g. (setq phitex-settings '(:threads 4 :follow "selection")):
@@ -661,6 +661,83 @@ One started in a terminal, as `phitex session list' lists them."
   (interactive (list (completing-read "Clear which cache: " '("build" "packages" "all") nil t nil nil "build")))
   (let ((r (phitex--exec "phitex.clearCache" `(:scope ,scope))))
     (message "PhiTeX: %s cache cleared, %s freed" scope (phitex--size (or (plist-get r :freed_bytes) 0)))))
+
+(defun phitex-doctor ()
+  "Check PhiTeX's setup for this buffer, each finding on its own line.
+Which phitex.el is loaded (and whether it was loaded whole), the phitex
+on PATH and its version, the running watches, and this buffer's file,
+watch and connection."
+  (interactive)
+  (let* ((buf (current-buffer))
+         (file (buffer-file-name buf))
+         (exe (executable-find (car phitex-command)))
+         (version (and exe (with-temp-buffer
+                             (and (eq 0 (ignore-errors (call-process exe nil t nil "--version")))
+                                  (buffer-string)))))
+         (sessions (phitex--sessions))
+         (session (and file (phitex--session-for file)))
+         (server (buffer-local-value 'phitex--server buf))
+         (unbound (cl-remove-if #'boundp '(phitex-mark-selection phitex-dblclick-focus phitex-follow-delay
+                                          phitex-diagnostics-delay phitex-attach phitex-command)))
+         (ok 0) (bad 0))
+    (with-current-buffer (get-buffer-create "*phitex-doctor*")
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (cl-flet ((line (good text &optional fix)
+                    (if good (cl-incf ok) (cl-incf bad))
+                    (insert (if good "  ✓ " "  ✗ ") text "\n")
+                    (when (and fix (not good)) (insert "      → " fix "\n"))))
+          (insert "PhiTeX doctor  " (format-time-string "%F %T") "\n\n")
+          (insert "This Emacs\n")
+          (line t (format "Emacs %s" emacs-version))
+          (line t (format "phitex.el loaded from %s" (or (symbol-file 'phitex-mode 'defun) "?")))
+          (line (null unbound)
+                (if unbound (format "phitex.el loaded only in part: %s unset" (mapconcat #'symbol-name unbound ", "))
+                  "phitex.el loaded whole")
+                "an older and a newer phitex.el mixed in this session: restart Emacs")
+          (insert "\nThe phitex program\n")
+          (line exe (if exe (format "%s" exe) (format "%s not on PATH (exec-path)" (car phitex-command)))
+                "M-x phitex-install, or add its folder to exec-path")
+          (when exe
+            (line version (if version (string-trim (car (split-string version "\n"))) "phitex --version failed")
+                  "run phitex --version in a terminal")
+            (when version
+              (let ((proto (and (string-match "editor protocol \\([0-9]+\\)" version)
+                                (string-to-number (match-string 1 version)))))
+                (line (or (null proto) (= proto phitex--protocol))
+                      (format "editor protocol: phitex %s, phitex.el %s" (or proto "?") phitex--protocol)
+                      (if (and proto (> proto phitex--protocol)) "update phitex.el" "run phitex upgrade")))))
+          (insert "\nRunning watches (phitex session list)\n")
+          (if (null sessions)
+              (line (not (eq phitex-attach 'always)) "none"
+                    "start one in a terminal: phitex watch FILE.tex")
+            (dolist (s sessions)
+              (insert (format "  %s%s  pid %s, %s\n" (if (equal s session) "→ " "  ")
+                              (plist-get s :main) (plist-get s :pid) (or (plist-get s :version) "?")))))
+          (insert (format "\nThis buffer (%s)\n" (buffer-name buf)))
+          (line file (if file (format "file %s" file) "no file") "save the buffer to a file")
+          (when file
+            (let ((true (file-truename file)))
+              (unless (equal true (expand-file-name file))
+                (line t (format "resolved through a symlink to %s" true))))
+            (line (or session (not (eq phitex-attach 'always)))
+                  (if session (format "its watch: %s (folder %s)" (plist-get session :main) (plist-get session :root))
+                    (format "no running watch holds it (phitex-attach is %s: %s)" phitex-attach
+                            (if (eq phitex-attach 'never) "one is started here" "one is started here by phitex-mode")))
+                  "start one: phitex watch FILE.tex, then M-x phitex-attach"))
+          (line (buffer-local-value 'phitex-mode buf)
+                (if (buffer-local-value 'phitex-mode buf) "phitex-mode on" "phitex-mode off") "M-x phitex-mode")
+          (when (buffer-local-value 'phitex-mode buf)
+            (line (and server (jsonrpc-running-p server))
+                  (if (and server (jsonrpc-running-p server))
+                      (format "connected%s, folder %s" (if (gethash server phitex--attached) " (attached)" "")
+                              (or (gethash server phitex--roots) "?"))
+                    "not connected")
+                  "M-x phitex-restart, or M-x phitex-attach"))
+          (insert (format "\n%d fine, %d to look at\n" ok bad)))
+        (special-mode)
+        (goto-char (point-min))))
+    (pop-to-buffer "*phitex-doctor*")))
 
 (define-derived-mode phitex-caches-mode tabulated-list-mode "PhiTeX caches"
   "The watch's caches: c clears the one at point, g reads them again."
