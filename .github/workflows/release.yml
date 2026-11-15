@@ -1,0 +1,206 @@
+# A release: a tag vX.Y.Z (on the commit PhiTeX's release pins in its
+# ci/frontends.commit) builds the store packages from that commit, attaches
+# them to a GitHub release of this repository, and uploads each to its store
+# as a new version of the listing, submitted for review:
+#
+#   Chrome Web Store, Edge Add-ons      phitex-instant-X.Y.Z.zip
+#   Firefox Add-ons                     phitex-instant-X.Y.Z-firefox.zip (+ -source.zip)
+#   VS Code Marketplace, Open VSX       phitex-X.Y.Z.vsix
+#
+# Run it by hand (Actions › release › Run workflow) to redo a tag's release, or
+# only some stores (a store whose upload failed; one already holding the
+# version refuses it again).
+#
+# The stores' credentials are secrets of the "stores" environment (Settings ›
+# Environments), so that only this workflow sees them; give it required
+# reviewers there to have each release wait for a click before uploading.
+#   CWS_SERVICE_ACCOUNT_JSON, vars CWS_PUBLISHER_ID, CWS_EXTENSION_ID   (tools/release/stores.mjs)
+#   EDGE_API_KEY, vars EDGE_CLIENT_ID, EDGE_PRODUCT_ID
+#   AMO_JWT_ISSUER, AMO_JWT_SECRET
+#   VSCE_PAT (Azure DevOps, Marketplace › Manage), OVSX_PAT (open-vsx.org, namespace accl-kaust)
+name: release
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release's tag (vX.Y.Z)"
+        required: true
+      stores:
+        description: "The stores to upload to"
+        default: "chrome edge firefox vscode openvsx"
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  STORES: ${{ inputs.stores || 'chrome edge firefox vscode openvsx' }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      # (the release scripts of this workflow's own commit: a tag made before them is released too)
+      - uses: actions/checkout@v7
+        with:
+          path: .release
+          sparse-checkout: tools/release
+      - name: PhiTeX (the submodule; public, over HTTPS)
+        run: |
+          git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --depth 1 phitex
+      - name: The tag names the packages' version
+        id: version
+        run: |
+          v=${TAG#v}
+          for m in apps/overleaf/manifest.base.json apps/vscode/package.json; do
+            got=$(node -p "require('./$m').version")
+            [ "$got" = "$v" ] || { echo "$m says $got, the tag $TAG"; exit 1; }
+          done
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm ci --prefix apps/vscode
+      # (PhiTeX's pinned toolchain, phitex/rust-toolchain.toml, and the targets
+      # its scripts/wasm-live.sh builds: the two cores and latexdiff's module)
+      - run: |
+          cd phitex && rustup toolchain install
+          rustup target add wasm32-wasip1-threads wasm32-wasip1 wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: phitex -> ../target/phitex-wasm
+      # (minted's wheels, the versions TeX Live ships, which build.sh takes from it locally)
+      - run: |
+          pip download --no-deps --only-binary=:all: -d target/minted latexminted==0.7.1 latexrestricted==0.6.2 latex2pydata==0.5.0 pygments==2.19.1
+      - name: The packages
+        run: |
+          MINTED_WHEELS=target/minted tools/build/package.sh
+          tools/build/build-vscode.sh --package
+          .release/tools/release/source-zip.sh
+      - name: Their files
+        run: |
+          v=${{ steps.version.outputs.version }}
+          mkdir -p out
+          cp build/phitex-instant-$v.zip build/phitex-instant-$v-firefox.zip build/phitex-instant-$v-source.zip build/phitex-$v.vsix out/
+          (cd out && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+      - uses: actions/upload-artifact@v5
+        with:
+          name: packages
+          path: out/
+      - name: The GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" out/* --clobber
+          else
+            gh release create "$TAG" out/* --verify-tag --title "PhiTeX Instant ${TAG#v}" \
+              --notes "The extensions' packages, built from this tag by the release workflow. What's new: apps/overleaf/src/news.ts."
+          fi
+
+  chrome:
+    needs: build
+    if: contains(inputs.stores || 'chrome edge firefox vscode openvsx', 'chrome')
+    runs-on: ubuntu-latest
+    environment: stores
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: tools/release
+      - uses: actions/download-artifact@v5
+        with:
+          name: packages
+          path: out
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node tools/release/stores.mjs chrome out/phitex-instant-${{ needs.build.outputs.version }}.zip
+        env:
+          CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+
+  edge:
+    needs: build
+    if: contains(inputs.stores || 'chrome edge firefox vscode openvsx', 'edge')
+    runs-on: ubuntu-latest
+    environment: stores
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: tools/release
+      - uses: actions/download-artifact@v5
+        with:
+          name: packages
+          path: out
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node tools/release/stores.mjs edge out/phitex-instant-${{ needs.build.outputs.version }}.zip
+        env:
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+          EDGE_CLIENT_ID: ${{ vars.EDGE_CLIENT_ID }}
+          EDGE_PRODUCT_ID: ${{ vars.EDGE_PRODUCT_ID }}
+
+  firefox:
+    needs: build
+    if: contains(inputs.stores || 'chrome edge firefox vscode openvsx', 'firefox')
+    runs-on: ubuntu-latest
+    environment: stores
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: tools/release
+      - uses: actions/download-artifact@v5
+        with:
+          name: packages
+          path: out
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node tools/release/stores.mjs firefox out/phitex-instant-${{ needs.build.outputs.version }}-firefox.zip out/phitex-instant-${{ needs.build.outputs.version }}-source.zip
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+
+  vscode:
+    needs: build
+    if: contains(inputs.stores || 'chrome edge firefox vscode openvsx', 'vscode')
+    runs-on: ubuntu-latest
+    environment: stores
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: packages
+          path: out
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npx --yes @vscode/vsce@3 publish --packagePath out/phitex-${{ needs.build.outputs.version }}.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+  openvsx:
+    needs: build
+    if: contains(inputs.stores || 'chrome edge firefox vscode openvsx', 'openvsx')
+    runs-on: ubuntu-latest
+    environment: stores
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: packages
+          path: out
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npx --yes ovsx@0 publish out/phitex-${{ needs.build.outputs.version }}.vsix
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}

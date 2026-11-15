@@ -1,0 +1,80 @@
+# PhiTeX Instant @VERSION@: building the packages from source
+
+This archive holds the add-on's source and the PhiTeX engine it embeds:
+
+- the top level: PhiTeX-frontends at commit @FRONTENDS@
+  (https://github.com/accl-kaust/PhiTeX-frontends);
+- `phitex/`: PhiTeX at commit @PHITEX@, the frontends' submodule
+  (https://github.com/accl-kaust/PhiTeX).
+
+Keep the layout: the build reads the engine from `phitex/`.
+
+## What is built, and from what
+
+| In the package | Built from |
+| --- | --- |
+| `dist/*.js`, `dist/common/**/*.js` | `apps/overleaf/src/**/*.ts`, `common/src/**/*.ts` and PhiTeX's `phitex/viewer/src/*.ts`, by esbuild (bundled, **not minified**) |
+| `dist/core.wasm`, `dist/core1.wasm` | `phitex/crates/wasm/live` (Rust), by `phitex/scripts/wasm-live.sh`: `wasm32-wasip1-threads` and `wasm32-wasip1` |
+| `dist/diff.wasm` | `phitex/crates/wasm/diff` (Compare's latexdiff), by the same script, `wasm32-unknown-unknown` |
+| `formats/*.fmt.gzdata` | made by `core1.wasm` itself (`tools/build/make-formats.sh`) from TeX Live 2026 files: pdfLaTeX, XeLaTeX, plain TeX, plain XeTeX |
+| `texmf/` | TeX Live 2026 files, from TeX Live's package archive (`tools/build/fetch-texmf.sh`, into `shelf/texmf/`) |
+| `packs/` | the list of packages fetched in the background (`tools/build/bundle-packs.sh`) |
+| `shelf-*.gzdata`, `shelf-release.json` | Shelf's index and pack table for release tl2026.9 (`shelf/`) |
+| `dist/pyodide/` | the npm package `pyodide@@PYODIDE@`, unmodified (`python_stdlib.zip` renamed `python_stdlib.data`) |
+| `minted/*.whl.data` | TeX Live 2026's wheels in `texmf-dist/scripts/minted/`, renamed |
+| `dist/minted/runner.mjs` | `phitex/tools/minted-pyodide/runner.mjs`, as is |
+| `fonts/` | Latin Modern, the fonts the pages are drawn in (`common/fonts`, from TeX Live 2026; GUST Font License) |
+
+Some files are renamed `.data` or `.gzdata` because Edge's store refuses a
+package with archives inside. Their contents are unchanged, and the code
+reads them by those names.
+
+## Requirements
+
+- Linux x86_64 with bubblewrap (`bwrap`): every step runs in
+  `tools/sandbox`, which has no network unless `--net` is given.
+- Rust `nightly-2026-08-08` (`phitex/rust-toolchain.toml`) with the
+  targets the cores need:
+
+      rustup target add wasm32-wasip1-threads wasm32-wasip1 wasm32-unknown-unknown --toolchain nightly-2026-08-08
+
+- Node.js 22 or later, and npm.
+- TeX Live 2026 under `/usr/share/texmf-dist` (it provides the formats'
+  sources, the fonts and the minted wheels).
+- python3, zip, unzip, gzip.
+
+## Steps
+
+    tools/sandbox --net npm ci --ignore-scripts     # esbuild, TypeScript, pdfjs-dist, pyodide (package-lock.json)
+    tools/sandbox --net tools/build/fetch-texmf.sh  # shelf/texmf/ from TeX Live's package archive
+    tools/build/package.sh                          # → build/phitex-instant-@VERSION@.zip (Chrome, Edge)
+                                                    #   build/phitex-instant-@VERSION@-firefox.zip (Firefox)
+
+`tools/build/package.sh` runs `tools/build/build.sh`: the wasm cores
+(cargo, a few minutes: fat LTO), the formats made and then checked by both
+cores, the bundled TeX files, the esbuild bundles and the vendored npm
+files. Then it zips the Firefox package, whose manifest differs from
+Chrome's: a background page (`firefox-bg.html`) instead of a service
+worker, and `browser_specific_settings`.
+
+The cores in the store packages were built from this archive's `phitex/`, by
+the frontends' release workflow (`.github/workflows/release.yml`), with the
+steps above.
+A rebuild here makes the same code; the `.wasm` bytes can differ by
+machine paths in debug sections.
+
+## Notes for reviewers
+
+- **No remote code.** All JavaScript and WebAssembly is in the package.
+  At run time the add-on downloads only TeX Live data files (packs) and
+  Shelf's index of them, from `v1.shelf.phitex.org` (else
+  `shelf-phitex-v1.pages.dev`), by package name. It never sends document
+  content.
+- **Dynamic code:** `eval` and `import()` with computed paths are inside
+  Pyodide and pdf.js, vendored unmodified. The add-on's own dynamic imports
+  load files from the package (`new URL(..., import.meta.url)`).
+- **HTML:** the panel builds its UI from fixed templates (`html\`\``,
+  `apps/overleaf/src/dom.ts` and `phitex/viewer/src/html.ts`); text from a
+  document or a diagnostic is inserted as text, never as markup.
+- License: AGPL-3.0-only (`LICENSE`). Bundled components keep their own
+  licenses (`NOTICE`).

@@ -10,6 +10,27 @@ The VS Code extension's listing (Marketplace, Open VSX) is its own README,
 `apps/vscode/README.md`; its package is `build/phitex-<version>.vsix`
 (`tools/build/build-vscode.sh --package`).
 
+## Uploads by CI
+
+A tag `vX.Y.Z` runs `.github/workflows/release.yml`: it builds the four
+packages from the tagged commit, attaches them to a GitHub release, and
+uploads each to its store as a new version, submitted for review (Chrome
+Web Store, Edge Add-ons, Firefox Add-ons with the source zip, VS Code
+Marketplace, Open VSX). Run it by hand for one store or a tag again.
+
+The listings stay the dashboards' (text, screenshots; a store's first
+version too). One-time setup, in the repository's **stores** environment
+(Settings › Environments; add required reviewers there to approve each
+release before it uploads):
+
+| Store | Secrets | Variables | Where |
+| --- | --- | --- | --- |
+| Chrome Web Store | `CWS_SERVICE_ACCOUNT_JSON` (a service account's JSON key) | `CWS_PUBLISHER_ID`, `CWS_EXTENSION_ID` | Google Cloud: a service account with the Chrome Web Store API enabled; its email added in the developer dashboard (Account › API access) |
+| Edge Add-ons | `EDGE_API_KEY` | `EDGE_CLIENT_ID`, `EDGE_PRODUCT_ID` | Partner Center › Microsoft Edge › Publish API (API v1.1) |
+| Firefox Add-ons | `AMO_JWT_ISSUER`, `AMO_JWT_SECRET` | | addons.mozilla.org › Developer Hub › Manage API Keys |
+| VS Code Marketplace | `VSCE_PAT` | | an Azure DevOps token, scope Marketplace › Manage, for publisher `accl-kaust` |
+| Open VSX | `OVSX_PAT` | | open-vsx.org › Settings › Access Tokens; the namespace `accl-kaust` made once (`npx ovsx create-namespace accl-kaust`) |
+
 ## Store listing
 
 **Name** (from the manifest): PhiTeX Instant for Overleaf (unofficial)
