@@ -33,11 +33,12 @@ import type { GraphStore } from "./graphs.ts";
 export const WASM_THREADS = 4;
 
 /**
- * The core's pause before it saves a build's graph (PhiTeX's
- * crates/wasm/live/src/session.rs GRAPH_IDLE, 2 s), and a little: a
- * single-threaded core's host steps it again after this long (its 3).
+ * The core's pause before it saves a build's graph again (PhiTeX's
+ * crates/wasm/live/src/session.rs GRAPH_IDLE, 30 s; the first build's is
+ * saved at once), and a little: a single-threaded core's host steps it
+ * again after this long (its 3).
  */
-const GRAPH_PAUSE_MS = 2100;
+const GRAPH_PAUSE_MS = 30_100;
 
 /** A file by name: its path as the build should report it, and its bytes; null if it is nowhere. */
 export type Resolve = (name: string) => Promise<{ path: string; bytes: Uint8Array } | null>;
