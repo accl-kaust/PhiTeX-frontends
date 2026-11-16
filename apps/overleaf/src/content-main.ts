@@ -103,6 +103,8 @@ function docIds(): Map<string, string> {
  */
 /** Where the project's binary files go (the core); set once connected. */
 let giveBinary: ((path: string, bytes: Uint8Array) => Promise<unknown>) | undefined;
+/** And takes one back (a file the project no longer has); set with giveBinary. */
+let takeBinary: ((path: string) => Promise<unknown>) | undefined;
 /** The project's binary files as last read (a compare's session gets them too). */
 let lastBinaries: Record<string, Uint8Array> = {};
 
@@ -151,7 +153,11 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
     const { files: zipped, binaries: bin } = await readZip(zbuf, (name, k, n) => panel.reading({ h: "Unpacking the project…", detail: name, done: k + 1, total: n }));
     devMark(`unzipped ${Object.keys(zipped).length} files`);
     Object.assign(files, zipped);
+    // (a file deleted or renamed in Overleaf since the last read: withdrawn
+    // from the core, which then looks for it as a fresh one does)
+    const gone = Object.keys(lastBinaries).filter((p) => !(p in bin));
     lastBinaries = bin;
+    if (takeBinary) for (const p of gone) await takeBinary(p);
     if (giveBinary) {
       // (figures and other binary files, handed to the engine before the first build)
       const all = Object.entries(bin);
@@ -1389,7 +1395,8 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detache[dr])?\/?$/;
         await giveBinary(p, binaries[p]);
       }
     }
-    await transport.request({ op: "rebuild" } as never);
+    // (those files read again, nothing else checked)
+    await transport.request({ op: "changed", files: paths.filter((p) => p in lastBinaries) } as never);
   };
   // Overleaf's main document (the project's root doc, the hook's `rootDoc`):
   // the session's main unless one was picked in the settings (kept by
@@ -1496,6 +1503,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detache[dr])?\/?$/;
     await transport.connect();
     devMark("connected");
     giveBinary = (path, bytes) => transport.request({ op: "binary", file: path, bytes } as never);
+    takeBinary = (path) => transport.request({ op: "withdraw", file: path } as never);
     let engineSetting: EngineChoice = "auto", projectEngine: Engine | undefined;
     const readEngine = async () => {
       const { engine, engines } = await chrome.storage.local.get(["engine", "engines"]);

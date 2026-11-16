@@ -411,6 +411,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
         pr.binaries[to] = pr.binaries[from];
         delete pr.binaries[from];
         void core.binary(to, pr.binaries[to]);
+        void core.withdraw(from);
       } else {
         pr.files[to] = pr.files[from];
         delete pr.files[from];
@@ -423,8 +424,10 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     },
     remove(p) {
       const pr = P();
-      if (p in pr.binaries) delete pr.binaries[p];
-      else {
+      if (p in pr.binaries) {
+        delete pr.binaries[p];
+        void core.withdraw(p);
+      } else {
         if (Object.keys(pr.files).length <= 1) return say("A project keeps at least one file.");
         delete pr.files[p];
         if (pr.main === p) pr.main = mainOf(pr.files);

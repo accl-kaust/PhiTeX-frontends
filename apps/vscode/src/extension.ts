@@ -358,7 +358,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
 
   // (the project's binary files first, then its text and the open)
   await Promise.all(stopping);
-  if (!coreFiles.has(core)) coreFiles.set(core, new CoreFiles((n, f) => core.provide(n, f)));
+  if (!coreFiles.has(core)) coreFiles.set(core, new CoreFiles(core));
   const given = coreFiles.get(core)!;
   given.open(Object.keys(project.files), project.binaries);
   const engine = texEngine(project.files[main]);
@@ -392,7 +392,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
         if (BINARY.test(rel)) bytes ? (project.binaries[rel] = bytes) : delete project.binaries[rel];
       },
       setMain: (text) => void session.request({ op: "set_file", file: main, text } as never),
-      rebuild: () => void session.request({ op: "rebuild" } as never),
+      changed: (files) => void session.request({ op: "changed", files } as never),
     },
     log: (s) => log.appendLine(s),
   }));

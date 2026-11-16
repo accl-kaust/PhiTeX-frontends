@@ -2,10 +2,12 @@
 // is given (walk, projectFile), and DiskSync, which keeps them given as the
 // disk changes after the preview opened: an image saved over, a .bib or an
 // \input file edited outside VS Code, a file added or removed. The core
-// holds the files it was given (Core.provide) and reads again, at a
-// rebuild, only those given since (PhiTeX's crates/wasm/live files.rs,
-// `stamp`), as `phitex watch` reads what changed on disk. No vscode import:
-// the extension feeds it its FileSystemWatcher's events, a test node's.
+// holds the files it was given (Core.provide) until they are withdrawn
+// (Core.withdraw: the name looked up as never given, Shelf's copy found
+// again), and the viewer's `changed` names those to read again (PhiTeX's
+// spec-editor-protocol §3.1, §4), as `phitex watch` reads what changed on
+// disk. No vscode import: the extension feeds it its FileSystemWatcher's
+// events, a test node's.
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -59,32 +61,44 @@ export const jobPdf = (main: string) => main.replace(/\.tex$/i, "") + ".pdf";
  */
 export type Held = "synced" | "unsaved" | undefined;
 
+/** What CoreFiles tells a core (common/src/wasm/core.ts's Core). */
+export interface FileCore {
+  provide(name: string, f: { path: string; bytes: Uint8Array }): unknown;
+  withdraw(name: string): void;
+}
+
 /**
  * The files a core was given (Core.provide), by name: it keeps them across
- * its documents, so a preview opened again (Restart, another folder) gives
- * those no longer in its project as absent, else a file removed, or another
- * folder's, was still found.
+ * its documents, so a preview opened again (Restart, another folder)
+ * withdraws those no longer in its project, else a file removed, or another
+ * folder's, was still found. A file removed is withdrawn, never given as
+ * absent: absent is "nowhere", and a project's copy of a distribution's
+ * file (a local llncs.cls) deleted must find the distribution's again.
  */
 export class CoreFiles {
   private names = new Set<string>();
-  private provide: (name: string, f: { path: string; bytes: Uint8Array } | null) => void;
-  constructor(provide: (name: string, f: { path: string; bytes: Uint8Array } | null) => void) {
-    this.provide = provide;
+  private core: FileCore;
+  constructor(core: FileCore) {
+    this.core = core;
   }
 
-  /** A document opened with these files (the open gives its texts itself, the binaries are given here): the rest the core has, given as absent. */
+  /** A document opened with these files (the open gives its texts itself, the binaries are given here): the rest the core has, withdrawn. */
   open(texts: string[], binaries: Record<string, Uint8Array>): void {
     const now = new Set([...texts, ...Object.keys(binaries)]);
-    for (const n of this.names) if (!now.has(n)) this.provide(n, null);
-    for (const [n, bytes] of Object.entries(binaries)) this.provide(n, { path: "./" + n, bytes });
+    for (const n of this.names) if (!now.has(n)) this.core.withdraw(n);
+    for (const [n, bytes] of Object.entries(binaries)) this.core.provide(n, { path: "./" + n, bytes });
     this.names = now;
   }
 
-  /** File `rel`'s bytes now (null: gone). */
+  /** File `rel`'s bytes now (null: gone, withdrawn). */
   give(rel: string, bytes: Uint8Array | null): void {
-    this.provide(rel, bytes && { path: "./" + rel, bytes });
-    if (bytes) this.names.add(rel);
-    else this.names.delete(rel);
+    if (bytes) {
+      this.core.provide(rel, { path: "./" + rel, bytes });
+      this.names.add(rel);
+    } else {
+      this.core.withdraw(rel);
+      this.names.delete(rel);
+    }
   }
 }
 
@@ -94,8 +108,8 @@ export interface DiskSink {
   give(rel: string, bytes: Uint8Array | null): void;
   /** The main file's text on disk now (the session's text, not a file it is given). */
   setMain(text: string): void;
-  /** A build of what was given (only the files given since are read again). */
-  rebuild(): void;
+  /** A build of what was given: these files read again, nothing else checked (the viewer's `{op: "changed", files}`). */
+  changed(files: string[]): void;
 }
 
 export interface DiskSyncOptions {
@@ -117,7 +131,7 @@ const digest = (b: Uint8Array | string) => createHash("sha1").update(b).digest("
  * event (a create, change or delete of a file or a folder), and, once
  * they've been quiet for `quiet` ms, each path read as it is now: its bytes
  * given (`give`), or its removal, the main file's text set (`setMain`), and
- * one `rebuild`. A folder's event stands for every file under it. A file
+ * one build of those files (`changed`). A folder's event stands for every file under it. A file
  * whose bytes are the ones last given is not given again (a save of the
  * same bytes, a touch); the job's own PDF never; an unsaved buffer's file
  * not at all. A synced buffer's file is given, but asks no build: the
@@ -176,7 +190,7 @@ export class DiskSync {
       } else if (s) now.add(rel);
       else for (const k of this.known.keys()) if (k === rel || k.startsWith(rel + "/")) now.add(k);
     }
-    let build = false;
+    const build: string[] = [];
     const said: string[] = [];
     for (const rel of now) {
       if (this.disposed) return;
@@ -196,9 +210,9 @@ export class DiskSync {
         continue;
       }
       sink.give(rel, bytes);
-      if (!h) build = true;
+      if (!h) build.push(rel);
     }
     if (said.length) this.o.log?.(`disk: ${said.join(", ")}`);
-    if (build && !this.disposed) sink.rebuild();
+    if (build.length && !this.disposed) sink.changed(build);
   }
 }

@@ -9,7 +9,9 @@
 //   an image saved over in place, the same size, another colour (its new
 //   bytes typeset, not a decode kept from before); one replaced by a rename;
 //   a .bib edited; an \input file edited outside the editor; one made, then
-//   removed; the main file edited.
+//   removed; the main file edited; a project file made over a distribution's
+//   name (a package of the project's own, xspace.sty), then removed: the
+//   distribution's again (withdrawn, not given as absent).
 // And the editor's buffer wins: a file the language client has open (its
 // buffer the core's) edited on disk builds nothing, the buffer's text
 // stays on the page; closed, the disk's is built. Last, the preview opened
@@ -69,6 +71,7 @@ const main = "main.tex";
 const MAIN = [
   "\\documentclass{article}",
   "\\usepackage{graphicx}",
+  "\\usepackage{xspace}",
   "\\begin{document}",
   "Disk check. \\input{part}",
   "\\IfFileExists{extra.tex}{\\input{extra}}{No extra.}",
@@ -105,7 +108,7 @@ const ms = () => Math.round(performance.now() - t0);
 /** A core, its builds counted as they settle. */
 async function attach(key: string) {
   const c = await startCore(root, () => key, (s) => process.stderr.write(s.endsWith("\n") ? s : s + "\n"));
-  const d = { ...c, settled: 0, wake: () => {}, given: new CoreFiles((n, f) => c.core.provide(n, f)) };
+  const d = { ...c, settled: 0, wake: () => {}, given: new CoreFiles(c.core) };
   c.session.onEvent((e: any) => e.event === "settled" && (d.settled++, d.wake()));
   return d;
 }
@@ -188,7 +191,7 @@ const sync = new DiskSync({
   sink: {
     give: (rel, bytes) => live.given.give(rel, bytes),
     setMain: (text) => void live.session.request({ op: "set_file", file: main, text } as never),
-    rebuild: () => void live.session.request({ op: "rebuild" } as never),
+    changed: (files) => void live.session.request({ op: "changed", files } as never),
   },
   log: (s) => console.log(`  ${s}`),
 });
@@ -196,8 +199,8 @@ const watcher = watch(folder, { recursive: true }, (_e, name) => name && sync.to
 
 const fails: string[] = [];
 const say = (ok: boolean, what: string, how: string) => (console.log(`${ok ? "ok  " : "FAIL"} ${what}: ${how}`), ok || fails.push(what));
-/** `change` made on disk: a build must follow, the PDF changed, its pages a clean build's. */
-async function step(what: string, change: () => void) {
+/** `change` made on disk: a build must follow, the PDF changed, its pages a clean build's (and, if given, its text as `shows` says: a clean build may be wrong the same way). */
+async function step(what: string, change: () => void, shows?: [string, (text: string) => boolean]) {
   const before = pdf();
   const n = live.settled;
   const t = performance.now();
@@ -205,18 +208,27 @@ async function step(what: string, change: () => void) {
   const built = await settle(live, n);
   const took = Math.round(performance.now() - t);
   const changed = built && Buffer.compare(before, pdf()) !== 0;
+  const text = shows && (await drawn(live)).text.join(" ");
   const exact = await asClean();
-  say(built && changed && exact, what, `${built ? `built in ${took} ms` : "NO BUILD"}, PDF ${changed ? "changed" : "UNCHANGED"}, ${exact ? "a clean build's pages" : "NOT a clean build's pages"}`);
+  const right = !shows || shows[1](text!);
+  if (!right) console.log(`  the page reads: ${text!.slice(0, 200)}`);
+  say(built && changed && exact && right, what, `${built ? `built in ${took} ms` : "NO BUILD"}, PDF ${changed ? "changed" : "UNCHANGED"}, ${exact ? "a clean build's pages" : "NOT a clean build's pages"}${shows ? `, ${right ? "" : "NOT "}${shows[0]}` : ""}`);
   // (a step failed: the preview opened again, as a user would, so the next starts from the folder as it is)
-  if (!(built && changed && exact)) await open(live);
+  if (!(built && changed && exact && right)) await open(live);
 }
 
 await step("an image saved over in place (same size, another colour)", () => write("fig.png", colour("blue")));
 await step("an \\input file edited outside the editor", () => write("part.tex", "The part as edited on disk.\n"));
 await step("the main file edited", () => write(main, MAIN.replace("Disk check.", "Disk check, the main edited.")));
 await step("a file made", () => write("extra.tex", "An extra file, made on disk.\n"));
-await step("that file removed", () => rmSync(join(folder, "extra.tex")));
-await step("the .bib edited (a file BibTeX reads, not TeX)", () => write("refs.bib", "@book{knuth, author={Donald E. Knuth}, title={The {\\TeX}book, edited on disk}, year={1986}, publisher={Addison-Wesley}}\n"));
+await step("that file removed", () => rmSync(join(folder, "extra.tex")), ["\\IfFileExists's false branch", (t) => t.includes("No extra")]);
+await step("the .bib edited (a file BibTeX reads, not TeX)", () => write("refs.bib", "@book{knuth, author={Donald E. Knuth}, title={The {\\TeX}book, edited on disk}, year={1986}, publisher={Addison-Wesley}}\n"), ["the edited entry shown", (t) => t.includes("edited on disk")]);
+// (xspace.sty, which the main loads: the project's own copy made, shadowing
+// the distribution's the build found, then removed, the distribution's again)
+const XSPACE = "\\ProvidesPackage{xspace}[2026/11/16 the project's own]\n\\newcommand\\xspace{}\n\\AtBeginDocument{The project's own xspace.sty. }\n";
+const own = (t: string) => t.includes("own xspace");
+await step("a project file made over a distribution's (xspace.sty, the project's copy)", () => write("xspace.sty", XSPACE), ["the copy's text shown", own]);
+await step("that copy removed (the distribution's xspace.sty again)", () => rmSync(join(folder, "xspace.sty")), ["the document built without it", (t) => !own(t) && t.includes("Disk check")]);
 await step("an image replaced by a rename (its second change)", () => {
   write("fig.png.tmp~", colour("green"));
   renameSync(join(folder, "fig.png.tmp~"), join(folder, "fig.png"));
@@ -283,7 +295,7 @@ const sync2 = new DiskSync({
   sink: {
     give: (rel, bytes) => live.given.give(rel, bytes),
     setMain: (text) => void live.session.request({ op: "set_file", file: main, text } as never),
-    rebuild: () => void live.session.request({ op: "rebuild" } as never),
+    changed: (files) => void live.session.request({ op: "changed", files } as never),
   },
   log: (s) => console.log(`  ${s}`),
 });

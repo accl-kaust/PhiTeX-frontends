@@ -34,7 +34,7 @@ function setup(held: Record<string, Held> = {}, quiet = 20) {
     sink: {
       give: (rel, b) => log.push(`give ${rel} ${b ? new TextDecoder().decode(b) : "null"}`),
       setMain: (t) => log.push(`main ${t}`),
-      rebuild: () => log.push("rebuild"),
+      changed: (files) => log.push(`changed ${files.slice().sort().join(" ")}`),
     },
   });
   const touch = (...ps: string[]) => ps.forEach((p) => sync.touched(join(folder, p)));
@@ -48,7 +48,7 @@ test("an image saved over in place: its new bytes given, one build", async () =>
   // (an editor's save: the change heard twice, FSEvents' coalesced or not)
   t.touch("fig.png", "fig.png");
   await t.sync.flush();
-  assert.deepEqual(t.log, ["give fig.png new", "rebuild"]);
+  assert.deepEqual(t.log, ["give fig.png new", "changed fig.png"]);
   t.done();
 });
 
@@ -59,7 +59,7 @@ test("an image replaced by a rename (an atomic save): the file given, the tempor
   renameSync(join(t.folder, "fig.png.tmp~"), join(t.folder, "fig.png"));
   t.touch("fig.png.tmp~", "fig.png");
   await t.sync.flush();
-  assert.deepEqual(t.log, ["give fig.png renamed", "rebuild"]);
+  assert.deepEqual(t.log, ["give fig.png renamed", "changed fig.png"]);
   t.done();
 });
 
@@ -73,8 +73,8 @@ test("a burst of events waits for the quiet, then builds once", async () => {
   t.touch("fig.png", "refs.bib");
   assert.deepEqual(t.log, []);
   await new Promise((r) => setTimeout(r, 120));
-  assert.deepEqual(t.log.slice().sort(), ["give fig.png x", "give part.tex part two", "give refs.bib @book{a, title={B}}", "rebuild"]);
-  assert.equal(t.log.at(-1), "rebuild");
+  assert.deepEqual(t.log.slice().sort(), ["changed fig.png part.tex refs.bib", "give fig.png x", "give part.tex part two", "give refs.bib @book{a, title={B}}"]);
+  assert.equal(t.log.at(-1), "changed fig.png part.tex refs.bib");
   t.done();
 });
 
@@ -92,16 +92,16 @@ test("a file removed, then made again; a folder removed, and one moved in", asyn
   rmSync(join(t.folder, "fig.png"));
   t.touch("fig.png");
   await t.sync.flush();
-  assert.deepEqual(t.log.splice(0), ["give fig.png null", "rebuild"]);
+  assert.deepEqual(t.log.splice(0), ["give fig.png null", "changed fig.png"]);
   t.write("fig.png", "back");
   t.touch("fig.png");
   await t.sync.flush();
-  assert.deepEqual(t.log.splice(0), ["give fig.png back", "rebuild"]);
+  assert.deepEqual(t.log.splice(0), ["give fig.png back", "changed fig.png"]);
   // (a folder's delete is one event for its files)
   rmSync(join(t.folder, "chap"), { recursive: true });
   t.touch("chap");
   await t.sync.flush();
-  assert.deepEqual(t.log.splice(0), ["give chap/one.tex null", "rebuild"]);
+  assert.deepEqual(t.log.splice(0), ["give chap/one.tex null", "changed chap/one.tex"]);
   // (and a folder moved in, one event for the folder)
   mkdirSync(join(t.folder, "..", "moved-" + t.folder.split("/").pop()), { recursive: true });
   const elsewhere = join(t.folder, "..", "moved-" + t.folder.split("/").pop());
@@ -110,7 +110,20 @@ test("a file removed, then made again; a folder removed, and one moved in", asyn
   renameSync(elsewhere, join(t.folder, "figs"));
   t.touch("figs");
   await t.sync.flush();
-  assert.deepEqual(t.log.splice(0).sort(), ["give figs/pic.jpg jpg", "give figs/two.tex two", "rebuild"]);
+  assert.deepEqual(t.log.splice(0).sort(), ["changed figs/pic.jpg figs/two.tex", "give figs/pic.jpg jpg", "give figs/two.tex two"]);
+  t.done();
+});
+
+test("a project copy of a distribution file made, then removed: given, then given as gone (CoreFiles withdraws it), each read again", async () => {
+  const t = setup();
+  t.write("llncs.cls", "% the project's copy");
+  t.touch("llncs.cls");
+  await t.sync.flush();
+  assert.deepEqual(t.log.splice(0), ["give llncs.cls % the project's copy", "changed llncs.cls"]);
+  rmSync(join(t.folder, "llncs.cls"));
+  t.touch("llncs.cls");
+  await t.sync.flush();
+  assert.deepEqual(t.log.splice(0), ["give llncs.cls null", "changed llncs.cls"]);
   t.done();
 });
 
@@ -151,16 +164,16 @@ test("projectFile: what the open's walk reads", () => {
   for (const p of ["a.aux", ".git/x.tex", "x/.cache/y.png", "out/a.tex", "node_modules/a.tex", "README.md"]) assert.ok(!projectFile(p), p);
 });
 
-test("a core's files across its previews: another open gives what it no longer has as absent", () => {
+test("a core's files across its previews: one removed, and those another open no longer has, withdrawn (never given as absent)", () => {
   const said: string[] = [];
-  const f = new CoreFiles((n, x) => said.push(`${n} ${x ? new TextDecoder().decode(x.bytes) : "absent"}`));
+  const f = new CoreFiles({ provide: (n, x) => said.push(`${n} ${new TextDecoder().decode(x.bytes)}`), withdraw: (n) => void said.push(`${n} withdrawn`) });
   f.open(["main.tex", "a.tex"], { "fig.png": new TextEncoder().encode("1"), "old.png": new TextEncoder().encode("2") });
   assert.deepEqual(said.splice(0), ["fig.png 1", "old.png 2"]);
   f.give("new.pdf", new TextEncoder().encode("3"));
   f.give("old.png", null);
-  assert.deepEqual(said.splice(0), ["new.pdf 3", "old.png absent"]);
+  assert.deepEqual(said.splice(0), ["new.pdf 3", "old.png withdrawn"]);
   // (Restart, the folder as it is now; or another folder's preview)
   f.open(["main.tex"], { "fig.png": new TextEncoder().encode("1") });
-  assert.deepEqual(said.splice(0).sort(), ["a.tex absent", "fig.png 1", "new.pdf absent"]);
+  assert.deepEqual(said.splice(0).sort(), ["a.tex withdrawn", "fig.png 1", "new.pdf withdrawn"]);
   assert.equal(jobPdf("src/thesis.tex"), "src/thesis.pdf");
 });

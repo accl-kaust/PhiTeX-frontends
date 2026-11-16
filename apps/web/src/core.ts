@@ -64,6 +64,11 @@ export class WorkerCore implements CoreTransport {
     return this.request({ op: "binary", file, bytes });
   }
 
+  /** A project's binary file deleted or renamed: taken back from the core (a name it looks up as never given). */
+  withdraw(file: string): Promise<CoreRes> {
+    return this.request({ op: "withdraw", file });
+  }
+
   onEvent(cb: (e: CoreEvent) => void): () => void {
     this.events.push(cb);
     return () => void this.events.splice(this.events.indexOf(cb) >>> 0, 1);

@@ -28,3 +28,30 @@ test("a closed preview's listener, left, keeps a later preview from hearing the 
   tell({ event: "settled" });
   assert.deepEqual(heard.map((e) => e.event), ["build", "settled"]);
 });
+
+test("an open withdraws the files the last open gave that the project no longer has, not one given since by another way", async () => {
+  const said: string[] = [];
+  const givings = new Map<string, number>();
+  let k = 0;
+  const core = {
+    onEvent: () => {},
+    idle: async () => {},
+    open: () => {},
+    request: () => ({ ok: true, json: {} }),
+    provide: (n: string) => (said.push(`give ${n}`), givings.set(n, ++k), k),
+    withdraw: (n: string) => (said.push(`withdraw ${n}`), givings.delete(n)),
+    givingOf: (n: string) => givings.get(n),
+  } as unknown as Core;
+  const session = new CoreSession(core);
+  const open = (files: Record<string, string>) => session.request({ op: "open", main: "main.tex", files } as never);
+  await open({ "main.tex": "m", "a.tex": "a", "llncs.cls": "copy", "x.png": "" });
+  assert.deepEqual(said.splice(0), ["give a.tex", "give llncs.cls", "give x.png"]);
+  // (x.png given since as a figure, the host's `binary`: it stays)
+  core.provide("x.png", { path: "./x.png", bytes: new Uint8Array([1]) });
+  said.length = 0;
+  // (a.tex and the project's llncs.cls removed: withdrawn, the class Shelf's again)
+  await open({ "main.tex": "m", "b.tex": "b" });
+  assert.deepEqual(said.splice(0), ["withdraw a.tex", "withdraw llncs.cls", "give b.tex"]);
+  await open({ "main.tex": "m" });
+  assert.deepEqual(said.splice(0), ["withdraw b.tex"]);
+});

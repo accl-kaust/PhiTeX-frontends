@@ -179,7 +179,14 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
     // (another core ended: this one's memory is its own, so nothing waits on it)
     if (m.op === "freeing") return;
     if (m.op === "hello") {
-      project = String(m.project ?? "");
+      const next = String(m.project ?? "");
+      // (another project on this core: the last one's figures withdrawn, as worker.ts)
+      if (next !== project && binaries.size) {
+        const gone = [...binaries.keys()];
+        binaries.clear();
+        if (started) void started.then(({ core }) => gone.forEach((f) => core.withdraw(f)), () => undefined);
+      }
+      project = next;
       // (the core started now, after the hello (the store's document keys are
       // the project's): its start, the store read and the formats unpacked, runs
       // while the tab downloads the project, not after it, at its first figure)
@@ -192,6 +199,13 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
       const [file, bytes] = [m.file as string, m.bytes as Uint8Array];
       binaries.set(file, bytes);
       if (started) void started.then(({ core }) => core.provide(file, { path: "./" + file, bytes }), () => undefined);
+      return post({ id: m.id, ok: true });
+    }
+    // (a figure deleted or renamed: withdrawn, as worker.ts)
+    if (m.op === "withdraw") {
+      const file = m.file as string;
+      binaries.delete(file);
+      if (started) void started.then(({ core }) => core.withdraw(file), () => undefined);
       return post({ id: m.id, ok: true });
     }
     if (dead) {

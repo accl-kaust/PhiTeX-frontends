@@ -163,7 +163,22 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
       return;
     }
     if (m.op === "hello") {
-      project = String(m.project ?? "");
+      const next = String(m.project ?? "");
+      // (another project on this core (the demo's): the last one's figures
+      // withdrawn, else a figure it had and this one lacks was still found)
+      if (next !== project && binaries.size) {
+        const gone = [...binaries.keys()];
+        binaries.clear();
+        if (started) for (const f of gone) (await started).core.withdraw(f);
+      }
+      project = next;
+      return post({ id: m.id, ok: true });
+    }
+    // (a figure deleted or renamed: withdrawn, the name looked up as never given, Shelf's copy found again)
+    if (m.op === "withdraw") {
+      const file = m.file as string;
+      binaries.delete(file);
+      if (started) (await started).core.withdraw(file);
       return post({ id: m.id, ok: true });
     }
     if (m.op === "binary") {

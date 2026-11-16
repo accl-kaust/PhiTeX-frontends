@@ -51,7 +51,7 @@ addEventListener("message", async (e) => {
    * worker. Before, they waited for ever, or a fresh core answered "no
    * document open".
    */
-  let hello: unknown;
+  let hello: { project?: unknown } | undefined;
   const figures = new Map<string, unknown>();
   const waiting = new Set<number>();
   let dead: string | undefined;
@@ -87,8 +87,12 @@ addEventListener("message", async (e) => {
       return;
     }
     // (kept for a new worker: its replies to these go nowhere, the tab has had them)
-    if (r.op === "hello") hello = { ...r, id: -1 };
+    if (r.op === "hello") {
+      if (hello && hello.project !== r.project) figures.clear();
+      hello = { ...r, id: -1 };
+    }
     if (r.op === "binary") figures.set(r.file, { ...r, id: -1, bytes: (r.bytes as Uint8Array).slice() });
+    if (r.op === "withdraw") figures.delete(r.file);
     if (dead) {
       if (r.op !== "open") return port.postMessage({ id: r.id, ok: false, error: dead });
       dead = undefined;

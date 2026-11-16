@@ -106,6 +106,7 @@ interface Exports {
   ph_request(p: number, n: number): number;
   ph_lsp(p: number, n: number): number;
   ph_provide(name: number, nameLen: number, path: number, pathLen: number, data: number, dataLen: number, found: number): void;
+  ph_withdraw(name: number, nameLen: number): void;
   ph_pack(id: number, idLen: number, data: number, dataLen: number, ok: number): void;
   ph_stored(key: number, keyLen: number, data: number, dataLen: number, found: number): void;
   ph_shell_done(id: number, p: number, n: number): void;
@@ -504,10 +505,50 @@ export class Core {
     if (r !== 0) throw new Error(`ph_set_index: ${r}`);
   }
 
-  /** Gives the core a file (a project's, before the build asks for it), or says it is nowhere. */
-  provide(name: string, f: { path: string; bytes: Uint8Array } | null): void {
+  /** Each name's last giving (`provide`), numbered: a host's giving told from a later one of the same name. */
+  private givings = new Map<string, number>();
+  private giving = 0;
+  /** The number of `name`'s last giving (`provide`); undefined: none since it was withdrawn, or ever. */
+  givingOf(name: string): number | undefined {
+    return this.givings.get(name);
+  }
+
+  /**
+   * Gives the core a file (a project's, before the build asks for it), or
+   * says it is nowhere, Shelf's copy of the name too (null: what a `want`
+   * found nowhere). A file deleted from the project is `withdraw`n, not
+   * given as null. Its number (`givingOf`).
+   */
+  provide(name: string, f: { path: string; bytes: Uint8Array } | null): number {
+    const k = ++this.giving;
+    this.givings.set(name, k);
     // (a figure given while a build is suspended: after its step, the core takes none mid-build)
-    if (this.suspended) return void this.afterStep.push(() => this.provide(name, f));
+    if (this.suspended) return (this.afterStep.push(() => this.give(name, f)), k);
+    this.give(name, f);
+    return k;
+  }
+
+  /**
+   * Takes back a name given (a file deleted from the project, PhiTeX's
+   * `ph_withdraw`): looked up from now on as one never given, by Shelf's
+   * index first (a class the project had a copy of is the distribution's
+   * again), else asked of the host (`Resolve`). The build reads it again
+   * when told (the viewer's `{op: "changed", files}`) or at a rebuild.
+   */
+  withdraw(name: string): void {
+    this.givings.delete(name);
+    if (this.suspended) return void this.afterStep.push(() => this.take(name));
+    this.take(name);
+  }
+
+  private take(name: string): void {
+    const n = new TextEncoder().encode(name);
+    const pn = this.put(n);
+    this.x.ph_withdraw(pn, n.length);
+    this.x.ph_free(pn, n.length);
+  }
+
+  private give(name: string, f: { path: string; bytes: Uint8Array } | null): void {
     const enc = new TextEncoder();
     const [n, p] = [enc.encode(name), enc.encode(f?.path ?? "")];
     const d = f?.bytes ?? new Uint8Array();
@@ -649,6 +690,8 @@ export class CoreSession implements CoreTransport {
   private core: Core;
   /** What `open` opens with (the engine's threads, the shell, the ini). */
   private opts: Partial<Omit<Open, "main" | "text">>;
+  /** The files the last open gave the core, each giving's number (Core.givingOf). */
+  private opened = new Map<string, number>();
 
   constructor(core: Core, opts: Partial<Omit<Open, "main" | "text">> = {}) {
     [this.core, this.opts] = [core, opts];
@@ -679,7 +722,13 @@ export class CoreSession implements CoreTransport {
       // (a build mid-step (a yield) refuses an open: after it)
       await this.core.idle();
       try {
-        for (const [name, text] of Object.entries(o.files)) if (name !== o.main) this.core.provide(name, { path: "./" + name, bytes: new TextEncoder().encode(text) });
+        // (the last open's files the project no longer has (a file removed or
+        // renamed, another project's): withdrawn, so the build looks for them as
+        // a fresh core does, Shelf's copy found again. One given since by
+        // another way (a figure's `binary`) stays)
+        for (const [name, k] of this.opened) if (!(name in o.files) && this.core.givingOf(name) === k) this.core.withdraw(name);
+        this.opened.clear();
+        for (const [name, text] of Object.entries(o.files)) if (name !== o.main) this.opened.set(name, this.core.provide(name, { path: "./" + name, bytes: new TextEncoder().encode(text) }));
         const text = o.files[o.main] ?? "";
         this.core.open({ ...this.opts, main: o.main, text, engine: engineFor(text, o.engine ?? this.opts.engine), latexmk: o.latexmk, projectFiles: o.projectFiles });
       } catch (e) {
