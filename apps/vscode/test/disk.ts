@@ -30,6 +30,7 @@ import { nodePlatform } from "../src/platform.ts";
 import { lspChannel } from "../../../common/src/wasm/host.ts";
 import { CoreFiles, DiskSync, walk, BINARY, type Held } from "../src/project.ts";
 import { relPath } from "../src/changes.ts";
+import { liveWorkers, workersGone } from "../src/thread.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 setPlatform(nodePlatform(root, mkdtempSync(join(tmpdir(), "phitex-store-"))));
@@ -306,8 +307,14 @@ await step("opened again right after an image change, then the image saved over"
 watcher2.close();
 sync2.dispose();
 
-live.core.end();
-ref.core.end();
+// (both cores ended, their workers gone: the process exits by itself, PhiTeX's #46)
+await Promise.all([live.core.end(), ref.core.end()]);
+await workersGone();
 rmSync(folder, { recursive: true });
 console.log(fails.length ? `${fails.length} FAILED: ${fails.join("; ")}` : `all passed (${ms()} ms)`);
-process.exit(fails.length ? 1 : 0);
+process.exitCode = fails.length ? 1 : 0;
+// (nothing keeps the process now; if something of a core did, this, which keeps nothing alive, says what)
+setTimeout(() => {
+  console.log(`FAIL the process did not exit by itself within 30 s; still active: ${process.getActiveResourcesInfo().join(", ")}; workers: ${liveWorkers()}`);
+  process.exit(1);
+}, 30_000).unref();

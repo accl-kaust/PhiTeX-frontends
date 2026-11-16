@@ -19,7 +19,7 @@
 // PreviewSession talks to the wasm core as it talks to `phitex watch` over
 // its WebSocket.
 
-import { type Spawn, type ThreadData, type ThreadMsg, PAGES_MAX, chooseSize, imports, newMemory, outgrownMessage } from "./threads.ts";
+import { type Spawn, type Thread, type ThreadData, type ThreadMsg, PAGES_MAX, chooseSize, imports, newMemory, outgrownMessage } from "./threads.ts";
 import { unsigned, wasi } from "./wasi.ts";
 import type { CoreEvent, CoreReq, CoreRes, CoreTransport } from "../viewer/session.ts";
 
@@ -103,6 +103,7 @@ interface Exports {
   ph_free(p: number, n: number): void;
   ph_open(p: number, n: number): number;
   ph_close(): void;
+  ph_end(): void;
   ph_request(p: number, n: number): number;
   ph_lsp(p: number, n: number): number;
   ph_provide(name: number, nameLen: number, path: number, pathLen: number, data: number, dataLen: number, found: number): void;
@@ -206,8 +207,10 @@ export class Core {
     const channel = `phitex-core-${Date.now()}-${cores++}-${Math.random()}`;
     const out = new BroadcastChannel(channel);
     const shared = { module, memory, ids, channel, env: o.env ?? [] };
-    const inst = new WebAssembly.Instance(module, imports(shared, o.spawn, (m) => out.postMessage(m)));
-    const core = new Core(shared, inst, [new BroadcastChannel(channel), out], o);
+    // (thread 0's own thread-spawn: the worker kept, as one a thread asks for)
+    let core: Core | null = null;
+    const inst = new WebAssembly.Instance(module, imports(shared, (d) => core!.started(d), (m) => out.postMessage(m)));
+    core = new Core(shared, inst, [new BroadcastChannel(channel), out], o);
     // (no request reaches the core before this: its first thread starts at the open)
     core.pages = await chooseSize((p) => core.x.ph_grow(p) >>> 0, o.again);
     core.x.ph_seal();
@@ -279,7 +282,7 @@ export class Core {
     } as WebAssembly.Imports);
     // (no shared counter: Firefox has no SharedArrayBuffer here at all)
     const shared = { module, memory: inst.exports.memory as WebAssembly.Memory, ids: new ArrayBuffer(0) as unknown as SharedArrayBuffer, channel: "", env: o.env ?? [] };
-    core = new Core(shared, inst, [], { ...o, spawn: () => {}, resolve: async (name) => o.sync.resolve(name) });
+    core = new Core(shared, inst, [], { ...o, spawn: () => ({ terminate: () => {} }), resolve: async (name) => o.sync.resolve(name) });
     core.single = true;
     if (J) core.stepAsync = J.promising(core.x.ph_step);
     return core;
@@ -340,6 +343,7 @@ export class Core {
         } else more = this.x.ph_step();
       } catch (e) {
         this.stepping = false;
+        this.trapped = true;
         return this.o.trap?.(0, String((e as Error)?.stack ?? e));
       }
       this.stepping = false;
@@ -347,15 +351,55 @@ export class Core {
     }, later ? 20 : 0);
   }
 
+  /** The workers started, by thread id, until each says it has returned (`exit`). */
+  private threads = new Map<number, Thread>();
+  /** A thread trapped: the core is gone, its other threads may never return (a lock the trapped one held). */
+  private trapped = false;
+  /** `end`'s: resolved once every thread has returned; and its resolve. */
+  private ending: Promise<void> | undefined;
+  private ended: () => void = () => {};
+
+  /** The workers not ended yet (each started and not yet returned: `end` waits for them). */
+  get threadCount(): number {
+    return this.threads.size;
+  }
+
+  /** Starts thread `d.tid`'s worker and keeps it. */
+  private started(d: ThreadData): void {
+    this.threads.set(d.tid, this.o.spawn(d));
+  }
+
+  /** Thread `tid` returned, or was ended: once none is left of an ending core, its channels closed and its end told. */
+  private gone(tid: number): void {
+    this.threads.delete(tid);
+    if (this.ending && !this.threads.size) {
+      for (const c of this.channels) c.close();
+      this.ended();
+    }
+  }
+
   private heard(m: ThreadMsg): void {
-    if (m.t === "spawn") this.o.spawn({ ...this.shared, tid: m.tid, arg: m.arg });
-    else if (m.t === "want") void this.want(m.name);
+    // (every thread started, also while the core ends: a thread that asks for one may wait for it)
+    if (m.t === "spawn") return this.started({ ...this.shared, tid: m.tid, arg: m.arg });
+    if (m.t === "exit") return this.gone(m.tid);
+    if (m.t === "trap") {
+      this.trapped = true;
+      // (ending: its other threads ended now, they may never return)
+      if (this.ending) this.terminate();
+      else this.o.trap?.(m.tid, m.error);
+      return;
+    }
+    // (the core ends: nothing more answered or told, the core asks nothing after ph_end)
+    if (this.ending) return;
+    if (m.t === "want") void this.want(m.name);
     else if (m.t === "fetch") void this.fetch(m.id);
     else if (m.t === "shell") void this.shell(m.id, m.frame);
     else if (m.t === "store_get") void this.stored(m.key);
     else if (m.t === "store_put") void this.keep(m.key, m.bytes);
     else if (m.t === "event") {
       const e = JSON.parse(m.json);
+      // (the core aborts next: gone, as at its trap; its end must not call into it)
+      if (e.event === "lost") this.trapped = true;
       // (the core's "fetching" progress is its ask for a pack, kept here or not: the
       // downloads are this host's to tell (fetch's pack events), so a warm build's
       // packs read from this machine never say "Fetching packages")
@@ -366,7 +410,14 @@ export class Core {
       for (const f of this.lspListeners) f(v);
     }
     else if (m.t === "log") this.o.log?.(m.s);
-    else if (m.t === "trap") this.o.trap?.(m.tid, m.error);
+  }
+
+  /** Every worker ended by force: a trapped core's (its threads may wait for ever on what the trapped one held). */
+  private terminate(): void {
+    for (const [tid, w] of [...this.threads]) {
+      void w.terminate();
+      this.gone(tid);
+    }
   }
 
   private async want(name: string): Promise<void> {
@@ -655,10 +706,25 @@ export class Core {
     this.x.ph_close();
   }
 
-  /** The core ended: its document closed, its threads no longer heard. */
-  end(): void {
-    this.close();
-    for (const c of this.channels) c.close();
+  /**
+   * The core ended, for good: resolved once every one of its threads has
+   * returned (the core's ph_end: its document closed, its threads' waits
+   * answered, its kept threads ended; a build under way runs to its end
+   * first) and its channels are closed, so nothing of it is left: no
+   * worker, no channel (a Node host exits by itself). A core that trapped
+   * (a thread's trap heard here, or `gone`: the host saw one of its calls
+   * fail) has its workers ended by force: its threads may never return,
+   * and a call into it may wait for ever. Nothing it asks or tells is heard
+   * meanwhile.
+   */
+  end(gone = false): Promise<void> {
+    if (this.ending) return this.ending;
+    this.ending = new Promise((ok) => (this.ended = ok));
+    if (this.trapped || gone) this.terminate();
+    else this.x.ph_end();
+    // (none started, or all returned already: ended now)
+    if (!this.threads.size) this.gone(-1);
+    return this.ending;
   }
 
   private put(b: Uint8Array): number {

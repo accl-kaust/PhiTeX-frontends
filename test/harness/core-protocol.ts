@@ -163,5 +163,6 @@ for (const x of seen) count[x.e.event] = (count[x.e.event] ?? 0) + 1;
 console.log(`events: ${Object.entries(count).map(([k, v]) => `${k} ${v}`).join(", ")}`);
 console.log(`order: ${seen.map((x) => x.e.event).join(" ")}`);
 console.log(failed ? `${failed} check(s) failed` : "all checks hold");
-core.end();
-process.exit(failed ? 1 : 0);
+// (the core ended, its threads returned and their workers gone: the process exits by itself)
+process.exitCode = failed ? 1 : 0;
+await core.end();

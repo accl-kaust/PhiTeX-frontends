@@ -38,8 +38,6 @@ const shell = mintedShell(async () => loadMinted(await importMinted()));
 
 /** The project's binary files (figures), given again to a core started after a trap. */
 const binaries = new Map<string, Uint8Array>();
-/** The core's threads' workers: ended with a core that trapped. */
-let threads: Worker[] = [];
 /** Why the core is gone (a thread trapped): a request then says so, and an open starts a new one. */
 let dead: string | undefined;
 let stderr = "";
@@ -107,7 +105,8 @@ const why = (tid: number, error: string) =>
 async function startCore(): Promise<{ core: Core; session: CoreSession }> {
   const t0 = performance.now();
   const core = await Core.start(await module, {
-    spawn: (d) => void threads.push(spawnThread(d)),
+    // (each kept by the core: its end ends them, Core.end)
+    spawn: spawnThread,
     fetch: pack,
     resolve: texmfFile,
     store,
@@ -190,10 +189,11 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
     }
     if (dead) {
       if (m.op !== "open") return post({ id: m.id, ok: false, error: dead });
-      // (an open after a trap: a new core, the old one's threads ended)
-      for (const w of threads) w.terminate();
-      [threads, dead, stderr] = [[], undefined, ""];
+      // (an open after a trap: a new core, the old one ended, its workers with it)
+      const old = started;
+      [dead, stderr] = [undefined, ""];
       started = undefined;
+      void old?.then(({ core }) => core.end(true), () => undefined);
     }
     const { core, session } = await running();
     if (m.op === "open") prefetch(core, await index, (m.files ?? {}) as Record<string, string>, String(m.engine ?? "pdflatex"));

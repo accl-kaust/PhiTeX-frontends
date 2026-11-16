@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The VS Code extension (apps/vscode/): its bundles (esbuild: the extension
-# host's, the core's threads' entry, the webview's; and test/smoke.ts's and
-# test/disk.ts's),
+# host's, the core's threads' entry, the webview's; and test/smoke.ts's,
+# test/disk.ts's and test/end.ts's),
 # and the browser build's files the shared code reads (build/overleaf/:
 # run tools/build/build.sh first): the core and latexdiff modules, the shipped
 # formats, shelf/texmf/, the packs, the fonts.
@@ -22,6 +22,7 @@ tools/sandbox "${es[@]}" apps/vscode/src/extension.ts --platform=node --format=c
 tools/sandbox "${es[@]}" apps/vscode/src/thread.ts --platform=node --format=cjs --target=node20 --outfile=build/vscode/dist/thread.js
 tools/sandbox "${es[@]}" apps/vscode/test/smoke.ts --platform=node --format=esm --target=node22 --external:vscode --outfile=build/vscode/dist/smoke.mjs
 tools/sandbox "${es[@]}" apps/vscode/test/disk.ts --platform=node --format=esm --target=node22 --external:vscode --outfile=build/vscode/dist/disk.mjs
+tools/sandbox "${es[@]}" apps/vscode/test/end.ts --platform=node --format=esm --target=node22 --external:vscode --outfile=build/vscode/dist/end.mjs
 tools/sandbox "${es[@]}" apps/vscode/src/webview.ts --platform=browser --format=iife --target=es2022 --outfile=build/vscode/dist/webview.js
 
 # (what the shared code reads, by the same paths as in the browser package)

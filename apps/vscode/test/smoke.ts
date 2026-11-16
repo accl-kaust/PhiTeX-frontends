@@ -23,6 +23,7 @@ import { prefetch, startCore } from "../src/core.ts";
 import { nodePlatform } from "../src/platform.ts";
 import { lspChannel } from "../../../common/src/wasm/host.ts";
 import { texEngineOf } from "../src/texengine.ts";
+import { liveWorkers, workersGone } from "../src/thread.ts";
 
 const high = process.argv.includes("--high");
 const [folder, mainArg] = process.argv.slice(2).filter((a) => a !== "--high");
@@ -214,5 +215,11 @@ const statusOk = states.includes("ready") && !!caches.result && !!doc && selectO
 await ask("shutdown", null);
 tell("exit", null);
 lsp.close();
-core.end();
-process.exit(first && changed && png.ok && statusOk ? 0 : 1);
+// (the core ended, its workers gone: the process exits by itself, PhiTeX's #46)
+await core.end();
+await workersGone();
+process.exitCode = first && changed && png.ok && statusOk ? 0 : 1;
+setTimeout(() => {
+  console.log(`FAIL the process did not exit by itself within 30 s; still active: ${process.getActiveResourcesInfo().join(", ")}; workers: ${liveWorkers()}`);
+  process.exit(1);
+}, 30_000).unref();

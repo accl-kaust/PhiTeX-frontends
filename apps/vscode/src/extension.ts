@@ -297,8 +297,10 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   if (!builtin) {
     status.set({ state: "starting", engine: "wasm" });
     const started = (builtin = startCore(root, () => builtinFolder, (s) => log.append(s.endsWith("\n") ? s : s + "\n"), settings().threads ?? availableParallelism(), undefined, (why) => {
-      // (a trap: this core is gone, the next preview starts another; this one's pages kept, dimmed)
+      // (a trap: this core is gone, the next preview starts another; this one's pages kept, dimmed;
+      // its workers ended, its threads may never return)
       if (builtin === started) builtin = undefined;
+      void started.then(({ core }) => core.end(true), () => undefined);
       if (builtinView) disconnected(builtinView, /[.!?]$/.test(why) ? why : `The built-in engine stopped (${why}).`);
       crashed(`the builtin engine stopped (${why}).`, log);
     }));
@@ -748,6 +750,7 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
 
 export function deactivate(): void {
   for (const c of watches) void c.stop().catch(() => undefined);
+  // (its threads returned, their workers gone: nothing of it left in the extension host)
   void builtin?.then(({ core }) => core.end()).catch(() => undefined);
   builtin = undefined;
 }

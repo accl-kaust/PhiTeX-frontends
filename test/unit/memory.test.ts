@@ -76,7 +76,7 @@ test("a document that outgrows its size is told the size it got and what to clos
 // nothing grown once sealed.
 const wasm = new URL("../../target/wasm-live/core.wasm", import.meta.url);
 test("the core's heap grows to the size chosen, and never past it", { skip: !existsSync(wasm) && "no core.wasm built" }, async () => {
-  const core = await Core.start(await WebAssembly.compile(await readFile(wasm)), { spawn: () => undefined, resolve: async () => null });
+  const core = await Core.start(await WebAssembly.compile(await readFile(wasm)), { spawn: () => ({ terminate: () => undefined }), resolve: async () => null });
   // (Node limits nothing: the largest)
   assert.equal(core.pages, PAGES_MAX);
   const x = (core as unknown as { x: { ph_alloc(n: number): number; ph_grow(p: number): number; memory?: WebAssembly.Memory } }).x;

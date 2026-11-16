@@ -251,8 +251,9 @@ async function built(e: any): Promise<void> {
   const hyph = timeline.map(([id]) => id).filter((id) => id.startsWith("hyphen-"));
   if (flag("--warm") && (formatBytes || hyph.length)) {
     console.error(`FAIL the store's format was not used: ${formatBytes ? "a format made again" : ""}${formatBytes && hyph.length ? ", " : ""}${hyph.length ? `${hyph.length} hyphen-* packs fetched` : ""} (${wasm})`);
-    process.exit(1);
   }
-  process.exit(first.pages > 0 ? 0 : 1);
+  // (the core ended, its threads returned and their workers gone: the process exits by itself)
+  process.exitCode = flag("--warm") && (formatBytes || hyph.length) ? 1 : first.pages > 0 ? 0 : 1;
+  await core.end();
 }
 core.open({ main, text, ini, shell: !!shell, threads: value("--threads") ? Number(value("--threads")) : undefined, engine: value("--engine") });

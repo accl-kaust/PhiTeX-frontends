@@ -12,6 +12,11 @@
 // worker only once its parent returns to its event loop, and a thread that
 // starts one usually waits for it inside the core: started there, the two
 // would wait for each other for ever.
+//
+// Thread 0 keeps every worker it started, and a thread says when it has
+// returned from `wasi_thread_start` (`exit`): ending the core (core.ts's
+// `Core.end`, the core's `ph_end`) returns every thread, and the host
+// knows when the last one has (a Node host then exits by itself).
 
 import { unsigned, wasi } from "./wasi.ts";
 
@@ -29,8 +34,13 @@ export interface ThreadData {
   arg: number;
 }
 
-/** Starts a worker on `data` that calls `runThread(data)` (thread 0 only). */
-export type Spawn = (data: ThreadData) => void;
+/** A thread's worker, as the host started it: ended by force only for a core that trapped (a live core's threads return by themselves, `Core.end`). */
+export interface Thread {
+  terminate(): unknown;
+}
+
+/** Starts a worker on `data` that calls `runThread(data)`, and gives it (thread 0 only). */
+export type Spawn = (data: ThreadData) => Thread;
 
 /** What threads tell thread 0. */
 export type ThreadMsg =
@@ -43,7 +53,9 @@ export type ThreadMsg =
   | { t: "event"; json: string }
   | { t: "lsp"; json: string }
   | { t: "log"; s: string }
-  | { t: "trap"; tid: number; error: string };
+  | { t: "trap"; tid: number; error: string }
+  /** The thread returned from `wasi_thread_start` (after its trap too): its worker ends. */
+  | { t: "exit"; tid: number };
 
 /**
  * The memory's size (core/build.rs, core/src/heap.rs): made at 2 GiB, the
@@ -104,7 +116,7 @@ export function outgrownMessage(pages: number): string {
 }
 
 /** The core's imports on any thread: thread 0's `spawn` starts a worker, any other thread's asks thread 0 to. */
-export function imports(d: Omit<ThreadData, "tid" | "arg">, spawn: Spawn | null, post: (m: ThreadMsg) => void): WebAssembly.Imports {
+export function imports(d: Omit<ThreadData, "tid" | "arg">, spawn: ((data: ThreadData) => void) | null, post: (m: ThreadMsg) => void): WebAssembly.Imports {
   const ids = new Int32Array(d.ids);
   const text = (p: number, n: number) => new TextDecoder().decode(new Uint8Array(d.memory.buffer).slice(p, p + n));
   return {
@@ -144,6 +156,8 @@ export function runThread(d: ThreadData): void {
     // (a panic aborts: the whole core is gone, thread 0 must hear of it)
     post({ t: "trap", tid: d.tid, error: String((e as Error)?.stack ?? e) });
   } finally {
+    // (returned: thread 0 counts it gone, Core.end's join)
+    post({ t: "exit", tid: d.tid });
     bc.close();
   }
 }
