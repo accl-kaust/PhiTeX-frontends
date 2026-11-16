@@ -36,6 +36,8 @@
 //       { "rootdoc": "main.tex" },   // Overleaf's main document changed (its Menu), as its socket tells the editor
 //       { "graph": "saved", "ms": 60000 }, // until the build's persisted graph is saved and kept (IndexedDB), else the run fails
 //       { "graph": "loaded", "ran": 0 }, // the load's first build took the graph kept and ran 0 nodes (">0": some), else the run fails
+//       { "graph": "none" },         // the load's first build loaded no graph, else the run fails
+//       { "graph": "clear" },        // no graph kept (graphs off, a reload, dropped and on, a reload): the next open is a first
 //       { "serveredit": "main.tex", "from": "a", "to": "b" } // the document changed on the server, the tab not told
 //     ] }
 //   "strict": true // (top level) the run fails on any exception or console error in the
@@ -394,6 +396,14 @@ async function cpu(wall) {
 
 if (!sc.noidle) await idle();
 const steps = [];
+/** The tab reloaded, until its first page or `ms`: its pages (0: none in time), its state, how long. */
+async function reloaded(ms = 120_000) {
+  await call("Page.reload");
+  const t1 = Date.now();
+  let pages = 0, st;
+  while (!pages && Date.now() - t1 < ms) (await sleep(300), (pages = (st = await state())?.pages ?? 0));
+  return { pages, st, ms: Date.now() - t1 };
+}
 // (PHITEX_PARITY=pct: every scenario checked against poppler at its end)
 if (process.env.PHITEX_PARITY && !(sc.steps ?? []).some((s) => s.parity !== undefined)) (sc.steps ??= []).push({ idle: 1500 }, { parity: +process.env.PHITEX_PARITY });
 for (const s of sc.steps ?? []) {
@@ -404,7 +414,7 @@ for (const s of sc.steps ?? []) {
     if (typeof at !== "number" || at < 0) {
       // (the run goes on, so the trace is still written)
       console.log(`step: ${at === undefined ? "the editor did not answer" : "anchor not found"}: ${JSON.stringify(s)}`);
-      steps.push({ t, k: "STEP FAILED", d: s });
+      steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s });
       continue;
     }
     // (with `"cpu": ms`: the main thread measured from the first key over ms, as the cpu step)
@@ -423,16 +433,35 @@ for (const s of sc.steps ?? []) {
     let now = was;
     for (const t0 = Date.now(); now === was && Date.now() - t0 < (s.ms ?? 60000); ) (now = await evalIn(digest, true)) === was && (await sleep(200));
     console.log(`replacefile ${s.replacefile}: the PDF ${now === was ? "UNCHANGED" : "changed"}`);
-    if (now === was) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    if (now === was) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
   } else if (s.rootdoc !== undefined) {
     // (`{"rootdoc": "main.tex"}`: the project's main document changed in Overleaf's Menu, its socket telling the editor)
     await fetch(`http://localhost:${MOCK}/project/mock/root-doc?path=${encodeURIComponent(s.rootdoc)}`, { method: "POST" });
     console.log(`rootdoc ${s.rootdoc}: told`);
+  } else if (s.graph === "clear") {
+    // (`{"graph": "clear"}`: no graph kept for the tab's next open, whatever earlier runs on this profile
+    // kept (the CI's scenarios before, on the same mock project, kept theirs; their graph loaded, unchanged,
+    // is never saved again). As the popup's switch (graphs.ts setGraphsOn): graphs turned off, which drops
+    // them, and the tab reloaded: its core opens with none and keeps none, and the tab before, whose save
+    // may have been under way, is gone (IndexedDB runs writes to a store in the order they began). Then
+    // dropped again and turned on there, and the tab reloaded: its open is the first with none kept.)
+    // (the extension's database as platform.ts opens it: DATABASES' `graph`, format 1)
+    const graphStore = (on) => inEngine(`new Promise((ok) => { const o = indexedDB.open("phitex-graph", 1); o.onupgradeneeded = () => { for (const n of ["files", "meta", "kv"]) o.result.createObjectStore(n); }; o.onsuccess = () => { const db = o.result; const t = db.transaction(["files", "meta", "kv"], "readwrite"); t.objectStore("files").clear(); t.objectStore("meta").clear(); ${on ? `t.objectStore("kv").delete("off")` : `t.objectStore("kv").put(true, "off")`}; t.oncomplete = () => (db.close(), ok("ok")); t.onerror = t.onabort = () => (db.close(), ok(String(t.error))); }; o.onerror = () => ok(String(o.error)); })`);
+    let why = "";
+    for (const on of [false, true]) {
+      const r = await graphStore(on);
+      if (r !== "ok") { why = `graphs ${on ? "on" : "off"}: ${r ?? "the engine did not answer"}`; break; }
+      const { pages, ms } = await reloaded(s.ms);
+      if (!pages) { why = `the reload with graphs ${on ? "on" : "off"}: no first page in ${ms} ms`; break; }
+    }
+    console.log(`graph clear: ${why || "none kept, the tab reloaded"}`);
+    if (why) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
   } else if (s.graph !== undefined) {
     // (the persisted graph, from the session's trace since the tab's last load (common/src/viewer/session.ts's
     // "core: graph", "core: build"): `{"graph": "saved"}` until a graph is saved and kept in the extension's
     // IndexedDB; `{"graph": "loaded", "ran": 0}` the first build loaded the graph kept and ran that many
-    // nodes (`"ran": ">0"`: some); `{"graph": "none"}` none loaded. Else the run fails)
+    // nodes (`"ran": ">0"`: some); `{"graph": "none"}` none loaded. Else the run fails, and says every
+    // graph and build event the tab's core told, and how many graphs are kept)
     const trace = () => evalIn(`(() => { const s = globalThis.__phitexSession; return s ? s.trace.filter((e) => e.k === "core: graph" || e.k === "core: build").map((e) => ({ k: e.k, d: e.d })) : null; })()`, true);
     const kept = () => inEngine(`new Promise((ok) => { const o = indexedDB.open("phitex-graph"); o.onsuccess = () => { const db = o.result; if (!db.objectStoreNames.contains("meta")) return ok(0); const r = db.transaction("meta").objectStore("meta").getAll(); r.onsuccess = () => ok(r.result.length); r.onerror = () => ok(-1); }; o.onerror = () => ok(-1); })`);
     let ok = false, why = "";
@@ -447,15 +476,21 @@ for (const s of sc.steps ?? []) {
       why = `${notes.join(" | ") || "no graph notes"}; first build: ${build ? `${build.why}, ${build.ran} nodes run` : "none yet"}`;
       if (!ok) await sleep(300);
     }
-    console.log(`graph ${s.graph}${s.ran !== undefined ? ` (ran ${s.ran})` : ""}: ${ok ? "yes" : "NO"}: ${why}`);
-    if (!ok) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    console.log(`graph ${s.graph}${s.ran !== undefined ? ` (ran ${s.ran})` : ""}: ${ok ? "yes" : `NO after ${Date.now() - T0 - t} ms`}: ${why}`);
+    if (!ok) {
+      const tr = (await trace()) ?? [];
+      console.log(`  the core's graph and build events since the tab's load (${tr.length}), and ${await kept()} graphs kept:`);
+      for (const e of tr) console.log(`    ${e.k}: ${JSON.stringify(e.d)}`);
+      steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s });
+      process.exitCode = 1;
+    }
   } else if (s.serveredit !== undefined) {
     // (`{"serveredit": "main.tex", "from": "a", "to": "b"}`: the document changed on the server, the tab
     // not told (a collaborator's edit while this tab was closed): its next load reads it)
     const docs = await (await fetch(`http://localhost:${MOCK}/project/mock/docs`)).json();
     const d = docs.find((x) => x.path === s.serveredit);
     const text = d?.text?.replace(s.from, s.to);
-    if (!d || text === d.text) (console.log(`serveredit ${s.serveredit}: NOT FOUND`), steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    if (!d || text === d.text) (console.log(`serveredit ${s.serveredit}: NOT FOUND`), steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
     else await fetch(`http://localhost:${MOCK}/project/mock/doc/${d.id}`, { method: "POST", body: text });
     console.log(`serveredit ${s.serveredit}: ${JSON.stringify(s.from)} → ${JSON.stringify(s.to)}`);
   } else if (s.onpage !== undefined) {
@@ -463,7 +498,7 @@ for (const s of sc.steps ?? []) {
     let seen = false;
     for (const t0 = Date.now(); !seen && Date.now() - t0 < (s.ms ?? 60000); ) (seen = !!(await evalIn(has, true))) || (await sleep(200));
     console.log(`onpage ${JSON.stringify(s.onpage)}: ${seen ? "on the page" : "NOT on the page"}`);
-    if (!seen) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    if (!seen) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
   } else if (s.idle !== undefined) await idle(s.idle);
   // ({"cpu": ms}: the tab's main thread over ms with nothing typed: CPU
   // time by kind (Performance metrics) and the hottest functions (a
@@ -515,12 +550,9 @@ for (const s of sc.steps ?? []) {
       // fetch is synchronous): one fetched just before the first page, the tab reloaded at
       // once, is lost and fetched again. Known, for 1.0.1: kept from a context that outlives the tab)
       if (s.settle) await sleep(s.settle);
-      await call("Page.reload");
-      const t1 = Date.now();
-      let pages = 0, st;
-      while (!pages && Date.now() - t1 < (s.ms ?? 120_000)) (await sleep(300), (pages = (st = await state())?.pages ?? 0));
-      console.log(`reload ${k + 1}: ${pages ? `a first page in ${Date.now() - t1} ms` : "NO first page"}`);
-      if (!pages) (steps.push({ t, k: "STEP FAILED", d: { ...s, at: k + 1 } }), (process.exitCode = 1));
+      const { pages, st, ms } = await reloaded(s.ms);
+      console.log(`reload ${k + 1}: ${pages ? `a first page in ${ms} ms` : "NO first page"}`);
+      if (!pages) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: { ...s, at: k + 1 } }), (process.exitCode = 1));
       if (pages) budget(s.budget, st, `reload ${k + 1}`);
     }
   } else if (s.secondtab) {
@@ -549,7 +581,7 @@ for (const s of sc.steps ?? []) {
       seen = r.result?.result?.value ?? null;
     }
     console.log(`second tab: ${seen ?? "neither a page nor a reason"} (${Date.now() - t1} ms)`);
-    if (!seen || (s.secondtab === "page" && seen !== "a first page")) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    if (!seen || (s.secondtab === "page" && seen !== "a first page")) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
     s.result = seen;
     w2.close();
   }

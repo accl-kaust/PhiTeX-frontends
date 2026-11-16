@@ -1,6 +1,6 @@
 { "project": "test/scenarios/ci", "name": "ci-graph", "strict": true,
-  "steps": [ { "graph": "saved", "ms": 90000 },
+  "steps": [ { "graph": "clear", "ms": 120000 }, { "graph": "none", "ms": 60000 }, { "graph": "saved", "ms": 30000 },
     { "reload": 1, "settle": 500, "ms": 120000 }, { "graph": "loaded", "ran": 0, "ms": 60000 },
     { "serveredit": "chapter.tex", "from": "A chapter", "to": "Closed42. A chapter" },
     { "reload": 1, "settle": 500, "ms": 120000 }, { "graph": "loaded", "ran": ">0", "ms": 60000 },
-    { "onpage": "Closed42", "ms": 60000 } ] }
+    { "onpage": "Closed42", "ms": 60000 }, { "graph": "saved", "ms": 30000 } ] }
