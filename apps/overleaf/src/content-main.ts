@@ -42,12 +42,37 @@ const project = () => location.pathname.replace(/\/$/, "").replace(/\/detache[dr
  * the page's already.
  */
 const rawPageFetch: typeof fetch = (globalThis as unknown as { content?: { fetch?: typeof fetch } }).content?.fetch?.bind((globalThis as unknown as { content: object }).content) ?? fetch;
+/**
+ * A page's response made this script's own: Firefox's `content.fetch` gives
+ * the page's Response, its ArrayBuffer and JSON the page's objects behind
+ * Xray wrappers. This script's code then fails on them ("Permission denied
+ * to access property \"constructor\"": Compare's version ZIP), or its
+ * streams never finish reading them (DecompressionStream). Every answer
+ * fetched as the page is copied once, here, into this script's memory, so
+ * no caller handles the page's objects. Chrome's fetch is already the
+ * script's own.
+ */
+async function ownResponse(r: Response): Promise<Response> {
+  const page = new Uint8Array(await r.arrayBuffer());
+  const bytes = new Uint8Array(page.length);
+  bytes.set(page);
+  const headers = new Headers();
+  for (const h of ["content-type", "content-length", "content-disposition", "etag", "last-modified"]) {
+    const v = r.headers.get(h);
+    if (v != null) headers.set(h, String(v));
+  }
+  // (a null-body status takes no body)
+  const empty = [101, 103, 204, 205, 304].includes(r.status);
+  return new Response(empty ? null : bytes, { status: r.status, statusText: String(r.statusText), headers });
+}
 const pageFetch: typeof fetch = (u, o) => {
   devMark(`fetch ${String(u).replace(/^.*\/project\/[^/]+/, "")}`);
-  return rawPageFetch(u, o).then(
-    (r) => (devMark(`fetched ${r.status}`), r),
-    (e) => (devMark(`fetch failed: ${e}`), Promise.reject(e)),
-  );
+  return rawPageFetch(u, o)
+    .then((r) => (rawPageFetch === fetch ? r : ownResponse(r)))
+    .then(
+      (r) => (devMark(`fetched ${r.status}`), r),
+      (e) => (devMark(`fetch failed: ${e}`), Promise.reject(e)),
+    );
 };
 
 const DETACHED = /^\/project\/[0-9a-f]{24}\/detached\/?$/.test(location.pathname);
@@ -121,9 +146,8 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
     if (!z.ok) throw new Error(`project download failed: ${z.status}`);
     const size = Number(z.headers.get("content-length")) || 0;
     const mb = (n: number) => (n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0)} MB`);
-    // (the bytes as they arrive, said on the card: Chrome's own fetch only;
-    // Firefox's content.fetch gives the page's stream, which this script's
-    // readers never finish reading)
+    // (the bytes as they arrive, said on the card: Chrome's fetch streams
+    // them; Firefox's answer was read whole by pageFetch, made the script's own)
     let own: Uint8Array;
     if (z.body && rawPageFetch === fetch) {
       const parts: Uint8Array[] = [];
@@ -141,12 +165,8 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
       for (const p of parts) (own.set(p, at), (at += p.length));
     } else {
       if (size) panel.reading({ h: "Downloading the project from Overleaf…", detail: mb(size) });
-      // (copied into this script's own memory: Firefox's content.fetch gives
-      // the page's ArrayBuffer, which this script's streams (DecompressionStream)
-      // never finish reading)
-      const pageBuf = new Uint8Array(await z.arrayBuffer());
-      own = new Uint8Array(pageBuf.length);
-      own.set(pageBuf);
+      // (pageFetch's answer: this script's own bytes already)
+      own = new Uint8Array(await z.arrayBuffer());
     }
     const zbuf = own.buffer as ArrayBuffer;
     devMark(`zip ${zbuf.byteLength} bytes`);
