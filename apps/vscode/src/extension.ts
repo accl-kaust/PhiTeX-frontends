@@ -9,7 +9,7 @@
 // words marked on the page); a double-click on a page opens its source.
 
 import * as vscode from "vscode";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { AbstractMessageReader, AbstractMessageWriter, CloseAction, ErrorAction, ExecuteCommandRequest, LanguageClient, State, type DataCallback, type LanguageClientOptions, type Message, type ShowDocumentParams, type ShowDocumentResult } from "vscode-languageclient/node";
@@ -28,27 +28,7 @@ import type { Down } from "./webview.ts";
 import { StatusItem, type EngineStatus } from "./status.ts";
 import { texEngineOf } from "./texengine.ts";
 import { latexmkFiles } from "../../../common/src/viewer/latexmkrc.ts";
-
-/** The project's text files (what the core reads as source), and the binary ones it is given apart. */
-const TEXT = /\.(tex|sty|cls|bib|bst|cfg|def|clo|fd|ltx|bbx|cbx|lbx|dtx|ins|txt|csv|dat|tikz|pgf|bbl)$/i;
-/** (fonts too: xelatex finds the project's own first, kpathsea's "." before TeX Live, so its copy wins over Shelf's of the same name) */
-const BINARY = /\.(png|jpe?g|pdf|eps|gif|otf|ttf|ttc|pfb|pfa|afm|tfm|vf)$/i;
-/** Folders never read (VCS, build output, dependencies). */
-const SKIP = new Set([".git", "node_modules", ".vscode", "out", "build", ".phitex-diff"]);
-/** The most files read from a folder (a project, not a home directory). */
-const MAX_FILES = 4000;
-
-async function walk(dir: string, base = dir, out: string[] = []): Promise<string[]> {
-  for (const e of await readdir(dir, { withFileTypes: true })) {
-    if (out.length >= MAX_FILES) break;
-    if (e.name.startsWith(".") && e.isDirectory()) continue;
-    if (SKIP.has(e.name)) continue;
-    const p = join(dir, e.name);
-    if (e.isDirectory()) await walk(p, base, out);
-    else if (TEXT.test(e.name) || BINARY.test(e.name)) out.push(p);
-  }
-  return out;
-}
+import { BINARY, CoreFiles, DiskSync, jobPdf, TEXT, walk, type Held } from "./project.ts";
 
 /** The project in `folder`: its text files (the open documents' text over what is on disk) and its binary ones. */
 async function loadProject(folder: string): Promise<{ files: Record<string, string>; binaries: Record<string, Uint8Array> }> {
@@ -76,6 +56,8 @@ async function savePdf(transport: CoreTransport, folder: string, main: string): 
 }
 
 let builtin: ReturnType<typeof startCore> | undefined;
+/** The files the builtin core was given, across its previews (project.ts); one a core. */
+const coreFiles = new WeakMap<Core, CoreFiles>();
 /** The builtin engine's folder (its document keys), and its preview: the core holds one document, so one preview. */
 let builtinFolder = "";
 let builtinView: vscode.WebviewPanel | undefined;
@@ -302,9 +284,14 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   if (builtinView && builtinFolder === folder) return builtinView.reveal(vscode.ViewColumn.Beside, true);
   builtinView?.dispose();
 
+  // (the folder watched from before it is read: a change after the read is
+  // heard, given to the core once the document is open: project.ts's DiskSync)
+  const disk = diskEvents(folder);
   const project = await loadProject(folder);
   const main = settings().main ?? findMain(project.files, ed ? (relPath(folder, ed.document.uri.fsPath) ?? undefined) : undefined);
-  if (!main) return void vscode.window.showErrorMessage("PhiTeX: no .tex file with \\documentclass in this folder.");
+  if (!main) return void (disk.dispose(), vscode.window.showErrorMessage("PhiTeX: no .tex file with \\documentclass in this folder."));
+  // (the job's own PDF is its output, not one of its files)
+  delete project.binaries[jobPdf(main)];
   builtinFolder = folder;
   // (the engine's threads: this machine's cores, as in the browser: overleaf/src/worker.ts)
   if (!builtin) {
@@ -334,6 +321,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   } catch (e) {
     builtin = undefined;
     log.appendLine(`core: ${e}`);
+    disk.dispose();
     view.dispose();
     status.set({ state: "off" });
     return void vscode.window.showErrorMessage(`PhiTeX: the engine did not start: ${e}`);
@@ -345,6 +333,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   const client = ownCommands(new LanguageClient("phitex", "PhiTeX", async () => ({ reader: new ChannelReader(channel), writer: new ChannelWriter(channel) }), clientOptions(folder, log)));
   let closed = false;
   const subs: vscode.Disposable[] = [
+    disk,
     relay(view, session, folder, () => void savePdf(session, folder, main), (s) => log.appendLine(s), tabsAt(ctx.extensionUri, view, "builtin", session, folder, () => void savePdf(session, folder, main), log)),
     // (Compare, View log, Clear cache: what the webview asks of this host)
     compareHost(view, { root, folder, main, files: Object.keys(project.files), binaries: project.binaries, log: (s) => log.append(s.endsWith("\n") ? s : s + "\n") }),
@@ -369,7 +358,9 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
 
   // (the project's binary files first, then its text and the open)
   await Promise.all(stopping);
-  for (const [file, bytes] of Object.entries(project.binaries)) core.provide(file, { path: "./" + file, bytes });
+  if (!coreFiles.has(core)) coreFiles.set(core, new CoreFiles((n, f) => core.provide(n, f)));
+  const given = coreFiles.get(core)!;
+  given.open(Object.keys(project.files), project.binaries);
   const engine = texEngine(project.files[main]);
   if (engine !== "pdflatex") log.appendLine(`engine: ${engine}`);
   prefetch(core, index, project.files, engine);
@@ -388,6 +379,23 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     return view.dispose();
   }
   if (closed) return;
+  // (the disk's changes from now on, and those heard since the read: the core given them, and built)
+  disk.start(new DiskSync({
+    folder,
+    main,
+    given: { ...project.files, ...project.binaries },
+    held: (rel) => held(folder, rel),
+    sink: {
+      give(rel, bytes) {
+        given.give(rel, bytes);
+        // (Compare's figures too: the version of now is the disk's)
+        if (BINARY.test(rel)) bytes ? (project.binaries[rel] = bytes) : delete project.binaries[rel];
+      },
+      setMain: (text) => void session.request({ op: "set_file", file: main, text } as never),
+      rebuild: () => void session.request({ op: "rebuild" } as never),
+    },
+    log: (s) => log.appendLine(s),
+  }));
   const opened = settings();
   subs.push(
     client.onNotification("phitex/status", (s: EngineStatus) => status.set(s)),
@@ -416,10 +424,44 @@ function ownCommands(client: LanguageClient): LanguageClient {
   return client;
 }
 
+/** The documents the language client syncs with the server (didOpen, didChange): the folder's TeX buffers. */
+const synced = (folder: string) => ["latex", "tex", "bibtex"].map((language) => ({ scheme: "file", language, pattern: `${folder}/**/*` }));
+
+/** How the editor holds the project file `rel` (project.ts's Held): a buffer the server has, one with unsaved changes it has not, or none. */
+function held(folder: string, rel: string): Held {
+  const d = vscode.workspace.textDocuments.find((d) => !d.isClosed && d.uri.scheme === "file" && relPath(folder, d.uri.fsPath) === rel);
+  if (!d) return undefined;
+  if (vscode.languages.match(synced(folder), d) > 0) return "synced";
+  return d.isDirty ? "unsaved" : undefined;
+}
+
+/**
+ * The disk's changes under `folder` (a create, change or delete of any
+ * file or folder: VS Code's file watcher, FSEvents on macOS), kept until
+ * `start` gives them to a DiskSync, then passed on as they come.
+ */
+function diskEvents(folder: string): vscode.Disposable & { start(s: DiskSync): void } {
+  const w = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(folder), "**/*"));
+  const early: string[] = [];
+  let sync: DiskSync | undefined;
+  const heard = (u: vscode.Uri) => (u.scheme !== "file" ? undefined : sync ? sync.touched(u.fsPath) : void early.push(u.fsPath));
+  const subs = [w, w.onDidCreate(heard), w.onDidChange(heard), w.onDidDelete(heard)];
+  return {
+    start(s) {
+      sync = s;
+      for (const p of early.splice(0)) s.touched(p);
+    },
+    dispose() {
+      subs.forEach((d) => d.dispose());
+      sync?.dispose();
+    },
+  };
+}
+
 /** What the language client says to either engine's server: the folder's TeX buffers, its settings, no restart behind the user's back. */
 function clientOptions(folder: string, log: vscode.OutputChannel): LanguageClientOptions {
   return {
-    documentSelector: ["latex", "tex", "bibtex"].map((language) => ({ scheme: "file", language, pattern: `${folder}/**/*` })),
+    documentSelector: synced(folder),
     workspaceFolder: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folder)),
     outputChannel: log,
     // (the engine's settings: at the start, and each change (workspace/configuration))

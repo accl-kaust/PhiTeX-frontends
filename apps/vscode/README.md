@@ -29,6 +29,9 @@ command (the setting `phitex.engine`, `"phitex watch"`).
 
 - **Pages as you type**: every edit is typeset at once, with no save and no
   Recompile button.
+- **Changes on disk**: a figure saved over, or a file another program
+  edits, is typeset again too. A file open in the editor with unsaved
+  changes keeps the editor's text.
 - **pdfLaTeX and XeLaTeX**: fontspec, unicode-math and polyglossia, with
   TeX Live's OpenType fonts or your own. A `% !TEX program = …` line picks
   the engine, else the preamble does (`phitex.texEngine`).
