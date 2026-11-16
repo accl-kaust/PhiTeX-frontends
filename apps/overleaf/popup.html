@@ -81,6 +81,8 @@
     <span class="seg" id="cachecap"><button data-v="100">100 MB</button><button data-v="300">300 MB</button><button data-v="1000">1 GB</button></span></div>
   <div class="row"><span>Fetch common packages ahead<small id="aheadnote"></small><small>The ones most arXiv papers use, in the background: a first open needs no wait</small></span>
     <label class="switch"><input type="checkbox" id="ahead"><i></i></label></div>
+  <div class="row"><span>Keep each project's engine state<small id="graphnote"></small><small>A project opened again builds only what changed since: nothing, if nothing did. At most 16 projects, 512 MB; the least recently opened go first</small></span>
+    <label class="switch"><input type="checkbox" id="graph"><i></i></label></div>
 </section>
 
 <section>

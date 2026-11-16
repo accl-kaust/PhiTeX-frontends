@@ -13,6 +13,8 @@ import { packRaw, shipped } from "../shelf.ts";
 import { allMeta, clearPacks } from "../packstore.ts";
 import { Index, formatOf, shelfEngine, type ReleaseMeta } from "../resolve.ts";
 import { referenced } from "../viewer/packages.ts";
+import { clearGraphs, graphStats } from "./graphs.ts";
+import type { KeyValue } from "../platform.ts";
 
 const gunzip = async (s: ReadableStream) => new Uint8Array(await new Response(s.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
 
@@ -133,11 +135,17 @@ export interface CacheStat {
   misses: number;
 }
 
-/** The caches, kept where `location` says (the host's words: a folder, "this browser"). */
-export async function cacheStats(location: string): Promise<{ caches: CacheStat[] }> {
+/**
+ * The caches, kept where `location` says (the host's words: a folder, "this
+ * browser"); the build's counts the documents' graphs too (graphs.ts: in
+ * `graphs`, the platform's store unless the host keeps them elsewhere).
+ */
+export async function cacheStats(location: string, graphs: KeyValue = platform().kv): Promise<{ caches: CacheStat[] }> {
   const states = await platform().kv.all<Uint8Array>(KV);
   let bytes = 0;
   for (const b of states.values()) bytes += b.byteLength;
+  const g = await graphStats(graphs);
+  bytes += g.bytes;
   const packs = await allMeta();
   let packBytes = 0,
     last = 0;
@@ -145,17 +153,17 @@ export async function cacheStats(location: string): Promise<{ caches: CacheStat[
   const iso = (t: number) => (t ? new Date(t).toISOString() : null);
   return {
     caches: [
-      { scope: "build", location, bytes, entries: states.size, last_used: iso(used.build.last), hits: used.build.hits, misses: used.build.misses },
+      { scope: "build", location, bytes, entries: states.size + g.entries, last_used: iso(Math.max(used.build.last, g.used)), hits: used.build.hits, misses: used.build.misses },
       { scope: "packages", location, bytes: packBytes, entries: packs.size, last_used: iso(last), ...used.packages },
     ],
   };
 }
 
-/** The `scope` cache emptied ("build", "packages", "all"): the bytes it held. */
-export async function clearCache(scope: string, location: string): Promise<{ freed_bytes: number }> {
+/** The `scope` cache emptied ("build", "packages", "all"): the bytes it held. The build's holds the graphs (in `graphs`, as cacheStats). */
+export async function clearCache(scope: string, location: string, graphs: KeyValue = platform().kv): Promise<{ freed_bytes: number }> {
   if (!["build", "packages", "all"].includes(scope)) throw new Error(`no cache ${JSON.stringify(scope)} (build, packages, all)`);
-  const before = (await cacheStats(location)).caches;
-  if (scope !== "packages") await platform().kv.clear([KV]);
+  const before = (await cacheStats(location, graphs)).caches;
+  if (scope !== "packages") await Promise.all([platform().kv.clear([KV]), clearGraphs(graphs)]);
   if (scope !== "build") await clearPacks();
   return { freed_bytes: before.filter((c) => scope === "all" || c.scope === scope).reduce((n, c) => n + c.bytes, 0) };
 }
@@ -172,7 +180,7 @@ export interface LspChannel {
  * caches' commands answered here: they are the host's (the server's own
  * answer would be "no command": core/src/main.rs).
  */
-export function lspChannel(core: Core, location: string): LspChannel {
+export function lspChannel(core: Core, location: string, graphs?: KeyValue): LspChannel {
   const out: ((m: any) => void)[] = [];
   const unheard = core.onLsp((m) => out.forEach((f) => f(m)));
   const answer = (id: unknown, run: () => Promise<unknown>) =>
@@ -183,8 +191,8 @@ export function lspChannel(core: Core, location: string): LspChannel {
   return {
     send(m) {
       const c = m.method === "workspace/executeCommand" ? m.params?.command : undefined;
-      if (c === "phitex.cacheStats") return answer(m.id, () => cacheStats(location));
-      if (c === "phitex.clearCache") return answer(m.id, () => clearCache(String(m.params?.arguments?.[0]?.scope ?? "all"), location));
+      if (c === "phitex.cacheStats") return answer(m.id, () => cacheStats(location, graphs));
+      if (c === "phitex.clearCache") return answer(m.id, () => clearCache(String(m.params?.arguments?.[0]?.scope ?? "all"), location, graphs));
       core.lsp(m);
     },
     onMessage: (f) => void out.push(f),

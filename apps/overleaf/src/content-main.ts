@@ -262,6 +262,11 @@ const GONE = "PhiTeX Instant was updated or reloaded: reload this tab to use it"
  * (the tab's, a compare's), gone with its iframe.
  */
 class FrameTransport implements CoreTransport {
+  /** Whether the core keeps its document's persisted graph (the tab's; a compare's marked-up document keeps none). */
+  private graph: boolean;
+  constructor(graph = true) {
+    this.graph = graph;
+  }
   private port!: MessagePort;
   private frame: HTMLIFrameElement | undefined;
   private nextId = 1;
@@ -285,7 +290,7 @@ class FrameTransport implements CoreTransport {
       this.waiting.delete(r.id);
     };
     // (the project: the core keeps the document's records under it)
-    this.port.postMessage({ id: 0, op: "hello", project: project() });
+    this.port.postMessage({ id: 0, op: "hello", project: project(), graph: this.graph });
   }
   /** Let go of the core (a compare stopped): its iframe, and the core with it. */
   close(): void {
@@ -1304,7 +1309,7 @@ const EDITOR = /^\/project\/[0-9a-f]{24}(\/detache[dr])?\/?$/;
         return (await filesAt(project(), v.v, pageFetch)).files;
       },
       async connect() {
-        const t = new FrameTransport();
+        const t = new FrameTransport(false);
         await t.connect();
         for (const [p, b] of Object.entries(lastBinaries)) await t.request({ op: "binary", file: p, bytes: b } as never);
         // (the diff's pages as strips too, composed here)

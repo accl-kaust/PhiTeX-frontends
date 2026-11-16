@@ -24,6 +24,7 @@ import { order, shipped } from "./common/shelf.ts";
 import { hasPack, putPack } from "./common/packstore.ts";
 import { type Runner, runOn, usesMinted } from "./common/wasm/minted.ts";
 import { loadMinted } from "./pyodide.ts";
+import { BROWSER_CAP, graphsOn, kvGraphs } from "./common/wasm/graphs.ts";
 // (minted's modules bundled in: this worker can import nothing at run time, pyodide.ts)
 import { loadPyodide } from "pyodide";
 import createPyodideModule from "pyodide/pyodide.asm.mjs";
@@ -37,6 +38,8 @@ const at = (p: string) => platform().assetUrl(p);
 /** The store's namespace (host.ts's coreStore) and this tab's project, its document's keys under it. */
 const KV = "core.kv";
 let project = "";
+/** Whether this core keeps its documents' persisted graphs (the hello's `graph`: a compare's keeps none). */
+let keepGraph = true;
 const scoped = (key: string) => (key.startsWith("doc/") ? `doc/${project}/${key.slice(4)}` : key);
 
 /** `url`'s bytes, at once (a worker may read synchronously); null: not there. */
@@ -133,8 +136,14 @@ async function start(): Promise<{ core: Core; session: CoreSession }> {
         return platform().kv.write([[KV, scoped(key), bytes]]);
       },
     },
+    // (each document's persisted graph, in this browser's IndexedDB under the project's name: at most BROWSER_CAP)
+    graphs: kvGraphs(platform().kv, () => project, BROWSER_CAP, async () => keepGraph && (await graphsOn(platform().kv))),
     // (the core about to abort says why first (`lost`: out of memory, a panic): the tab told that, not the trap after it)
-    event: (e: { event?: string; why?: string; message?: string }) => (e.event === "lost" ? gone(lostReason(e)) : post(e)),
+    event: (e: { event?: string; why?: string; message?: string; notes?: string[] }) => {
+      // (the persisted graph: loaded, saved, or why not, said to the tab as `phitex -v` says it)
+      if (e.event === "graph") for (const n of e.notes ?? []) say("info", n);
+      return e.event === "lost" ? gone(lostReason(e)) : post(e);
+    },
     log: (s) => {
       stderr = (stderr + s).slice(-4000);
       say("error", s);
@@ -187,6 +196,8 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
         if (started) void started.then(({ core }) => gone.forEach((f) => core.withdraw(f)), () => undefined);
       }
       project = next;
+      // (a compare's core keeps no graph: its marked-up document is not the project's)
+      keepGraph = m.graph !== false;
       // (the core started now, after the hello (the store's document keys are
       // the project's): its start, the store read and the formats unpacked, runs
       // while the tab downloads the project, not after it, at its first figure)

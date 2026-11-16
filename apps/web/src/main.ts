@@ -26,6 +26,7 @@ import { ago } from "../../../common/src/viewer/commits.ts";
 import { StripPages } from "../../../common/src/strippages.ts";
 import { TEXT, readZip } from "../../../common/src/zip.ts";
 import { cacheStats, clearCache } from "../../../common/src/wasm/host.ts";
+import { graphsOn, setGraphsOn } from "../../../common/src/wasm/graphs.ts";
 import { WorkerCore } from "./core.ts";
 import { Editor } from "./editor.ts";
 import { Tree, validPath } from "./tree.ts";
@@ -453,7 +454,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     files: async (v) => v.files,
     async connect() {
       diffCore?.close();
-      const t = (diffCore = new WorkerCore(`web-diff/${P().id}`));
+      const t = (diffCore = new WorkerCore(`web-diff/${P().id}`, false));
       for (const [p, b] of Object.entries(P().binaries)) await t.binary(p, b);
       // (its pages as strips too; closing them ends its core)
       return new StripPages(t, stripPanel, panel.stripsChip());
@@ -500,7 +501,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     proj = p;
     paints = 0;
     local.set("open", p.id);
-    await core.request({ op: "hello", project: p.id });
+    await core.request({ op: "hello", project: p.id, graph: true });
     for (const [f, b] of Object.entries(p.binaries)) await core.binary(f, b);
     pages = new StripPages(core, stripPanel, panel.stripsChip());
     const host: EditorHost = {
@@ -861,7 +862,10 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     b.innerHTML =
       `<p>PhiTeX keeps TeX Live's packages and the engine's formats in this browser, so later builds start fast. Your projects are not affected.</p>` +
       `<ul>${caches.map((c) => `<li>${c.scope === "packages" ? "Packages" : "Build state"}: ${mb(c.bytes)} (${c.entries} entries)</li>`).join("")}</ul>` +
+      `<label class="phx-item"><input type="checkbox" data-graph="1"${(await graphsOn(platform().kv)) ? " checked" : ""}> Keep each project's engine state: a project opened again builds only what changed since (at most 16 projects, 512 MB)</label>` +
       `<div class="phx-acts"><button type="button" data-close="1">Cancel</button><button type="button" class="danger" data-yes="1">Clear ${mb(total)}</button></div>`;
+    const keep = b.querySelector<HTMLInputElement>("[data-graph]")!;
+    keep.onchange = () => void setGraphsOn(platform().kv, keep.checked).then(() => say(keep.checked ? "Each project's engine state is kept from its next build." : "Engine states are no longer kept; those kept were cleared."), () => undefined);
     b.querySelector<HTMLButtonElement>("[data-yes]")!.onclick = async () => {
       const r = await clearCache("all", "this browser");
       modal.hidden = true;

@@ -33,7 +33,10 @@
 //       { "reload": 3, "ms": 120000 }, // the tab reloaded 3 times, each until its first page, else the run fails
 //       { "secondtab": true, "ms": 120000 }, // the project in a second tab: its first page, or its panel saying why it has none; else (neither in time) the run fails
 //       { "secondtab": "page", "ms": 120000 }, // the same, its first page required
-//       { "rootdoc": "main.tex" }    // Overleaf's main document changed (its Menu), as its socket tells the editor
+//       { "rootdoc": "main.tex" },   // Overleaf's main document changed (its Menu), as its socket tells the editor
+//       { "graph": "saved", "ms": 60000 }, // until the build's persisted graph is saved and kept (IndexedDB), else the run fails
+//       { "graph": "loaded", "ran": 0 }, // the load's first build took the graph kept and ran 0 nodes (">0": some), else the run fails
+//       { "serveredit": "main.tex", "from": "a", "to": "b" } // the document changed on the server, the tab not told
 //     ] }
 //   "strict": true // (top level) the run fails on any exception or console error in the
 //                  // tab or the extension (the release gate's: test/scenarios/ci.json)
@@ -425,6 +428,36 @@ for (const s of sc.steps ?? []) {
     // (`{"rootdoc": "main.tex"}`: the project's main document changed in Overleaf's Menu, its socket telling the editor)
     await fetch(`http://localhost:${MOCK}/project/mock/root-doc?path=${encodeURIComponent(s.rootdoc)}`, { method: "POST" });
     console.log(`rootdoc ${s.rootdoc}: told`);
+  } else if (s.graph !== undefined) {
+    // (the persisted graph, from the session's trace since the tab's last load (common/src/viewer/session.ts's
+    // "core: graph", "core: build"): `{"graph": "saved"}` until a graph is saved and kept in the extension's
+    // IndexedDB; `{"graph": "loaded", "ran": 0}` the first build loaded the graph kept and ran that many
+    // nodes (`"ran": ">0"`: some); `{"graph": "none"}` none loaded. Else the run fails)
+    const trace = () => evalIn(`(() => { const s = globalThis.__phitexSession; return s ? s.trace.filter((e) => e.k === "core: graph" || e.k === "core: build").map((e) => ({ k: e.k, d: e.d })) : null; })()`, true);
+    const kept = () => inEngine(`new Promise((ok) => { const o = indexedDB.open("phitex-graph"); o.onsuccess = () => { const db = o.result; if (!db.objectStoreNames.contains("meta")) return ok(0); const r = db.transaction("meta").objectStore("meta").getAll(); r.onsuccess = () => ok(r.result.length); r.onerror = () => ok(-1); }; o.onerror = () => ok(-1); })`);
+    let ok = false, why = "";
+    for (const t0 = Date.now(); !ok && Date.now() - t0 < (s.ms ?? 60000); ) {
+      const tr = (await trace()) ?? [];
+      const graphs = tr.filter((e) => e.k === "core: graph").map((e) => e.d);
+      const build = tr.find((e) => e.k === "core: build")?.d;
+      const notes = graphs.flatMap((g) => g.notes ?? []);
+      if (s.graph === "saved") ok = graphs.some((g) => g.saved > 0) && (await kept()) > 0;
+      else if (s.graph === "loaded") ok = !!build && graphs.some((g) => g.loaded) && (s.ran === undefined || (s.ran === ">0" ? build.ran > 0 : build.ran === s.ran));
+      else if (s.graph === "none") ok = !!build && !graphs.some((g) => g.loaded);
+      why = `${notes.join(" | ") || "no graph notes"}; first build: ${build ? `${build.why}, ${build.ran} nodes run` : "none yet"}`;
+      if (!ok) await sleep(300);
+    }
+    console.log(`graph ${s.graph}${s.ran !== undefined ? ` (ran ${s.ran})` : ""}: ${ok ? "yes" : "NO"}: ${why}`);
+    if (!ok) (steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+  } else if (s.serveredit !== undefined) {
+    // (`{"serveredit": "main.tex", "from": "a", "to": "b"}`: the document changed on the server, the tab
+    // not told (a collaborator's edit while this tab was closed): its next load reads it)
+    const docs = await (await fetch(`http://localhost:${MOCK}/project/mock/docs`)).json();
+    const d = docs.find((x) => x.path === s.serveredit);
+    const text = d?.text?.replace(s.from, s.to);
+    if (!d || text === d.text) (console.log(`serveredit ${s.serveredit}: NOT FOUND`), steps.push({ t, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    else await fetch(`http://localhost:${MOCK}/project/mock/doc/${d.id}`, { method: "POST", body: text });
+    console.log(`serveredit ${s.serveredit}: ${JSON.stringify(s.from)} → ${JSON.stringify(s.to)}`);
   } else if (s.onpage !== undefined) {
     const has = `(() => { const r = document.querySelector("phitex-preview")?.shadowRoot; return !!r && [...r.querySelectorAll(".slot text")].some((t) => t.textContent.includes(${JSON.stringify(s.onpage)})); })()`;
     let seen = false;

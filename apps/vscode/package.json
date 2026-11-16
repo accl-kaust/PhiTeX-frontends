@@ -159,6 +159,11 @@
           "minimum": 0,
           "markdownDescription": "The engine's threads. `0`: the builtin engine one per core of this machine, at most 4 (more are capped at 4 for now); the watch (`phitex` on your PATH) one thread."
         },
+        "phitex.graph": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Keep each document's engine state between sessions (the builtin engine; for `phitex watch`, `phitex config graph`). Reopening a document then builds only what changed since you closed it: nothing, if nothing did. Kept in this workspace's storage, at most 16 documents."
+        },
         "phitex.follow": {
           "type": "string",
           "enum": [

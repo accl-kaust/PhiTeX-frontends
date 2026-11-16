@@ -18,6 +18,7 @@ import { coreIndex, coreStore, pack, prefetch, texmfFile, type CoreIndex } from 
 import { mintedShell } from "../../../common/src/wasm/minted.ts";
 import { order } from "../../../common/src/shelf.ts";
 import { spawner } from "./thread.ts";
+import type { GraphStore } from "../../../common/src/wasm/graphs.ts";
 
 /**
  * `\write18`'s allowed commands (minted's latexminted) in Pyodide, as the
@@ -40,8 +41,13 @@ function shellOf(root: string, log: (s: string) => void) {
   });
 }
 
-/** The core for the extension at `root`; `folder()`: the project shown, whose document keys are its own; `trapped`: told when a thread traps (the core is gone). */
-export async function startCore(root: string, folder: () => string, log: (s: string) => void, threads?: number, env?: string[], trapped?: (why: string) => void): Promise<{ core: Core; session: CoreSession; index: CoreIndex }> {
+/**
+ * The core for the extension at `root`; `folder()`: the project shown, whose
+ * document keys are its own; `trapped`: told when a thread traps (the core
+ * is gone); `graphs`: where each document's persisted graph is kept (the
+ * workspace's storage: graphs.ts), none for a core that keeps none (Compare's).
+ */
+export async function startCore(root: string, folder: () => string, log: (s: string) => void, threads?: number, env?: string[], trapped?: (why: string) => void, graphs?: GraphStore): Promise<{ core: Core; session: CoreSession; index: CoreIndex }> {
   const t0 = performance.now();
   /** The core's end told (its `lost`, else its trap): once. */
   let told = false;
@@ -52,6 +58,7 @@ export async function startCore(root: string, folder: () => string, log: (s: str
     fetch: pack,
     resolve: texmfFile,
     store: coreStore(folder, async () => core),
+    graphs,
     shell: shellOf(root, log),
     env,
     log,

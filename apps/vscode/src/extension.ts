@@ -21,7 +21,9 @@ import type { Core, CoreSession } from "../../../common/src/wasm/core.ts";
 import { findMain, relPath } from "./changes.ts";
 import { prefetch, startCore } from "./core.ts";
 import { lspChannel, type CoreIndex, type LspChannel } from "../../../common/src/wasm/host.ts";
-import { nodePlatform } from "./platform.ts";
+import { fsKeyValue, nodePlatform } from "./platform.ts";
+import { kvGraphs, type GraphCap } from "../../../common/src/wasm/graphs.ts";
+import type { KeyValue } from "../../../common/src/platform.ts";
 import { relay, viewHtml, WatchLink, type Relayed } from "./relay.ts";
 import { compareHost } from "./compare.ts";
 import type { Down } from "./webview.ts";
@@ -64,6 +66,12 @@ let builtinView: vscode.WebviewPanel | undefined;
 
 /** Where this host keeps its store (the builtin's caches). */
 let storeDir = "";
+/** Where the documents' persisted graphs are kept: the workspace's storage (activate). */
+let graphKv: KeyValue | undefined;
+/** The graphs a workspace keeps at most: past them the least recently used go first. */
+const GRAPH_CAP: GraphCap = { count: 16, bytes: 2 * 1073741824 };
+/** Whether the builtin engine keeps each document's graph (the setting phitex.graph, on by default). */
+const graphOn = async () => vscode.workspace.getConfiguration("phitex").get<boolean>("graph") !== false;
 /** The status bar's item (status.ts). */
 let status: StatusItem;
 /** The preview last opened: what the menu's Stop, Restart and Save PDF act on. */
@@ -123,6 +131,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
   clientInfo = { name: "phitex-vscode", version: ctx.extension.packageJSON.version };
   storeDir = join(ctx.globalStorageUri.fsPath, "store");
   setPlatform(nodePlatform(root, storeDir));
+  // (the documents' graphs in this workspace's storage, the global one without a workspace)
+  graphKv = fsKeyValue(join((ctx.storageUri ?? ctx.globalStorageUri).fsPath, "graphs"));
   const log = vscode.window.createOutputChannel("PhiTeX");
   status = new StatusItem();
   const open = (folder?: string) => preview(ctx, root, log, folder);
@@ -303,7 +313,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
       void started.then(({ core }) => core.end(true), () => undefined);
       if (builtinView) disconnected(builtinView, /[.!?]$/.test(why) ? why : `The built-in engine stopped (${why}).`);
       crashed(`the builtin engine stopped (${why}).`, log);
-    }));
+    }, graphKv && kvGraphs(graphKv, () => builtinFolder, GRAPH_CAP, graphOn)));
     // (its events, once per core: the status bar's)
     void started.then(({ session }) => session.onEvent((e) => status.event(e as never)), () => undefined);
   }
@@ -331,7 +341,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   // (the document's language server, in this process: the editor's buffers,
   // diagnostics, a double-click's source (window/showDocument), the cursor,
   // the commands, as with the watch's; the caches' commands answered here)
-  const channel = lspChannel(core, storeDir);
+  const channel = lspChannel(core, storeDir, graphKv);
   const client = ownCommands(new LanguageClient("phitex", "PhiTeX", async () => ({ reader: new ChannelReader(channel), writer: new ChannelWriter(channel) }), clientOptions(folder, log)));
   let closed = false;
   const subs: vscode.Disposable[] = [

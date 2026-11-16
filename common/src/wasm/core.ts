@@ -22,6 +22,7 @@
 import { type Spawn, type Thread, type ThreadData, type ThreadMsg, PAGES_MAX, chooseSize, imports, newMemory, outgrownMessage } from "./threads.ts";
 import { unsigned, wasi } from "./wasi.ts";
 import type { CoreEvent, CoreReq, CoreRes, CoreTransport } from "../viewer/session.ts";
+import type { GraphStore } from "./graphs.ts";
 
 /**
  * The most threads a host gives the wasm engine (the user's call,
@@ -30,6 +31,13 @@ import type { CoreEvent, CoreReq, CoreRes, CoreTransport } from "../viewer/sessi
  * at 4); the engine's fix is under way (PhiTeX), this cap until then.
  */
 export const WASM_THREADS = 4;
+
+/**
+ * The core's pause before it saves a build's graph (PhiTeX's
+ * crates/wasm/live/src/session.rs GRAPH_IDLE, 2 s), and a little: a
+ * single-threaded core's host steps it again after this long (its 3).
+ */
+const GRAPH_PAUSE_MS = 2100;
 
 /** A file by name: its path as the build should report it, and its bytes; null if it is nowhere. */
 export type Resolve = (name: string) => Promise<{ path: string; bytes: Uint8Array } | null>;
@@ -84,6 +92,12 @@ export interface CoreOptions {
   shell?: Shell;
   /** The session's store (the format's state, the records): without it nothing is kept, every open builds its format. */
   store?: Store;
+  /**
+   * Where each document's persisted graph is kept (graphs.ts): an open of
+   * a document whose graph is kept builds only what changed since; the
+   * core saves it again at a pause after a build. Without it, none is kept.
+   */
+  graphs?: GraphStore;
   /** The core's events (the viewer's, `{event: "build", ...}`); more listen with `onEvent`. */
   event?: (e: any) => void;
   /** The document's language server's messages to the editor (JSON-RPC, docs/spec-editor-protocol.md); more listen with `onLsp`. */
@@ -119,6 +133,8 @@ interface Exports {
   ph_file(p: number, n: number): number;
   ph_strips(p: number, n: number): number;
   ph_frame(p: number, n: number): number;
+  ph_graph_give(p: number, n: number): void;
+  ph_graph(): number;
   ph_step(): number;
   ph_grow(pages: number): number;
   ph_seal(): void;
@@ -136,6 +152,8 @@ export interface Open {
   ini?: boolean;
   /** `\write18`'s allowed commands run by the host (`CoreOptions.shell`). */
   shell?: boolean;
+  /** The document's graph kept (`Core.giveGraph`, given before): loaded at the first build, saved at a pause after each. */
+  graph?: boolean;
   /** The project's latexmk rc files by path, and whether its other settings apply (PhiTeX's docs/latexmkrc.md). */
   latexmk?: { files: Record<string, string>; exact: boolean };
   /** Every path of the project (a TEXINPUTS `//` folder's subfolders). */
@@ -347,8 +365,65 @@ export class Core {
         return this.o.trap?.(0, String((e as Error)?.stack ?? e));
       }
       this.stepping = false;
-      if (more) this.stepSoon(more === 2);
+      // (3: nothing asked, a build's graph to save once nothing has been for
+      // the core's pause: stepped again after it, the save that step's)
+      if (more === 3) {
+        clearTimeout(this.graphWait);
+        this.graphWait = setTimeout(() => this.stepSoon(), GRAPH_PAUSE_MS);
+      } else if (more) this.stepSoon(more === 2);
     }, later ? 20 : 0);
+  }
+
+  /** Single-threaded: the step that saves the graph, after the pause (stepSoon's 3). */
+  private graphWait: ReturnType<typeof setTimeout> | undefined;
+
+  /** The document the open is of, its graph kept under it (`graphs`). */
+  private graphDoc: string | undefined;
+
+  /**
+   * The graph kept for `doc`, given to the core before its open (`on`:
+   * graphs kept, the host's setting): its first build loads it where its
+   * keys hold. Whether graphs are kept for this open.
+   */
+  async giveGraph(doc: string, on: boolean): Promise<boolean> {
+    const g = this.o.graphs;
+    on &&= !!g;
+    let b: Uint8Array | null = null;
+    if (on) {
+      try {
+        b = await g!.get(doc);
+      } catch (e) {
+        this.o.log?.(`graph ${doc}: ${e}\n`);
+      }
+    }
+    this.graphDoc = on ? doc : undefined;
+    const d = b ?? new Uint8Array();
+    const p = this.put(d);
+    this.x.ph_graph_give(p, d.length);
+    this.x.ph_free(p, d.length);
+    return on;
+  }
+
+  /** The graph the core saved last (ph_graph); null: none since. */
+  takeGraph(): Uint8Array | null {
+    return this.x.ph_graph() ? this.output() : null;
+  }
+
+  /**
+   * The core's `graph` event: a graph saved (taken now, kept under the
+   * open's document), or the one given refused (dropped). After the call
+   * that told it: a single-threaded core tells it inside its step.
+   */
+  private graphEvent(e: { saved?: number; dropped?: boolean }): void {
+    const [g, doc] = [this.o.graphs, this.graphDoc];
+    if (!g || doc === undefined) return;
+    setTimeout(() => {
+      if (this.ending || this.trapped) return;
+      if (e.dropped) void g.drop(doc).catch((err) => this.o.log?.(`graph ${doc}: ${err}\n`));
+      if (!e.saved) return;
+      const b = this.takeGraph();
+      if (b) void g.put(doc, b).catch((err) => this.o.log?.(`graph ${doc}: ${err}\n`));
+    }, 0);
   }
 
   /** The workers started, by thread id, until each says it has returned (`exit`). */
@@ -398,6 +473,7 @@ export class Core {
     else if (m.t === "store_put") void this.keep(m.key, m.bytes);
     else if (m.t === "event") {
       const e = JSON.parse(m.json);
+      if (e.event === "graph") this.graphEvent(e);
       // (the core aborts next: gone, as at its trap; its end must not call into it)
       if (e.event === "lost") this.trapped = true;
       // (the core's "fetching" progress is its ask for a pack, kept here or not: the
@@ -610,6 +686,11 @@ export class Core {
     this.x.ph_free(pd, d.length);
   }
 
+  /** Where the host keeps graphs (`CoreOptions.graphs`). */
+  get graphs(): GraphStore | undefined {
+    return this.o.graphs;
+  }
+
   /** Listens to the core's events too. */
   onEvent(f: (e: any) => void): void {
     this.listeners.push(f);
@@ -796,7 +877,9 @@ export class CoreSession implements CoreTransport {
         this.opened.clear();
         for (const [name, text] of Object.entries(o.files)) if (name !== o.main) this.opened.set(name, this.core.provide(name, { path: "./" + name, bytes: new TextEncoder().encode(text) }));
         const text = o.files[o.main] ?? "";
-        this.core.open({ ...this.opts, main: o.main, text, engine: engineFor(text, o.engine ?? this.opts.engine), latexmk: o.latexmk, projectFiles: o.projectFiles });
+        // (the document's graph, where the host keeps graphs and its setting says so: given before the open)
+        const graph = await this.core.giveGraph(o.main, await (this.core.graphs?.on() ?? Promise.resolve(false)).catch(() => false));
+        this.core.open({ ...this.opts, main: o.main, text, engine: engineFor(text, o.engine ?? this.opts.engine), latexmk: o.latexmk, projectFiles: o.projectFiles, graph });
       } catch (e) {
         return { ok: false, error: String(e) };
       }

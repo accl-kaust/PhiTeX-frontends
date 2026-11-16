@@ -19,6 +19,8 @@ export const DATABASES: Record<string, { format: number; stores: string[] }> = {
   release: { format: 1, stores: ["kv"] },
   /** The core's session store (common/src/wasm/core.ts's Store): the formats' state and records, the documents' keys. */
   core: { format: 1, stores: ["kv"] },
+  /** The documents' persisted graphs (common/src/wasm/graphs.ts): each whole, its size and last use, and the setting. */
+  graph: { format: 1, stores: ["files", "meta", "kv"] },
   /** The web frontend's projects (web/src/store.ts): each project whole, and its saved versions. */
   web: { format: 1, stores: ["projects", "versions"] },
 };

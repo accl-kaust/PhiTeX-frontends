@@ -26,11 +26,14 @@ import { coreIndex, coreStore, pack, prefetch, texmfFile, warmDiff, warmFormats 
 import { spawnThread } from "./thread.ts";
 import { gib, outgrew, outgrownMessage } from "./common/wasm/threads.ts";
 import { order } from "./common/shelf.ts";
+import { BROWSER_CAP, graphsOn, kvGraphs } from "./common/wasm/graphs.ts";
 
 const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
 
 /** The project this tab shows (its path): the document's store keys are its own. */
 let project = "";
+/** Whether this core keeps its documents' persisted graphs (the hello's `graph`: a compare's keeps none). */
+let keepGraph = true;
 const store = coreStore(() => project, async () => (await running()).core);
 
 const at = (p: string) => platform().assetUrl(p);
@@ -109,10 +112,14 @@ async function startCore(): Promise<{ core: Core; session: CoreSession }> {
     spawn: spawnThread,
     fetch: pack,
     resolve: texmfFile,
+    // (each document's persisted graph, in this browser's IndexedDB under the project's name: at most BROWSER_CAP)
+    graphs: kvGraphs(platform().kv, () => project, BROWSER_CAP, async () => keepGraph && (await graphsOn(platform().kv))),
     store,
     shell,
     // (the core about to abort says why first (`lost`): the tab told that, not the trap after it)
-    event: (e: { event?: string; why?: string; message?: string }) => {
+    event: (e: { event?: string; why?: string; message?: string; notes?: string[] }) => {
+      // (the persisted graph: loaded, saved, or why not, in the console as `phitex -v` says it)
+      if (e.event === "graph") for (const n of e.notes ?? []) console.info("[phitex core]", n);
       if (e.event !== "lost") return post(e);
       const first = !dead;
       dead ??= lostReason(e, pages);
@@ -171,6 +178,8 @@ self.onmessage = async (e: MessageEvent<{ id: number; op: string; [k: string]: u
         if (started) for (const f of gone) (await started).core.withdraw(f);
       }
       project = next;
+      // (a compare's core keeps no graph: its marked-up document is not the project's)
+      keepGraph = m.graph !== false;
       return post({ id: m.id, ok: true });
     }
     // (a figure deleted or renamed: withdrawn, the name looked up as never given, Shelf's copy found again)

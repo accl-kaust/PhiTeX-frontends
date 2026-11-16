@@ -6,6 +6,8 @@ import "./platform.ts";
 import { type PackMeta, DEFAULT_CAP_MB, allMeta, capBytes, clearPacks, evict, kvGet, kvSet } from "./common/packstore.ts";
 import { type Ahead, setAheadOff } from "./common/prefetch.ts";
 import { TERMS } from "./terms.ts";
+import { platform } from "./common/platform.ts";
+import { graphStats, graphsOn, setGraphsOn } from "./common/wasm/graphs.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -139,6 +141,15 @@ async function cacheStats(): Promise<void> {
   };
   const { ahead: a } = (await chrome.storage.local.get("ahead")) as { ahead?: Ahead };
   aheadNote.textContent = !sw.checked || !a?.total ? "" : a.state === "full" ? `${a.have} of ${a.total} fetched: the rest past the cap` : a.have >= a.total ? `All ${a.total} ready` : `${a.have} of ${a.total} ready${a.state === "running" ? ", fetching…" : ""}`;
+  // (the projects' engine states, graphs.ts: on by default; off drops them)
+  const graph = $<HTMLInputElement>("graph");
+  graph.checked = await graphsOn(platform().kv);
+  const g = await graphStats(platform().kv).catch(() => ({ entries: 0, bytes: 0 }));
+  $("graphnote").textContent = graph.checked && g.entries ? `${g.entries} kept, ${mb(g.bytes)} MB` : "";
+  graph.onchange = async () => {
+    await setGraphsOn(platform().kv, graph.checked).catch(() => undefined);
+    void cacheStats();
+  };
   btn.disabled = !all.size;
   btn.onclick = async () => {
     btn.disabled = true;

@@ -21,7 +21,8 @@ export class WorkerCore implements CoreTransport {
   /** Why the worker is gone, if it is. */
   gone: string | undefined;
 
-  constructor(project: string) {
+  /** `graph`: the core keeps its documents' persisted graphs (the project's core; Compare's keeps none). */
+  constructor(project: string, graph = true) {
     this.w = new Worker(new URL("worker.js", import.meta.url), { type: "module", name: "phitex-core" });
     this.w.onmessage = (m: MessageEvent<FromWorker>) => {
       const d = m.data;
@@ -35,7 +36,7 @@ export class WorkerCore implements CoreTransport {
       for (const [, f] of this.waiting) f({ ok: false, error: this.gone });
       this.waiting.clear();
     };
-    void this.request({ op: "hello", project });
+    void this.request({ op: "hello", project, graph });
   }
 
   request(op: { op: string; [k: string]: unknown }): Promise<CoreRes> {

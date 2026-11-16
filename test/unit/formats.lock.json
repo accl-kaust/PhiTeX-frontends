@@ -35,6 +35,7 @@
   "shelf": 3,
   "release": 1,
   "core": 1,
+  "graph": 1,
   "web": 1
  }
 }
