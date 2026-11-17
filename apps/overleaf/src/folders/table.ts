@@ -41,9 +41,10 @@ export function renderTable(v: View) {
     const rows = children.map(([id, f]) => folderRow(v, id, f.name));
     if (v.current && !rows.length && !v.page.total)
       rows.push(h("tr", { class: "olf-empty", "data-drop": v.current }, h("td", { colspan: "8" }, "This folder is empty. Drag projects here.")));
-    // (the top level: the projects edited last, from any folder, above the folders)
+    // (the top level: the projects edited last, from any folder, above the folders,
+    // a card of their own: a gap of the page's background between it and the rest)
     const recent = v.current === null ? recentRows(v) : [];
-    if (recent.length) rows.unshift(groupRow("Recent"), ...recent, ...(children.length ? [groupRow("Folders")] : []));
+    if (recent.length) rows.unshift(groupRow("Recent"), ...recent, gapRow(table), ...(children.length ? [groupRow("Folders")] : []));
     body.replaceChildren(...rows);
   }
   searchBox(v);
@@ -58,6 +59,18 @@ const RECENT = 5;
 /** A group's heading in the table ("Recent", "Folders"). */
 function groupRow(name: string): HTMLElement {
   return h("tr", { class: "olf-group" }, h("th", { colspan: "8", scope: "colgroup" }, name));
+}
+
+/**
+ * The gap between the Recent card and the one below (the folders, Overleaf's
+ * rows): a row in the page's background, as wide as the table, its corners
+ * cut to the table's own radius on both sides of it (the table's, or the box
+ * that rounds it: read here, as Overleaf may change it).
+ */
+function gapRow(table: Element): HTMLElement {
+  let radius = "0px";
+  for (let el: Element | null = table, i = 0; el && i < 3 && radius === "0px"; el = el.parentElement, i++) radius = getComputedStyle(el).borderTopLeftRadius || "0px";
+  return h("tr", { class: "olf-gap", "aria-hidden": "true", style: `--olf-card-r: ${radius}` }, h("td", { colspan: "8" }));
 }
 
 /**
