@@ -81,10 +81,20 @@ export function overleafBlame(o: OverleafBlameHost): BlameHost {
   const users = new Map<string, string>();
   const updates = new Map<string, Update>();
   let latest = 0;
-  const get = async <T>(u: string): Promise<T> => {
-    const r = await o.fetcher(u, { credentials: "include" });
-    if (!r.ok) throw new Error(`history: ${r.status}`);
-    return (await r.json()) as T;
+  // (each answer kept a minute: Blame asks again after every build while it is on, and the
+  // history moves only when Overleaf flushes the edits; the editor's text is matched anew each time)
+  const kept = new Map<string, { at: number; v: Promise<unknown> }>();
+  const get = <T>(u: string): Promise<T> => {
+    const k = kept.get(u);
+    if (k && Date.now() - k.at < 60_000) return k.v as Promise<T>;
+    const v = (async () => {
+      const r = await o.fetcher(u, { credentials: "include" });
+      if (!r.ok) throw new Error(`history: ${r.status}`);
+      return (await r.json()) as T;
+    })();
+    kept.set(u, { at: Date.now(), v });
+    v.catch(() => kept.delete(u));
+    return v;
   };
   /** The updates, newest first (up to 600, a page of 100 at a time). */
   const history = async (): Promise<Update[]> => {
