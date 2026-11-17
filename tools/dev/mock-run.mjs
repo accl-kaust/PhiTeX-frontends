@@ -49,6 +49,11 @@
 //                  // the run fails (the release gate's time check: a stale format rebuilt in the tab
 //                  // fetches every language's patterns). On a "reload" step: each reload's.
 //   "root": "report.tex"         // (top level) Overleaf's main document for the project (the mock's MOCK_ROOT; unset, none)
+//   "history": "test/scenarios/blame-history.json" // (top level) the project's history (the mock's MOCK_HISTORY:
+//                  // its updates, labels and each line's insert, tools/mock/server.mjs), for Compare and Blame;
+//                  // its steps also: { "click": "css selector" } (the page's, else the panel's) and
+//                  // { "check": "expr", "is": value, "what": "…" } (the content script's world; "page": true, the page's)
+//                  // and { "pointer": "css selector", "nth": 3, "dx": 60, "press": true } (the mouse there, clicked)
 //   "dashboard": "test/scenarios/dashboard/projects.json" // (top level) the project dashboard
 //                  // (/project, tools/mock/dashboard.html) with those projects and folders,
 //                  // after the onboarding, in place of the editor; its steps:
@@ -84,7 +89,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // the mock, on the scenario's project
 try { execFileSync("pkill", ["-f", `^node tools/mock/server.mjs ${MOCK}`]); } catch {}
 await sleep(500);
-const mock = spawn("node", ["tools/mock/server.mjs", String(MOCK)], { cwd: root, env: { ...process.env, MOCK_PROJECT: path.resolve(sc.project ?? "tools/mock/project"), ...(sc.root ? { MOCK_ROOT: sc.root } : {}), ...(sc.dashboard ? { MOCK_DASHBOARD: path.resolve(sc.dashboard) } : {}) }, stdio: ["ignore", "pipe", "inherit"], detached: true });
+const mock = spawn("node", ["tools/mock/server.mjs", String(MOCK)], { cwd: root, env: { ...process.env, MOCK_PROJECT: path.resolve(sc.project ?? "tools/mock/project"), ...(sc.root ? { MOCK_ROOT: sc.root } : {}), ...(sc.dashboard ? { MOCK_DASHBOARD: path.resolve(sc.dashboard) } : {}), ...(sc.history ? { MOCK_HISTORY: path.resolve(sc.history) } : {}) }, stdio: ["ignore", "pipe", "inherit"], detached: true });
 await new Promise((r) => mock.stdout.once("data", r));
 // Chromium with the extension
 if (fresh) fs.rmSync(path.join(root, PROFILE, "Default/IndexedDB"), { recursive: true, force: true });
@@ -681,7 +686,27 @@ for (const s of sc.steps ?? []) {
     await evalIn(`(() => { const r = document.querySelector("phitex-preview").shadowRoot; const el = r.querySelector('.slot[data-k="${s.scroll}"]'); if (el) r.getElementById("stage").scrollTop = el.offsetTop - 12; })()`, true);
     await call("Page.captureScreenshot", { format: "png" }); // (a frame: the observer sees the scroll)
   } else if (s.recompile) await evalIn(`document.getElementById("recompile").click()`);
-  else if (s.eval !== undefined) {
+  else if (s.check !== undefined) {
+    // (an expression in the content script's world (the page's with "page": true) is `is` (deep; unset: true), else the run fails)
+    s.result = await evalIn(s.check, !s.page);
+    const ok = JSON.stringify(s.result) === JSON.stringify(s.is ?? true);
+    console.log(`${ok ? "ok  " : "FAIL"} ${s.what ?? s.check}${ok ? "" : `: ${JSON.stringify(s.result)}, not ${JSON.stringify(s.is ?? true)}`}`);
+    if (!ok) process.exitCode = 1;
+  } else if (s.pointer !== undefined) {
+    // (the mouse moved, as a person moves it, to the `nth` element matching the selector (the panel's
+    // shadow root's, else the page's), `dx` points right of its middle; "press": true, then clicked there)
+    const at = await evalIn(`(() => { const q = ${JSON.stringify(s.pointer)}; const all = [...(document.querySelector("phitex-preview")?.shadowRoot.querySelectorAll(q) ?? [])]; const el = all[${s.nth ?? 0}] ?? document.querySelectorAll(q)[${s.nth ?? 0}]; if (!el) return null; const r = el.getBoundingClientRect(); return [r.left + r.width / 2 + ${s.dx ?? 0}, r.top + r.height / 2]; })()`, true);
+    if (!at) console.log(`step: no ${s.pointer} to point at`), steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s });
+    else {
+      await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: at[0], y: at[1] });
+      if (s.press) for (const type of ["mousePressed", "mouseReleased"]) await call("Input.dispatchMouseEvent", { type, x: at[0], y: at[1], button: "left", clickCount: 1 });
+    }
+    await sleep(s.ms ?? 600);
+  } else if (s.click !== undefined) {
+    // (the first element matching the selector clicked, in the page, else in the panel's shadow root)
+    await evalIn(`(() => { const q = ${JSON.stringify(s.click)}; (document.querySelector(q) ?? document.querySelector("phitex-preview")?.shadowRoot.querySelector(q))?.click(); })()`, true);
+    await sleep(s.ms ?? 600);
+  } else if (s.eval !== undefined) {
     // (an expression in the content script's world, for debugging)
     s.result = await evalIn(s.eval, !s.page);
     console.log("eval →", JSON.stringify(s.result));

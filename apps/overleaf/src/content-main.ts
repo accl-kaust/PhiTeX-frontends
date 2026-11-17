@@ -14,7 +14,8 @@ import { older } from "./common/version.ts";
 import { PreviewSession, guessMain, type CoreReq, type CoreRes, type CoreTransport, type CoreEvent, type EditorHost } from "./common/viewer/session.ts";
 import { charOffset } from "./common/viewer/edits.ts";
 import { readZip } from "./common/zip.ts";
-import { type DiffRunner, compareButton } from "./diffui.ts";
+import { type DiffRunner, blameButton, compareButton, compareWith as compareVersion } from "./diffui.ts";
+import { overleafBlame } from "./blame.ts";
 import { AGREE, TERMS, asIs } from "./terms.ts";
 import { callout, calloutStyle, type Callout } from "./callout.ts";
 import { h, html, rich } from "./dom.ts";
@@ -759,6 +760,7 @@ function dockInOverleaf(panel: Panel): Dock {
     document.addEventListener("click", () => menu.classList.remove("show"));
     // (compare with a past version: diffui.ts)
     compareButton(l, panel, project, pageFetch, diffRunner);
+    blameButton(l, panel);
     left.append(l);
     mirrorStatus();
     return l;
@@ -1228,7 +1230,21 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     // (the last build's log: the core's transcript)
     onLog: () => shown()?.log() ?? Promise.resolve(null),
     onBoxes: (file, start, end) => shown()?.boxesOf(file, start, end) ?? Promise.resolve([]),
-  }, prefs, { host: "overleaf", fileUrl: (p) => chrome.runtime.getURL(p) });
+  }, prefs, {
+    host: "overleaf",
+    fileUrl: (p) => chrome.runtime.getURL(p),
+    // (Blame: the project's history (blame.ts here), the pages' places from the session's glyphs;
+    // "Compare with before this version" is the toolbar's Compare, diffui.ts)
+    blame: overleafBlame({
+      base: project,
+      fetcher: pageFetch,
+      text: (file) => shown()?.text(file),
+      glyphs: (k) => shown()?.pageGlyphs(k) ?? Promise.resolve([]),
+      goto: (file, line) => (DETACHED ? ask({ t: "goto", file, line }) : window.postMessage({ src: "phitex-content", type: "goto", file, line }, location.origin)),
+      compare: (v, title, when) => compareVersion?.({ v, title: `${title} · ${when}`, at: Date.now(), who: [], label: false }),
+      own: document.querySelector<HTMLMetaElement>('meta[name="ol-user_id"]')?.content || undefined,
+    }),
+  });
   // (a tab opened at a place (a link Ctrl+clicked in another): its pages start there, lit once shown)
   {
     const at = /^#at=(\d+),(\d+)$/.exec(location.hash);

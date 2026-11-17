@@ -160,6 +160,25 @@ const readDash = (file) => {
   return { projects, tags: f.tags ?? [], storage };
 };
 let dash = process.env.MOCK_DASHBOARD ? readDash(process.env.MOCK_DASHBOARD) : null;
+/**
+ * The project's history (MOCK_HISTORY: a JSON file), as Overleaf's History
+ * view reads it: `users` by key ({id, first_name, last_name, email}),
+ * `updates` oldest first ({v, user, ago: "3d", files}), `labels` ({comment,
+ * v, ago}), and `lines` by file: [first, last, v] (lines from 1) inserted by
+ * update v, the rest the first version's. GET /updates (newest first),
+ * /labels, /diff?pathname=&from=&to= (the file's text as it is now, its
+ * lines' inserts with their update's meta) and /version/N/zip (the files
+ * as they are now: the mock keeps no older text).
+ */
+const hist = process.env.MOCK_HISTORY ? JSON.parse(fs.readFileSync(process.env.MOCK_HISTORY, "utf8")) : null;
+// (the history's last version: the files as the mock loaded them; edits made since are not in it, as
+// Overleaf's history lags the editor until it flushes)
+const histText = new Map([...docs.values()].map((d) => [d.path, d.text]));
+const histAt = (ago) => {
+  const m = /^(\d+)([mhd])$/.exec(ago ?? "1d");
+  return Date.now() - (m ? +m[1] * { m: 60e3, h: 3600e3, d: 86400e3 }[m[2]] : 86400e3);
+};
+const histUpdate = (x) => ({ fromV: x.v - 1, toV: x.v, meta: { users: [hist.users[x.user]], start_ts: histAt(x.ago) - 60e3, end_ts: histAt(x.ago) }, pathnames: x.files ?? [], project_ops: [], labels: (hist.labels ?? []).filter((l) => l.v === x.v).map((l) => ({ comment: l.comment })) });
 /** A multipart body's file part's bytes (the upload's qqfile). */
 const filePart = (body, type) => {
   const boundary = "--" + /boundary=(.+)$/.exec(type)?.[1];
@@ -199,6 +218,26 @@ http.createServer((req, res) => {
     dash = readDash(u.searchParams.get("path"));
     return send(204, "text/plain", "");
   }
+  if (hist && u.pathname === "/project/mock/updates") return send(200, "application/json", JSON.stringify({ updates: hist.updates.map(histUpdate).reverse() }));
+  if (hist && u.pathname === "/project/mock/labels")
+    return send(200, "application/json", JSON.stringify((hist.labels ?? []).map((l, i) => ({ id: `l${i}`, comment: l.comment, version: l.v, created_at: new Date(histAt(l.ago)).toISOString(), user_display_name: "Mock User" }))));
+  if (hist && u.pathname === "/project/mock/diff") {
+    const p = u.searchParams.get("pathname");
+    const d = histText.has(p) ? { text: histText.get(p) } : null;
+    if (!d) return send(404, "text/plain", "no such file");
+    const spans = hist.lines?.[p] ?? [];
+    const parts = [];
+    d.text.split(/(?<=\n)/).forEach((line, i) => {
+      const s = spans.find(([a, b]) => i + 1 >= a && i + 1 <= b);
+      const up = s && hist.updates.find((x) => x.v === s[2]);
+      const part = up ? { i: line, meta: histUpdate(up).meta } : { u: line };
+      const last = parts.at(-1);
+      if (last && !!last.i === !!part.i && (!part.i || last.meta.end_ts === part.meta.end_ts)) last[part.i ? "i" : "u"] += line;
+      else parts.push(part);
+    });
+    return send(200, "application/json", JSON.stringify({ diff: parts }));
+  }
+  if (hist && /^\/project\/mock\/version\/\d+\/zip$/.test(u.pathname)) return send(200, "application/zip", zip([...[...docs.values()].map((x) => [x.path, x.text]), ...files]));
   if (dash && u.pathname === "/api/project" && req.method === "POST") return send(200, "application/json", JSON.stringify({ totalSize: dash.projects.length, projects: dash.projects }));
   const st = dash?.storage;
   if (st && u.pathname.toLowerCase() === `/project/${st.id}/download/zip`) return send(200, "application/zip", zip([["main.tex", "% the folders' storage (mock)\n"], ["data/folders.json", st.text]]));

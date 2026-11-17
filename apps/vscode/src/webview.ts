@@ -10,6 +10,7 @@
 
 import { Panel, type PanelPrefs, type SettingRow, type SettingsGroup, type ViewPrefs } from "../../../common/src/viewer/panel.ts";
 import { Compare, DiffControls, gate } from "../../../common/src/viewer/compare.ts";
+import type { BlameData } from "../../../common/src/viewer/blame.ts";
 import type { DiffLook } from "../../../common/src/viewer/panel.ts";
 import { html } from "../../../common/src/viewer/html.ts";
 import { PreviewSession, type CoreEvent, type CoreRes, type CoreTransport, type EditorHost } from "../../../common/src/viewer/session.ts";
@@ -25,8 +26,8 @@ export type Up =
   | { t: "req"; id: number; op: { op: string; [k: string]: unknown }; ch?: 2 }
   | { t: "pdf" }
   | { t: "log"; s: string }
-  /** Compare: the version picked there (cmp-start back); its core opened (cmp-ready back) and closed. */
-  | { t: "compare" }
+  /** Compare: the version picked there (cmp-start back), or `rev` (Blame's "Compare with before this commit"); its core opened (cmp-ready back) and closed. */
+  | { t: "compare"; rev?: string; title?: string; when?: string }
   | { t: "cmp-open" }
   | { t: "cmp-close" }
   /** The last build's log, in an editor tab. */
@@ -169,6 +170,17 @@ const panel = new Panel(
   {
     host: "vscode",
     outline: true,
+    // (Blame: the folder's git history, read by the extension host (blame.ts there); the
+    // pages' places from the session's glyphs; Compare against a commit's parent)
+    blame: {
+      async blame(files) {
+        const r = await relay.request({ op: "blame", files });
+        return r.ok ? (r.json as unknown as BlameData) : (r.error ?? "no git history here");
+      },
+      glyphs: (k) => session.pageGlyphs(k),
+      goto: (file, line) => void relay.request({ op: "source", file, line, col: 1 }),
+      compare: startAt ? undefined : (c) => up({ t: "compare", rev: c ? `${c.id}^` : "HEAD", title: c ? `Before ${c.short}` : "The last commit", when: c ? c.subject : "against your changes" }),
+    },
     header: true,
     words: {
       badge: watch ? "watch" : "builtin",

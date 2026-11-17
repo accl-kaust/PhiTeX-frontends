@@ -88,6 +88,22 @@ export function compareHost(view: vscode.WebviewPanel, p: CompareProject): vscod
     again = setTimeout(async () => post({ t: "texts", main: p.main, files: await texts() }), 300);
   });
 
+  /** Compare with `rev` (Blame's card: a commit's parent), named `title`, `when`: no picker. */
+  async function against(rev: string, title: string, when: string): Promise<void> {
+    const git = vscode.extensions.getExtension<{ getAPI(v: 1): GitApi }>("vscode.git");
+    const api = git && vscode.workspace.getConfiguration("git").get<boolean>("enabled") !== false ? (git.isActive ? git.exports : await git.activate()).getAPI(1) : undefined;
+    const repo = api?.getRepository(vscode.Uri.file(p.folder));
+    if (!repo) return void vscode.window.showInformationMessage("PhiTeX: Compare reads git through VS Code's Git, which is off or sees no repository here.");
+    const old: Record<string, string> = {};
+    for (const f of p.files) {
+      const t = await repo.show(rev, join(p.folder, f)).catch(() => undefined);
+      if (t !== undefined) old[f] = t;
+    }
+    if (!Object.keys(old).length) return void vscode.window.showInformationMessage(`PhiTeX: ${rev} has none of the project's files to compare with.`);
+    comparing = true;
+    post({ t: "cmp-start", v: rev, title, when, old, main: p.main, files: await texts() });
+  }
+
   async function pick(): Promise<void> {
     // (no git, or none yet: what Compare needs, said. The versions are the user's own commits,
     // made with their git or VS Code's Source Control: PhiTeX never commits)
@@ -143,6 +159,7 @@ export function compareHost(view: vscode.WebviewPanel, p: CompareProject): vscod
   }
 
   const asks = view.webview.onDidReceiveMessage(async (m: Up) => {
+    if (m.t === "compare" && m.rev) return void against(m.rev, m.title ?? m.rev, m.when ?? "").catch((e) => vscode.window.showErrorMessage(`PhiTeX: couldn't compare: ${e}`));
     if (m.t === "compare") return void pick().catch((e) => vscode.window.showErrorMessage(`PhiTeX: couldn't compare: ${e}`));
     if (m.t === "cmp-open") return void open();
     if (m.t === "cmp-close") return close();
