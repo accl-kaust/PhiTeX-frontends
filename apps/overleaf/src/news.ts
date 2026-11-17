@@ -19,6 +19,19 @@ export const SUPPORT: { label: string; href: string } | null = null;
 
 export const NEWS: News[] = [
   {
+    version: "1.0.3",
+    date: "2026-11-17",
+    title: "Reopening in an instant",
+    items: [
+      "Opening a project again is fast: \u26a1 Instant keeps what it built and starts from there, often well under a second where it took several.",
+      "Your recent projects come first in the folder view, with the folder each one is in.",
+      "Compare works in Firefox again.",
+      "Citation cards link the DOI: click it to open the paper.",
+      "The contents panel shows the page numbers your document prints, like iv or A-3.",
+      "Double-click and selection land on the right text in floats on later pages.",
+    ],
+  },
+  {
     version: "1.0.2",
     date: "2026-11-15",
     title: "Zoom and Colour lines",
