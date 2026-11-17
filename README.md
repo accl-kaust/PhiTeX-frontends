@@ -28,6 +28,10 @@ frontend also gives you:
 
 - **Source ↔ page**: the word at your cursor is marked on the page, and a
   double-click on the page opens its source.
+- **Blame**: who last changed each line, as bars in the page's margin, by
+  age, by author or since a tag, with a card for the commit on hover (git in
+  VS Code and `phitex watch`; the project's history on Overleaf). It draws
+  over the pages and never builds them again.
 - **Problems**: errors and warnings are listed and underlined on the page.
   Each has **Copy for an AI assistant**: the message with the source around
   it, the preamble, the macros and files it came from, TeX's notes and the

@@ -64,6 +64,7 @@
         "dist/mirror.js",
         "dist/news.js",
         "dist/diffui.js",
+        "dist/blame.js",
         "dist/callout.js",
         "dist/dom.js",
         "dist/terms.js",

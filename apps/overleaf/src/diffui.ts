@@ -13,6 +13,9 @@ import { ago, html } from "./dom.ts";
 
 export type DiffRunner = Runner<Version>;
 
+/** A compare started from elsewhere (Blame's card: "Compare with before this version"). */
+export let compareWith: ((v: Version) => void) | undefined;
+
 export function compareButton(host: HTMLElement, panel: Panel, base: () => string, fetcher: typeof fetch, run: DiffRunner): void {
   if (host.querySelector("#phitex-cmp")) return;
   const g = document.createElement("div");
@@ -74,6 +77,29 @@ export function compareButton(host: HTMLElement, panel: Panel, base: () => strin
     await controls.start(v, v.title, `${ago(v.at)} · v${v.v}`);
   };
   const stop = () => controls.stop();
+  compareWith = (v) => void start(v);
   // (keys while comparing: not in the editor or a field)
   addEventListener("keydown", (e) => controls.key(e));
+}
+
+/**
+ * Blame (the viewer's blame.ts, from the project's history): a toggle in
+ * the toolbar beside Compare, pressed while the pages show who changed what;
+ * its row of modes and legend under it is the panel's.
+ */
+export function blameButton(host: HTMLElement, panel: Panel): void {
+  if (host.querySelector("#phitex-blame") || !panel.blame) return;
+  const g = document.createElement("div");
+  g.className = "btn-group";
+  g.replaceChildren(html`<button type="button" id="phitex-blame" aria-label="Blame: who changed what" title="Blame: who last changed each line, from the project's history" aria-pressed="false" class="d-inline-grid pdf-toolbar-btn toolbar-item btn btn-link"><span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">history</span></span></button>`);
+  host.append(g);
+  const btn = g.querySelector<HTMLButtonElement>("#phitex-blame")!;
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    panel.blame?.toggle();
+  };
+  panel.blame.onToggle((on) => {
+    btn.setAttribute("aria-pressed", String(on));
+    btn.classList.toggle("active", on);
+  });
 }

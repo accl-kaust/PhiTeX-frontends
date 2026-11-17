@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import type { CoreEvent, CoreRes, CoreTransport } from "../../../common/src/viewer/session.ts";
 import type { Down, Up } from "./webview.ts";
 import { latexdiff } from "./compare.ts";
+import { blame } from "./blame.ts";
 import { availableParallelism } from "node:os";
 import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
@@ -47,7 +48,8 @@ export function relay(view: vscode.WebviewPanel, core: Relayed, folder: string, 
     // (a compare's own document's, channel 2: compare.ts's)
     if (m.t !== "req" || m.ch) return;
     // (latexdiff: here, the diff wasm, as Overleaf's offscreen page runs it;
-    // the Settings dialog's: VS Code's own settings, here)
+    // the Settings dialog's: VS Code's own settings, here; Blame's: the
+    // folder's git history, read here with either engine, blame.ts)
     const r =
       m.op.op === "latexdiff"
         ? await latexdiff(m.op.req as never)
@@ -57,6 +59,8 @@ export function relay(view: vscode.WebviewPanel, core: Relayed, folder: string, 
             ? await setSetting(String(m.op.key), m.op.value)
             : m.op.op === "vsc-source"
               ? await source(folder, String(m.op.file))
+            : m.op.op === "blame"
+              ? await blame(folder, (m.op.files as string[] | undefined) ?? [], (path) => vscode.workspace.textDocuments.find((d) => d.uri.scheme === "file" && d.uri.fsPath === path)?.getText())
             : await core.request(m.op as never).catch((e): CoreRes => ({ ok: false, error: String(e) }));
     void view.webview.postMessage({ t: "res", id: m.id, r } satisfies Down);
   });
