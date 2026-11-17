@@ -29,6 +29,7 @@ export const NEWS: News[] = [
       "Citation cards link the DOI: click it to open the paper.",
       "The contents panel shows the page numbers your document prints, like iv or A-3.",
       "Double-click and selection land on the right text in floats on later pages.",
+      "If \u26a1 Instant can't start, it tells you where it stopped and why, instead of waiting on \u201cReading the project\u201d. Copy debug info works even then.",
     ],
   },
   {
