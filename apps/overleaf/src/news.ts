@@ -19,6 +19,16 @@ export const SUPPORT: { label: string; href: string } | null = null;
 
 export const NEWS: News[] = [
   {
+    version: "1.0.4",
+    date: "2026-11-17",
+    title: "Compare, rethought",
+    items: [
+      "Projects open in Firefox again. Sorry about 1.0.3: it couldn't read your project there.",
+      "Compare reads like your document: figures, tables, pictures and equations change as whole pieces or row by row, a replaced image sits beside the old one, and a citation shows just the references that changed.",
+      "Blame, beside Compare: see who last changed each line, right on the pages, by age, by author, or since a version you pick.",
+    ],
+  },
+  {
     version: "1.0.3",
     date: "2026-11-17",
     title: "Reopening in an instant",

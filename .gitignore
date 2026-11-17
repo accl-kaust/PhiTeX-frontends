@@ -8,6 +8,7 @@ store/vscode/
 # only; the cluster drivers snapshot what git doesn't ignore)
 store/0.*/
 store/beta*/
+store/1.*/
 tools/mock/build/
 # (every build's output: the extension unpacked (build/overleaf, tools/build/build.sh),
 # VS Code's (build/vscode, build-vscode.sh), the web demo (build/web,
