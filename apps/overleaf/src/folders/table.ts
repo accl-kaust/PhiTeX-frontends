@@ -16,7 +16,7 @@ import { marks, suggest, type Suggestion } from "./query.ts";
 import { dashboard, ownerName } from "./overleaf.ts";
 
 export function renderTable(v: View) {
-  const table = document.querySelector("#project-list-root table.project-dash-table");
+  const table = document.querySelector<HTMLTableElement>("#project-list-root table.project-dash-table:not(.olf-recent-table)");
   const projects = table?.querySelector(":scope > tbody:not(.olf-rows)");
   if (!table || !projects) return;
   const body = table.querySelector<HTMLElement>(":scope > tbody.olf-rows") ?? h("tbody", { class: "olf-rows" });
@@ -27,9 +27,11 @@ export function renderTable(v: View) {
   if (!v.ready) {
     body.replaceChildren(...widths.map((w) => skeletonRow(w, v.status)));
     after.replaceChildren();
+    recentCard(table, []);
     return;
   }
   after.replaceChildren(...(v.page.loading ? widths.slice(0, Math.min(v.page.missing, widths.length)).map((w) => skeletonRow(w, v.status)) : []));
+  let recent: HTMLElement[] = [];
   if (v.found) {
     const rows = v.found.folders.map(({ id }) => folderRow(v, id, v.state.folders[id].name));
     if (!rows.length && !v.found.projects.size) rows.push(h("tr", { class: "olf-empty" }, h("td", { colspan: "8" }, `Nothing ${v.current ? "in this folder " : ""}matches “${v.query.trim()}”.`)));
@@ -41,12 +43,13 @@ export function renderTable(v: View) {
     const rows = children.map(([id, f]) => folderRow(v, id, f.name));
     if (v.current && !rows.length && !v.page.total)
       rows.push(h("tr", { class: "olf-empty", "data-drop": v.current }, h("td", { colspan: "8" }, "This folder is empty. Drag projects here.")));
-    // (the top level: the projects edited last, from any folder, above the folders,
-    // a card of their own: a gap of the page's background between it and the rest)
-    const recent = v.current === null ? recentRows(v) : [];
-    if (recent.length) rows.unshift(groupRow("Recent"), ...recent, gapRow(table), ...(children.length ? [groupRow("Folders")] : []));
+    // (the top level: the projects edited last, from any folder, in a card of their own
+    // above Overleaf's, whose rows then begin with the folders, under a heading)
+    recent = v.current === null ? recentRows(v) : [];
+    if (recent.length && children.length) rows.unshift(groupRow("Folders"));
     body.replaceChildren(...rows);
   }
+  recentCard(table, recent.length ? [groupRow("Recent"), ...recent] : []);
   searchBox(v);
   crumbs(v);
   newFolderButton(v);
@@ -62,15 +65,53 @@ function groupRow(name: string): HTMLElement {
 }
 
 /**
- * The gap between the Recent card and the one below (the folders, Overleaf's
- * rows): a row in the page's background, as wide as the table, its corners
- * cut to the table's own radius on both sides of it (the table's, or the box
- * that rounds it: read here, as Overleaf may change it).
+ * The Recent card: Overleaf's card (the box around its table, .table-container:
+ * its background, border, radius, padding, margins, in either theme) made
+ * again before it, its own table of the same classes inside, its columns as
+ * wide as Overleaf's header's (a colgroup, kept so as they change); between
+ * the two, the page's background, the cards' own margin. None (removed)
+ * without rows.
  */
-function gapRow(table: Element): HTMLElement {
-  let radius = "0px";
-  for (let el: Element | null = table, i = 0; el && i < 3 && radius === "0px"; el = el.parentElement, i++) radius = getComputedStyle(el).borderTopLeftRadius || "0px";
-  return h("tr", { class: "olf-gap", "aria-hidden": "true", style: `--olf-card-r: ${radius}` }, h("td", { colspan: "8" }));
+function recentCard(table: HTMLTableElement, rows: HTMLElement[]) {
+  let card = document.querySelector<HTMLElement>("#project-list-root .olf-recent-card");
+  if (!rows.length) {
+    if (card) (cardObserver.disconnect(), card.remove());
+    return;
+  }
+  const box = table.parentElement!;
+  // (the box's own wrapper (Overleaf's div.mt-3), if it holds nothing else: the card before it, as its sibling)
+  const anchor = box.parentElement && box.parentElement.children.length === 1 && box.parentElement.id !== "project-list-root" ? box.parentElement : box;
+  if (!card) {
+    const cls = [...box.classList].filter((c) => c.startsWith("table-container")).join(" ") || "table-container table-container-bordered";
+    card = h("div", { class: `mt-3 ${cls} olf-recent-card` },
+      h("table", { class: `${table.className} olf-recent-table` }, h("colgroup"), h("tbody", { class: "olf-rows olf-recent-rows" })));
+  }
+  if (card.nextElementSibling !== anchor) anchor.before(card);
+  card.querySelector("tbody")!.replaceChildren(...rows);
+  const sync = () => syncColumns(table, card!.querySelector("colgroup")!);
+  sync();
+  cardObserver.disconnect();
+  const ro = new ResizeObserver(sync);
+  ro.observe(table);
+  for (const th of table.tHead?.rows[0]?.cells ?? []) ro.observe(th);
+  cardObserver = ro;
+}
+let cardObserver: Pick<ResizeObserver, "disconnect"> = { disconnect() {} };
+
+/**
+ * The Recent card's columns: one a visible header cell of Overleaf's table, its
+ * share of the table's width (a share, not pixels: the two tables are as wide).
+ */
+function syncColumns(table: HTMLTableElement, cols: HTMLElement) {
+  const ths = [...(table.tHead?.rows[0]?.cells ?? [])].filter((th) => getComputedStyle(th).display !== "none");
+  const sizes = ths.map((th) => th.getBoundingClientRect().width), total = sizes.reduce((a, b) => a + b, 0);
+  // (a phone's: rows not rows of the table's columns, but each a column of its cells: no columns, the rows full width)
+  const row = cols.parentElement?.querySelector("tbody > tr");
+  if (row && getComputedStyle(row).display !== "table-row") return void cols.replaceChildren();
+  if (!total) return;
+  const widths = sizes.map((w) => `${(100 * w) / total}%`);
+  if (cols.children.length !== widths.length) cols.replaceChildren(...widths.map(() => h("col")));
+  widths.forEach((w, i) => { const c = cols.children[i] as HTMLElement; if (c.style.width !== w) c.style.width = w; });
 }
 
 /**

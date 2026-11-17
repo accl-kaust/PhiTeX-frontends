@@ -343,7 +343,7 @@ export function mount(opts: MountOptions = {}): () => void {
   else load();
 
   // (React re-making a part this hangs on to, or the dashboard's own state changing: drawn again)
-  const stop = watch(update, () => !document.querySelector(".olf-rows")?.isConnected || !document.querySelector(".olf-folders")?.isConnected, mark);
+  const stop = watch(update, () => !document.querySelector("table.project-dash-table:not(.olf-recent-table) > tbody.olf-rows")?.isConnected || !document.querySelector(".olf-folders")?.isConnected, mark);
   // (now, the dashboard not there yet: its rows hidden from their first render, if loading)
   update();
   const onPop = () => {
@@ -410,7 +410,7 @@ export function mount(opts: MountOptions = {}): () => void {
     window.removeEventListener("popstate", onPop);
     document.removeEventListener("click", onClick, true);
     // (everything drawn, the search box too: its handlers are this mount's, a mount after makes its own)
-    document.querySelectorAll(".olf-folders, .olf-rows, .olf-crumbs, .olf-new-folder, .olf-footer, .olf-status-col, .olf-status-cell, .olf-search").forEach((el) => el.remove());
+    document.querySelectorAll(".olf-folders, .olf-rows, .olf-recent-card, .olf-crumbs, .olf-new-folder, .olf-footer, .olf-status-col, .olf-status-cell, .olf-search").forEach((el) => el.remove());
     document.querySelectorAll("[data-olf]").forEach((el) => el.removeAttribute("data-olf"));
     root.classList.remove("olf-browsing", "olf-in-folder", "olf-loading", "olf-sorted");
     root.removeAttribute(MOUNTED);
@@ -769,22 +769,8 @@ function addStyle() {
   /* (the text faded, not the cell: the cell in the table's background, as its rows) */
   .olf-rows tr.olf-group th { padding: 14px 8px 4px; color: color-mix(in srgb, var(--bs-table-color, var(--content-secondary-themed, #495365)) 65%, transparent);
     font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; border-bottom: 0; }
-  /* (Recent, a card of its own: between it and the rest, the page's background (Overleaf's content area's), the
-     table's cells' corners cut round on both sides of the gap; no gap with no row of the table's below it) */
-  #project-list-root .project-dash-table tr.olf-gap { --olf-page-bg: var(--ds-nav-content-bg-secondary, var(--bg-secondary-themed, #f4f5f6)); border: 0 !important; }
-  #project-list-root .project-dash-table tr.olf-gap > td { position: relative; height: 14px; padding: 0 !important; border: 0 !important;
-    background: var(--olf-page-bg) !important; box-shadow: none !important; }
-  #project-list-root .project-dash-table tr.olf-gap > td::before, #project-list-root .project-dash-table tr.olf-gap > td::after {
-    content: ""; position: absolute; left: 0; right: 0; height: var(--olf-card-r); pointer-events: none; }
-  #project-list-root .project-dash-table tr.olf-gap > td::before { bottom: 100%; background:
-    radial-gradient(circle at 100% 0, transparent calc(var(--olf-card-r) - .5px), var(--olf-page-bg) var(--olf-card-r)) left bottom / var(--olf-card-r) var(--olf-card-r) no-repeat,
-    radial-gradient(circle at 0 0, transparent calc(var(--olf-card-r) - .5px), var(--olf-page-bg) var(--olf-card-r)) right bottom / var(--olf-card-r) var(--olf-card-r) no-repeat; }
-  #project-list-root .project-dash-table tr.olf-gap > td::after { top: 100%; background:
-    radial-gradient(circle at 100% 100%, transparent calc(var(--olf-card-r) - .5px), var(--olf-page-bg) var(--olf-card-r)) left top / var(--olf-card-r) var(--olf-card-r) no-repeat,
-    radial-gradient(circle at 0 100%, transparent calc(var(--olf-card-r) - .5px), var(--olf-page-bg) var(--olf-card-r)) right top / var(--olf-card-r) var(--olf-card-r) no-repeat; }
-  #project-list-root .project-dash-table tr:has(+ tr.olf-gap) { border-bottom: 0 !important; }
-  #project-list-root .project-dash-table tr:has(+ tr.olf-gap) > * { border-bottom-width: 0 !important; }
-  #project-list-root .project-dash-table:not(:has(> tbody:not(.olf-rows) > tr[data-olf="show"])) tr.olf-gap:last-child { display: none; }
+  /* (Recent's card: Overleaf's card's classes; hidden as the folders' rows are) */
+  html:not(.olf-browsing) .olf-recent-card { display: none !important; }
   .olf-rows tr.olf-recent-row td.olf-folder-icon { opacity: .6; }
   .olf-rows tr.olf-recent-row td.dash-cell-name > a .material-symbols { margin-right: 6px; opacity: .6; }
   #project-list-root tr.olf-drop > td { background-color: rgb(50 101 178 / 22%) !important; }
