@@ -1,0 +1,9 @@
+{ "project": "test/scenarios/ci", "name": "bigproject", "strict": true,
+  "//": "Issue #39: a large project (3,000 more files, 3 figures of 20 MB that don't compress) reads, says how far, and opens.",
+  "mockEnv": { "MOCK_BULK": "3000:3:20" },
+  "steps": [
+    { "what": "every file read: the 3,000 and the project's, and the 3 figures", "check": "__phitexBoot().then((b) => b.read.files > 3000 && b.read.binaries >= 3)" },
+    { "what": "and built", "check": "__phitexBoot().then((b) => b.built)" },
+    { "debuginfo": "status", "what": "Copy debug info: the project's size, its largest files' sizes, the main file's name, no other names", "has": ["^project: 300[0-9] text files, [3-9] other files, a [0-9.]+ MB download; largest files 20\\.0 MB, 20\\.0 MB, 20\\.0 MB; main file main\\.tex$", "^start: built", "^ +[0-9.]+ s Unpacking the project… \\(3[0-9]{3} of 3[0-9]{3}\\)$", "^ +[0-9.]+ s Built$"], "hasnt": ["bulk/", "part-0", "big-"] },
+    { "shot": "opened" }
+  ] }

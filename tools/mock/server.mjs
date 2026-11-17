@@ -94,6 +94,19 @@ else {
   };
   walk(proj);
 }
+// (MOCK_BULK=files:binaries:MB: a large project beside the one given, as some
+// Overleaf projects are: that many small .tex files under bulk/ (none \input),
+// and that many binary files of that many MB each under bulk/figures/)
+if (process.env.MOCK_BULK) {
+  const [nf, nb, mb] = process.env.MOCK_BULK.split(":").map(Number);
+  for (let i = 0; i < nf; i++) add(`bulk/part-${String(i).padStart(5, "0")}.tex`, Buffer.from(`% bulk file ${i}\n\\section{Part ${i}}\nText of part ${i}.\n`));
+  // (bytes that don't deflate: a big figure's, as photographs' are)
+  for (let i = 0; i < nb; i++) add(`bulk/figures/big-${i}.png`, crypto.randomBytes(mb * 1048576));
+}
+
+/** How the project's downloads answer (POST /project/mock/zipmode), and the hung ones' responses (ended when the mode changes). */
+let zipMode = "ok";
+const hung = [];
 
 function zip(entries) {
   // (stored and deflated entries, as Overleaf's has both)
@@ -290,6 +303,22 @@ http.createServer((req, res) => {
     return send(200, "text/plain; charset=utf-8", docs.get(m[1]).text);
   if ((m = u.pathname.match(/^\/project\/mock\/doc\/(\w+)$/)) && req.method === "POST") {
     let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { const d = docs.get(m[1]); if (!d) return send(404, "text/plain", "no such doc"); d.text = b; send(204, "text/plain", ""); });
+    return;
+  }
+  // (how the next project downloads answer, for the start's failures: POST /project/mock/zipmode?mode=
+  // ok, fail (a 500), cut (half the bytes, then the connection dropped), hang (half, then nothing more, never ended))
+  if (u.pathname === "/project/mock/zipmode" && req.method === "POST") {
+    zipMode = u.searchParams.get("mode") ?? "ok";
+    for (const r of hung.splice(0)) r.destroy();
+    return send(204, "text/plain", "");
+  }
+  if (u.pathname === "/project/mock/download/zip" && zipMode !== "ok") {
+    if (zipMode === "fail") return send(500, "text/plain", "mock: the download failed");
+    const z = zip([...[...docs.values()].map((d) => [d.path, d.text]), ...files]);
+    res.writeHead(200, { "content-type": "application/zip", "content-length": String(z.length), ...iso });
+    res.write(z.subarray(0, z.length >> 1));
+    if (zipMode === "cut") setTimeout(() => res.destroy(), 200);
+    else hung.push(res);
     return;
   }
   if (u.pathname === "/project/mock/download/zip") {

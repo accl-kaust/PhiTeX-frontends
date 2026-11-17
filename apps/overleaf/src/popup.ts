@@ -6,6 +6,7 @@ import "./platform.ts";
 import { type PackMeta, DEFAULT_CAP_MB, allMeta, capBytes, clearPacks, evict, kvGet, kvSet } from "./common/packstore.ts";
 import { type Ahead, setAheadOff } from "./common/prefetch.ts";
 import { TERMS } from "./terms.ts";
+import { reportRow } from "./report.ts";
 import { platform } from "./common/platform.ts";
 import { graphStats, graphsOn, setGraphsOn } from "./common/wasm/graphs.ts";
 
@@ -99,6 +100,24 @@ async function render(): Promise<void> {
     };
   }
   $("tabnote").textContent = tab ? "" : "Open an Overleaf project to see these.";
+  // (for a bug report, whatever state the tab is in: its own lines, or, with no Overleaf
+  // project open (or its page not answering), the extension's and the browser's)
+  const dbg = $<HTMLButtonElement>("debuginfo");
+  const info = async () => {
+    const m = chrome.runtime.getManifest();
+    const own = `PhiTeX Instant ${m.version_name ?? m.version}\nbrowser: ${navigator.userAgent}\n`;
+    const fromTab = tab?.id ? ((await chrome.tabs.sendMessage(tab.id, { type: "phitex-debug-info" }).catch((e: unknown) => `${own}the Overleaf tab didn't answer: ${e}\n`)) as string | undefined) : undefined;
+    return fromTab ?? `${own}no Overleaf project open in this tab\n`;
+  };
+  // (and how to send it: a GitHub issue or an email, drafted with it, sent by the person)
+  $("reportrow").replaceChildren(reportRow(info));
+  dbg.onclick = async () => {
+    const text = await info();
+    await navigator.clipboard.writeText(text).then(
+      () => (dbg.textContent = "Copied ✓"),
+      () => (dbg.textContent = "Couldn't copy"),
+    );
+  };
   // (two clicks: the second, within 4 s, confirms)
   const reset = $<HTMLButtonElement>("reset");
   let armed: ReturnType<typeof setTimeout> | null = null;

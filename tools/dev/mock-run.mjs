@@ -48,6 +48,11 @@
 //                  // the tab's navigation, at most 12 packages fetched for it, none matching ^hyphen-; else
 //                  // the run fails (the release gate's time check: a stale format rebuilt in the tab
 //                  // fetches every language's patterns). On a "reload" step: each reload's.
+//   "mockEnv": { "MOCK_BULK": "3000:4:20" } // (top level) the mock server's environment besides (tools/mock/server.mjs)
+//   steps also: { "start": { "failure": "worker-fetch", "zip": "hang" }, "until": "expr", "ms": 30000 } // the tab's start
+//                  // again, failing so (content-main.ts testFailure; the mock's zipmode), until `expr` (content script) holds
+//                { "debuginfo": "status" | "logs", "has": ["regex", …], "hasnt": […] } // Copy debug info reached from that
+//                  // toolbar button and copied; the clipboard's text has each, and none of hasnt
 //   "root": "report.tex"         // (top level) Overleaf's main document for the project (the mock's MOCK_ROOT; unset, none)
 //   "history": "test/scenarios/blame-history.json" // (top level) the project's history (the mock's MOCK_HISTORY:
 //                  // its updates, labels and each line's insert, tools/mock/server.mjs), for Compare and Blame;
@@ -89,7 +94,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // the mock, on the scenario's project
 try { execFileSync("pkill", ["-f", `^node tools/mock/server.mjs ${MOCK}`]); } catch {}
 await sleep(500);
-const mock = spawn("node", ["tools/mock/server.mjs", String(MOCK)], { cwd: root, env: { ...process.env, MOCK_PROJECT: path.resolve(sc.project ?? "tools/mock/project"), ...(sc.root ? { MOCK_ROOT: sc.root } : {}), ...(sc.dashboard ? { MOCK_DASHBOARD: path.resolve(sc.dashboard) } : {}), ...(sc.history ? { MOCK_HISTORY: path.resolve(sc.history) } : {}) }, stdio: ["ignore", "pipe", "inherit"], detached: true });
+const mock = spawn("node", ["tools/mock/server.mjs", String(MOCK)], { cwd: root, env: { ...process.env, MOCK_PROJECT: path.resolve(sc.project ?? "tools/mock/project"), ...(sc.root ? { MOCK_ROOT: sc.root } : {}), ...(sc.dashboard ? { MOCK_DASHBOARD: path.resolve(sc.dashboard) } : {}), ...(sc.history ? { MOCK_HISTORY: path.resolve(sc.history) } : {}), ...(sc.mockEnv ?? {}) }, stdio: ["ignore", "pipe", "inherit"], detached: true });
 await new Promise((r) => mock.stdout.once("data", r));
 // Chromium with the extension
 if (fresh) fs.rmSync(path.join(root, PROFILE, "Default/IndexedDB"), { recursive: true, force: true });
@@ -118,7 +123,8 @@ ws.addEventListener("message", (m) => {
     const i = contexts.findIndex((c) => c.id === d.params.executionContextId);
     if (i >= 0) contexts.splice(i, 1);
   }
-  if (d.method === "Runtime.exceptionThrown") events.push({ t: Date.now() - T0, k: "EXCEPTION", d: d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text });
+  // (where it was thrown, when the script is known: a module's or a page's)
+  if (d.method === "Runtime.exceptionThrown") events.push({ t: Date.now() - T0, k: "EXCEPTION", d: `${d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text}${d.params.exceptionDetails.url ? ` (${d.params.exceptionDetails.url}:${d.params.exceptionDetails.lineNumber + 1})` : ""}` });
   if (d.method === "Runtime.consoleAPICalled" && /error|warn/.test(d.params.type)) events.push({ t: Date.now() - T0, k: `console.${d.params.type}`, d: d.params.args.map((a) => a.value ?? a.description).join(" ") });
   pending.get(d.id)?.(d);
 });
@@ -311,6 +317,9 @@ try {
   for (let i = 0; i < 20 && !contexts.some((c) => c.auxData?.frameId === tab.id && c.auxData?.type === "isolated"); i++) await sleep(250);
   // (the engine too: a scenario that sets it (plain-xetex's XeLaTeX) left every later run on it)
   await evalIn(`chrome.storage.local.remove(["follow", "panel", "engine", "engines"])`, true);
+  // (and no start failure a run before asked for (startup-errors.json), the mock's downloads as they are)
+  await evalIn(`localStorage.removeItem("phitex:test-failure")`);
+  await fetch(`http://localhost:${MOCK}/project/mock/zipmode?mode=ok`, { method: "POST" }).catch(() => undefined);
   const onboard = await evalIn(onboardScript(version, { workers: process.env.PHITEX_WORKERS === "1" ? 1 : 2, ...(sc.storage ?? {}) }));
   // (not onboarded, the run tests the welcome tip, not ⚡ Instant: a failure, said first)
   if (onboard !== "onboarded") {
@@ -686,7 +695,36 @@ for (const s of sc.steps ?? []) {
     await evalIn(`(() => { const r = document.querySelector("phitex-preview").shadowRoot; const el = r.querySelector('.slot[data-k="${s.scroll}"]'); if (el) r.getElementById("stage").scrollTop = el.offsetTop - 12; })()`, true);
     await call("Page.captureScreenshot", { format: "png" }); // (a frame: the observer sees the scroll)
   } else if (s.recompile) await evalIn(`document.getElementById("recompile").click()`);
-  else if (s.check !== undefined) {
+  else if (s.start !== undefined) {
+    // (the tab's start again, as a failure asks: the engine's (the page's
+    // phitex:test-failure, content-main.ts testFailure) or the project
+    // download's (the mock's zip mode); reloaded, not waited for a page,
+    // then until `until` (the content script's world) is true, else the run fails)
+    await evalIn(`${s.start.failure ? `localStorage.setItem("phitex:test-failure", ${JSON.stringify(s.start.failure)})` : `localStorage.removeItem("phitex:test-failure")`}`, false);
+    await fetch(`http://localhost:${MOCK}/project/mock/zipmode?mode=${s.start.zip ?? "ok"}`, { method: "POST" });
+    await call("Page.reload");
+    let ok = false;
+    for (const t0 = Date.now(); !ok && Date.now() - t0 < (s.ms ?? 30000); ) (await sleep(250), (ok = !!(await evalIn(s.until ?? "true", true))));
+    console.log(`${ok ? "ok  " : "FAIL"} start ${JSON.stringify(s.start)}${ok ? "" : `: not ${s.until} within ${s.ms ?? 30000} ms`}`);
+    if (!ok) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+  } else if (s.debuginfo !== undefined) {
+    // (Copy debug info as a user reaches it: the toolbar's status text or diagnostics button
+    // clicked, the popover's Copy debug info clicked, the clipboard read; each of `has` (regular
+    // expressions) found in it, and none of `hasnt`, else the run fails)
+    await call("Browser.grantPermissions", { origin: `http://localhost:${MOCK}`, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
+    await call("Emulation.setFocusEmulationEnabled", { enabled: true });
+    await evalIn(`navigator.clipboard.writeText("")`);
+    await evalIn(`document.getElementById(${JSON.stringify(s.debuginfo === "logs" ? "phitex-logs" : "phitex-status")}).click()`);
+    await sleep(400);
+    const said = await evalIn(`(() => { const b = document.querySelector("phitex-preview").shadowRoot.querySelector("#m-time:not([hidden]) .copydbg"); if (!b) return "no Copy debug info"; b.click(); return "clicked"; })()`, true);
+    await sleep(800);
+    const text = (await evalIn(`navigator.clipboard.readText()`)) ?? "";
+    await evalIn(`document.getElementById(${JSON.stringify(s.debuginfo === "logs" ? "phitex-logs" : "phitex-status")}).click()`);
+    const miss = [...(s.has ?? []).filter((r) => !new RegExp(r, "m").test(text)), ...(s.hasnt ?? []).filter((r) => new RegExp(r, "m").test(text)).map((r) => `not ${r}`)];
+    const ok = said === "clicked" && !miss.length;
+    console.log(`${ok ? "ok  " : "FAIL"} ${s.what ?? "Copy debug info"}${ok ? "" : `: ${said}; ${miss.join(" | ")} in:\n${text}`}`);
+    if (!ok) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+  } else if (s.check !== undefined) {
     // (an expression in the content script's world (the page's with "page": true) is `is` (deep; unset: true), else the run fails)
     s.result = await evalIn(s.check, !s.page);
     const ok = JSON.stringify(s.result) === JSON.stringify(s.is ?? true);

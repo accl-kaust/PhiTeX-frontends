@@ -27,6 +27,7 @@ import { resetAll } from "./settings.ts";
 import { answer, channel, follow, mirrorOut, remoteCore, tee, type Ask } from "./mirror.ts";
 import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
 import { StripPages } from "./common/strippages.ts";
+import { reportRow } from "./report.ts";
 
 /** The panel's preferences, in the extension's own storage (not the page's). */
 const prefs: Prefs = {
@@ -75,6 +76,126 @@ const pageFetch: typeof fetch = (u, o) => {
       (e) => (devMark(`fetch failed: ${e}`), Promise.reject(e)),
     );
 };
+
+/**
+ * A failure a scenario asks for (test/scenarios/startup-errors.json), on the
+ * local mock only: the page's `phitex:test-failure` (engine-page,
+ * engine-module, worker-fetch, worker-script). Never on overleaf.com.
+ */
+function testFailure(): string | undefined {
+  if (location.hostname !== "localhost") return undefined;
+  try {
+    return localStorage.getItem("phitex:test-failure") ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Where this tab's start got to, said wherever someone looks before a build
+ * has run: the card, the diagnostics button's title, the download's
+ * message, Copy debug info and the report. Each step sets it; a failure
+ * keeps it and says why (issue #39: a start that never ended said nothing).
+ */
+const boot = {
+  /** The step under way, as the card says it ("Downloading the project from Overleaf… (3.1 MB of 12 MB)"). */
+  stage: "Starting",
+  /** The step's head ("Downloading the project from Overleaf…"): the status text, before a build. */
+  head: "Starting…",
+  /** When this script started, on the page's clock. */
+  t0: performance.now(),
+  /** Each step's head, when it began, and how far it got (counts and sizes only: no file names). */
+  steps: [] as { h: string; t: number; far: string }[],
+  /** What failed, each with the step it stopped (no file names), in order; this script's uncaught errors too. */
+  errors: [] as string[],
+  /** Whether the start stopped at an error. */
+  failed: false,
+  /** Whether a build has come in (the core's settled event). */
+  built: false,
+  /** The project as last read: how many files, how big (no names; the main file's only). */
+  read: { files: 0, binaries: 0, bytes: 0, largest: [] as number[], main: "" },
+};
+/**
+ * The step, as the card says it (with how far: "12 of 3,000"), kept for the
+ * rest. `named`: its detail is a file's name, said on the card, never in
+ * the debug info.
+ */
+function reading(panel: Panel, r: Parameters<Panel["reading"]>[0], named = false): void {
+  const far = [r.detail, r.total ? `${r.done ?? 0} of ${r.total}` : ""].filter(Boolean).join(", ");
+  boot.stage = far ? `${r.h} (${far})` : r.h;
+  boot.head = r.h;
+  const safe = [named ? "" : r.detail, r.total ? `${r.done ?? 0} of ${r.total}` : ""].filter(Boolean).join(", ");
+  const last = boot.steps.at(-1);
+  if (last?.h === r.h) last.far = safe;
+  else boot.steps.push({ h: r.h, t: performance.now() - boot.t0, far: safe });
+  panel.reading(r);
+  bootShown();
+}
+/** The start stopped at `e`: kept, with its step (for the debug info: the step's head and how far, no names). */
+function bootFailed(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  const why = `${boot.stage.replace(/…/, "")} failed: ${msg}`;
+  const last = boot.steps.at(-1);
+  boot.errors.push(`${last ? `${last.h.replace(/…/, "")}${last.far ? ` (${last.far})` : ""}` : "Starting"} failed: ${msg}`);
+  boot.stage = why;
+  boot.head = "Couldn't start";
+  boot.failed = true;
+  bootShown();
+  return why;
+}
+/**
+ * Before a build, where the start is, where it can be seen: the status text
+ * in Overleaf's toolbar (a click opens the timings and Copy debug info) and
+ * the diagnostics button's title, never "starting…" with nothing behind it.
+ * After a build, the panel's own (onState).
+ */
+function bootShown(): void {
+  if (boot.built) return;
+  const b = document.getElementById("phitex-logs");
+  if (b) b.title = `PhiTeX diagnostics · ${boot.stage}`;
+  const st = document.getElementById("phitex-status");
+  if (st) {
+    st.querySelector(".phitex-st-text")!.textContent = boot.head;
+    st.querySelector(".phitex-st-more")!.textContent = "· debug info";
+    st.title = `${boot.stage}. Click for the details and Copy debug info (PhiTeX)`;
+    st.classList.toggle("err", boot.failed);
+  }
+}
+// (this script's own failures, on every page: what a report and Copy debug info say)
+addEventListener("error", (e) => void boot.errors.push(`uncaught (${boot.head.replace(/…/, "")}): ${e.message}`));
+addEventListener("unhandledrejection", (e) => void boot.errors.push(`unhandled (${boot.head.replace(/…/, "")}): ${(e.reason as Error)?.message ?? String(e.reason)}`));
+/** The engine's identity (the formats it ships are named by it: formats/names.txt, web-accessible for this), read once. */
+let identity: Promise<string> | undefined;
+const engineIdentity = () =>
+  (identity ??= fetch(chrome.runtime.getURL("formats/names.txt"))
+    .then((r) => (r.ok ? r.text() : ""))
+    .then((t) => /^[a-z]+-([0-9a-f]{16})-/m.exec(t)?.[1] ?? "?", () => "?"));
+const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
+/**
+ * The debug info's own lines, whatever state the tab is in (the engine never
+ * started, the read stuck): the extension, the engine's identity, the
+ * browser and system, each step with when it began and how far it got,
+ * every error with its step, the project's size (counts and sizes, its
+ * main file's name, no other names and no text), and this browser's
+ * isolation. The panel adds the build's and the machine's after.
+ */
+async function bootLines(): Promise<string[]> {
+  const m = chrome.runtime.getManifest();
+  const nav = navigator as Navigator & { userAgentData?: { platform?: string; brands?: { brand: string; version: string }[] } };
+  const s = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
+  const r = boot.read;
+  return [
+    `PhiTeX Instant ${m.version_name ?? m.version}, engine identity ${await engineIdentity()}, on ${location.host}`,
+    `browser: ${nav.userAgentData?.brands?.map((b) => `${b.brand} ${b.version}`).join(", ") || navigator.userAgent}; system: ${nav.userAgentData?.platform || navigator.platform}; ${navigator.hardwareConcurrency ?? "?"} cores`,
+    `isolation: crossOriginIsolated ${String(globalThis.crossOriginIsolated)}, SharedArrayBuffer ${typeof SharedArrayBuffer === "function" ? "available" : "missing"}`,
+    `start: ${boot.built ? "built" : boot.failed ? "stopped" : "under way"}, ${s(performance.now() - boot.t0)} since the page loaded`,
+    ...boot.steps.map((st) => `  ${s(st.t)} ${st.h}${st.far ? ` (${st.far})` : ""}`),
+    `project: ${r.files} text files, ${r.binaries} other files, a ${mb(r.bytes)} download${r.largest.length ? `; largest files ${r.largest.map(mb).join(", ")}` : ""}${r.main ? `; main file ${r.main}` : ""}`,
+    ...(boot.errors.length ? ["errors:", ...boot.errors.slice(-12).map((e) => `  ${e}`)] : ["errors: none"]),
+  ];
+}
+
+(globalThis as any).__phitexBoot = async () => ({ ...boot, lines: await bootLines() }); // (tests, devtools)
 
 const DETACHED = /^\/project\/[0-9a-f]{24}\/detached\/?$/.test(location.pathname);
 /** The editor tab while its PDF is in a separate tab (Overleaf's /detacher, pushed when the PDF is opened in another tab, loaded so when reloaded): it never floats a preview, the PDF tab shows it. */
@@ -142,7 +263,7 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
     // files, figures, in one request, ~1 s; given to the core before the
     // first build. No waiting on the file tree, whose collapsed folders
     // never show their docs' ids)
-    panel.reading({ h: "Downloading the project from Overleaf…" });
+    reading(panel, { h: "Downloading the project from Overleaf…" });
     const z = await pageFetch(`${project()}/download/zip`, { credentials: "include" });
     if (!z.ok) throw new Error(`project download failed: ${z.status}`);
     const size = Number(z.headers.get("content-length")) || 0;
@@ -159,19 +280,19 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
         if (done) break;
         parts.push(value);
         got += value.length;
-        panel.reading({ h: "Downloading the project from Overleaf…", detail: size ? `${mb(got)} of ${mb(size)}` : mb(got), pct: size ? Math.min(100, Math.round((100 * got) / size)) : undefined });
+        reading(panel, { h: "Downloading the project from Overleaf…", detail: size ? `${mb(got)} of ${mb(size)}` : mb(got), pct: size ? Math.min(100, Math.round((100 * got) / size)) : undefined });
       }
       own = new Uint8Array(got);
       let at = 0;
       for (const p of parts) (own.set(p, at), (at += p.length));
     } else {
-      if (size) panel.reading({ h: "Downloading the project from Overleaf…", detail: mb(size) });
+      if (size) reading(panel, { h: "Downloading the project from Overleaf…", detail: mb(size) });
       // (pageFetch's answer: this script's own bytes already)
       own = new Uint8Array(await z.arrayBuffer());
     }
     const zbuf = own.buffer as ArrayBuffer;
     devMark(`zip ${zbuf.byteLength} bytes`);
-    const { files: zipped, binaries: bin } = await readZip(zbuf, (name, k, n) => panel.reading({ h: "Unpacking the project…", detail: name, done: k + 1, total: n }));
+    const { files: zipped, binaries: bin } = await readZip(zbuf, (name, k, n) => reading(panel, { h: "Unpacking the project…", detail: name, done: k + 1, total: n }, true));
     devMark(`unzipped ${Object.keys(zipped).length} files`);
     Object.assign(files, zipped);
     // (a file deleted or renamed in Overleaf since the last read: withdrawn
@@ -186,13 +307,15 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
       await Promise.all(
         all.map(async ([p, b]) => {
           await giveBinary!(p, b);
-          panel.reading({ h: "Handing figures to the engine…", detail: p, done: ++given, total: all.length });
+          reading(panel, { h: "Handing figures to the engine…", detail: p, done: ++given, total: all.length }, true);
         }),
       );
     }
     const nf = Object.keys(files).length, nb = Object.keys(bin).length;
+    const sizes = [...Object.values(zipped).map((t) => t.length), ...Object.values(bin).map((b) => b.length)].sort((a, b) => b - a);
+    boot.read = { ...boot.read, files: nf, binaries: nb, bytes: zbuf.byteLength, largest: sizes.slice(0, 3) };
     const others = nb === 1 ? "1 figure or other file" : `${nb} figures and other files`;
-    panel.reading({ h: "Project read · checking packages…", detail: `${nf} ${nf === 1 ? "file" : "files"}, ${others}` });
+    reading(panel, { h: "Project read · checking packages…", detail: `${nf} ${nf === 1 ? "file" : "files"}, ${others}` });
     panel.files(Object.keys(files), [], `in ${((performance.now() - t) / 1000).toFixed(1)} s, with ${others}`);
     return files;
   }
@@ -272,26 +395,55 @@ class FrameTransport implements CoreTransport {
   private frame: HTMLIFrameElement | undefined;
   private nextId = 1;
   private waiting = new Map<number, (r: CoreRes) => void>();
-  async connect(): Promise<void> {
+  /**
+   * The engine's page in its frame, and its port, once the engine says it
+   * started (its worker made), else an error that says why. Before, an
+   * engine that never started left every request waiting and the card on
+   * "Reading the project" (issue #39). `wait`: told each step, for the card.
+   */
+  async connect(wait: (step: string) => void = () => {}): Promise<void> {
     const frame = (this.frame = document.createElement("iframe"));
-    frame.src = chrome.runtime.getURL("engine.html");
+    // (a scenario's failure, on the local mock only: the page missing)
+    const test = testFailure();
+    frame.src = chrome.runtime.getURL(test === "engine-page" ? "engine-missing.html" : "engine.html");
     frame.setAttribute("aria-hidden", "true");
     frame.tabIndex = -1;
     frame.style.display = "none";
     const loaded = new Promise((r) => frame.addEventListener("load", r, { once: true }));
     document.documentElement.append(frame);
+    wait("loading its page");
     await loaded;
     const ch = new MessageChannel();
-    frame.contentWindow!.postMessage("phitex-engine", new URL(chrome.runtime.getURL("")).origin, [ch.port2]);
     this.port = ch.port1;
-    this.port.onmessage = (m: MessageEvent<any>) => {
-      const r = m.data;
-      if (r.event) return this.events.forEach((f) => f(r));
-      this.waiting.get(r.id)?.(r);
-      this.waiting.delete(r.id);
-    };
+    const started = new Promise<void>((ok, no) => {
+      this.port.onmessage = (m: MessageEvent<any>) => {
+        const r = m.data;
+        if (r.event === "engine") return r.ok ? ok() : no(new Error(r.error));
+        if (r.event) return this.events.forEach((f) => f(r));
+        this.answer(r.id, r);
+      };
+    });
+    // (the frame gone (its process crashed, the page reloaded under it): what waits answered, and what comes after)
+    this.port.addEventListener("close", () => this.lost("the engine's page closed (its frame crashed or was removed)"));
+    this.port.onmessageerror = () => this.lost("a message from the engine couldn't be read");
+    frame.contentWindow!.postMessage({ src: "phitex-engine", test }, new URL(chrome.runtime.getURL("")).origin, [ch.port2]);
+    // (its page loaded: its script answers, the engine started or why not. A page whose script
+    // never runs (the browser blocking the extension's frame) can't answer: said as this step)
+    wait("its page loaded, waiting for it to answer");
+    await started;
     // (the project: the core keeps the document's records under it)
     this.port.postMessage({ id: 0, op: "hello", project: project(), graph: this.graph });
+  }
+  private answer(id: number, r: CoreRes) {
+    this.waiting.get(id)?.(r);
+    this.waiting.delete(id);
+  }
+  /** Why the engine can't answer any more, once it can't: every request waiting answered with it, every later one too. */
+  private gone_?: string;
+  private lost(why: string) {
+    this.gone_ ??= why;
+    for (const id of [...this.waiting.keys()]) this.answer(id, { ok: false, error: why } as CoreRes);
+    this.events.forEach((f) => f({ event: "trapped", error: why } as unknown as CoreEvent));
   }
   /** Let go of the core (a compare stopped): its iframe, and the core with it. */
   close(): void {
@@ -308,6 +460,7 @@ class FrameTransport implements CoreTransport {
       this.gone.splice(0).forEach((f) => f());
       return Promise.resolve({ ok: false, error: GONE } as CoreRes);
     }
+    if (this.gone_) return Promise.resolve({ ok: false, error: this.gone_ } as CoreRes);
     const id = this.nextId++;
     return new Promise((res) => {
       this.waiting.set(id, res);
@@ -683,6 +836,8 @@ function dockInOverleaf(panel: Panel): Dock {
   let statusNow: ViewState["status"] | null = null;
   function mirrorStatus(st: ViewState["status"] | null = statusNow): void {
     statusNow = st;
+    // (before a build: where the start is, bootShown's)
+    if (!boot.built) return bootShown();
     const b = document.getElementById("phitex-status");
     if (!b || !st) return;
     b.querySelector(".phitex-st-text")!.textContent = st.text;
@@ -728,7 +883,13 @@ function dockInOverleaf(panel: Panel): Dock {
       `<li><button type="button" class="dropdown-item" data-dl="instant">⚡ Instant PDF <span class="text-muted small">PhiTeX, experimental</span></button></li>` +
       `<li><button type="button" class="dropdown-item" data-dl="compiled">Compiled PDF <span class="text-muted small">Overleaf</span></button></li></ul></div>`;
     l.querySelector<HTMLElement>("#phitex-clean")!.onclick = () => panel.clean();
-    l.querySelector<HTMLElement>("#phitex-logs")!.onclick = () => panel.diagnostics();
+    // (before a build there are no diagnostics: the start's step or error, and Copy debug info, as the status's click opens them)
+    l.querySelector<HTMLElement>("#phitex-logs")!.onclick = (e) => {
+      if (boot.built) return panel.diagnostics();
+      e.stopPropagation();
+      panel.msg(boot.failed ? boot.stage : `No build yet: ⚡ Instant is at "${boot.stage}".`, boot.failed);
+      panel.timingAt(e.currentTarget as HTMLElement);
+    };
     // (the last build's times under the button, as the panel's own status opens them; the settings are the zoom menu's)
     const stBtn = l.querySelector<HTMLElement>("#phitex-status")!;
     stBtn.onclick = (e) => (e.stopPropagation(), panel.timingAt(stBtn));
@@ -782,7 +943,8 @@ function dockInOverleaf(panel: Panel): Dock {
     if (b) {
       b.textContent = s.diagCount ? String(s.diagCount) : "";
       b.className = `phitex-badge ${s.diagWorst}`;
-      document.getElementById("phitex-logs")!.title = `PhiTeX diagnostics${s.diagCount ? ` (${s.diagCount})` : ""} · ${s.chip}`;
+      // (before a build, the step the start is at, or why it stopped, not "starting…" for ever)
+      document.getElementById("phitex-logs")!.title = `PhiTeX diagnostics${s.diagCount ? ` (${s.diagCount})` : ""} · ${boot.built ? s.chip : boot.stage}`;
     }
   });
 
@@ -1168,6 +1330,11 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
       // (a job that stopped, at a fatal error or a missing file, left pdfTeX's file
       // unfinished: no xref, no trailer, which no viewer opens; said, not saved)
       const tail = pdf && new TextDecoder("latin1").decode(pdf.subarray(Math.max(0, pdf.length - 64)));
+      // (no build yet: where the start is, or why it stopped; never "the build stopped", there was none)
+      if (!boot.built) {
+        panel.msg(boot.errors.length ? `No PDF: ${boot.stage}` : `No PDF yet: no build has run. ⚡ Instant is at "${boot.stage}".`, true);
+        return;
+      }
       if (!pdf || !pdf.length || !tail!.includes("%%EOF")) {
         panel.msg("No complete PDF yet: the build stopped before the end of the document (see ⓘ diagnostics). Fix that, or download Overleaf's compiled PDF from the ▾ menu.", true);
         return;
@@ -1203,8 +1370,11 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     // (the anonymized debug report: report.ts, shown before it is sent)
     onReport: async () => {
       const m = chrome.runtime.getManifest();
-      return session?.report({ version: m.version, engine: m.version_name?.match(/engine ([0-9a-f]+)/)?.[1] ?? "?", userAgent: navigator.userAgent }) ?? "No session yet: nothing to report.";
+      // (no session yet (the engine didn't start, the project wasn't read): the start's own lines)
+      return session?.report({ version: m.version, engine: m.version_name?.match(/engine ([0-9a-f]+)/)?.[1] ?? "?", userAgent: navigator.userAgent }) ?? [...(await bootLines()), `machine: ${navigator.userAgent}`].join("\n") + "\n";
     },
+    // (Copy debug info: the extension, where the start is, its errors; the panel adds the build's and the machine's)
+    onDebugInfo: async () => bootLines(),
     onGotoRange: (file, from, to, focus) => DETACHED || window.postMessage({ src: "phitex-content", type: "gotoRange", file, from, to, focus }, location.origin),
     onSelectPage: (sel) => (DETACHED ? undefined : void shown()?.selectPage(sel)),
     onReload: async () => session?.refresh(await fetchDocs(panel)),
@@ -1245,6 +1415,23 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
       own: document.querySelector<HTMLMetaElement>('meta[name="ol-user_id"]')?.content || undefined,
     }),
   });
+  // ("Report this" (report.ts) wherever the panel shows an error or the debug info: the card a start
+  // that failed leaves, the timings' popover (Copy debug info), and Report a problem's dialog, each
+  // given its row as it appears; the panel draws them again, the row is put back)
+  {
+    const root = (panel as unknown as { root: ShadowRoot }).root;
+    const debugText = async () => [...(await bootLines()), `machine: ${navigator.userAgent}`].join("\n") + "\n";
+    const add = () => {
+      const card = root.querySelector<HTMLElement>("#empty:not([hidden]) .card");
+      if (card && /Couldn't open/.test(card.querySelector("h3")?.textContent ?? "") && !card.querySelector(".phx-report")) card.append(reportRow(debugText));
+      const time = root.querySelector<HTMLElement>("#m-time:not([hidden])");
+      if (time?.querySelector(".copydbg") && !time.querySelector(".phx-report")) time.append(reportRow(debugText));
+      const dialog = root.querySelector<HTMLElement>("#report:not([hidden])");
+      const text = root.querySelector<HTMLTextAreaElement>("#reporttext");
+      if (dialog && text && !dialog.querySelector(".phx-report")) text.after(reportRow(async () => text.value));
+    };
+    new MutationObserver(add).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
+  }
   // (a tab opened at a place (a link Ctrl+clicked in another): its pages start there, lit once shown)
   {
     const at = /^#at=(\d+),(\d+)$/.exec(location.hash);
@@ -1365,9 +1552,14 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
       if (!c.panel.newValue) panel.zoomTo("fit");
     }
   });
-  chrome.runtime.onMessage.addListener((m) => {
+  chrome.runtime.onMessage.addListener((m, _from, reply) => {
     if (m?.type === "phitex-tour") dock?.tour();
     if (m?.type === "phitex-news") dock?.news();
+    // (the toolbar popup's Copy debug info: this tab's, whatever state it is in)
+    if (m?.type === "phitex-debug-info") {
+      void bootLines().then((l) => reply([...l, `machine: ${navigator.userAgent}`].join("\n") + "\n"));
+      return true;
+    }
   });
   /** The session: the core connected, the project loaded, closed docs followed. */
   async function go(): Promise<void> {
@@ -1530,6 +1722,8 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
   // asks at once, so the reason is said now (and it reopens, or stops on a
   // document too large), not at whatever request came next)
   transport.onEvent((e) => void ((e as { event?: string }).event === "trapped" && session?.resync()));
+  // (and before a build: the start stopped there, with why, for the status text and Copy debug info)
+  transport.onEvent((e) => void ((e as { event?: string }).event === "trapped" && !boot.built && !boot.failed && bootFailed(new Error((e as { error?: string }).error ?? "the engine stopped"))));
   transport.onGone(() => {
     const t = document.createElement("div");
     t.className = "popover bs-popover-top show phitex-toast";
@@ -1542,10 +1736,16 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
   try {
     devMark("connect");
     if (contextGone()) return;
-    await transport.connect();
+    reading(panel, { h: "Starting the engine…" });
+    await transport.connect((step) => reading(panel, { h: "Starting the engine…", detail: step }));
     devMark("connected");
-    giveBinary = (path, bytes) => transport.request({ op: "binary", file: path, bytes } as never);
-    takeBinary = (path) => transport.request({ op: "withdraw", file: path } as never);
+    // (a figure the engine didn't take: the read stops there, saying so, not a build missing it)
+    const given = (what: string) => (r: CoreRes) => {
+      if (!r.ok) throw new Error(`${what}: ${(r as { error?: string }).error ?? "the engine refused it"}`);
+      return r;
+    };
+    giveBinary = (path, bytes) => transport.request({ op: "binary", file: path, bytes } as never).then(given(`giving a file of ${mb(bytes.length)} to the engine`));
+    takeBinary = (path) => transport.request({ op: "withdraw", file: path } as never).then(given("taking a file back from the engine"));
     let engineSetting: EngineChoice = "auto", projectEngine: Engine | undefined;
     const readEngine = async () => {
       const { engine, engines } = await chrome.storage.local.get(["engine", "engines"]);
@@ -1586,6 +1786,8 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     // would stay "loading"; and the build's own times in the trace)
     transport.onEvent((e) => {
       if (e.event !== "settled") return;
+      if (!boot.built) boot.steps.push({ h: "Built", t: performance.now() - boot.t0, far: "" });
+      boot.built = true;
       session.tr("settled", e);
       void (session as unknown as { core: CoreTransport }).core.request({ op: "status" });
     });
@@ -1600,6 +1802,8 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     // (then Overleaf's own main document, its Menu's, when the hook heard it already: else it follows when heard, followRoot)
     const picked = ((await chrome.storage.local.get("mains")).mains as Record<string, string> | undefined)?.[project()];
     const main = picked && picked in files ? picked : overleafRoot && overleafRoot in files ? overleafRoot : guessMain(files);
+    boot.read.main = main ?? "";
+    reading(panel, { h: "Opening the main file (the first build)…", detail: main ?? undefined });
     sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), main);
     resyncMains = () => sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), session.main);
     if (!main) throw new Error("no main .tex file found");
@@ -1619,7 +1823,8 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
       }
     }, FOLLOW_MS);
   } catch (e) {
-    panel.error(String(e));
+    // (the step it stopped at, and why: the card, the status, the title, Copy debug info)
+    panel.error(bootFailed(e));
   }
   }
 

@@ -96,10 +96,16 @@ a slow connection); later opens start at once and work offline.
   public API.
 - One project per tab.
 
-**A bug**: ⓘ → **Report a problem…** shows an anonymized report (versions,
-timings, errors, package names; no document text, files named
-`file1.tex`, …) to copy or email to flinner@nand.sh. Nothing is sent
-unless you send it.
+**A bug**: we'd love to hear about it, as a
+[GitHub issue](https://github.com/accl-kaust/PhiTeX/issues/new?template=crash.yml)
+or an email to flinner@nand.sh. Click the status text in the PDF toolbar
+(beside the ⚡ Instant switch), or the extension's toolbar button, then
+**Copy debug info**; **Report this** beside it drafts the issue or the email
+with the debug info in it. It works even when ⚡ Instant never started. The
+debug info holds versions, the browser, where the start got to, errors and
+the project's size, but no document text and no file names but the main
+file's. ⓘ → **Report a problem…** shows a fuller anonymized report (timings,
+package names, files named `file1.tex`, …). Nothing is sent unless you send it.
 
 ### VS Code
 
