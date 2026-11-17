@@ -1,0 +1,205 @@
+{
+ "//": "The mock dashboard's projects (tools/mock/server.mjs, MOCK_DASHBOARD): each an id (24 hex), a name, an age (40m 5h 3d 2w 6mo 1y: last edited that long before the mock started), an owner if shared with the user (else the user's own), archived or trashed; Overleaf's tags; the folders as stored (data/folders.json, without its dataFolder). The storage project .phitex-data is added, edited a minute ago (\"storage\": false, none).",
+ "projects": [
+  {
+   "id": "6a0000000000000000000001",
+   "name": "Grail ISCA",
+   "ago": "2h"
+  },
+  {
+   "id": "6a0000000000000000000002",
+   "name": "PhiTeX paper",
+   "ago": "5h"
+  },
+  {
+   "id": "6a0000000000000000000003",
+   "name": "Lecture notes: Compilers",
+   "ago": "1d",
+   "owner": "Mohamed Bouaziz"
+  },
+  {
+   "id": "6a0000000000000000000004",
+   "name": "CV",
+   "ago": "3d"
+  },
+  {
+   "id": "6a0000000000000000000005",
+   "name": "Thesis proposal",
+   "ago": "4d"
+  },
+  {
+   "id": "6a0000000000000000000006",
+   "name": "Old draft",
+   "ago": "1w"
+  },
+  {
+   "id": "6a0000000000000000000007",
+   "name": "Archived talk",
+   "ago": "10m",
+   "archived": true
+  },
+  {
+   "id": "6a0000000000000000000008",
+   "name": "Trashed notes",
+   "ago": "20m",
+   "trashed": true
+  },
+  {
+   "id": "6a0000000000000000000009",
+   "name": "Homework 3 solutions",
+   "ago": "2w"
+  },
+  {
+   "id": "6a000000000000000000000a",
+   "name": "Reading group slides",
+   "ago": "3w"
+  },
+  {
+   "id": "6a000000000000000000000b",
+   "name": "Grant report 2026",
+   "ago": "1mo"
+  },
+  {
+   "id": "6a000000000000000000000c",
+   "name": "Poster: split learning",
+   "ago": "1mo"
+  },
+  {
+   "id": "6a000000000000000000000d",
+   "name": "Referee report",
+   "ago": "2mo"
+  },
+  {
+   "id": "6a000000000000000000000e",
+   "name": "Workshop abstract",
+   "ago": "2mo"
+  },
+  {
+   "id": "6a000000000000000000000f",
+   "name": "Cover letter",
+   "ago": "3mo"
+  },
+  {
+   "id": "6a0000000000000000000010",
+   "name": "Meeting notes",
+   "ago": "3mo"
+  },
+  {
+   "id": "6a0000000000000000000011",
+   "name": "Course syllabus",
+   "ago": "4mo"
+  },
+  {
+   "id": "6a0000000000000000000012",
+   "name": "CGRA survey",
+   "ago": "5mo"
+  },
+  {
+   "id": "6a0000000000000000000013",
+   "name": "Lab handbook",
+   "ago": "6mo"
+  },
+  {
+   "id": "6a0000000000000000000014",
+   "name": "Exam: midterm",
+   "ago": "7mo"
+  },
+  {
+   "id": "6a0000000000000000000015",
+   "name": "Exam: final",
+   "ago": "8mo"
+  },
+  {
+   "id": "6a0000000000000000000016",
+   "name": "Benchmark appendix",
+   "ago": "9mo"
+  },
+  {
+   "id": "6a0000000000000000000017",
+   "name": "Rebuttal",
+   "ago": "10mo"
+  },
+  {
+   "id": "6a0000000000000000000018",
+   "name": "Camera ready",
+   "ago": "11mo"
+  },
+  {
+   "id": "6a0000000000000000000019",
+   "name": "Seminar talk",
+   "ago": "1y"
+  },
+  {
+   "id": "6a000000000000000000001a",
+   "name": "Notes on TeX",
+   "ago": "1y"
+  },
+  {
+   "id": "6a000000000000000000001b",
+   "name": "Budget",
+   "ago": "1y"
+  }
+ ],
+ "tags": [
+  {
+   "_id": "t0000000000000000000001a",
+   "name": "thesis",
+   "color": "#e36d66",
+   "project_ids": [
+    "6a0000000000000000000005",
+    "6a0000000000000000000002"
+   ]
+  }
+ ],
+ "folders": {
+  "version": 1,
+  "rev": 5,
+  "folders": {
+   "a1b2c3d4": {
+    "name": "Papers",
+    "parent": null
+   },
+   "b2c3d4e5": {
+    "name": "PhiTeX",
+    "parent": "a1b2c3d4"
+   },
+   "c3d4e5f6": {
+    "name": "Teaching",
+    "parent": null
+   }
+  },
+  "projects": {
+   "6a0000000000000000000001": "a1b2c3d4",
+   "6a0000000000000000000002": "b2c3d4e5",
+   "6a0000000000000000000005": "a1b2c3d4",
+   "6a0000000000000000000003": "c3d4e5f6",
+   "6a0000000000000000000009": "c3d4e5f6",
+   "6a0000000000000000000007": "a1b2c3d4",
+   "6a000000000000000000000d": "a1b2c3d4",
+   "6a0000000000000000000011": "c3d4e5f6",
+   "6a0000000000000000000014": "c3d4e5f6"
+  },
+  "statuses": [
+   {
+    "id": "idea",
+    "name": "idea",
+    "color": "#8d96a5"
+   },
+   {
+    "id": "drafting",
+    "name": "drafting",
+    "color": "#3d7fe0"
+   },
+   {
+    "id": "submitted",
+    "name": "submitted",
+    "color": "#098842"
+   }
+  ],
+  "status": {
+   "6a0000000000000000000001": "submitted",
+   "6a0000000000000000000002": "drafting",
+   "6a0000000000000000000005": "idea"
+  }
+ }
+}

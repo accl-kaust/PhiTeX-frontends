@@ -6,7 +6,7 @@
 # Nothing is written into apps/.
 #
 #   tools/build/build.sh          # release
-#   tools/build/build.sh --dev    # also match the local mock (http://localhost:<any port>/project/*)
+#   tools/build/build.sh --dev    # also match the local mock (http://localhost:<any port>/project*)
 #
 # The engine is PhiTeX's (the phitex/ submodule): crates/wasm/live built by
 # its scripts/wasm-live.sh into target/wasm-live, core.wasm (threaded, the
@@ -126,7 +126,8 @@ tools/sandbox node -e '
   const fs = require("fs"), m = JSON.parse(fs.readFileSync("apps/overleaf/manifest.base.json"));
   m.version_name = `${m.version_name ?? m.version} (engine ${process.argv[2]})`;
   if (process.argv[1] === "true") {
-    for (const c of m.content_scripts) c.matches.push("http://localhost/project/*");
+    // (each script on the mock where it runs on overleaf.com: the editor at /project/*, the dashboard at /project too)
+    for (const c of m.content_scripts) c.matches.push(...c.matches.map((u) => u.replace("https://www.overleaf.com/", "http://localhost/")));
     m.web_accessible_resources[0].matches.push("http://localhost/*");
   }
   fs.writeFileSync("build/overleaf/manifest.json", JSON.stringify(m, null, 2) + "\n");' "$dev" "$engine"

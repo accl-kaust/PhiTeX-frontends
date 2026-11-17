@@ -7,6 +7,11 @@
 // Overleaf source ZIP ("Download as source"), binaries (figures) included.
 // Recompile runs the local pdflatex (twice) on a copy in /tmp/tex/mock,
 // as Overleaf's compile: its PDF, log and download, to compare with PhiTeX's.
+// The project dashboard at /project (dashboard.html): MOCK_DASHBOARD, a JSON
+// file of the user's projects, tags and folders (test/scenarios/dashboard/
+// projects.json says how), the folders kept in the storage project as the
+// extension keeps them (folders/project.ts: its zip's data/folders.json, an
+// upload replacing it).
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -131,6 +136,41 @@ function compile() {
   });
 }
 
+/** The dashboard's projects (Overleaf's API's shape), tags and storage project, from MOCK_DASHBOARD; null without one. */
+const dash = (() => {
+  if (!process.env.MOCK_DASHBOARD) return null;
+  const f = JSON.parse(fs.readFileSync(process.env.MOCK_DASHBOARD, "utf8"));
+  // (an age, "40m" "5h" "3d" "2w" "6mo" "1y", as a date that long before the mock started)
+  const units = { m: 60e3, h: 3600e3, d: 86400e3, w: 604800e3, mo: 2592000e3, y: 31536000e3 };
+  const at = (age) => {
+    const [, n, u] = /^(\d+)(mo|[mhdwy])$/.exec(age) ?? [, "0", "m"];
+    return new Date(Date.now() - +n * units[u]).toISOString();
+  };
+  const person = (name) => {
+    const [firstName, ...rest] = name.split(" ");
+    return { id: `u-${name.replace(/\W/g, "")}`, firstName, lastName: rest.join(" "), email: `${firstName.toLowerCase()}@example.org` };
+  };
+  const me = { id: "u-me", firstName: "Mock", lastName: "User", email: "me@example.org" };
+  const projects = f.projects.map((p) => ({
+    id: p.id, name: p.name, lastUpdated: at(p.ago ?? "1d"), accessLevel: p.owner ? "readAndWrite" : "owner", source: p.owner ? "invite" : "owner",
+    archived: !!p.archived, trashed: !!p.trashed, owner: p.owner ? person(p.owner) : me, lastUpdatedBy: p.owner ? person(p.owner) : me,
+  }));
+  // (the storage project, the folders' own: edited at each change to them, so the newest; "storage": false, none)
+  const storage = f.storage === false ? null : { id: "5f0000000000000000000da7", file: null, text: JSON.stringify({ ...f.folders, dataFolder: "5f0000000000000000000d07" }) };
+  if (storage) projects.push({ id: storage.id, name: ".phitex-data", lastUpdated: at("1m"), accessLevel: "owner", source: "owner", archived: false, trashed: false, owner: me, lastUpdatedBy: me });
+  return { projects, tags: f.tags ?? [], storage };
+})();
+/** A multipart body's file part's bytes (the upload's qqfile). */
+const filePart = (body, type) => {
+  const boundary = "--" + /boundary=(.+)$/.exec(type)?.[1];
+  for (const part of body.toString("latin1").split(boundary)) {
+    const i = part.indexOf("\r\n\r\n");
+    if (i > 0 && /filename=/.test(part.slice(0, i))) return Buffer.from(part.slice(i + 4, part.lastIndexOf("\r\n")), "latin1");
+  }
+  return null;
+};
+const escapeAttr = (t) => t.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
 http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   // (served as overleaf.com is: COOP same-origin and COEP credentialless,
@@ -147,6 +187,30 @@ http.createServer((req, res) => {
     const nonce = Math.random().toString(36).slice(2);
     res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": `script-src 'nonce-${nonce}' 'unsafe-inline' 'strict-dynamic' https: 'report-sample'`, ...iso });
     return res.end(fs.readFileSync(path.join(dir, "overleaf.html"), "utf8").replaceAll("<script", `<script nonce="${nonce}"`));
+  }
+  // (the dashboard, and the storage project's endpoints the folders use: read, list, write)
+  if (dash && (u.pathname === "/project" || u.pathname === "/project/")) {
+    const blob = escapeAttr(JSON.stringify({ totalSize: dash.projects.length, projects: dash.projects }));
+    const page = fs.readFileSync(path.join(dir, "dashboard.html"), "utf8").replace('content="__BLOB__"', `content="${blob}" data-tags="${escapeAttr(JSON.stringify(dash.tags))}"`);
+    return send(200, "text/html; charset=utf-8", page);
+  }
+  if (dash && u.pathname === "/api/project" && req.method === "POST") return send(200, "application/json", JSON.stringify({ totalSize: dash.projects.length, projects: dash.projects }));
+  const st = dash?.storage;
+  if (st && u.pathname.toLowerCase() === `/project/${st.id}/download/zip`) return send(200, "application/zip", zip([["main.tex", "% the folders' storage (mock)\n"], ["data/folders.json", st.text]]));
+  if (st && (m = u.pathname.match(/^\/Project\/(\w+)\/file\/(\w+)$/i)) && m[1] === st.id)
+    return m[2] === st.file ? send(200, "application/json", st.text) : send(404, "text/plain", "not found");
+  if (st && u.pathname === `/project/${st.id}/folder` && req.method === "POST") return send(200, "application/json", JSON.stringify({ _id: "5f0000000000000000000d07", name: "data" }));
+  if (st && u.pathname.toLowerCase() === `/project/${st.id}/upload` && req.method === "POST") {
+    const parts = [];
+    req.on("data", (c) => parts.push(c));
+    req.on("end", () => {
+      const b = filePart(Buffer.concat(parts), req.headers["content-type"] ?? "");
+      if (!b) return send(400, "application/json", JSON.stringify({ success: false, error: "no file" }));
+      st.text = b.toString("utf8");
+      st.file = `f${String(++n).padStart(23, "0")}`;
+      send(200, "application/json", JSON.stringify({ success: true, entity_id: st.file, entity_type: "file" }));
+    });
+    return;
   }
   // (the editor: CodeMirror 6 and Overleaf's grammar, tools/build/mock-editor.sh)
   if (u.pathname === "/project/mock/editor.js") {

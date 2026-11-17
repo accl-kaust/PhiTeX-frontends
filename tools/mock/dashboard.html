@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Projects - Mock Overleaf</title>
+<!-- The mock's project dashboard (/project): Overleaf's markup as far as the
+     folders' content script (apps/overleaf/src/folders) reads and docks into
+     it (project-list-ds-nav.tsx, project-list-table-row.tsx, load-more.tsx),
+     its colours (light: data-theme="light"; dark: "default"), and a stand-in
+     for its React state: ProjectListContext's value, on a fiber where
+     folders/overleaf.ts's dashboard() looks for it. The projects: the
+     ol-prefetchedProjectsBlob meta, which tools/mock/server.mjs fills in. -->
+<meta name="ol-prefetchedProjectsBlob" content="__BLOB__">
+<meta name="ol-csrfToken" content="mock">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0">
+<style>
+  /* Overleaf's tokens (foundations/colors.scss, themes-common-variables.scss): dark by default, light under data-theme="light" */
+  :root {
+    --bg-primary-themed: #1b222c; --bg-secondary-themed: #2f3a4c; --bg-tertiary-themed: #495365;
+    --content-primary-themed: #f4f5f6; --content-secondary-themed: #e7e9ee; --content-disabled-themed: #677283;
+    --border-divider-themed: #2f3a4c; --border-active-themed: #97b6e5; --link-ui-themed: #97b6e5;
+    --border-divider: #e7e9ee; --border-active: #366cbf; --content-danger: #b83a33;
+    --ds-nav-color-scheme: dark; --table-icon-bg-hover: 255 255 255;
+  }
+  [data-theme="light"] {
+    --bg-primary-themed: #fff; --bg-secondary-themed: #f4f5f6; --bg-tertiary-themed: #e7e9ee;
+    --content-primary-themed: #1b222c; --content-secondary-themed: #495365; --content-disabled-themed: #afb5c0;
+    --border-divider-themed: #e7e9ee; --border-active-themed: #366cbf; --link-ui-themed: #366cbf;
+    --ds-nav-color-scheme: light; --table-icon-bg-hover: 27 34 44;
+  }
+  .material-symbols { font-family: "Material Symbols Rounded"; font-weight: normal; font-style: normal; font-size: 20px; line-height: 1; display: inline-block;
+    white-space: nowrap; direction: ltr; font-feature-settings: "liga"; -webkit-font-smoothing: antialiased; font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20; }
+  html, body { height: 100%; }
+  body { margin: 0; color-scheme: var(--ds-nav-color-scheme); background: var(--bg-primary-themed); color: var(--content-secondary-themed); font-family: "Noto Sans", system-ui, sans-serif; font-size: 16px; }
+  .project-list-wrapper { display: flex; min-height: 100%; }
+  .project-list-sidebar { flex: none; width: 260px; padding: 16px 8px; background: var(--bg-secondary-themed); }
+  .project-list-sidebar .logo { padding: 8px 16px 20px; font-weight: 700; font-size: 20px; color: #098842; }
+  .project-list-filters { margin: 0 0 12px; }
+  .project-list-filters li > button, .project-list-filters .tag-name { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 16px; border: 0; border-radius: 6px; background: none; color: var(--content-secondary-themed); text-align: left; font-size: 14px; }
+  .project-list-filters li.active > button { background: var(--bg-tertiary-themed); color: var(--content-primary-themed); font-weight: 600; }
+  .project-list-filters .tag { display: flex; align-items: center; }
+  .project-list-filters .tag .tag-menu { display: none; }
+  .project-list-filters .dropdown-header { padding: 12px 16px 4px; font-size: 12px; font-weight: 600; color: var(--content-secondary-themed); }
+  .project-list-filters .subdued { opacity: .65; }
+  .project-ds-nav-main { flex: 1; min-width: 0; padding: 24px 32px; }
+  .project-list-header-row { display: flex; align-items: center; gap: 12px; min-height: 40px; margin-bottom: 16px; }
+  .project-list-title { font-size: 24px; font-weight: 600; margin: 0; color: var(--content-primary-themed); }
+  .form-control-wrapper { position: relative; }
+  .form-control-wrapper .form-control-start-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--content-secondary-themed); }
+  .form-control-wrapper .form-control-offset-start { padding-left: 38px; }
+  .form-control { background: var(--bg-primary-themed); color: var(--content-primary-themed); border-color: var(--bg-tertiary-themed); }
+  .form-control::placeholder { color: var(--content-disabled-themed); }
+  .btn-primary { --bs-btn-bg: #098842; --bs-btn-border-color: #098842; --bs-btn-hover-bg: #1e6b41; --bs-btn-hover-border-color: #1e6b41; border-radius: 9999px; }
+  .btn-secondary { --bs-btn-bg: var(--bg-primary-themed); --bs-btn-color: var(--content-primary-themed); --bs-btn-border-color: var(--bg-tertiary-themed); --bs-btn-hover-bg: var(--bg-secondary-themed); --bs-btn-hover-color: var(--content-primary-themed); --bs-btn-hover-border-color: var(--bg-tertiary-themed); border-radius: 9999px; }
+  /* the table (pages/project-list.scss) */
+  .project-dash-table { width: 100%; table-layout: fixed; font-size: 14px;
+    --bs-table-bg: transparent; --bs-table-color: var(--content-secondary-themed); --bs-table-hover-color: var(--content-primary-themed);
+    --bs-table-hover-bg: rgb(var(--table-icon-bg-hover) / 4%); --bs-border-color: var(--border-divider-themed); }
+  .project-dash-table th { color: var(--content-secondary-themed); font-weight: bold; white-space: nowrap; }
+  .project-dash-table td { vertical-align: middle; padding-top: 12px; padding-bottom: 12px; }
+  .project-dash-table .dash-cell-name a { color: var(--content-primary-themed); font-weight: 600; text-decoration: none; }
+  .project-dash-table .dash-cell-name a:hover { text-decoration: underline; }
+  .project-dash-table .table-header-sort-btn { border: 0; padding: 0; background: none; color: var(--content-secondary-themed); font-weight: bold; }
+  .project-dash-table .dash-cell-name { width: 46%; word-break: break-word; }
+  .project-dash-table .dash-cell-owner { width: 13%; overflow: hidden; text-overflow: ellipsis; }
+  .project-dash-table .dash-cell-date { width: 19%; }
+  .project-dash-table .dash-cell-checkbox { width: 3%; }
+  .project-dash-table .dash-cell-actions { width: 17%; text-align: right; white-space: nowrap; }
+  .project-dash-table .dash-cell-date-owner { font-size: 13px; }
+  .project-dash-table .action-btn { padding: 2px 4px; color: var(--content-secondary-themed); }
+  .project-dash-table th.olf-status-col, .project-dash-table td.olf-status-cell { width: 12%; }
+  .badge-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; padding: 0 6px; border-radius: 4px; background: var(--bg-tertiary-themed); color: var(--content-primary-themed); font-size: 12px; font-weight: 400; }
+  .badge-tag::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c, #8d96a5); }
+  .dropdown-menu { --bs-dropdown-bg: var(--bg-primary-themed); --bs-dropdown-color: var(--content-primary-themed); --bs-dropdown-link-color: var(--content-primary-themed); --bs-dropdown-border-color: var(--bg-tertiary-themed); --bs-dropdown-link-hover-bg: var(--bg-secondary-themed); --bs-dropdown-link-hover-color: var(--content-primary-themed); }
+  .text-center p { color: var(--content-secondary-themed); font-size: 14px; }
+  /* a phone: no sidebar; each row a column of its cells, the actions at its top right (media-breakpoint-down(md)) */
+  @media (max-width: 767.98px) {
+    .project-list-sidebar { display: none; }
+    .project-ds-nav-main { padding: 16px; }
+    .project-dash-table tr { position: relative; display: flex; flex-direction: column; }
+    .project-dash-table tr:not(:last-child) { border-bottom: 1px solid var(--border-divider-themed); }
+    .project-dash-table td { border-bottom-width: 0; padding-top: 4px; padding-bottom: 4px; }
+    .project-dash-table td:not(.dash-cell-actions) { padding-right: 55px; }
+    .project-dash-table .dash-cell-name, .project-dash-table .dash-cell-owner, .project-dash-table .dash-cell-date, .project-dash-table .dash-cell-tag, .project-dash-table .dash-cell-actions { display: block; width: auto; }
+    .project-dash-table .dash-cell-actions { position: absolute; top: 8px; right: 8px; padding: 0 !important; }
+  }
+</style>
+</head>
+<body>
+<div id="project-list-root">
+  <div class="project-ds-nav-page">
+    <div class="project-list-wrapper">
+      <aside class="project-list-sidebar">
+        <div class="logo">Overleaf <small class="text-muted fw-normal">(mock)</small></div>
+        <ul class="list-unstyled project-list-filters" id="filters"></ul>
+      </aside>
+      <div class="project-ds-nav-main">
+        <div class="project-list-header-row">
+          <h1 class="project-list-title text-truncate" id="title">All projects</h1>
+        </div>
+        <div class="project-ds-nav-project-list">
+          <div class="row d-flex align-items-center">
+            <div class="col">
+              <div class="form-control-wrapper">
+                <span class="form-control-start-icon"><span class="material-symbols" aria-hidden="true">search</span></span>
+                <input type="text" class="form-control-offset-start form-control" id="search" placeholder="Search in all projects…" aria-label="Search in all projects…">
+              </div>
+            </div>
+            <div class="ms-auto col-auto">
+              <div class="new-project-dropdown dropdown"><button type="button" class="btn btn-primary">New project</button></div>
+            </div>
+          </div>
+          <div class="mt-3">
+            <table class="table table-hover project-dash-table" id="table">
+              <thead><tr>
+                <th class="dash-cell-checkbox d-none d-md-table-cell"><input type="checkbox" class="form-check-input" aria-label="Select all projects"></th>
+                <th class="dash-cell-name"><button type="button" class="table-header-sort-btn">Title</button></th>
+                <th class="dash-cell-owner d-none d-md-table-cell"><button type="button" class="table-header-sort-btn">Owner</button></th>
+                <th class="dash-cell-date d-none d-md-table-cell"><button type="button" class="table-header-sort-btn">Last modified <span class="material-symbols">arrow_downward_alt</span></button></th>
+                <th class="dash-cell-actions">Actions</th>
+              </tr></thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+          <div class="mt-3"><div class="text-center" id="more"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// Overleaf's dashboard, as far as the extension sees it: its state
+// (ProjectListContext), rendered into the table as React does (rows
+// reused by project, put in the list's order).
+const all = JSON.parse(document.querySelector('meta[name="ol-prefetchedProjectsBlob"]').content).projects;
+const tags = JSON.parse(document.querySelector('meta[name="ol-prefetchedProjectsBlob"]').dataset.tags ?? "[]");
+const st = { filter: "all", tag: undefined, search: "", shown: 20, selected: new Set() };
+const FILTERS = [["all", "All projects"], ["owned", "Your projects"], ["shared", "Shared with you"], ["archived", "Archived projects"], ["trashed", "Trashed projects"]];
+const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+const ago = (t) => {
+  const s = (Date.parse(t) - Date.now()) / 1000;
+  for (const [u, n] of [["year", 31536000], ["month", 2592000], ["day", 86400], ["hour", 3600], ["minute", 60]]) if (Math.abs(s) >= n) return rtf.format(Math.round(s / n), u);
+  return "a few seconds ago";
+};
+const owner = (p) => (p.accessLevel === "owner" ? "You" : [p.owner?.firstName, p.owner?.lastName].filter(Boolean).join(" "));
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  e.append(...kids);
+  return e;
+};
+function listed() {
+  const q = st.search.trim().toLowerCase();
+  return all
+    .filter((p) => (st.filter === "archived" ? p.archived : st.filter === "trashed" ? p.trashed : !p.archived && !p.trashed))
+    .filter((p) => st.filter !== "owned" || p.accessLevel === "owner")
+    .filter((p) => st.filter !== "shared" || p.accessLevel !== "owner")
+    .filter((p) => !st.tag || tags.find((t) => t._id === st.tag)?.project_ids.includes(p.id))
+    .filter((p) => !q || p.name.toLowerCase().includes(q))
+    .sort((a, b) => b.lastUpdated.localeCompare(a.lastUpdated));
+}
+const rows = new Map();
+function row(p) {
+  if (rows.has(p.id)) return rows.get(p.id);
+  const by = owner(p);
+  const action = (icon, label) => el("button", { type: "button", class: "d-inline-grid action-btn icon-button btn btn-link", "aria-label": label, title: label }, el("span", { class: "material-symbols", "aria-hidden": "true" }, icon));
+  const ptags = tags.filter((t) => t.project_ids.includes(p.id)).map((t) => el("span", { class: "badge-tag", style: `--c: ${t.color ?? "#8d96a5"}` }, t.name));
+  const tr = el("tr", {},
+    el("td", { class: "dash-cell-checkbox d-none d-md-table-cell" }, el("input", { type: "checkbox", class: "form-check-input", "data-project-id": p.id, "aria-label": `Select ${p.name}` })),
+    el("td", { class: "dash-cell-name" }, el("a", { href: `/project/${p.id}`, translate: "no" }, p.name), " ", el("span", { class: "d-none d-md-inline" }, ...ptags)),
+    el("td", { class: "dash-cell-date-owner pb-0 d-md-none" }, el("span", {}, `${ago(p.lastUpdated)} by ${by}`), el("span", { translate: "no" }, ` — Owned by ${by === "You" ? "you" : by}`)),
+    el("td", { class: "dash-cell-owner d-none d-md-table-cell" }, el("span", { translate: "no" }, by)),
+    el("td", { class: "dash-cell-date d-none d-md-table-cell" }, el("span", {}, `${ago(p.lastUpdated)} by ${by}`)),
+    el("td", { class: "dash-cell-tag pt-0 d-md-none" }),
+    el("td", { class: "dash-cell-actions" }, el("div", { class: "d-none d-lg-block" }, action("content_copy", "Copy"), action("download", "Download .zip file"), action("inbox", "Archive"), action("delete", "Trash"))));
+  rows.set(p.id, tr);
+  return tr;
+}
+let ctx;
+function render() {
+  const list = listed();
+  const shown = list.slice(0, st.shown);
+  // (a new value each render, as React's context: the extension compares them)
+  ctx = {
+    filter: st.filter, selectedTagId: st.tag, tags, searchText: st.search, visibleProjects: shown,
+    hiddenProjectsCount: list.length - shown.length, selectedProjectIds: st.selected,
+    loadMoreProjects() { st.shown += 20; render(); },
+    showAllProjects() { st.shown = Infinity; render(); },
+    setSelectedProjectIds(ids) { st.selected = new Set(ids); render(); },
+    selectFilter(f) { st.filter = f; st.tag = undefined; st.search = ""; document.getElementById("search").value = ""; render(); },
+  };
+  const fiber = { memoizedProps: { value: ctx }, return: null };
+  document.getElementById("table").__reactFiber$mock = fiber;
+  document.getElementById("filters").__reactFiber$mock = fiber;
+  // (rows kept by project, in the list's order, as React's keyed list)
+  const body = document.getElementById("rows");
+  const want = shown.map(row);
+  for (const tr of [...body.children]) if (!want.includes(tr)) tr.remove();
+  want.forEach((tr, i) => { if (body.children[i] !== tr) body.insertBefore(tr, body.children[i] ?? null); });
+  // (the sidebar: the filters, then the tags)
+  const filters = document.getElementById("filters");
+  const item = (label, active, onclick) => { const b = el("button", { type: "button" }, label); b.onclick = onclick; return el("li", active ? { class: "active" } : {}, b); };
+  filters.replaceChildren(
+    ...FILTERS.map(([f, label]) => item(label, !st.tag && st.filter === f, () => ctx.selectFilter(f))),
+    el("li", { class: "dropdown-header" }, "Tags"),
+    ...tags.map((t) => item(`${t.name} (${t.project_ids.length})`, st.tag === t._id, () => { st.filter = "all"; st.tag = t._id; render(); })));
+  document.getElementById("title").textContent = st.tag ? tags.find((t) => t._id === st.tag).name : FILTERS.find(([f]) => f === st.filter)[1];
+  const more = document.getElementById("more");
+  const hidden = list.length - shown.length;
+  const p = el("p", {}, `Showing ${shown.length} out of ${list.length} projects.`);
+  if (hidden > 0) { const b = el("button", { type: "button", class: "btn btn-link btn-inline-link" }, "Show all projects"); b.onclick = () => ctx.showAllProjects(); p.append(" ", b); }
+  const kids = [p];
+  if (hidden > 0) { const b = el("button", { type: "button", class: "btn btn-secondary project-list-load-more-button" }, `Show ${Math.min(hidden, 20)} more projects`); b.onclick = () => ctx.loadMoreProjects(); kids.unshift(b); }
+  more.replaceChildren(...kids);
+}
+document.getElementById("search").addEventListener("input", (e) => { st.search = e.target.value; render(); });
+render();
+</script>
+</body>
+</html>

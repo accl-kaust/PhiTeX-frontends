@@ -1134,11 +1134,12 @@ function dockInOverleaf(panel: Panel): Dock {
   };
 }
 
-/** Only Overleaf's editor (/project/<24 hex id>), not its other pages under /project/. */
+/** Only Overleaf's editor (/project/<24 hex id>), not its other pages under /project/; on the local mock, its editor (/project/mock), not its dashboard. */
 const EDITOR = /^\/project\/[0-9a-f]{24}(\/detache[dr])?\/?$/;
+const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
 
 (async () => {
-  if (!EDITOR.test(location.pathname) && !location.hostname.startsWith("localhost")) return;
+  if (!EDITOR.test(location.pathname) && !(location.hostname === "localhost" && MOCK_EDITOR.test(location.pathname))) return;
   let session: PreviewSession;
   let dock: Dock | undefined;
   /** The compare (diffui.ts, compare.ts): its own session, the marked-up document's; set once the session is. */

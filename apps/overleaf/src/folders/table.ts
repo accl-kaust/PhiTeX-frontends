@@ -10,7 +10,7 @@
 
 import { subtree, type Id } from "./folders.ts";
 import { ago, h, icon } from "../dom.ts";
-import { blankCell } from "./status.ts";
+import { blankCell, statusCell } from "./status.ts";
 import { PAGE, pathChip, relPath, vocabulary, type View } from "./ui.ts";
 import { marks, suggest, type Suggestion } from "./query.ts";
 import { dashboard, ownerName } from "./overleaf.ts";
@@ -41,12 +41,55 @@ export function renderTable(v: View) {
     const rows = children.map(([id, f]) => folderRow(v, id, f.name));
     if (v.current && !rows.length && !v.page.total)
       rows.push(h("tr", { class: "olf-empty", "data-drop": v.current }, h("td", { colspan: "8" }, "This folder is empty. Drag projects here.")));
+    // (the top level: the projects edited last, from any folder, above the folders)
+    const recent = v.current === null ? recentRows(v) : [];
+    if (recent.length) rows.unshift(groupRow("Recent"), ...recent, ...(children.length ? [groupRow("Folders")] : []));
     body.replaceChildren(...rows);
   }
   searchBox(v);
   crumbs(v);
   newFolderButton(v);
   footer(v, table);
+}
+
+/** How many of the projects edited last the top level shows above its folders. */
+const RECENT = 5;
+
+/** A group's heading in the table ("Recent", "Folders"). */
+function groupRow(name: string): HTMLElement {
+  return h("tr", { class: "olf-group" }, h("th", { colspan: "8", scope: "colgroup" }, name));
+}
+
+/**
+ * The projects edited last, from any folder (the storage project never: each
+ * change to the folders edits it): a row each, in Overleaf's row's cells (name,
+ * owner, date; the status, with the column), its folder beside its name, a
+ * clock where its checkbox is; dragged into a folder as Overleaf's rows are.
+ */
+function recentRows(v: View): HTMLElement[] {
+  return [...v.projects.values()]
+    .filter((p) => p.id !== v.storage)
+    .sort((a, b) => b.lastUpdated.localeCompare(a.lastUpdated))
+    .slice(0, RECENT)
+    .map((p) => {
+      const when = p.lastUpdated ? ago(p.lastUpdated) : "";
+      const title = p.lastUpdated ? new Date(p.lastUpdated).toLocaleString() : "";
+      const folder = v.state.projects[p.id];
+      const owner = ownerName(p);
+      // (on a phone, no checkbox column: the clock before the name, as a folder's icon)
+      const link = h("a", { href: `/project/${p.id}`, translate: "no" }, icon("history", "d-md-none"), p.name);
+      const tr = h("tr", { class: "olf-recent-row", "data-project": p.id, draggable: "true" },
+        h("td", { class: "dash-cell-checkbox d-none d-md-table-cell olf-folder-icon" }, icon("history")),
+        h("td", { class: "dash-cell-name" }, link, ...(folder && v.state.folders[folder] ? [" ", pathChip(v, folder, relPath(v, folder))] : [])),
+        h("td", { class: "dash-cell-date-owner pb-0 d-md-none" }, h("span", { title }, when), h("span", { translate: "no" }, ` — ${owner === "You" ? "Owned by you" : `Owned by ${owner}`}`)),
+        h("td", { class: "dash-cell-owner d-none d-md-table-cell" }, h("span", { translate: "no" }, owner)),
+        h("td", { class: "dash-cell-date d-none d-md-table-cell" }, h("span", { title }, when)),
+        h("td", { class: "dash-cell-tag pt-0 d-md-none" }),
+        h("td", { class: "dash-cell-actions" }));
+      // (the status, before the owner, as on Overleaf's rows)
+      if (v.status) statusCell(v, tr, p.id);
+      return tr;
+    });
 }
 
 /** A row of grey bars, as the table's (name, owner, date). */

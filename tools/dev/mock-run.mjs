@@ -49,6 +49,18 @@
 //                  // the run fails (the release gate's time check: a stale format rebuilt in the tab
 //                  // fetches every language's patterns). On a "reload" step: each reload's.
 //   "root": "report.tex"         // (top level) Overleaf's main document for the project (the mock's MOCK_ROOT; unset, none)
+//   "dashboard": "test/scenarios/dashboard/projects.json" // (top level) the project dashboard
+//                  // (/project, tools/mock/dashboard.html) with those projects and folders,
+//                  // after the onboarding, in place of the editor; its steps:
+//     { "shot": "light" }, { "wait": 500 }, { "eval": "expr" },  // as above (eval: the page's world; "cs": true, the content script's)
+//     { "theme": "dark" },          // Overleaf's dark theme ("light": its light one)
+//     { "settings": { "statusColumn": true } }, // the extension's settings changed, as by its popup
+//     { "width": 420 },             // the page that wide (a phone); 0: as the window
+//     { "search": "grail" },        // typed into the folders' search box ("": cleared)
+//     { "click": "css selector" },  // the first element matching it clicked
+//     { "drag": "css selector", "to": "css selector" }, // dragged and dropped there, as the mouse does
+//     { "check": "expr", "is": value, "what": "…" } // the expression (page world) is `value` (deep;
+//                  // unset: true), else the run fails
 // --fresh: the package cache (IndexedDB) emptied first, as a new install.
 // --keep: Chromium and the mock left running after.
 import { spawn, execFileSync } from "node:child_process";
@@ -71,7 +83,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // the mock, on the scenario's project
 try { execFileSync("pkill", ["-f", `^node tools/mock/server.mjs ${MOCK}`]); } catch {}
 await sleep(500);
-const mock = spawn("node", ["tools/mock/server.mjs", String(MOCK)], { cwd: root, env: { ...process.env, MOCK_PROJECT: path.resolve(sc.project), ...(sc.root ? { MOCK_ROOT: sc.root } : {}) }, stdio: ["ignore", "pipe", "inherit"], detached: true });
+const mock = spawn("node", ["tools/mock/server.mjs", String(MOCK)], { cwd: root, env: { ...process.env, MOCK_PROJECT: path.resolve(sc.project ?? "tools/mock/project"), ...(sc.root ? { MOCK_ROOT: sc.root } : {}), ...(sc.dashboard ? { MOCK_DASHBOARD: path.resolve(sc.dashboard) } : {}) }, stdio: ["ignore", "pipe", "inherit"], detached: true });
 await new Promise((r) => mock.stdout.once("data", r));
 // Chromium with the extension
 if (fresh) fs.rmSync(path.join(root, PROFILE, "Default/IndexedDB"), { recursive: true, force: true });
@@ -304,7 +316,13 @@ try {
     // a screenshot every 300 ms until the first page, load-<ms>.png: the
     // loading card as a slow connection shows it)
     const slow = +(process.env.PHITEX_SLOWZIP ?? 0);
-    await call("Page.reload");
+    // (a dashboard scenario: the dashboard, onboarded, in place of the project; as
+    // a first visit, no folders kept in the page's storage by a run before)
+    if (sc.dashboard) {
+      await evalIn(`Object.keys(localStorage).filter((k) => /^phitex:(folders|storage)/.test(k)).forEach((k) => localStorage.removeItem(k))`);
+      await call("Page.navigate", { url: `http://localhost:${MOCK}/project` });
+    }
+    else await call("Page.reload");
     if (slow) {
       const t0 = Date.now();
       for (let i = 0; i < 200; i++) {
@@ -331,6 +349,66 @@ async function inEngine(expr) {
   });
   ow.close();
   return v;
+}
+
+// a dashboard scenario: its steps on the dashboard, then the run ends (no project, no core)
+if (sc.dashboard) {
+  // (the folders drawn: their rows in the table, within 20 s)
+  let ready = false;
+  for (let i = 0; i < 80 && !ready; i++) (await sleep(250), (ready = await evalIn(`!!document.querySelector(".olf-rows tr.olf-folder-row")`)));
+  if (!ready) (console.log("FAIL the dashboard: no folder rows in 20 s"), (process.exitCode = 1));
+  const steps = [];
+  for (const s of sc.steps ?? []) {
+    const t = Date.now() - T0;
+    if (s.shot) await shot(s.shot);
+    else if (s.wait !== undefined) await sleep(s.wait);
+    else if (s.theme) await evalIn(`document.documentElement.dataset.theme = ${JSON.stringify(s.theme === "dark" ? "default" : "light")}`);
+    else if (s.settings) {
+      // (the extension's settings changed, as the popup changes them, the dashboard open)
+      await evalIn(`chrome.storage.local.set(${JSON.stringify(s.settings)})`, true);
+      await sleep(800);
+    }
+    else if (s.width !== undefined) {
+      if (s.width) await call("Emulation.setDeviceMetricsOverride", { width: s.width, height: s.height ?? 900, deviceScaleFactor: 1, mobile: false });
+      else await call("Emulation.clearDeviceMetricsOverride");
+      await sleep(300);
+    } else if (s.search !== undefined) {
+      await evalIn(`(() => { const i = [...document.querySelectorAll(".olf-search-input")].find((i) => i.offsetParent); i.focus(); i.value = ${JSON.stringify(s.search)}; i.dispatchEvent(new Event("input", { bubbles: true })); i.blur(); })()`);
+      await sleep(600);
+    } else if (s.click !== undefined) {
+      await evalIn(`document.querySelector(${JSON.stringify(s.click)}).click()`);
+      await sleep(600);
+    } else if (s.drag !== undefined) {
+      // (the events a mouse drag fires, one DataTransfer through them)
+      await evalIn(`(() => { const a = document.querySelector(${JSON.stringify(s.drag)}), b = document.querySelector(${JSON.stringify(s.to)}); const dt = new DataTransfer(); const ev = (el, type) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt })); ev(a, "dragstart"); ev(b, "dragenter"); ev(b, "dragover"); ev(b, "drop"); ev(a, "dragend"); })()`);
+      await sleep(1500);
+    } else if (s.check !== undefined) {
+      s.result = await evalIn(s.check);
+      const ok = JSON.stringify(s.result) === JSON.stringify(s.is ?? true);
+      console.log(`${ok ? "ok  " : "FAIL"} ${s.what ?? s.check}${ok ? "" : `: ${JSON.stringify(s.result)}, not ${JSON.stringify(s.is ?? true)}`}`);
+      if (!ok) process.exitCode = 1;
+    } else if (s.eval !== undefined) {
+      s.result = await evalIn(s.eval, !!s.cs);
+      console.log("eval →", JSON.stringify(s.result));
+    }
+    steps.push({ t, k: "STEP", d: s });
+  }
+  await shot("final");
+  const lines = [...steps, ...events].sort((a, b) => a.t - b.t).map((e) => `${String(e.t).padStart(7)} ms  ${e.k.padEnd(18)} ${JSON.stringify(e.d)}`);
+  fs.writeFileSync(path.join(out, "trace.txt"), lines.join("\n") + "\n");
+  console.log(`trace and screenshots: ${out}`);
+  if (sc.strict) {
+    const bad = events.filter((e) => e.k === "EXCEPTION" || e.k === "console.error").map((e) => `${e.k}: ${e.d}`);
+    for (const b of bad) console.log(`FAIL ${String(b).slice(0, 400)}`);
+    if (bad.length) process.exitCode = 1;
+    console.log(`strict: ${bad.length} errors`);
+  }
+  ws.close();
+  if (!keep) {
+    try { execFileSync("pkill", ["-f", "--", `--user-data-dir=${path.join(root, PROFILE)}( |$)`]); } catch {}
+    process.kill(-mock.pid);
+  }
+  process.exit(process.exitCode ?? 0);
 }
 
 // the first page

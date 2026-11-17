@@ -3,7 +3,7 @@
 // works when the browser runs with --enable-unsafe-extension-debugging
 // (tools/dev/chrome.sh starts it so). The extension is loaded from
 // target/ext-dev/: build/overleaf/'s files copied, its manifest matching the local
-// mock (http://localhost/project/*) as a --dev build's does, so a store
+// mock (http://localhost/project*) as a --dev build's does, so a store
 // build in build/overleaf/ runs on the mock too.
 //   node tools/dev/load-ext.mjs PORT
 import fs from "node:fs";
@@ -27,7 +27,8 @@ const link = (from, to) => {
 link(src, dev);
 const m = JSON.parse(fs.readFileSync(path.join(src, "manifest.json"), "utf8"));
 const add = (list, p) => list.includes(p) || list.push(p);
-for (const c of m.content_scripts) add(c.matches, "http://localhost/project/*");
+// (each script on the mock where it runs on overleaf.com: the editor's at /project/*, the dashboard's at /project too)
+for (const c of m.content_scripts) for (const u of [...c.matches]) if (u.startsWith("https://www.overleaf.com/")) add(c.matches, u.replace("https://www.overleaf.com/", "http://localhost/"));
 add(m.web_accessible_resources[0].matches, "http://localhost/*");
 fs.writeFileSync(path.join(dev, "manifest.json"), JSON.stringify(m, null, 2) + "\n");
 

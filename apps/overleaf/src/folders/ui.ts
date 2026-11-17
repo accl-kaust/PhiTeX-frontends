@@ -269,7 +269,10 @@ export function mount(opts: MountOptions = {}): () => void {
     if (v.ready && opts.status) statusHeader(v);
   }
 
+  /** Unmounted: nothing drawn any more (the load's answer, a search typed, coming after). */
+  let gone = false;
   function update() {
+    if (gone) return;
     const d = dashboard();
     if (!v.projects.size) {
       const onPage = projectsOnPage();
@@ -399,13 +402,15 @@ export function mount(opts: MountOptions = {}): () => void {
   });
 
   return () => {
+    gone = true;
     stop();
     stopDrag();
     stopCreated();
     unsubscribe();
     window.removeEventListener("popstate", onPop);
     document.removeEventListener("click", onClick, true);
-    document.querySelectorAll(".olf-folders, .olf-rows, .olf-crumbs, .olf-new-folder, .olf-footer, .olf-status-col, .olf-status-cell").forEach((el) => el.remove());
+    // (everything drawn, the search box too: its handlers are this mount's, a mount after makes its own)
+    document.querySelectorAll(".olf-folders, .olf-rows, .olf-crumbs, .olf-new-folder, .olf-footer, .olf-status-col, .olf-status-cell, .olf-search").forEach((el) => el.remove());
     document.querySelectorAll("[data-olf]").forEach((el) => el.removeAttribute("data-olf"));
     root.classList.remove("olf-browsing", "olf-in-folder", "olf-loading", "olf-sorted");
     root.removeAttribute(MOUNTED);
@@ -592,7 +597,8 @@ function dragAndDrop(v: View): () => void {
   const onDragStart = (e: DragEvent) => {
     const el = e.target as Element;
     const folder = el.closest?.<HTMLElement>("[data-folder]")?.dataset.folder;
-    const tr = el.closest?.(PROJECT_ROWS);
+    // (Overleaf's rows, and the top level's recent ones)
+    const tr = el.closest?.(PROJECT_ROWS) ?? el.closest?.(".olf-rows tr.olf-recent-row");
     let label: string;
     if (folder) {
       dragging = { folder };
@@ -760,6 +766,9 @@ function addStyle() {
   .olf-rows .olf-count { opacity: .6; }
   .olf-rows tr.olf-folder-row { cursor: default; }
   .olf-rows .olf-empty td { padding: 24px; text-align: center; opacity: .7; }
+  .olf-rows tr.olf-group th { padding: 14px 8px 4px; color: inherit; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .65; border-bottom: 0; }
+  .olf-rows tr.olf-recent-row td.olf-folder-icon { opacity: .6; }
+  .olf-rows tr.olf-recent-row td.dash-cell-name > a .material-symbols { margin-right: 6px; opacity: .6; }
   #project-list-root tr.olf-drop > td { background-color: rgb(50 101 178 / 22%) !important; }
   #project-list-root tr.olf-drop > td:first-child { box-shadow: inset 3px 0 0 var(--border-active, #3265b2); }
   /* skeleton rows, while loading */
