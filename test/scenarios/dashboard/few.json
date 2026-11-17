@@ -1,0 +1,62 @@
+{
+ "//": "An account with 5 projects to show (not archived, trashed or the storage project): the Recent group would only repeat them, so it is not shown (test/scenarios/dashboard.json). Its format: projects.json's.",
+ "projects": [
+  {
+   "id": "6b0000000000000000000001",
+   "name": "Thesis",
+   "ago": "3h"
+  },
+  {
+   "id": "6b0000000000000000000002",
+   "name": "Grant report",
+   "ago": "1d"
+  },
+  {
+   "id": "6b0000000000000000000003",
+   "name": "Talk slides",
+   "ago": "4d",
+   "owner": "Mohamed Bouaziz"
+  },
+  {
+   "id": "6b0000000000000000000004",
+   "name": "CV",
+   "ago": "2w"
+  },
+  {
+   "id": "6b0000000000000000000005",
+   "name": "Notes",
+   "ago": "3mo"
+  },
+  {
+   "id": "6b0000000000000000000006",
+   "name": "Old talk",
+   "ago": "10m",
+   "archived": true
+  },
+  {
+   "id": "6b0000000000000000000007",
+   "name": "Scratch",
+   "ago": "20m",
+   "trashed": true
+  }
+ ],
+ "tags": [],
+ "folders": {
+  "version": 1,
+  "rev": 2,
+  "folders": {
+   "d1e2f3a4": {
+    "name": "Papers",
+    "parent": null
+   },
+   "e2f3a4b5": {
+    "name": "Admin",
+    "parent": null
+   }
+  },
+  "projects": {
+   "6b0000000000000000000001": "d1e2f3a4",
+   "6b0000000000000000000002": "e2f3a4b5"
+  }
+ }
+}

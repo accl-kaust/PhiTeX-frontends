@@ -62,13 +62,16 @@ function groupRow(name: string): HTMLElement {
 
 /**
  * The projects edited last, from any folder (the storage project never: each
- * change to the folders edits it): a row each, in Overleaf's row's cells (name,
+ * change to the folders edits it), none where they are all of them (5 or
+ * fewer: the group would only repeat the list): a row each, in Overleaf's row's cells (name,
  * owner, date; the status, with the column), its folder beside its name, a
  * clock where its checkbox is; dragged into a folder as Overleaf's rows are.
  */
 function recentRows(v: View): HTMLElement[] {
-  return [...v.projects.values()]
-    .filter((p) => p.id !== v.storage)
+  const all = [...v.projects.values()].filter((p) => p.id !== v.storage);
+  // (no more projects than the group holds: it would only repeat the list, so none)
+  if (all.length <= RECENT) return [];
+  return all
     .sort((a, b) => b.lastUpdated.localeCompare(a.lastUpdated))
     .slice(0, RECENT)
     .map((p) => {

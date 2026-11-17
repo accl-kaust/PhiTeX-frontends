@@ -136,10 +136,9 @@ function compile() {
   });
 }
 
-/** The dashboard's projects (Overleaf's API's shape), tags and storage project, from MOCK_DASHBOARD; null without one. */
-const dash = (() => {
-  if (!process.env.MOCK_DASHBOARD) return null;
-  const f = JSON.parse(fs.readFileSync(process.env.MOCK_DASHBOARD, "utf8"));
+/** A dashboard's projects (Overleaf's API's shape), tags and storage project, from a file (MOCK_DASHBOARD, or another account's: POST /project/mock/dashboard). */
+const readDash = (file) => {
+  const f = JSON.parse(fs.readFileSync(file, "utf8"));
   // (an age, "40m" "5h" "3d" "2w" "6mo" "1y", as a date that long before the mock started)
   const units = { m: 60e3, h: 3600e3, d: 86400e3, w: 604800e3, mo: 2592000e3, y: 31536000e3 };
   const at = (age) => {
@@ -159,7 +158,8 @@ const dash = (() => {
   const storage = f.storage === false ? null : { id: "5f0000000000000000000da7", file: null, text: JSON.stringify({ ...f.folders, dataFolder: "5f0000000000000000000d07" }) };
   if (storage) projects.push({ id: storage.id, name: ".phitex-data", lastUpdated: at("1m"), accessLevel: "owner", source: "owner", archived: false, trashed: false, owner: me, lastUpdatedBy: me });
   return { projects, tags: f.tags ?? [], storage };
-})();
+};
+let dash = process.env.MOCK_DASHBOARD ? readDash(process.env.MOCK_DASHBOARD) : null;
 /** A multipart body's file part's bytes (the upload's qqfile). */
 const filePart = (body, type) => {
   const boundary = "--" + /boundary=(.+)$/.exec(type)?.[1];
@@ -193,6 +193,11 @@ http.createServer((req, res) => {
     const blob = escapeAttr(JSON.stringify({ totalSize: dash.projects.length, projects: dash.projects }));
     const page = fs.readFileSync(path.join(dir, "dashboard.html"), "utf8").replace('content="__BLOB__"', `content="${blob}" data-tags="${escapeAttr(JSON.stringify(dash.tags))}"`);
     return send(200, "text/html; charset=utf-8", page);
+  }
+  // (another account's dashboard: POST /project/mock/dashboard?path=FILE, its projects and folders from then on)
+  if (u.pathname === "/project/mock/dashboard" && req.method === "POST") {
+    dash = readDash(u.searchParams.get("path"));
+    return send(204, "text/plain", "");
   }
   if (dash && u.pathname === "/api/project" && req.method === "POST") return send(200, "application/json", JSON.stringify({ totalSize: dash.projects.length, projects: dash.projects }));
   const st = dash?.storage;

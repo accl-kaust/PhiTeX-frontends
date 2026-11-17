@@ -42,5 +42,13 @@
     { "drag": ".olf-rows tr.olf-recent-row[data-project='6a0000000000000000000004']", "to": ".olf-rows tr.olf-folder-row[data-folder=c3d4e5f6] td.dash-cell-name" },
     { "what": "a recent row dragged into a folder: filed there",
       "check": "document.querySelector(\".olf-rows tr.olf-recent-row[data-project='6a0000000000000000000004'] .olf-path\")?.dataset.path ?? 'none'", "is": "Teaching" },
-    { "shot": "after-drag" }
+    { "shot": "after-drag" },
+    { "account": "test/scenarios/dashboard/few.json" },
+    { "what": "5 projects to show (an archived, a trashed and the storage project beside): no Recent, the folders as they are",
+      "check": "[...document.querySelectorAll('.olf-rows > tr')].map((tr) => tr.classList.contains('olf-group') ? '#' + tr.textContent : tr.classList.contains('olf-recent-row') ? 'r' : tr.classList.contains('olf-folder-row') ? 'f' : '?')",
+      "is": ["f", "f"] },
+    { "what": "Overleaf's rows: the 3 not in a folder, and the storage project",
+      "check": "[...document.querySelectorAll('#rows > tr[data-olf=show] td.dash-cell-name > a')].map((a) => a.textContent).sort()",
+      "is": [".phitex-data", "CV", "Notes", "Talk slides"] },
+    { "shot": "few" }
   ] }

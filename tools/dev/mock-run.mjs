@@ -55,6 +55,7 @@
 //     { "shot": "light" }, { "wait": 500 }, { "eval": "expr" },  // as above (eval: the page's world; "cs": true, the content script's)
 //     { "theme": "dark" },          // Overleaf's dark theme ("light": its light one)
 //     { "settings": { "statusColumn": true } }, // the extension's settings changed, as by its popup
+//     { "account": "test/scenarios/dashboard/few.json" }, // another account's projects and folders, the page loaded again
 //     { "width": 420 },             // the page that wide (a phone); 0: as the window
 //     { "search": "grail" },        // typed into the folders' search box ("": cleared)
 //     { "click": "css selector" },  // the first element matching it clicked
@@ -363,7 +364,16 @@ if (sc.dashboard) {
     if (s.shot) await shot(s.shot);
     else if (s.wait !== undefined) await sleep(s.wait);
     else if (s.theme) await evalIn(`document.documentElement.dataset.theme = ${JSON.stringify(s.theme === "dark" ? "default" : "light")}`);
-    else if (s.settings) {
+    else if (s.account) {
+      // (another account: the mock's dashboard on that file's projects and folders, the page loaded
+      // again as a first visit, until its rows are drawn)
+      await fetch(`http://localhost:${MOCK}/project/mock/dashboard?path=${encodeURIComponent(path.resolve(s.account))}`, { method: "POST" });
+      await evalIn(`Object.keys(localStorage).filter((k) => /^phitex:(folders|storage)/.test(k)).forEach((k) => localStorage.removeItem(k))`);
+      await call("Page.reload");
+      let drawn = false;
+      for (let i = 0; i < 80 && !drawn; i++) (await sleep(250), (drawn = await evalIn(`!!document.querySelector(".olf-rows tr.olf-folder-row")`)));
+      if (!drawn) (console.log(`FAIL the dashboard of ${s.account}: no folder rows in 20 s`), (process.exitCode = 1));
+    } else if (s.settings) {
       // (the extension's settings changed, as the popup changes them, the dashboard open)
       await evalIn(`chrome.storage.local.set(${JSON.stringify(s.settings)})`, true);
       await sleep(800);
