@@ -139,6 +139,8 @@ interface Exports {
   ph_step(): number;
   ph_grow(pages: number): number;
   ph_seal(): void;
+  /** Starts the engine's threads for documents opened on `n` threads (cores before PhiTeX's ph_threads lack it). */
+  ph_threads?(n: number): number;
 }
 
 /** A document to open (core/src/main.rs's `ph_open`). */
@@ -697,6 +699,19 @@ export class Core {
     this.listeners.push(f);
   }
 
+  /**
+   * Starts the engine's threads for documents opened on `n` threads (the
+   * open's `threads`): the client's pool and the engine's kept threads, each
+   * a worker started here as the core asks, so the first build or graph
+   * load does not wait for their start (PhiTeX's ph_threads: amsldoc's graph
+   * loaded on a fresh core, about 0.5 s of its 1.5). After the start (the
+   * memory sealed); none for the single-threaded core, or one thread.
+   */
+  startThreads(n: number): void {
+    if (this.single || n <= 1 || !this.x.ph_threads) return;
+    this.x.ph_threads(n);
+  }
+
   /** Opens a document (the project's other files given before, `provide`); its build's events come later. A document open before is closed. */
   open(req: Open): void {
     const r = this.call((p, n) => this.x.ph_open(p, n), JSON.stringify(req));
@@ -843,6 +858,9 @@ export class CoreSession implements CoreTransport {
 
   constructor(core: Core, opts: Partial<Omit<Open, "main" | "text">> = {}) {
     [this.core, this.opts] = [core, opts];
+    // (the engine's threads started now, while the open is made ready: a
+    // fresh core's first build or graph load finds them at rest)
+    if (opts.threads) core.startThreads(opts.threads);
     core.onEvent((e) => {
       if (typeof e?.event === "string") for (const f of this.events) f(e as CoreEvent);
     });
