@@ -29,6 +29,7 @@
 //       { "dbltext": "Every writer" }, // double-click the editor at that text: the page's highlight boxes after
 //       { "dbloutline": "Section 3" }, // double-click that heading in the file outline
 //       { "replacefile": "fig.png", "b64": "…", "ms": 60000 }, // the binary file replaced as Overleaf says it is; until the session's PDF changes, else the run fails
+//       { "compare": 1, "has": ["regex"], "ms": 60000 }, // Compare with version 1, as clicked; until the diff bar counts changes and diff.tex has each regex, else the run fails
 //       { "onpage": "Typed words", "ms": 60000 }, // until that text is on a page, else the run fails
 //       { "reload": 3, "ms": 120000 }, // the tab reloaded 3 times, each until its first page, else the run fails
 //       { "secondtab": true, "ms": 120000 }, // the project in a second tab: its first page, or its panel saying why it has none; else (neither in time) the run fails
@@ -536,6 +537,26 @@ for (const s of sc.steps ?? []) {
     for (const t0 = Date.now(); now === was && Date.now() - t0 < (s.ms ?? 60000); ) (now = await evalIn(digest, true)) === was && (await sleep(200));
     console.log(`replacefile ${s.replacefile}: the PDF ${now === was ? "UNCHANGED" : "changed"}`);
     if (now === was) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+  } else if (s.compare !== undefined) {
+    // (`{"compare": 1, "has": ["regex"]}`: Compare with version 1 as clicked (its menu from the
+    // history, the version's ZIP), until the diff bar counts changes; diff.tex (the content
+    // script's dev "state") has each regex; tools/dev/fx-run.mjs the same in Firefox)
+    const t0 = Date.now(), item = `#phitex-cmpmenu button[data-v="${s.compare}"]`;
+    await evalIn(`document.getElementById('phitex-cmp').click()`);
+    while (!(await evalIn(`!!document.querySelector('${item}')`)) && Date.now() - t0 < 20000) await sleep(200);
+    await evalIn(`document.querySelector('${item}')?.click()`);
+    let bar = "";
+    for (; Date.now() - t0 < (s.ms ?? 60000); await sleep(300)) {
+      bar = (await evalIn(`(() => { const n = document.querySelector('phitex-preview')?.shadowRoot?.querySelector('.diffbar.on .n'); return n ? (n.classList.contains('busy') ? 'busy: ' : '') + n.textContent : ''; })()`)) ?? "";
+      if (/^busy: Couldn't/.test(bar) || (bar && !bar.startsWith("busy"))) break;
+    }
+    const st = JSON.parse((await evalIn(`new Promise((ok) => { const on = (e) => { if (e.data?.src === "phitex-dev" && e.data.type === "stated") (removeEventListener("message", on), ok(e.data.state)); }; addEventListener("message", on); postMessage({ src: "phitex-dev", type: "state" }, location.origin); setTimeout(() => ok("null"), 5000); })`)) ?? "null");
+    const tex = st?.diffTex ?? "";
+    const missing = (s.has ?? []).filter((r) => !new RegExp(r).test(tex));
+    const ok = bar && !bar.startsWith("busy") && !/^no changes/.test(bar) && !missing.length;
+    console.log(`compare ${s.compare}: ${bar || "no diff bar"}; diff.tex ${tex.length} chars${missing.length ? `, lacks ${JSON.stringify(missing)}` : ""}`);
+    if (!ok) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    await evalIn(`document.querySelector('phitex-preview')?.shadowRoot?.querySelector('.diffbar.on button[data-a=close]')?.click()`);
   } else if (s.rootdoc !== undefined) {
     // (`{"rootdoc": "main.tex"}`: the project's main document changed in Overleaf's Menu, its socket telling the editor)
     await fetch(`http://localhost:${MOCK}/project/mock/root-doc?path=${encodeURIComponent(s.rootdoc)}`, { method: "POST" });

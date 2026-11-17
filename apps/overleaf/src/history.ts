@@ -7,6 +7,27 @@
 
 import { readZip } from "./common/zip.ts";
 
+/**
+ * An answer fetched as the page (content-main.ts pageFetch): what its
+ * readers use of a Response. Chrome's is its fetch's Response; Firefox's is
+ * this script's own object, never a Response: a Response, an ArrayBuffer or
+ * a promise made there is the page's (a content script's Response, Headers
+ * and Blob are the window's), and this script's reads of the page's bytes
+ * are refused ("Permission denied to access property \"constructor\"").
+ */
+export interface Fetched {
+  ok: boolean;
+  status: number;
+  headers: { get(name: string): string | null };
+  /** Chrome's stream; null in Firefox, read whole. */
+  body: ReadableStream<Uint8Array> | null;
+  arrayBuffer(): Promise<ArrayBuffer>;
+  text(): Promise<string>;
+  json(): Promise<unknown>;
+}
+/** fetch as the page: its cookies, its origin. */
+export type PageFetch = (url: string, init?: RequestInit) => Promise<Fetched>;
+
 /** One version a picker lists: a label (named by its author) or an update (a burst of edits). */
 export interface Version {
   /** Overleaf's version number: the project as it was after it. */
@@ -43,7 +64,7 @@ const name = (u: { first_name?: string; last_name?: string; email?: string }) =>
  * `base` (`/project/<id>`). `before`: older ones, from the previous page's
  * last `at` (Overleaf pages its history by time).
  */
-export async function versions(base: string, fetcher: typeof fetch, count = 40, before?: number): Promise<{ versions: Version[]; more?: number }> {
+export async function versions(base: string, fetcher: PageFetch, count = 40, before?: number): Promise<{ versions: Version[]; more?: number }> {
   const get = async <T>(u: string) => {
     const r = await fetcher(u, { credentials: "include" });
     if (!r.ok) throw new Error(`history: ${r.status} for ${u.replace(base, "")}`);
@@ -70,7 +91,7 @@ export async function versions(base: string, fetcher: typeof fetch, count = 40, 
 }
 
 /** The project's files as they were at version `v`: text by path, and the binary ones apart. */
-export async function filesAt(base: string, v: number, fetcher: typeof fetch): Promise<{ files: Record<string, string>; binaries: Record<string, Uint8Array> }> {
+export async function filesAt(base: string, v: number, fetcher: PageFetch): Promise<{ files: Record<string, string>; binaries: Record<string, Uint8Array> }> {
   const r = await fetcher(`${base}/version/${v}/zip`, { credentials: "include" });
   if (!r.ok) throw new Error(`history: version ${v}: ${r.status}`);
   const { files, binaries } = await readZip(await r.arrayBuffer());

@@ -247,10 +247,17 @@ Scripted runs:
 ```sh
 tools/sandbox --net node tools/dev/mock-run.mjs test/scenarios/ci.json [--fresh]
 tools/build/package.sh && node tools/dev/fx-run.mjs     # Firefox: the store package on the mock
+tools/build/package.sh && node tools/dev/fx-run.mjs test/scenarios/fx.json  # Firefox's check
 ```
 
 `mock-run.mjs` runs a scenario in headless Chromium. It writes the trace,
 the screenshots and the core's log to `target/mock-run/<name>/`.
+
+`fx-run.mjs` with a scenario runs it in headless Firefox, where the
+project is fetched as the page fetches it (`content.fetch`), which Chromium
+never does. `test/scenarios/fx.json` opens a project, compares it with a
+past version, and replaces a figure; it fails if any of the three fails.
+Run it before every release, beside the Chromium scenarios.
 
 A scenario can:
 - play steps, such as typing, replacing text, reloading, opening a second

@@ -12,6 +12,7 @@
 
 import { historyBlame, matchLines, type BlameCommit, type BlameData, type BlameFile, type BlameHost, type HistoryPart } from "./common/viewer/blame.ts";
 import type { Glyph } from "./common/viewer/sync.ts";
+import type { PageFetch } from "./history.ts";
 
 interface User {
   id?: string;
@@ -84,7 +85,7 @@ export function overleafHue(userId: string | undefined, own: string | undefined)
 export interface OverleafBlameHost {
   /** The project's base (`/project/<id>`). */
   base(): string;
-  fetcher: typeof fetch;
+  fetcher: PageFetch;
   /** The editor's text of a file (the session's), as the build reads it. */
   text(file: string): string | undefined;
   glyphs(k: number): Promise<Glyph[]>;

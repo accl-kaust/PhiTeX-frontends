@@ -1,0 +1,6 @@
+{ "project": "test/scenarios/fx", "name": "fx", "history": "test/scenarios/fx-history.json",
+  "storage": { "tipsSeen": ["compare", "timing", "clean", "dark", "blame"] },
+  "steps": [
+    { "compare": 1, "has": ["\\\\DIFcite\\{\\\\cite\\{knuth\\} \\\\DIFdel\\{\\\\mbox\\{\\\\cite\\{goossens\\}"], "ms": 90000 },
+    { "replacefile": "fig.png", "b64": "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAIAAAAC64paAAAAGklEQVR4nGOQkztBNmIY1TyqeVTzqOaB1QwAOE2WUGwwv+kAAAAASUVORK5CYII=", "ms": 60000 }
+  ] }

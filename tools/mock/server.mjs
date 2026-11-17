@@ -181,7 +181,8 @@ let dash = process.env.MOCK_DASHBOARD ? readDash(process.env.MOCK_DASHBOARD) : n
  * update v, the rest the first version's. GET /updates (newest first),
  * /labels, /diff?pathname=&from=&to= (the file's text as it is now, its
  * lines' inserts with their update's meta) and /version/N/zip (the files
- * as they are now: the mock keeps no older text).
+ * as they are now: the mock keeps no older text; `versions`: {"N": "folder"},
+ * a folder beside the history's file, version N's own files).
  */
 const hist = process.env.MOCK_HISTORY ? JSON.parse(fs.readFileSync(process.env.MOCK_HISTORY, "utf8")) : null;
 // (the history's last version: the files as the mock loaded them; edits made since are not in it, as
@@ -250,7 +251,24 @@ http.createServer((req, res) => {
     });
     return send(200, "application/json", JSON.stringify({ diff: parts }));
   }
-  if (hist && /^\/project\/mock\/version\/\d+\/zip$/.test(u.pathname)) return send(200, "application/zip", zip([...[...docs.values()].map((x) => [x.path, x.text]), ...files]));
+  if (hist && (m = /^\/project\/mock\/version\/(\d+)\/zip$/.exec(u.pathname))) {
+    // (a version the history gives a folder of its own (`versions`: {"2": "folder"}, beside the
+    // history's file): its files, text and binary, so Compare has changes to show)
+    const at = hist.versions?.[m[1]];
+    if (at) {
+      const out = [];
+      const walk = (d, rel = "") => {
+        for (const f of fs.readdirSync(d, { withFileTypes: true })) {
+          const r = rel ? `${rel}/${f.name}` : f.name;
+          if (f.isDirectory()) walk(path.join(d, f.name), r);
+          else out.push([r, fs.readFileSync(path.join(d, f.name))]);
+        }
+      };
+      walk(path.resolve(path.dirname(process.env.MOCK_HISTORY), at));
+      return send(200, "application/zip", zip(out));
+    }
+    return send(200, "application/zip", zip([...[...docs.values()].map((x) => [x.path, x.text]), ...files]));
+  }
   if (dash && u.pathname === "/api/project" && req.method === "POST") return send(200, "application/json", JSON.stringify({ totalSize: dash.projects.length, projects: dash.projects }));
   const st = dash?.storage;
   if (st && u.pathname.toLowerCase() === `/project/${st.id}/download/zip`) return send(200, "application/zip", zip([["main.tex", "% the folders' storage (mock)\n"], ["data/folders.json", st.text]]));

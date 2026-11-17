@@ -8,7 +8,7 @@
 
 import type { Panel } from "./common/viewer/panel.ts";
 import { DiffControls, type DiffRunner as Runner } from "./common/viewer/compare.ts";
-import { type Version, versions } from "./history.ts";
+import { type PageFetch, type Version, versions } from "./history.ts";
 import { ago, html } from "./dom.ts";
 
 export type DiffRunner = Runner<Version>;
@@ -16,7 +16,7 @@ export type DiffRunner = Runner<Version>;
 /** A compare started from elsewhere (Blame's card: "Compare with before this version"). */
 export let compareWith: ((v: Version) => void) | undefined;
 
-export function compareButton(host: HTMLElement, panel: Panel, base: () => string, fetcher: typeof fetch, run: DiffRunner): void {
+export function compareButton(host: HTMLElement, panel: Panel, base: () => string, fetcher: PageFetch, run: DiffRunner): void {
   if (host.querySelector("#phitex-cmp")) return;
   const g = document.createElement("div");
   g.className = "dropdown btn-group";

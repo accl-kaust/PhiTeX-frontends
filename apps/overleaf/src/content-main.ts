@@ -19,7 +19,7 @@ import { overleafBlame } from "./blame.ts";
 import { AGREE, TERMS, asIs } from "./terms.ts";
 import { callout, calloutStyle, type Callout } from "./callout.ts";
 import { h, html, rich } from "./dom.ts";
-import { filesAt, type Version } from "./history.ts";
+import { filesAt, type Fetched, type PageFetch, type Version } from "./history.ts";
 import { Compare, gate, LATEXDIFF_LOOK } from "./common/viewer/compare.ts";
 import { SUPPORT, unseen, type News } from "./news.ts";
 import { Panel, type DiffLook, type PanelPrefs, type Prefs, type SettingRow, type SettingsGroup, type ViewPrefs, type ViewState } from "./common/viewer/panel.ts";
@@ -45,36 +45,54 @@ const project = () => location.pathname.replace(/\/$/, "").replace(/\/detache[dr
  */
 const rawPageFetch: typeof fetch = (globalThis as unknown as { content?: { fetch?: typeof fetch } }).content?.fetch?.bind((globalThis as unknown as { content: object }).content) ?? fetch;
 /**
- * A page's response made this script's own: Firefox's `content.fetch` gives
- * the page's Response, its ArrayBuffer and JSON the page's objects behind
- * Xray wrappers. This script's code then fails on them ("Permission denied
- * to access property \"constructor\"": Compare's version ZIP), or its
- * streams never finish reading them (DecompressionStream). Every answer
- * fetched as the page is copied once, here, into this script's memory, so
- * no caller handles the page's objects. Chrome's fetch is already the
- * script's own.
+ * A page's promise made this script's: settled by a Promise of this
+ * script's, so no callback of this script's runs on the page's promise and
+ * nothing of this script's is handed to it (a page promise resolved with
+ * this script's object reads its `then` across the compartments).
  */
-async function ownResponse(r: Response): Promise<Response> {
-  const page = new Uint8Array(await r.arrayBuffer());
+const adopt = <T,>(p: PromiseLike<T>): Promise<T> => new Promise<T>((res, rej) => void p.then(res, rej));
+/**
+ * A page's response made this script's own. Firefox's `content.fetch` gives
+ * the page's Response, its promises and ArrayBuffer the page's objects
+ * behind Xray wrappers, and so is every Response, Headers and Blob a
+ * content script makes (`new Response(...)` is the window's): this
+ * script's reads of the page's bytes are refused ("Permission denied to
+ * access property \"constructor\"": a subarray of them, readZip's; 1.0.3's
+ * project open, its bytes in a Response made here; 1.0.1's Compare), and
+ * its streams never finish reading them (DecompressionStream). So the
+ * answer is read whole, once, its bytes copied into this script's memory,
+ * and given as an object of this script's (Fetched), never a Response:
+ * each read of it hands out this script's own copy. Chrome's fetch is the
+ * script's own already.
+ */
+async function ownResponse(r: Response): Promise<Fetched> {
+  const page = new Uint8Array(await adopt(r.arrayBuffer()));
   const bytes = new Uint8Array(page.length);
   bytes.set(page);
-  const headers = new Headers();
+  const headers = new Map<string, string>();
   for (const h of ["content-type", "content-length", "content-disposition", "etag", "last-modified"]) {
     const v = r.headers.get(h);
     if (v != null) headers.set(h, String(v));
   }
-  // (a null-body status takes no body)
-  const empty = [101, 103, 204, 205, 304].includes(r.status);
-  return new Response(empty ? null : bytes, { status: r.status, statusText: String(r.statusText), headers });
+  const text = () => new TextDecoder().decode(bytes);
+  return {
+    ok: Boolean(r.ok),
+    status: Number(r.status),
+    headers: { get: (name) => headers.get(name.toLowerCase()) ?? null },
+    body: null,
+    arrayBuffer: async () => bytes.slice().buffer,
+    text: async () => text(),
+    json: async () => JSON.parse(text()) as unknown,
+  };
 }
-const pageFetch: typeof fetch = (u, o) => {
+const pageFetch: PageFetch = (u, o) => {
   devMark(`fetch ${String(u).replace(/^.*\/project\/[^/]+/, "")}`);
-  return rawPageFetch(u, o)
-    .then((r) => (rawPageFetch === fetch ? r : ownResponse(r)))
-    .then(
-      (r) => (devMark(`fetched ${r.status}`), r),
-      (e) => (devMark(`fetch failed: ${e}`), Promise.reject(e)),
-    );
+  // (Firefox: the page's promise adopted first, the answer made this script's own)
+  const got: Promise<Fetched> = rawPageFetch === fetch ? fetch(u, o) : adopt(rawPageFetch(u, o)).then(ownResponse);
+  return got.then(
+    (r) => (devMark(`fetched ${r.status}`), r),
+    (e) => (devMark(`fetch failed: ${e}`), Promise.reject(e)),
+  );
 };
 
 /**
@@ -222,6 +240,18 @@ if (location.hostname === "localhost") {
     } else if (e.data.type === "trace") {
       const s = (globalThis as unknown as { __phitexSession?: { trace: unknown[] } }).__phitexSession;
       window.postMessage({ src: "phitex-dev", type: "traced", trace: JSON.stringify({ session: !!s, trace: s?.trace.slice(-30), errors: devErrors.slice(-30) }) }, location.origin);
+    } else if (e.data.type === "state") {
+      // ("state": what a Firefox scenario checks (tools/dev/fx-run.mjs): the PDF's hash, a compare's diff.tex)
+      void (async () => {
+        const s = (globalThis as unknown as { __phitexSession?: { pdf(): Promise<Uint8Array | undefined> } }).__phitexSession;
+        const pdf = await s?.pdf().catch(() => undefined);
+        // (FNV-1a, here: crypto.subtle's answer would be the page's ArrayBuffer in Firefox)
+        let h = 0x811c9dc5;
+        for (const b of pdf ?? []) h = Math.imul(h ^ b, 0x01000193) >>> 0;
+        const shown = (diffImpl as unknown as { shown?(): { texts(): Record<string, string> } } | undefined)?.shown?.();
+        const state = { session: !!s, pdf: pdf ? `${pdf.length}:${h.toString(16)}` : "", diffTex: shown?.texts()["diff.tex"] ?? null, failed: boot.failed, stage: boot.stage, errors: [...boot.errors, ...devErrors.slice(-30)] };
+        window.postMessage({ src: "phitex-dev", type: "stated", state: JSON.stringify(state) }, location.origin);
+      })();
     }
   });
 }
@@ -287,7 +317,7 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
       for (const p of parts) (own.set(p, at), (at += p.length));
     } else {
       if (size) reading(panel, { h: "Downloading the project from Overleaf…", detail: mb(size) });
-      // (pageFetch's answer: this script's own bytes already)
+      // (pageFetch's answer: this script's own bytes, a copy of its own)
       own = new Uint8Array(await z.arrayBuffer());
     }
     const zbuf = own.buffer as ArrayBuffer;
