@@ -39,26 +39,45 @@ const name = (u: User | undefined) => (u ? [u.first_name, u.last_name].filter(Bo
 
 const BINARY = /\.(png|jpe?g|pdf|eps|ps|gif|bmp|tiff?|webp)$/i;
 
-/** CRC-32 (IEEE) of a string's UTF-8 bytes, signed as Overleaf's colours take it. */
-function crc32(s: string): number {
-  let c = ~0;
-  for (const b of new TextEncoder().encode(s)) {
-    c ^= b;
-    for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+/** MD5 (RFC 1321) of a string's UTF-8 bytes, in hex (an id is ASCII: Overleaf's generateMD5Hash's). */
+export function md5(s: string): string {
+  const msg = new TextEncoder().encode(s);
+  const n = ((msg.length + 8) >> 6) + 1;
+  const w = new Uint32Array(n * 16);
+  msg.forEach((b, i) => (w[i >> 2] |= b << ((i % 4) * 8)));
+  w[msg.length >> 2] |= 0x80 << ((msg.length % 4) * 8);
+  w[n * 16 - 2] = (msg.length * 8) >>> 0;
+  w[n * 16 - 1] = Math.floor((msg.length * 8) / 2 ** 32);
+  const S = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
+  const K = Array.from({ length: 64 }, (_, i) => Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0);
+  let [a0, b0, c0, d0] = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476];
+  for (let o = 0; o < w.length; o += 16) {
+    let [a, b, c, d] = [a0, b0, c0, d0];
+    for (let i = 0; i < 64; i++) {
+      const r = i >> 4;
+      const f = r === 0 ? (b & c) | (~b & d) : r === 1 ? (d & b) | (~d & c) : r === 2 ? b ^ c ^ d : c ^ (b | ~d);
+      const g = r === 0 ? i : r === 1 ? (5 * i + 1) % 16 : r === 2 ? (3 * i + 5) % 16 : (7 * i) % 16;
+      const t = (a + f + K[i] + w[o + g]) >>> 0;
+      const sh = S[r * 4 + (i % 4)];
+      [a, d, c] = [d, c, b];
+      b = (b + ((t << sh) | (t >>> (32 - sh)))) >>> 0;
+    }
+    [a0, b0, c0, d0] = [(a0 + a) >>> 0, (b0 + b) >>> 0, (c0 + c) >>> 0, (d0 + d) >>> 0];
   }
-  return ~c | 0;
+  return [a0, b0, c0, d0].map((x) => Array.from({ length: 4 }, (_, j) => ((x >>> (8 * j)) & 255).toString(16).padStart(2, "0")).join("")).join("");
 }
 
 /**
- * The hue Overleaf gives a user (its editor's colours, getHueForUserId): its
- * own user 200, an anonymous one 100, anyone else a hash of their id, kept
- * clear of the own user's hue.
+ * The hue Overleaf gives a user, as its getHueForUserId does
+ * (services/web/frontend/js/shared/utils/colors.ts): its own user 200, an
+ * anonymous one 100; anyone else the first 8 hex digits of their id's MD5
+ * modulo 320, a hue within 20 of 200 moved to the end (to 340 ± 20).
  */
 export function overleafHue(userId: string | undefined, own: string | undefined): number {
-  if (!userId || userId === "anonymous-user") return 100;
+  if (userId == null || userId === "" || userId === "anonymous-user") return 100;
   if (userId === own) return 200;
-  let hue = Math.abs(crc32(userId)) % 360;
-  if (hue > 180 && hue < 220) hue -= 40;
+  let hue = parseInt(md5(userId).slice(0, 8), 16) % (360 - 20 * 2);
+  if (hue > 200 - 20 && hue < 200 + 20) hue = hue - 200 + 360 - 20;
   return hue;
 }
 

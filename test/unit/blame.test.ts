@@ -11,7 +11,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { blame } from "../../apps/vscode/src/blame.ts";
-import { overleafBlame, overleafHue } from "../../apps/overleaf/src/blame.ts";
+import { md5, overleafBlame, overleafHue } from "../../apps/overleaf/src/blame.ts";
 import type { BlameData } from "../../common/src/viewer/blame.ts";
 
 const git = (dir: string, who: string, ...args: string[]) =>
@@ -82,6 +82,15 @@ test("Overleaf: each line's update from the history's diff, an update's author a
   // (Overleaf's colours: the own user's hue 200; Compare against the update's first version)
   assert.equal(host.color!(v3), "hsl(200, 70%, 50%)");
   assert.equal(overleafHue("u-bob", "u-alice"), overleafHue("u-bob", undefined));
+  // (Overleaf's own cases, services/web/test/frontend/shared/utils/colors.test.js)
+  const own = "5bf7dab7a18b0b7a1cf6738c";
+  assert.equal(overleafHue(own, own), 200);
+  assert.equal(overleafHue(undefined, own), 100);
+  assert.equal(overleafHue("anonymous-user", own), 100);
+  assert.equal(overleafHue("59ad79f46337430b3d37cb9e", own), 146);
+  assert.equal(overleafHue("20ad79f46337430b3d37cb9f", own), 323);
+  assert.equal(md5(""), "d41d8cd98f00b204e9800998ecf8427e");
+  assert.equal(md5("The quick brown fox jumps over the lazy dog"), "9e107d9d372bb6826bd81d3542a419d6");
   host.compare!(v3);
   assert.deepEqual(compared, [[2, "Before v3"]]);
   assert.deepEqual(host.words, { commit: "version", hashes: false });
