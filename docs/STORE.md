@@ -29,7 +29,7 @@ release before it uploads):
 | Edge Add-ons | `EDGE_API_KEY` | `EDGE_CLIENT_ID`, `EDGE_PRODUCT_ID` | Partner Center › Microsoft Edge › Publish API (API v1.1) |
 | Firefox Add-ons | `AMO_JWT_ISSUER`, `AMO_JWT_SECRET` | | addons.mozilla.org › Developer Hub › Manage API Keys |
 | VS Code Marketplace | `VSCE_PAT` | | an Azure DevOps token, scope Marketplace › Manage, for publisher `accl-kaust` |
-| Open VSX | `OVSX_PAT` | | open-vsx.org › Settings › Access Tokens; the namespace `accl-kaust` made once (`npx ovsx create-namespace accl-kaust`) |
+| Open VSX | none (trusted publishing) | | open-vsx.org › Settings › Trusted publishers: namespace `accl-kaust`, extension `phitex`, repository `accl-kaust/PhiTeX-frontends`, workflow `release.yml`, environment `stores`; the job asks for an OIDC token (`id-token: write`) |
 
 ## Store listing
 

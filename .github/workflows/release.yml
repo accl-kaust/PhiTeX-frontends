@@ -17,7 +17,7 @@
 #   CWS_SERVICE_ACCOUNT_JSON, vars CWS_PUBLISHER_ID, CWS_EXTENSION_ID   (tools/release/stores.mjs)
 #   EDGE_API_KEY, vars EDGE_CLIENT_ID, EDGE_PRODUCT_ID
 #   AMO_JWT_ISSUER, AMO_JWT_SECRET
-#   VSCE_PAT (Azure DevOps, Marketplace › Manage), OVSX_PAT (open-vsx.org, namespace accl-kaust)
+#   VSCE_PAT (Azure DevOps, Marketplace › Manage); Open VSX by trusted publishing (open-vsx.org › Settings › Trusted publishers: accl-kaust/PhiTeX-frontends, release.yml, environment stores), no token
 name: release
 on:
   push:
@@ -184,7 +184,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - run: npx --yes @vscode/vsce@3 publish --packagePath out/phitex-${{ needs.build.outputs.version }}.vsix
+      - run: |
+          test -n "$VSCE_PAT" || { echo "::error::VSCE_PAT is not set (a secret of the stores environment)"; exit 1; }
+          npx --yes @vscode/vsce@3 publish --packagePath out/phitex-${{ needs.build.outputs.version }}.vsix
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
@@ -193,6 +195,12 @@ jobs:
     if: contains(inputs.stores || 'chrome edge firefox vscode openvsx', 'openvsx')
     runs-on: ubuntu-latest
     environment: stores
+    # (trusted publishing: Open VSX trusts this workflow, release.yml in the
+    # stores environment, registered under the namespace's trusted publishers;
+    # ovsx trades the job's OIDC ID token for a short-lived one, no token kept)
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/download-artifact@v5
         with:
@@ -201,6 +209,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - run: npx --yes ovsx@0 publish out/phitex-${{ needs.build.outputs.version }}.vsix
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      - run: npx --yes ovsx@1 publish out/phitex-${{ needs.build.outputs.version }}.vsix
+      # (published is what the registry serves: ovsx 0.x without a token
+      # exited 0 having published nothing, and 1.0.4's job was green so)
+      - run: curl -sSf -o /dev/null https://open-vsx.org/api/accl-kaust/phitex/${{ needs.build.outputs.version }}
