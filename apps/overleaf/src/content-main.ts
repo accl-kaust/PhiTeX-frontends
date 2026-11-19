@@ -1409,7 +1409,8 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     // (the main file picked in the settings: kept for this project, used at its next open)
     onMain: (m) => {
       void chrome.storage.local.get("mains").then(({ mains }) => chrome.storage.local.set({ mains: { ...(mains as Record<string, string> | undefined), [project()]: m } }));
-      void session?.setMain(m);
+      // (the file built kept, "Yes, build it": only remembered)
+      if (m !== session?.main) void session?.setMain(m);
     },
     // (Ctrl+click or a middle click on a link: the project in a tab of its own, its preview
     // at the link's target. The project's editor, not Overleaf's detached PDF page: opening
@@ -1898,7 +1899,8 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     const main = picked && picked in files ? picked : overleafRoot && overleafRoot in files ? overleafRoot : guessMain(files);
     boot.read.main = main ?? "";
     reading(panel, { h: "Opening the main file (the first build)…", detail: main ?? undefined });
-    sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), main);
+    // (no main file chosen for this project yet: the panel asks which it is, the pick above preselected)
+    sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), main, !(picked && picked in files));
     resyncMains = () => sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), session.main);
     if (!main) throw new Error("no main .tex file found");
     await session.setMain(main);

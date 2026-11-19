@@ -1,0 +1,19 @@
+{"project": "test/scenarios/ci", "name": "main-ask", "nofirst": true, "noidle": true, "//": "A project's first build asks for its main file: a strip over the pages, PhiTeX's pick preselected, until answered (picked, or 'Yes, build it'), then kept for the project and not asked again. A build that stops before a page offers another main file on its card. One .tex file: nothing asked.",
+  "steps": [
+    {"settings": {"mains": {}}},
+    {"start": {}, "until": "!!document.querySelector('phitex-preview')?.shadowRoot?.querySelector('#mainask.on')", "ms": 60000},
+    {"what": "asked: the strip, the pick preselected, the .tex files to pick from", "check": "(() => { const r = document.querySelector('phitex-preview').shadowRoot; const s = r.querySelector('#mainask select'); return [s.value, [...s.options].map((o) => o.value).sort(), r.querySelector('#mainask .keep').textContent]; })()", "is": ["main.tex", ["chapter.tex", "main.tex"], "Yes, build it"]},
+    {"wait": 3000},
+    {"shot": "asked"},
+    {"click": "#mainask .keep"},
+    {"what": "answered: the strip gone, the choice kept for the project", "check": "chrome.storage.local.get('mains').then(({ mains }) => [!!document.querySelector('phitex-preview').shadowRoot.querySelector('#mainask.on'), mains?.['/project/mock']])", "is": [false, "main.tex"]},
+    {"start": {}, "until": "!!document.querySelector('phitex-preview')?.shadowRoot?.querySelector('.slot svg.page, .slot canvas')", "ms": 60000},
+    {"what": "a project with its main file chosen: not asked again", "check": "!!document.querySelector('phitex-preview').shadowRoot.querySelector('#mainask.on')", "is": false},
+    {"settings": {"mains": {"/project/mock": "chapter.tex"}}},
+    {"start": {}, "until": "!!document.querySelector('phitex-preview')?.shadowRoot?.querySelector('#empty .card .mainrow select')", "ms": 60000},
+    {"shot": "stopped"},
+    {"what": "the build stopped before a page: another main file offered, the one built selected", "check": "document.querySelector('phitex-preview').shadowRoot.querySelector('#empty .card .mainrow select').value", "is": "chapter.tex"},
+    {"eval": "(() => { const s = document.querySelector('phitex-preview').shadowRoot.querySelector('#empty .card .mainrow select'); s.value = 'main.tex'; s.dispatchEvent(new Event('change')); })()"},
+    {"what": "main.tex picked on the card: its first page, and kept", "check": "new Promise((ok) => { const t0 = Date.now(); const f = () => document.querySelector('phitex-preview')?.shadowRoot?.querySelector('.slot svg.page, .slot canvas') ? chrome.storage.local.get('mains').then(({ mains }) => ok(mains['/project/mock'])) : Date.now() - t0 > 60000 ? ok('no page in 60 s') : setTimeout(f, 250); f(); })", "is": "main.tex"}
+  ]
+}

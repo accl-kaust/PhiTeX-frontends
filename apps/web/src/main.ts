@@ -549,7 +549,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     // the remote mode's start() only joins a document the core already has)
     const main = p.main in p.files ? p.main : guessMain(p.files);
     s.refresh({ ...p.files });
-    panel.mains(Object.keys(p.files).filter((f) => f.endsWith(".tex")), main);
+    // (no main file kept for the project: the panel asks which it is, the guess preselected)
+    panel.mains(Object.keys(p.files).filter((f) => f.endsWith(".tex")), main, !(p.main in p.files));
     if (main) void s.setMain(main);
     else panel.error("no main .tex file found");
     await listProjects();
@@ -576,7 +577,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     const pr = P();
     if (!(m in pr.files)) return;
     pr.main = m;
-    void session?.setMain(m);
+    // (the file built kept, the panel's "Yes, build it": only remembered)
+    if (m !== session?.main) void session?.setMain(m);
     showTree();
     dirty();
   }
