@@ -11,7 +11,7 @@
 // page's fetch, which Chromium's mock-run.mjs never runs):
 //   { "name": "fx", "project": "test/scenarios/fx", "history": "test/scenarios/fx-history.json",
 //     "steps": [
-//       { "compare": 1, "has": ["\\DIFcite"], "ms": 60000 }, // Compare with version 1 (its menu, as
+//       { "compare": 1, "has": ["\\DIFcite"], "ms": 60000 }, // Changes' Diff from version 1 (its history, as
 //                  // clicked), until the diff bar counts changes; diff.tex has each regex, else fails
 //       { "replacefile": "fig.png", "b64": "…", "ms": 60000 }, // the file replaced as Overleaf says it
 //                  // is; until the session's PDF changes, else the run fails
@@ -194,27 +194,34 @@ async function scenario(ev, pages, ctx) {
     const t = Date.now();
     if (s.wait !== undefined) await sleep(s.wait);
     else if (s.compare !== undefined) {
-      // (Compare as clicked: its menu read from the history (the page's fetch), the version's ZIP, the diff)
-      await ev(`document.getElementById('phitex-cmp').click()`);
-      const item = `#phitex-cmpmenu button[data-v="${s.compare}"]`;
+      // (Changes' Diff from version N to the editor's text, as clicked: its history read from Overleaf (the
+      // page's fetch), the version's ZIP, the diff)
+      const C = `${shadow}?.querySelector('#chg')?.shadowRoot`;
+      const row = `.phx-commits .row[data-id="v${s.compare}"]`;
+      if (!(await ev(`!!${C}?.querySelector('.chg-pop:not([hidden])')`))) await ev(`document.getElementById('phitex-changes').click()`);
+      await ev(`(() => { const b = ${C}?.querySelector('[data-m=diff]'); if (b?.getAttribute('aria-pressed') !== 'true') b?.click(); return 1; })()`);
+      await sleep(300);
+      await ev(`${C}?.querySelector('#chg-from')?.click()`);
       let listed = false;
-      for (; !listed && Date.now() - t < 20000; await sleep(200)) listed = await ev(`!!document.querySelector('${item}')`);
-      if (!listed) throw new Error(`compare ${s.compare}: not in the menu: ${await ev(`document.getElementById('phitex-cmpmenu')?.innerText.replace(/\\s+/g, ' ')`)}`);
-      await ev(`document.querySelector('${item}').click()`);
+      for (; !listed && Date.now() - t < 30000; await sleep(300)) listed = await ev(`!!${C}?.querySelector('${row}')`);
+      if (!listed) throw new Error(`compare ${s.compare}: not in the history: ${await ev(`${C}?.querySelector('.chg-pop')?.innerText.replace(/\\s+/g, ' ')`)}`);
+      await ev(`${C}.querySelector('${row}').click()`);
+      await sleep(200);
+      await ev(`${C}.querySelector('.phx-commits .row:not([data-i]):not(.skel)').click()`);
       let bar = "";
       for (; Date.now() - t < (s.ms ?? 60000); await sleep(300)) {
-        bar = await ev(`(() => { const n = ${shadow}?.querySelector('.diffbar.on .n'); return n ? (n.classList.contains('busy') ? 'busy: ' : '') + n.textContent : ''; })()`);
-        if (/^busy: Couldn't/.test(bar) || (bar && !bar.startsWith("busy"))) break;
+        bar = await ev(`(() => { const R = ${C}; const p = R?.querySelector('.prog'); const f = R?.querySelector('.foot [aria-live]'); return p && !p.hidden ? 'busy: ' + p.innerText : f ? f.textContent : ''; })()`);
+        if (/^busy: Couldn't/.test(bar) || (bar && !bar.startsWith("busy") && bar !== "…")) break;
       }
-      if (!bar || bar.startsWith("busy")) throw new Error(`compare ${s.compare}: ${bar || "no diff bar"}`);
+      if (!bar || bar.startsWith("busy")) throw new Error(`compare ${s.compare}: ${bar || "no count"}`);
       const tex = (await state()).diffTex ?? "";
       const missing = (s.has ?? []).filter((r) => !new RegExp(r).test(tex));
       const extra = (s.hasnt ?? []).filter((r) => new RegExp(r).test(tex));
       const kept = path.join(root, `target/fx-run-${sc.name ?? "run"}-diff.tex`);
       fs.writeFileSync(kept, tex);
-      if (/^no changes/.test(bar) || missing.length || extra.length) throw new Error(`compare ${s.compare}: "${bar}"; diff.tex (${kept}) lacks ${JSON.stringify(missing)}, has ${JSON.stringify(extra)}`);
+      if (/^0 changes/.test(bar) || missing.length || extra.length) throw new Error(`compare ${s.compare}: "${bar}"; diff.tex (${kept}) lacks ${JSON.stringify(missing)}, has ${JSON.stringify(extra)}`);
       console.log(`compare ${s.compare}: ${bar}, diff.tex ${tex.length} chars, has ${JSON.stringify(s.has ?? [])}`);
-      await ev(`${shadow}.querySelector('.diffbar.on button[data-a=close]').click()`);
+      await ev(`${C}.querySelector('#chg-x').click()`);
     } else if (s.replacefile !== undefined) {
       // (a figure replaced in Overleaf: its socket says so, the content script reads it again (the page's fetch))
       const was = (await state()).pdf;

@@ -14,15 +14,17 @@ import { older } from "./common/version.ts";
 import { PreviewSession, guessMain, type CoreReq, type CoreRes, type CoreTransport, type CoreEvent, type EditorHost } from "./common/viewer/session.ts";
 import { charOffset } from "./common/viewer/edits.ts";
 import { readZip } from "./common/zip.ts";
-import { type DiffRunner, blameButton, compareButton, compareWith as compareVersion } from "./diffui.ts";
-import { overleafBlame } from "./blame.ts";
+import { changesButton } from "./diffui.ts";
+import { overleafHistory } from "./blame.ts";
+import { ProjectHistory } from "./olhistory.ts";
+import type { ChangesRunner } from "./common/viewer/changes.ts";
 import { AGREE, TERMS, asIs } from "./terms.ts";
 import { callout, calloutStyle, type Callout } from "./callout.ts";
 import { h, html, rich } from "./dom.ts";
 import { filesAt, type Fetched, type PageFetch, type Version } from "./history.ts";
-import { Compare, gate, LATEXDIFF_LOOK } from "./common/viewer/compare.ts";
+import { Compare, gate } from "./common/viewer/compare.ts";
 import { SUPPORT, unseen, type News } from "./news.ts";
-import { Panel, type DiffLook, type PanelPrefs, type Prefs, type SettingRow, type SettingsGroup, type ViewPrefs, type ViewState } from "./common/viewer/panel.ts";
+import { Panel, type PanelPrefs, type Prefs, type SettingRow, type SettingsGroup, type ViewPrefs, type ViewState } from "./common/viewer/panel.ts";
 import { resetAll, usable } from "./settings.ts";
 import { answer, channel, follow, mirrorOut, remoteCore, tee, type Ask } from "./mirror.ts";
 import { ENGINES, approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
@@ -252,9 +254,37 @@ if (location.hostname === "localhost") {
         // (FNV-1a, here: crypto.subtle's answer would be the page's ArrayBuffer in Firefox)
         let h = 0x811c9dc5;
         for (const b of pdf ?? []) h = Math.imul(h ^ b, 0x01000193) >>> 0;
-        const shown = (diffImpl as unknown as { shown?(): { texts(): Record<string, string> } } | undefined)?.shown?.();
+        const shown = (globalThis as unknown as { __phitexCompare?: { shown(): { texts(): Record<string, string> } } }).__phitexCompare?.shown();
         const state = { session: !!s, pdf: pdf ? `${pdf.length}:${h.toString(16)}` : "", diffTex: shown?.texts()["diff.tex"] ?? null, failed: boot.failed, stage: boot.stage, errors: [...boot.errors, ...devErrors.slice(-30)] };
         window.postMessage({ src: "phitex-dev", type: "stated", state: JSON.stringify(state) }, location.origin);
+      })();
+    } else if (e.data.type === "exact") {
+      // ("exact": Blame worked out to the character (Character detail, spacing counted, moved text its writer's) against
+      // the mock's truth (each character's session and author, tools/mock/history-gen.mjs): the characters it got wrong,
+      // and those not saved to the history (the editor's own), the history's text being the editor's without them)
+      void (async () => {
+        let out: unknown;
+        try {
+          const truth = (await (await fetch(`${location.origin}/project/mock/truth`)).json()) as Record<string, [number, number, string, string][]>;
+          const h = (globalThis as unknown as { __phitexHistory: { blame: { blame(f: string[], o: object): Promise<{ commits: { short: string; author: string }[]; files: Record<string, { runs?: [number, number, number][] }> } | string> } } }).__phitexHistory;
+          const d = await h.blame.blame(Object.keys(truth), { detail: "char", ws: "count", moved: "keep", skip: [] });
+          if (typeof d === "string") throw new Error(d);
+          const res: Record<string, { chars: number; wrong: number; unsaved: number; first?: string }> = {};
+          for (const [f, runs] of Object.entries(truth)) {
+            const want: string[] = [];
+            for (const [a, b, v, w] of runs) for (let i = a; i < b; i++) want.push(`${v} ${w}`);
+            const got: string[] = [];
+            let unsaved = 0;
+            for (const [a, b, k] of d.files[f]?.runs ?? []) for (let i = a; i < b; i++) k < 0 ? unsaved++ : got.push(`${d.commits[k].short} ${d.commits[k].author}`);
+            let wrong = Math.abs(got.length - want.length), first: string | undefined;
+            for (let i = 0; i < Math.min(got.length, want.length); i++) if (got[i] !== want[i]) (wrong++, (first ??= `${i}: ${got[i]} for ${want[i]}`));
+            res[f] = { chars: want.length, wrong, unsaved, ...(first ? { first } : {}) };
+          }
+          out = res;
+        } catch (err) {
+          out = { error: String(err) };
+        }
+        window.postMessage({ src: "phitex-dev", type: "exacted", result: JSON.stringify(out) }, location.origin);
       })();
     }
   });
@@ -525,16 +555,32 @@ class FrameTransport implements CoreTransport {
 
 const ZOOMS: [string, string][] = [["fit", "Fit width"], ["0.75", "75%"], ["1", "100%"], ["1.5", "150%"], ["2", "200%"]];
 
-/** The diff's runner (diffui.ts): the real one set once the session is up (the toolbar comes first). */
-let diffImpl: DiffRunner | undefined;
-const diffRunner: DiffRunner = {
-  start: (v, say, count) => (diffImpl ? diffImpl.start(v, say, count) : Promise.reject(new Error("the preview is still starting"))),
-  show: (w) => diffImpl?.show(w),
+/** Changes' Diff (compare.ts's runner): the real one set once the session is up (the toolbar comes first). */
+let diffImpl: ChangesRunner | undefined;
+const diffRunner: ChangesRunner = {
+  start: (p, look, hide, say, count) => (diffImpl ? diffImpl.start(p, look, hide, say, count) : Promise.reject(new Error("the preview is still starting"))),
+  show: (on) => diffImpl?.show(on),
   goto: (k) => diffImpl?.goto(k),
-  download: (w) => diffImpl?.download(w),
-  look: () => (diffImpl ? diffImpl.look() : Promise.resolve(LATEXDIFF_LOOK)),
-  restyle: (l) => diffImpl?.restyle(l),
+  download: (w) => diffImpl?.download?.(w),
+  restyle: (l, hide) => diffImpl?.restyle(l, hide),
   stop: () => diffImpl?.stop(),
+};
+
+/**
+ * Your last visit: the history's version when this project was last opened
+ * here (more than half an hour ago), kept in the extension's storage by
+ * project; `seen` the version now, told once the history's first page is read.
+ */
+const visits = {
+  prev: null as number | null,
+  async seen(id: string, v: number): Promise<void> {
+    const { visits: all } = (await chrome.storage.local.get("visits")) as { visits?: Record<string, { cur: number; prev: number | null; at: number }> };
+    const was = all?.[id];
+    const now = Date.now();
+    const next = !was ? { cur: v, prev: null, at: now } : now - was.at > 30 * 60e3 && was.cur !== v ? { cur: v, prev: was.cur, at: now } : { ...was, cur: v, at: was.cur === v ? was.at : now };
+    this.prev = next.prev;
+    await chrome.storage.local.set({ visits: { ...all, [id]: next } });
+  },
 };
 
 /** Styles for what we add to Overleaf's own DOM (the switch, the toolbar controls, the tip). */
@@ -974,9 +1020,8 @@ function dockInOverleaf(panel: Panel): Dock {
       if (which === "compiled") compiledLink()?.click();
     };
     document.addEventListener("click", () => menu.classList.remove("show"));
-    // (compare with a past version: diffui.ts)
-    compareButton(l, panel, project, pageFetch, diffRunner);
-    blameButton(l, panel);
+    // (Changes: Diff and Blame, one popover under its own toolbar button, diffui.ts)
+    changesButton(l, panel);
     left.append(l);
     // (a new button, empty: the status drawn in it at once)
     statusLine.reset();
@@ -1368,6 +1413,24 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
   /** The session the panel shows: the compare's while its diff is in view. */
   const shown = () => compare?.shown() ?? session;
   const ch = channel(project());
+  /** The project's history, read as asked and kept by project; its reads stopped when the project is left. */
+  const history = new ProjectHistory(project, pageFetch, {
+    get: async (k) => (await chrome.storage.local.get(k))[k],
+    set: (k, v) => chrome.storage.local.set({ [k]: v }),
+  });
+  addEventListener("pagehide", () => history.abort.abort());
+  void history.moreUpdates().then(() => (history.latest ? visits.seen(project().replace(/.*\//, ""), history.latest) : undefined)).catch(() => undefined);
+  const olHistory = overleafHistory({
+    history,
+    // (the editor's own text and pages, whatever the panel shows (Diff's pages, Changes on): Blame marks those)
+    text: (file) => session?.text(file),
+    glyphs: (k) => session?.pageGlyphs(k) ?? Promise.resolve([]),
+    goto: (file, line) => (DETACHED ? ask({ t: "goto", file, line }) : window.postMessage({ src: "phitex-content", type: "goto", file, line }, location.origin)),
+    own: document.querySelector<HTMLMetaElement>('meta[name="ol-user_id"]')?.content || undefined,
+    lastVisit: () => visits.prev,
+  });
+  // (the mock's checks: blame worked out as a scenario asks, its truth beside it; never on overleaf.com)
+  if (location.hostname === "localhost") (globalThis as Record<string, unknown>).__phitexHistory = olHistory;
   const ask = (a: Ask) => ch.postMessage(a);
   /** The pages as strips over the core's transport (set once the transport is). */
   let pages: StripPages | undefined;
@@ -1445,8 +1508,6 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     onNews: () => dock?.news(),
     // (the contents opened: the outline of the session shown, asked for now)
     onContents: () => void shown()?.outline(),
-    // (the toolbar's compare: its versions' menu, diffui.ts)
-    onCompare: () => document.getElementById("phitex-cmp")?.click(),
     // (the packs kept in this browser: the extension's store, emptied by the service worker)
     onClearCache: () => void clearCache(),
     // (a project file's text as the session has it, for Copy for an AI assistant)
@@ -1464,18 +1525,13 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
   }, prefs, {
     host: "overleaf",
     fileUrl: (p) => chrome.runtime.getURL(p),
-    // (Blame: the project's history (blame.ts here), the pages' places from the session's glyphs;
-    // "Compare with before this version" is the toolbar's Compare, diffui.ts)
-    blame: overleafBlame({
-      base: project,
-      fetcher: pageFetch,
-      text: (file) => shown()?.text(file),
-      glyphs: (k) => shown()?.pageGlyphs(k) ?? Promise.resolve([]),
-      goto: (file, line) => (DETACHED ? ask({ t: "goto", file, line }) : window.postMessage({ src: "phitex-content", type: "goto", file, line }, location.origin)),
-      compare: (v, title, when) => compareVersion?.({ v, title: `${title} · ${when}`, at: Date.now(), who: [], label: false }),
-      own: document.querySelector<HTMLMetaElement>('meta[name="ol-user_id"]')?.content || undefined,
-    }),
+    // (Changes and Blame: the project's history, exact to the character (olhistory.ts, blame.ts here),
+    // the pages' places from the session's glyphs; the diff compare.ts's, its button Overleaf's toolbar's)
+    blame: olHistory.blame,
+    changes: { ...olHistory.changes, diff: diffRunner },
+    ownChangesButton: true,
   });
+  if (location.hostname === "localhost") (globalThis as Record<string, unknown>).__phitexPanel = panel;
   // ("Report this" (report.ts) wherever the panel shows an error or the debug info: the card a start
   // that failed leaves, the timings' popover (Copy debug info), and Report a problem's dialog, each
   // given its row as it appears; the panel draws them again, the row is put back)
@@ -1592,9 +1648,6 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
       },
       msg: (t) => panel.msg(t, true),
       options: opts ?? {},
-      // (the look: chrome.storage, every project's)
-      loadLook: async () => ((await chrome.storage.local.get("diffLook")) as { diffLook?: Partial<DiffLook> }).diffLook,
-      saveLook: (l) => void chrome.storage.local.set({ diffLook: l }),
     });
   }
   chrome.storage.onChanged.addListener((c) => {
@@ -1853,7 +1906,10 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
       void (session as unknown as { core: CoreTransport }).core.request({ op: "status" });
     });
     // (a compare's session: the marked-up document opened as a project of its own)
-    diffImpl = compare = compareWith(host, transport, opts);
+    compare = compareWith(host, transport, opts);
+    if (location.hostname === "localhost") (globalThis as Record<string, unknown>).__phitexCompare = compare;
+    // (Changes' versions are the history's, `v42`: version 42's files)
+    diffImpl = compare.runner((id) => ({ v: Number(id.replace(/^v/, "").replace(/~.*/, "")), title: id, at: 0, who: [], label: false }));
     devMark("start");
     bootTrace = (k, d) => session.tr(k, d);
     // (the project read, its figures given to the core as they come; then

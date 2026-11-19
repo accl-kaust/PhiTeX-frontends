@@ -1,0 +1,202 @@
+{
+ "project": "test/scenarios/changes",
+ "history": "test/scenarios/changes.history.json",
+ "strict": true,
+ "name": "changes-slow",
+ "storage": {
+  "tipsSeen": [
+   "changes",
+   "compare",
+   "timing",
+   "clean",
+   "dark",
+   "blame"
+  ],
+  "panel": {},
+  "visits": {}
+ },
+ "mockEnv": {
+  "MOCK_HISTORY_DELAY": "700"
+ },
+ "steps": [
+  {
+   "onpage": "Introduction",
+   "ms": 60000
+  },
+  {
+   "idle": 1000
+  },
+  {
+   "eval": "chrome.storage.local.remove('olhist:mock').then(() => 'cache cleared')"
+  },
+  {
+   "reload": 1,
+   "ms": 120000
+  },
+  {
+   "pointer": "#phitex-changes",
+   "press": true,
+   "ms": 300
+  },
+  {
+   "pointer": ".chg-pop .ttl h2",
+   "ms": 100
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.skrow, .skel').length > 0 || /Reading/.test(C.querySelector('.prog')?.textContent ?? ''); })()",
+   "what": "at once: skeleton rows or the progress line, never blank"
+  },
+  {
+   "shot": "slow-first-light"
+  },
+  {
+   "click": "#chg-from",
+   "ms": 200
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.phx-commits .row.skel').length > 0; })()",
+   "what": "the picker's skeleton: rows shaped like the graph's",
+   "ms": 3000
+  },
+  {
+   "shot": "slow-picker-skeleton-light"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.phx-commits .row[data-i]').length > 0; })()",
+   "what": "the first page of sessions shows as it lands",
+   "ms": 10000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.phx-commits .row[data-i]').length < 650; })()",
+   "what": "not all yet: the rest still being read"
+  },
+  {
+   "click": "#chg-done"
+  },
+  {
+   "click": "[data-m=blame]",
+   "ms": 200
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /Reading history|Working out who wrote/.test(C.querySelector('.prog')?.textContent ?? ''); })()",
+   "what": "the progress line: what is read",
+   "ms": 5000
+  },
+  {
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return (globalThis.__p = Number(C.querySelector('.prog [role=progressbar]')?.getAttribute('aria-valuenow') ?? -1)); })()"
+  },
+  {
+   "shot": "slow-blame-progress-light"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.skrow').length > 0 || C.querySelectorAll('.prow').length > 0; })()",
+   "what": "who wrote it: skeleton rows while it is worked out"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-wait').length > 0; })()",
+   "what": "the pages: a quiet placeholder where the bars will be",
+   "ms": 10000
+  },
+  {
+   "shot": "slow-pages-placeholder-light"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return Number(C.querySelector('.prog [role=progressbar]')?.getAttribute('aria-valuenow') ?? -1) > globalThis.__p; })()",
+   "what": "the bar moves as pages of the history land",
+   "ms": 20000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-in').length > 0; })()",
+   "what": "each file's bars fade in as its blame lands",
+   "ms": 60000
+  },
+  {
+   "click": "[data-m=diff]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "usable while reading: Diff",
+   "is": "diff"
+  },
+  {
+   "click": "#chg-gear"
+  },
+  {
+   "click": "[data-look=ins][data-v=line]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.preview').classList.contains('i-line'); })()",
+   "what": "its settings answer at once"
+  },
+  {
+   "click": "[data-reset=diff]"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "click": "[data-m=blame]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.prow').length; })()",
+   "what": "Blame done, its work kept across the switches",
+   "is": 3,
+   "ms": 180000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20 && P.querySelectorAll('.slot .bl-wait').length === 0; })()",
+   "what": "the bars in, the placeholders gone",
+   "ms": 10000
+  },
+  {
+   "shot": "slow-blame-done-light"
+  },
+  {
+   "click": "#chg-x"
+  },
+  {
+   "eval": "chrome.storage.local.remove('olhist:mock').then(() => 'cache cleared')"
+  },
+  {
+   "histfail": 50
+  },
+  {
+   "reload": 1,
+   "ms": 120000
+  },
+  {
+   "pointer": "#phitex-changes",
+   "press": true,
+   "ms": 300
+  },
+  {
+   "pointer": ".chg-pop .ttl h2",
+   "ms": 100
+  },
+  {
+   "click": "[data-m=blame]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /Couldn't/.test(C.querySelector('.prog.err')?.textContent ?? '') && !!C.querySelector('.prog.err .again'); })()",
+   "what": "the read failed: what failed, and Try again",
+   "ms": 60000
+  },
+  {
+   "shot": "slow-error-light"
+  },
+  {
+   "histfail": 0
+  },
+  {
+   "click": ".again"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.prow').length; })()",
+   "what": "Try again: read",
+   "is": 3,
+   "ms": 180000
+  }
+ ]
+}

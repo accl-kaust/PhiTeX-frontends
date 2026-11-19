@@ -28,10 +28,14 @@ frontend also gives you:
 
 - **Source ↔ page**: the word at your cursor is marked on the page, and a
   double-click on the page opens its source.
-- **Blame**: who last changed each line, as bars in the page's margin, by
-  age, by author or since a tag, with a card for the commit on hover (git in
-  VS Code and `phitex watch`; the project's history on Overleaf). It draws
-  over the pages and never builds them again.
+- **± Changes**: Diff and Blame in one popover under one button; hover to
+  peek, click to keep the marks on. Diff compares any two versions (a commit
+  graph coloured by branch, your last visit, a tag), lists the changes by
+  section and steps through them with `]` and `[`. Blame shows who wrote
+  each line, word or character, as bars in the margin by author or age,
+  with a card per commit on hover. Git in VS Code and `phitex watch`; the
+  project's history on Overleaf, exact to the character. It draws over the
+  pages and never builds them again.
 - **Problems**: errors and warnings are listed and underlined on the page.
   Each has **Copy for an AI assistant**: the message with the source around
   it, the preamble, the macros and files it came from, TeX's notes and the
@@ -257,6 +261,9 @@ the screenshots and the core's log to `target/mock-run/<name>/`.
 project is fetched as the page fetches it (`content.fetch`), which Chromium
 never does. `test/scenarios/fx.json` opens a project, compares it with a
 past version, and replaces a figure; it fails if any of the three fails.
+`test/scenarios/fx-changes.json` checks ± Changes there, Blame exact to the
+character against a generated history (`tools/mock/history-gen.mjs`, also
+behind `changes.json` and the slow-history `changes-slow.json` in Chromium).
 Run it before every release, beside the Chromium scenarios.
 
 A scenario can:

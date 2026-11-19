@@ -9,9 +9,10 @@
 // its webview's only once, its later frames never on the screen.)
 
 import { Panel, type PanelPrefs, type SettingRow, type SettingsGroup, type ViewPrefs } from "../../../common/src/viewer/panel.ts";
-import { Compare, DiffControls, gate } from "../../../common/src/viewer/compare.ts";
+import { Compare, gate } from "../../../common/src/viewer/compare.ts";
 import type { BlameData } from "../../../common/src/viewer/blame.ts";
-import type { DiffLook } from "../../../common/src/viewer/panel.ts";
+import type { ChangesHost, ChangesRunner } from "../../../common/src/viewer/changes.ts";
+import type { Commit } from "../../../common/src/viewer/commits.ts";
 import { html } from "../../../common/src/viewer/html.ts";
 import { PreviewSession, type CoreEvent, type CoreRes, type CoreTransport, type EditorHost } from "../../../common/src/viewer/session.ts";
 import { StripPages } from "../../../common/src/strippages.ts";
@@ -26,8 +27,8 @@ export type Up =
   | { t: "req"; id: number; op: { op: string; [k: string]: unknown }; ch?: 2 }
   | { t: "pdf" }
   | { t: "log"; s: string }
-  /** Compare: the version picked there (cmp-start back), or `rev` (Blame's "Compare with before this commit"); its core opened (cmp-ready back) and closed. */
-  | { t: "compare"; rev?: string; title?: string; when?: string }
+  /** Changes' Diff: the files as they are asked (texts back, and at each edit); its core opened (cmp-ready back) and closed. */
+  | { t: "cmp-texts" }
   | { t: "cmp-open" }
   | { t: "cmp-close" }
   /** The last build's log, in an editor tab. */
@@ -42,8 +43,6 @@ export type Up =
 export type Down =
   | { t: "res"; id: number; r: CoreRes & { render?: { page: number; key: string } }; ch?: 2 }
   | { t: "event"; e: CoreEvent; ch?: 2 }
-  /** A version to compare with: its text files (`old`), and the project's as they are now. */
-  | { t: "cmp-start"; v: string; title: string; when: string; old: Record<string, string>; main: string; files: Record<string, string> }
   /** The project's text files as they are now (an edit while comparing). */
   | { t: "texts"; main: string; files: Record<string, string> }
   | { t: "cmp-ready"; error?: string }
@@ -117,6 +116,41 @@ const startAt = (window as unknown as { PHITEX_AT?: [number, number | null] }).P
 const relay = new Relay();
 // (the last frame's numbers, in the corner, with phitex.trace's trace too)
 
+/**
+ * Changes' history and diff: the folder's git log (`vsc-log`), a version's
+ * files (`vsc-files`), the diff run by `compare` below once the session is
+ * up; the last visit kept in the webview's state.
+ */
+let compare: Compare<string> | undefined;
+const diffRunner: ChangesRunner = {
+  start: (p, look, hide, say, count) => (compare ? compare.runner((id) => id).start(p, look, hide, say, count) : Promise.reject(new Error("the preview is still starting"))),
+  show: (on) => compare?.show(on),
+  goto: (k) => compare?.goto(k),
+  restyle: (l, hide) => compare?.restyle(l, hide),
+  stop: () => compare?.stop(),
+  download: (w) => void compare?.download(w),
+};
+let visit: string | null = null;
+const changesHost: ChangesHost = {
+  async log(skip, limit) {
+    const r = await relay.request({ op: "vsc-log", skip, limit });
+    if (!r.ok) return r.error ?? "No git history here";
+    const cs = ((r.json as unknown as { commits?: Commit[] }).commits ?? []) as Commit[];
+    if (!skip && cs[0]) {
+      // (your last visit: HEAD when this preview was last opened, more than half an hour ago)
+      const st = (vscode.getState() as { visit?: { cur: string; prev: string | null; at: number } } | undefined) ?? {};
+      const was = st.visit, now = Date.now(), head = cs[0].id;
+      const next = !was ? { cur: head, prev: null, at: now } : now - was.at > 30 * 60e3 && was.cur !== head ? { cur: head, prev: was.cur, at: now } : { ...was, cur: head, at: was.cur === head ? was.at : now };
+      visit = next.prev;
+      vscode.setState({ ...(vscode.getState() as object | undefined), visit: next });
+    }
+    for (const c of cs) if (c.id === visit) c.mark = "your last visit";
+    return cs;
+  },
+  lastVisit: () => visit,
+  diff: diffRunner,
+};
+
 const panel = new Panel(
   {
     onPage: () => {},
@@ -134,11 +168,6 @@ const panel = new Panel(
     // (the contents opened: the outline asked for now)
     onContents: () => void shown().outline(),
     onBoxes: (file, start, end) => shown().boxesOf(file, start, end),
-    // (the version from the folder's git history, picked in the extension host: compare.ts there)
-    // (every preview, the builtin engine's and phitex watch's, git or not: without git, the
-    // extension host says what Compare needs (compare.ts). A tab opened at a place has none:
-    // the preview it came from has)
-    onCompare: startAt ? undefined : () => up({ t: "compare" }),
     // (a link Ctrl+clicked or middle-clicked: this preview in a tab of its own, at its target)
     onOpenAt: (k, top) => up({ t: "openAt", k, top }),
     // (the caches: the extension's command, which lists them and clears one)
@@ -172,15 +201,19 @@ const panel = new Panel(
     outline: true,
     // (Blame: the folder's git history, read by the extension host (blame.ts there); the
     // pages' places from the session's glyphs; Compare against a commit's parent)
-    blame: {
-      async blame(files) {
-        const r = await relay.request({ op: "blame", files });
-        return r.ok ? (r.json as unknown as BlameData) : (r.error ?? "no git history here");
-      },
-      glyphs: (k) => session.pageGlyphs(k),
-      goto: (file, line) => void relay.request({ op: "source", file, line, col: 1 }),
-      compare: startAt ? undefined : (c) => up({ t: "compare", rev: c ? `${c.id}^` : "HEAD", title: c ? `Before ${c.short}` : "The last commit", when: c ? c.subject : "against your changes" }),
-    },
+    blame: startAt
+      ? undefined
+      : {
+          async blame(files, o) {
+            const r = await relay.request({ op: "blame", files, ...(o ? { ws: o.ws, moved: o.moved, skip: o.skip } : {}) });
+            return r.ok ? (r.json as unknown as BlameData) : (r.error ?? "no git history here");
+          },
+          glyphs: (k) => session.pageGlyphs(k),
+          goto: (file, line) => void relay.request({ op: "source", file, line, col: 1 }),
+        },
+    // (Changes: the folder's git history and its versions' files read by the extension host (relay.ts),
+    // the diff typeset by a core of its own (compare.ts). A tab opened at a place has none: its preview has)
+    changes: startAt ? undefined : changesHost,
     header: true,
     words: {
       badge: watch ? "watch" : "builtin",
@@ -283,7 +316,7 @@ const host: EditorHost = { loadProject: async () => ({}), onOpen() {}, onChanges
 // script never ran, and the pages never came: "Starting the engine" for good, as the web
 // demo's did, 8f5c98d)
 let compared = false;
-const session = new PreviewSession(host, pages, watch ? panel : gate(panel, () => !compared || compare.editorShown()), {
+const session = new PreviewSession(host, pages, watch ? panel : gate(panel, () => !compared || (compare?.editorShown() ?? true)), {
   checkEveryMs: 0,
   remote: {
     source: (file, start, end) => void relay.request({ op: "source", file, start, end }),
@@ -302,6 +335,9 @@ let now: { main: string; files: Record<string, string> } = { main: "main.tex", f
 const changed: (() => void)[] = [];
 const old = new Map<string, Record<string, string>>();
 let ready: ((error?: string) => void) | undefined;
+/** The files as they are asked of the extension host once (a diff against them), and told. */
+let asked: Promise<void> | undefined;
+let gotTexts: (() => void) | undefined;
 // (the editor's session, as a compare reads it: its texts the extension host's)
 const editorSession = new Proxy(session, {
   get(t, k, r) {
@@ -312,11 +348,22 @@ const editorSession = new Proxy(session, {
     return typeof v === "function" ? v.bind(t) : v;
   },
 });
-const compare = new Compare<string>({
+compare = new Compare<string>({
   session: () => editorSession,
   core: relay,
   onChanges: (cb) => void changed.push(cb),
-  files: async (v) => old.get(v) ?? {},
+  async files(v, say) {
+    if (old.has(v)) return old.get(v)!;
+    // (the files as they are first, then each edit: the extension host's, compare.ts)
+    if (!asked) (asked = new Promise<void>((ok) => (gotTexts = ok))), up({ t: "cmp-texts" });
+    await asked;
+    say(`Reading ${v.slice(0, 7)}'s files…`);
+    const r = await relay.request({ op: "vsc-files", rev: v, files: Object.keys(now.files) });
+    if (!r.ok) throw new Error(r.error ?? "git did not answer");
+    const files = (r.json as unknown as { files: Record<string, string> }).files;
+    old.set(v, files);
+    return files;
+  },
   async connect() {
     const opened = new Promise<string | undefined>((ok) => (ready = ok));
     up({ t: "cmp-open" });
@@ -335,25 +382,15 @@ const compare = new Compare<string>({
   },
   msg: (t) => panel.msg(t, true),
   options: { checkEveryMs: 0 },
-  // (the look: the webview's state, beside the panel's settings)
-  loadLook: async () => (vscode.getState() as { look?: Partial<DiffLook> } | undefined)?.look,
-  saveLook: (look) => vscode.setState({ ...(vscode.getState() as object | undefined), look }),
 });
 compared = true;
-const controls = new DiffControls(panel, compare);
 /** The session the panel shows: the compare's while its diff is in view. */
-const shown = () => compare.shown();
+const shown = () => compare!.shown();
 addEventListener("message", (m: MessageEvent<Down>) => {
   const d = m.data;
-  if (d.t === "cmp-start") {
-    now = { main: d.main, files: d.files };
-    old.set(d.v, d.old);
-    void controls.start(d.v, d.title, d.when);
-  }
-  if (d.t === "texts") (now = { main: d.main, files: d.files }), panel.docName(d.main), changed.forEach((f) => f());
+  if (d.t === "texts") (now = { main: d.main, files: d.files }), panel.docName(d.main), changed.forEach((f) => f()), gotTexts?.();
   if (d.t === "cmp-ready") (ready?.(d.error), (ready = undefined));
 });
-addEventListener("keydown", (e) => controls.key(e));
 
 up({ t: "hello" });
 void session.start();

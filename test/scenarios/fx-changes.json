@@ -1,0 +1,120 @@
+{
+ "project": "test/scenarios/changes",
+ "history": "test/scenarios/changes.history.json",
+ "name": "fx-changes",
+ "storage": {
+  "tipsSeen": [
+   "changes",
+   "compare",
+   "timing",
+   "clean",
+   "dark",
+   "blame"
+  ],
+  "panel": {},
+  "visits": {}
+ },
+ "steps": [
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; return !!document.getElementById('phitex-changes') && !document.getElementById('phitex-blame'); })()",
+   "what": "one \u00b1 Changes button"
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; const b = document.getElementById('phitex-changes'); b.dispatchEvent(new PointerEvent('pointerenter', at(b))); await sleep(400); return [!C.querySelector('.chg-pop').hidden, C.querySelector('.pin').textContent]; })()",
+   "what": "hovering peeks",
+   "is": [
+    true,
+    "peek"
+   ]
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; const b = document.getElementById('phitex-changes'); b.dispatchEvent(new PointerEvent('pointerleave', at(b))); await sleep(700); return C.querySelector('.chg-pop').hidden; })()",
+   "what": "leaving closes the peek"
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; const b = document.getElementById('phitex-changes'); b.dispatchEvent(new PointerEvent('pointerenter', at(b))); b.click(); await sleep(300); return [b.getAttribute('aria-pressed'), C.querySelector('.pin').textContent]; })()",
+   "what": "a click keeps it on",
+   "is": [
+    "true",
+    "on"
+   ]
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; for (let i = 0; i < 1200; i++) { if (/^\\d+ changes?$/.test(C.querySelector('.foot [aria-live]')?.textContent ?? '')) return C.querySelector('#chg-from b').textContent; await sleep(100); } return C.querySelector('.chg-pop').innerText; })()",
+   "what": "Diff from the last label, counted",
+   "is": "Submitted v1"
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; for (let i = 0; i < 600; i++) { if ([...C.querySelectorAll('.citem small')].some((s) => / \u00b7 v\\d+/.test(s.textContent))) return true; await sleep(100); } return false; })()",
+   "what": "each change with its writer and version (/changes through Firefox's content.fetch)"
+  },
+  {
+   "shot": "diff-on"
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; C.querySelector('#chg-from').click(); for (let i = 0; i < 300 && C.querySelectorAll('.phx-commits .row[data-i]').length < 8; i++) await sleep(100); return new Set([...C.querySelectorAll('.phx-commits .row[data-i]')].map((r) => r.querySelector('svg circle').getAttribute('cx'))).size; })()",
+   "what": "the picker: one lane",
+   "is": 1
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; globalThis.__ids = [...C.querySelectorAll('.phx-commits .row[data-i]')].slice(0, 8).map((r) => r.dataset.id); row(5).dispatchEvent(new MouseEvent('click', { ...at(row(5)), detail: 1 })); await sleep(100); row(2).dispatchEvent(new PointerEvent('pointermove', at(row(2)))); await sleep(300); return [...C.querySelectorAll('.phx-commits .row.aim')].map((r) => r.dataset.i); })()",
+   "what": "one end, the pointer moved: the rows between aimed",
+   "is": [
+    "2",
+    "3",
+    "4",
+    "5"
+   ]
+  },
+  {
+   "shot": "picker-aim"
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; row(2).dispatchEvent(new MouseEvent('click', { ...at(row(2)), detail: 1 })); await sleep(300); return [C.querySelector('.chg-pop').dataset.view, C.querySelector('#chg-from code').textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to code').textContent.split(' \u00b7 ')[0]].join(' ') === ['diff', __ids[5], __ids[2]].join(' '); })()",
+   "what": "the other end: the range, the picker closed"
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; C.querySelector('#chg-from').click(); await sleep(200); row(3).dispatchEvent(new MouseEvent('dblclick', at(row(3)))); await sleep(300); return [C.querySelector('.chg-pop').dataset.view, C.querySelector('#chg-from code').textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to code').textContent.split(' \u00b7 ')[0]].join(' ') === ['diff-pick', __ids[4], __ids[3]].join(' '); })()",
+   "what": "a double-click: its own changes, the picker staying"
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; row(4).dispatchEvent(new MouseEvent('click', { ...at(row(4)), detail: 1 })); await sleep(100); row(4).dispatchEvent(new MouseEvent('click', { ...at(row(4)), detail: 1 })); await sleep(200); return /^Click one end/.test(C.querySelector('#chg-hint').textContent); })()",
+   "what": "the same again cancels"
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; C.querySelector('#chg-done').click(); await sleep(200); C.querySelector('[data-m=blame]').click(); for (let i = 0; i < 1200 && C.querySelectorAll('.prow').length < 3; i++) await sleep(100); return [...C.querySelectorAll('.prow .nm > span:first-child')].map((e) => e.textContent).sort(); })()",
+   "what": "Blame: who wrote this version",
+   "is": [
+    "Ali Rahman",
+    "Lina Chen",
+    "Mary Okafor"
+   ]
+  },
+  {
+   "check": "new Promise((ok) => { const on = (e) => { if (e.data?.src === 'phitex-dev' && e.data.type === 'exacted') (removeEventListener('message', on), ok(JSON.parse(e.data.result))); }; addEventListener('message', on); postMessage({ src: 'phitex-dev', type: 'exact' }, location.origin); setTimeout(() => ok('timeout'), 120000); })",
+   "is": {
+    "main.tex": {
+     "chars": 6959,
+     "wrong": 0,
+     "unsaved": 0
+    }
+   },
+   "what": "exact to the character in Firefox (the generator's truth)"
+  },
+  {
+   "shot": "blame"
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; C.querySelector('#chg-gear').click(); await sleep(200); C.querySelector('[data-look=bars][data-v=right]').click(); await sleep(200); C.querySelector('#chg-gear').click(); await sleep(300); return P.querySelectorAll('.slot .bl-bar').length > 20; })()",
+   "what": "Blame's settings: bars on the right"
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; C.querySelector('#chg-x').click(); await sleep(300); return [C.querySelector('.chg-pop').hidden, P.querySelectorAll('.slot .bl').length]; })()",
+   "what": "\u2715: off",
+   "is": [
+    true,
+    0
+   ]
+  }
+ ]
+}

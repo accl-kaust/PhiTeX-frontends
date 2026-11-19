@@ -193,6 +193,43 @@ const histAt = (ago) => {
   const m = /^(\d+)([mhd])$/.exec(ago ?? "1d");
   return Date.now() - (m ? +m[1] * { m: 60e3, h: 3600e3, d: 86400e3 }[m[2]] : 86400e3);
 };
+/**
+ * A history made change by change (tools/mock/history-gen.mjs: `changes`,
+ * `sessions`, `labels`, `blobs`, `truth`), served as Overleaf serves its
+ * own: /updates (the sessions, newest first, paged by time), /labels,
+ * /changes?since=N&paginated=true (100 a page), /blob/HASH, /version/N/zip
+ * (the files after N changes), /diff (as project-history makes it: each
+ * change's inserts and deletes with its user and time, then
+ * DiffGenerator.compressDiff's merge of a user's adjacent runs), and
+ * /truth (each character's session and author, from the generator's own
+ * simulation). MOCK_HISTORY_DELAY=ms: each of these answered that late (a
+ * slow history); MOCK_HISTORY_FAIL=n, or POST /project/mock/history-fail?n=N
+ * from then on: the next n /changes and /updates answered 503 (a failed read).
+ */
+const exact = hist?.changes ? hist : null;
+const histDelay = +(process.env.MOCK_HISTORY_DELAY ?? 0);
+let histFail = +(process.env.MOCK_HISTORY_FAIL ?? 0);
+const exUser = (id) => Object.values(exact.users).find((u) => u.id === id) ?? null;
+const exUpdate = (s) => ({ fromV: s.fromV, toV: s.toV, meta: { users: s.who.map((w) => exact.users[w]), start_ts: s.start, end_ts: s.end }, pathnames: s.fromV === 0 ? [] : ["main.tex"], project_ops: s.fromV === 0 ? [{ add: { pathname: "main.tex" }, atV: 0 }] : [], labels: exact.labels.filter((l) => l.version === s.toV).map((l) => ({ comment: l.comment, version: l.version })) });
+/** The files after `n` changes, each character with the change that typed it (and the ones deleted, for /diff). */
+const exReplay = (n) => {
+  const files = new Map();
+  for (let i = 0; i < n; i++)
+    for (const op of exact.changes[i].operations) {
+      if (op.file) files.set(op.pathname, [...exact.blobs[op.file.hash]].map((ch) => ({ ch, v: i })));
+      if (!op.textOperation) continue;
+      const t = files.get(op.pathname);
+      const out = [];
+      let at = 0;
+      for (const x of op.textOperation) {
+        if (typeof x === "string") out.push(...[...x].map((ch) => ({ ch, v: i })));
+        else if (x > 0) out.push(...t.slice(at, (at += x)));
+        else at -= x;
+      }
+      files.set(op.pathname, out);
+    }
+  return files;
+};
 const histUpdate = (x) => ({ fromV: x.v - 1, toV: x.v, meta: { users: [hist.users[x.user]], start_ts: histAt(x.ago) - 60e3, end_ts: histAt(x.ago) }, pathnames: x.files ?? [], project_ops: [], labels: (hist.labels ?? []).filter((l) => l.v === x.v).map((l) => ({ comment: l.comment })) });
 /** A multipart body's file part's bytes (the upload's qqfile). */
 const filePart = (body, type) => {
@@ -205,7 +242,7 @@ const filePart = (body, type) => {
 };
 const escapeAttr = (t) => t.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
-http.createServer((req, res) => {
+const handle = (req, res) => {
   const u = new URL(req.url, "http://x");
   // (served as overleaf.com is: COOP same-origin and COEP credentialless,
   // so the tab is cross-origin isolated, as the core's offscreen page is
@@ -232,6 +269,93 @@ http.createServer((req, res) => {
   if (u.pathname === "/project/mock/dashboard" && req.method === "POST") {
     dash = readDash(u.searchParams.get("path"));
     return send(204, "text/plain", "");
+  }
+  if (exact && /^\/project\/mock\/(updates|labels|changes|blob\/|version\/|diff|truth)/.test(u.pathname) && !req.headers["x-mock-delayed"] && histDelay) {
+    req.headers["x-mock-delayed"] = "1";
+    return void setTimeout(() => handle(req, res), histDelay);
+  }
+  if (exact && u.pathname === "/project/mock/history-fail" && req.method === "POST") {
+    histFail = +(u.searchParams.get("n") ?? 0);
+    return send(204, "text/plain", "");
+  }
+  if (exact && /^\/project\/mock\/(updates|changes)$/.test(u.pathname) && histFail > 0) {
+    histFail--;
+    return send(503, "text/plain", "history unavailable");
+  }
+  if (exact && u.pathname === "/project/mock/updates") {
+    const before = +(u.searchParams.get("before") ?? Infinity) || Infinity, min = +(u.searchParams.get("min_count") ?? 10);
+    const all = exact.sessions.map(exUpdate).reverse().filter((x) => x.meta.end_ts < before);
+    const page = all.slice(0, min);
+    return send(200, "application/json", JSON.stringify({ updates: page, ...(all.length > min ? { nextBeforeTimestamp: page.at(-1).meta.end_ts } : {}) }));
+  }
+  if (exact && u.pathname === "/project/mock/labels")
+    return send(200, "application/json", JSON.stringify(exact.labels.map((l, i) => ({ id: `l${i}`, comment: l.comment, version: l.version, created_at: new Date(l.at).toISOString(), user_display_name: "Lina Chen" }))));
+  if (exact && u.pathname === "/project/mock/changes") {
+    const since = +(u.searchParams.get("since") ?? 0);
+    const page = exact.changes.slice(since, since + 100);
+    return send(200, "application/json", JSON.stringify(u.searchParams.get("paginated") === "true" ? { changes: page, hasMore: since + 100 < exact.changes.length } : exact.changes.slice(since)));
+  }
+  if (exact && (m = /^\/project\/mock\/blob\/([0-9a-f]+)$/.exec(u.pathname))) return exact.blobs[m[1]] !== undefined ? send(200, "application/octet-stream", exact.blobs[m[1]]) : send(404, "text/plain", "no such blob");
+  if (exact && (m = /^\/project\/mock\/version\/(\d+)\/zip$/.exec(u.pathname))) return send(200, "application/zip", zip([...exReplay(+m[1])].map(([p, t]) => [p, t.map((c) => c.ch).join("")])));
+  if (exact && u.pathname === "/project/mock/truth") {
+    // (each character's session (its toV) and author, from the generator's simulation)
+    const at = (v) => exact.sessions.find((s) => s.fromV <= v && v < s.toV);
+    const out = {};
+    for (const [f, runs] of Object.entries(exact.truth)) out[f] = runs.map(([a, b, v]) => [a, b, `v${at(v).toV}`, (({ first_name, last_name }) => `${first_name} ${last_name}`)(exUser(exact.changes[v].v2Authors[0]))]);
+    return send(200, "application/json", JSON.stringify(out));
+  }
+  if (exact && u.pathname === "/project/mock/diff") {
+    // (project-history's /diff: from version `from` to `to`, each change's runs with its user and time, then compressDiff)
+    const p = u.searchParams.get("pathname"), from = +u.searchParams.get("from"), to = +u.searchParams.get("to");
+    const parts = [];
+    let t = (exReplay(from).get(p) ?? []).map((c) => ({ ...c, k: "u" }));
+    for (let i = from; i < to; i++)
+      for (const op of exact.changes[i].operations) {
+        if (op.pathname !== p || !op.textOperation) continue;
+        const meta = { users: [exact.changes[i].v2Authors[0]], start_ts: Date.parse(exact.changes[i].timestamp), end_ts: Date.parse(exact.changes[i].timestamp) };
+        const alive = t.filter((c) => c.k !== "d");
+        const out = [];
+        let at = 0;
+        const pass = (n) => {
+          while (n > 0) {
+            const c = t.shift();
+            out.push(c);
+            if (c.k !== "d") n--;
+          }
+        };
+        void alive;
+        for (const x of op.textOperation) {
+          if (typeof x === "string") out.push(...[...x].map((ch) => ({ ch, k: "i", meta })));
+          else if (x > 0) pass(x), (at += x);
+          else {
+            let n = -x;
+            while (n > 0) {
+              const c = t.shift();
+              if (c.k === "d") out.push(c);
+              else if (c.k === "i") n--;
+              else (out.push({ ...c, k: "d", meta })), n--;
+            }
+          }
+        }
+        out.push(...t);
+        t = out;
+      }
+    for (const c of t) {
+      const last = parts.at(-1);
+      const key = c.k === "u" ? "u" : c.k;
+      if (last && key in last && (key === "u" || last.meta === c.meta)) last[key] += c.ch;
+      else parts.push(key === "u" ? { u: c.ch } : { [key]: c.ch, meta: c.meta });
+    }
+    // (compressDiff: a part merged into the last when their users are the same, an insert into an insert, a delete into a delete)
+    const merged = [];
+    for (const x of parts) {
+      const l = merged.at(-1);
+      const same = l && JSON.stringify(l.meta?.users ?? []) === JSON.stringify(x.meta?.users ?? []);
+      if (l && same && l.i != null && x.i != null) (l.i += x.i), (l.meta = { ...l.meta, start_ts: Math.min(l.meta.start_ts, x.meta.start_ts), end_ts: Math.max(l.meta.end_ts, x.meta.end_ts) });
+      else if (l && same && l.d != null && x.d != null) (l.d += x.d), (l.meta = { ...l.meta, start_ts: Math.min(l.meta.start_ts, x.meta.start_ts), end_ts: Math.max(l.meta.end_ts, x.meta.end_ts) });
+      else merged.push({ ...x, ...(x.meta ? { meta: { ...x.meta, users: x.meta.users.map((id) => exUser(id)) } } : {}) });
+    }
+    return send(200, "application/json", JSON.stringify({ diff: merged }));
   }
   if (hist && u.pathname === "/project/mock/updates") return send(200, "application/json", JSON.stringify({ updates: hist.updates.map(histUpdate).reverse() }));
   if (hist && u.pathname === "/project/mock/labels")
@@ -365,7 +489,8 @@ http.createServer((req, res) => {
   if (u.pathname === "/project/mock/output/output.log" && fs.existsSync(path.join(OUT, "output.log")))
     return send(200, "text/plain; charset=utf-8", fs.readFileSync(path.join(OUT, "output.log")));
   send(404, "text/plain", "not found");
-}).on("upgrade", (req, socket) => {
+};
+http.createServer(handle).on("upgrade", (req, socket) => {
   const accept = crypto.createHash("sha1").update(req.headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");
   socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
   sockets.add(socket);

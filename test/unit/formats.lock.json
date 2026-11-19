@@ -4,11 +4,10 @@
   "shape": "3683020385d32b35"
  },
  "settings": {
-  "format": 3,
+  "format": 4,
   "keys": [
    "accepted",
    "ahead",
-   "diffLook",
    "dlExplained",
    "enabled",
    "engine",
@@ -28,7 +27,8 @@
    "tipsSeen",
    "toured",
    "view",
-   "viewPrefs"
+   "viewPrefs",
+   "visits"
   ]
  },
  "databases": {

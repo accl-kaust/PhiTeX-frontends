@@ -29,11 +29,12 @@
 //       { "dbltext": "Every writer" }, // double-click the editor at that text: the page's highlight boxes after
 //       { "dbloutline": "Section 3" }, // double-click that heading in the file outline
 //       { "replacefile": "fig.png", "b64": "…", "ms": 60000 }, // the binary file replaced as Overleaf says it is; until the session's PDF changes, else the run fails
-//       { "compare": 1, "has": ["regex"], "ms": 60000 }, // Compare with version 1, as clicked; until the diff bar counts changes and diff.tex has each regex, else the run fails
+//       { "compare": 1, "has": ["regex"], "ms": 60000 }, // Changes' Diff from version 1, as clicked; until its footer counts changes and diff.tex has each regex, else the run fails
 //       { "onpage": "Typed words", "ms": 60000 }, // until that text is on a page, else the run fails
 //       { "reload": 3, "ms": 120000 }, // the tab reloaded 3 times, each until its first page, else the run fails
 //       { "secondtab": true, "ms": 120000 }, // the project in a second tab: its first page, or its panel saying why it has none; else (neither in time) the run fails
 //       { "secondtab": "page", "ms": 120000 }, // the same, its first page required
+//       { "histfail": 2 },           // the mock's next 2 history reads fail (503): Changes' error and Try again
 //       { "rootdoc": "main.tex" },   // Overleaf's main document changed (its Menu), as its socket tells the editor
 //       { "graph": "saved", "ms": 60000 }, // until the build's persisted graph is saved and kept (IndexedDB), else the run fails
 //       { "graph": "loaded", "ran": 0 }, // the load's first build took the graph kept and ran 0 nodes (">0": some), else the run fails
@@ -60,11 +61,14 @@
 //                { "debuginfo": "status" | "logs", "has": ["regex", …], "hasnt": […] } // Copy debug info reached from that
 //                  // toolbar button and copied; the clipboard's text has each, and none of hasnt
 //   "root": "report.tex"         // (top level) Overleaf's main document for the project (the mock's MOCK_ROOT; unset, none)
-//   "history": "test/scenarios/blame-history.json" // (top level) the project's history (the mock's MOCK_HISTORY:
-//                  // its updates, labels and each line's insert, tools/mock/server.mjs), for Compare and Blame;
-//                  // its steps also: { "click": "css selector" } (the page's, else the panel's) and
-//                  // { "check": "expr", "is": value, "what": "…" } (the content script's world; "page": true, the page's)
-//                  // and { "pointer": "css selector", "nth": 3, "dx": 60, "press": true } (the mouse there, clicked)
+//   "history": "test/scenarios/changes.history.json" // (top level) the project's history (the mock's MOCK_HISTORY:
+//                  // a generated one, change by change, tools/mock/history-gen.mjs; or a sketch of its sessions,
+//                  // test/scenarios/fx-history.json), for Changes' Diff and Blame;
+//                  // its steps also: { "click": "css selector" } (the page's, else the panel's, else Changes') and
+//                  // { "check": "expr", "is": value, "what": "…", "ms": 5000 } (the content script's world; "page": true,
+//                  // the page's; "ms": polled until it is, that long) and { "pointer": "css selector", "nth": 3, "dx": 60,
+//                  // "press": true, "shift": true, "double": true } (the mouse there, clicked) and
+//                  // { "dragfrom": "css selector", "to": "css selector", "midshot": "name" } (a drag) and { "key": "]" }
 //   "dashboard": "test/scenarios/dashboard/projects.json" // (top level) the project dashboard
 //                  // (/project, tools/mock/dashboard.html) with those projects and folders,
 //                  // after the onboarding, in place of the editor; its steps:
@@ -96,6 +100,8 @@ const PORT = 9223 + 10 * RUN, PROFILE = `.chrome-profile-${3 + RUN}`, MOCK = 813
 const out = path.join(root, "target/mock-run", sc.name ?? "run");
 fs.mkdirSync(out, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** (in an evaluated expression, `q` a selector: `all`, the elements matching it in the page, the panel's shadow root and Changes' own, #chg's) */
+const ALL = `const P = document.querySelector("phitex-preview")?.shadowRoot, C = P?.querySelector("#chg")?.shadowRoot; const all = [...document.querySelectorAll(q), ...(P?.querySelectorAll(q) ?? []), ...(C?.querySelectorAll(q) ?? [])];`;
 
 // the mock, on the scenario's project
 try { execFileSync("pkill", ["-f", `^node tools/mock/server.mjs ${MOCK}`]); } catch {}
@@ -543,25 +549,39 @@ for (const s of sc.steps ?? []) {
     console.log(`replacefile ${s.replacefile}: the PDF ${now === was ? "UNCHANGED" : "changed"}`);
     if (now === was) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
   } else if (s.compare !== undefined) {
-    // (`{"compare": 1, "has": ["regex"]}`: Compare with version 1 as clicked (its menu from the
-    // history, the version's ZIP), until the diff bar counts changes; diff.tex (the content
-    // script's dev "state") has each regex; tools/dev/fx-run.mjs the same in Firefox)
-    const t0 = Date.now(), item = `#phitex-cmpmenu button[data-v="${s.compare}"]`;
-    await evalIn(`document.getElementById('phitex-cmp').click()`);
-    while (!(await evalIn(`!!document.querySelector('${item}')`)) && Date.now() - t0 < 20000) await sleep(200);
-    await evalIn(`document.querySelector('${item}')?.click()`);
+    // (`{"compare": 1, "has": ["regex"]}`: Changes' Diff from version 1 to the editor's text, as
+    // clicked: ± Changes kept on, From, the version's row, then the top row (the editor's text);
+    // until the footer counts its changes; diff.tex (the content script's dev "state") has each
+    // regex; tools/dev/fx-run.mjs the same in Firefox)
+    const C = `document.querySelector('phitex-preview')?.shadowRoot?.querySelector('#chg')?.shadowRoot`;
+    const t0 = Date.now(), row = `.phx-commits .row[data-id="v${s.compare}"]`;
+    if (!(await evalIn(`!!${C}?.querySelector('.chg-pop:not([hidden])')`))) await evalIn(`document.getElementById('phitex-changes').click()`);
+    await evalIn(`(() => { const b = ${C}?.querySelector('[data-m=diff]'); if (b?.getAttribute('aria-pressed') !== 'true') b?.click(); return 1; })()`);
+    await sleep(300);
+    await evalIn(`${C}?.querySelector('#chg-from')?.click()`);
+    while (!(await evalIn(`!!${C}?.querySelector('${row}')`)) && Date.now() - t0 < 30000) {
+      await evalIn(`${C}?.querySelector('.phx-commits .more')?.click()`);
+      await sleep(300);
+    }
+    await evalIn(`${C}?.querySelector('${row}')?.click()`);
+    await sleep(200);
+    await evalIn(`${C}?.querySelector('.phx-commits .row:not([data-i]):not(.skel)')?.click()`);
     let bar = "";
     for (; Date.now() - t0 < (s.ms ?? 60000); await sleep(300)) {
-      bar = (await evalIn(`(() => { const n = document.querySelector('phitex-preview')?.shadowRoot?.querySelector('.diffbar.on .n'); return n ? (n.classList.contains('busy') ? 'busy: ' : '') + n.textContent : ''; })()`)) ?? "";
-      if (/^busy: Couldn't/.test(bar) || (bar && !bar.startsWith("busy"))) break;
+      bar = (await evalIn(`(() => { const R = ${C}; const p = R?.querySelector('.prog'); const f = R?.querySelector('.foot [aria-live]'); return p && !p.hidden ? 'busy: ' + p.innerText : f ? f.textContent : ''; })()`)) ?? "";
+      if (/^busy: Couldn't/.test(bar) || (bar && !bar.startsWith("busy") && bar !== "…")) break;
     }
     const st = JSON.parse((await evalIn(`new Promise((ok) => { const on = (e) => { if (e.data?.src === "phitex-dev" && e.data.type === "stated") (removeEventListener("message", on), ok(e.data.state)); }; addEventListener("message", on); postMessage({ src: "phitex-dev", type: "state" }, location.origin); setTimeout(() => ok("null"), 5000); })`)) ?? "null");
     const tex = st?.diffTex ?? "";
     const missing = (s.has ?? []).filter((r) => !new RegExp(r).test(tex));
-    const ok = bar && !bar.startsWith("busy") && !/^no changes/.test(bar) && !missing.length;
-    console.log(`compare ${s.compare}: ${bar || "no diff bar"}; diff.tex ${tex.length} chars${missing.length ? `, lacks ${JSON.stringify(missing)}` : ""}`);
+    const ok = bar && !bar.startsWith("busy") && !/^0 changes/.test(bar) && !missing.length;
+    console.log(`compare ${s.compare}: ${bar || "no count"}; diff.tex ${tex.length} chars${missing.length ? `, lacks ${JSON.stringify(missing)}` : ""}`);
     if (!ok) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
-    await evalIn(`document.querySelector('phitex-preview')?.shadowRoot?.querySelector('.diffbar.on button[data-a=close]')?.click()`);
+    await evalIn(`${C}?.querySelector('#chg-x')?.click()`);
+  } else if (s.histfail !== undefined) {
+    // (`{"histfail": 2}`: the mock's next 2 reads of the history (/changes, /updates) fail, 503)
+    await fetch(`http://localhost:${MOCK}/project/mock/history-fail?n=${s.histfail}`, { method: "POST" });
+    console.log(`histfail ${s.histfail}: set`);
   } else if (s.rootdoc !== undefined) {
     // (`{"rootdoc": "main.tex"}`: the project's main document changed in Overleaf's Menu, its socket telling the editor)
     await fetch(`http://localhost:${MOCK}/project/mock/root-doc?path=${encodeURIComponent(s.rootdoc)}`, { method: "POST" });
@@ -781,23 +801,53 @@ for (const s of sc.steps ?? []) {
     if (!ok) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
   } else if (s.check !== undefined) {
     // (an expression in the content script's world (the page's with "page": true) is `is` (deep; unset: true), else the run fails)
-    s.result = await evalIn(s.check, !s.page);
-    const ok = JSON.stringify(s.result) === JSON.stringify(s.is ?? true);
+    // ("ms": until it is, polled, within that long)
+    let ok = false;
+    for (const t0 = Date.now(); ; await sleep(100)) {
+      s.result = await evalIn(s.check, !s.page);
+      ok = JSON.stringify(s.result) === JSON.stringify(s.is ?? true);
+      if (ok || !s.ms || Date.now() - t0 > s.ms) break;
+    }
     console.log(`${ok ? "ok  " : "FAIL"} ${s.what ?? s.check}${ok ? "" : `: ${JSON.stringify(s.result)}, not ${JSON.stringify(s.is ?? true)}`}`);
-    if (!ok) process.exitCode = 1;
+    if (!ok) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
   } else if (s.pointer !== undefined) {
     // (the mouse moved, as a person moves it, to the `nth` element matching the selector (the panel's
     // shadow root's, else the page's), `dx` points right of its middle; "press": true, then clicked there)
-    const at = await evalIn(`(() => { const q = ${JSON.stringify(s.pointer)}; const all = [...(document.querySelector("phitex-preview")?.shadowRoot.querySelectorAll(q) ?? [])]; const el = all[${s.nth ?? 0}] ?? document.querySelectorAll(q)[${s.nth ?? 0}]; if (!el) return null; const r = el.getBoundingClientRect(); return [r.left + r.width / 2 + ${s.dx ?? 0}, r.top + r.height / 2]; })()`, true);
-    if (!at) console.log(`step: no ${s.pointer} to point at`), steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s });
+    const at = await evalIn(`(() => { const q = ${JSON.stringify(s.pointer)}; ${ALL} const el = all[${s.nth ?? 0}]; if (!el) return null; el.scrollIntoView?.({ block: "nearest" }); const r = el.getBoundingClientRect(); return [r.left + r.width / 2 + ${s.dx ?? 0}, r.top + r.height / 2 + ${s.dy ?? 0}]; })()`, true);
+    if (!at) console.log(`step: no ${s.pointer} to point at`), steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1);
     else {
-      await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: at[0], y: at[1] });
-      if (s.press) for (const type of ["mousePressed", "mouseReleased"]) await call("Input.dispatchMouseEvent", { type, x: at[0], y: at[1], button: "left", clickCount: 1 });
+      await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: at[0], y: at[1], modifiers: s.shift ? 8 : 0 });
+      if (s.press) for (const type of ["mousePressed", "mouseReleased"]) await call("Input.dispatchMouseEvent", { type, x: at[0], y: at[1], button: "left", clickCount: 1, modifiers: s.shift ? 8 : 0 });
+      // ("double": a double-click there, as the mouse makes one: two presses, the second's count 2)
+      if (s.double) for (const n of [1, 2]) for (const type of ["mousePressed", "mouseReleased"]) await call("Input.dispatchMouseEvent", { type, x: at[0], y: at[1], button: "left", clickCount: n });
     }
     await sleep(s.ms ?? 600);
+  } else if (s.dragfrom !== undefined) {
+    // (a drag, as the mouse makes one: pressed on the `dragfrom` element, moved in steps over the rows, let go on `to`;
+    // "midshot": a screenshot before it is let go)
+    // (the drag's start scrolled into view first, as a person scrolls to it)
+    const pt = (q, show) => evalIn(`(() => { const q = ${JSON.stringify(q)}; ${ALL} const el = all[0]; if (!el) return null; ${show ? `el.scrollIntoView({ block: "nearest" });` : ""} const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`, true);
+    await pt(s.dragfrom, true);
+    const a = await pt(s.dragfrom), b = await pt(s.to);
+    if (!a || !b) console.log(`step: no ${a ? s.to : s.dragfrom} to drag`), steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1);
+    else {
+      await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: a[0], y: a[1] });
+      await call("Input.dispatchMouseEvent", { type: "mousePressed", x: a[0], y: a[1], button: "left", clickCount: 1 });
+      for (let i = 1; i <= 12; i++) (await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: a[0] + ((b[0] - a[0]) * i) / 12, y: a[1] + ((b[1] - a[1]) * i) / 12, button: "left", buttons: 1 })), await sleep(16);
+      if (s.midshot) await shot(s.midshot);
+      await call("Input.dispatchMouseEvent", { type: "mouseReleased", x: b[0], y: b[1], button: "left", clickCount: 1 });
+    }
+    await sleep(s.ms ?? 600);
+  } else if (s.key !== undefined) {
+    // (a key, as typed: on the page, wherever the focus is)
+    const base = { key: s.key, code: s.code ?? s.key, windowsVirtualKeyCode: s.vk ?? 0 };
+    await call("Input.dispatchKeyEvent", { type: "keyDown", ...base, ...(s.key.length === 1 ? { text: s.key } : {}) });
+    await call("Input.dispatchKeyEvent", { type: "keyUp", ...base });
+    await sleep(s.ms ?? 400);
   } else if (s.click !== undefined) {
-    // (the first element matching the selector clicked, in the page, else in the panel's shadow root)
-    await evalIn(`(() => { const q = ${JSON.stringify(s.click)}; (document.querySelector(q) ?? document.querySelector("phitex-preview")?.shadowRoot.querySelector(q))?.click(); })()`, true);
+    // (the first element matching the selector clicked: the page's, the panel's shadow root's, Changes' own (#chg's))
+    const found = await evalIn(`(() => { const q = ${JSON.stringify(s.click)}; ${ALL} const el = all[${s.nth ?? 0}]; el?.click(); return !!el; })()`, true);
+    if (!found) console.log(`step: no ${s.click} to click`), steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1);
     await sleep(s.ms ?? 600);
   } else if (s.eval !== undefined) {
     // (an expression in the content script's world, for debugging)

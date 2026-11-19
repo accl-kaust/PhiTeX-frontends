@@ -47,10 +47,11 @@ command (the setting `phitex.engine`, `"phitex watch"`).
 - **Source ↔ page**: the word at your cursor is marked on the page.
   Double-click the page to jump to its source; select text on the page to
   select it in the editor.
-- **Compare with a past version**: mark a From and a To in the folder's git
-  history. The changes are marked on the pages as `latexdiff` marks them,
-  and the marks follow your edits. Without git it says what it needs; you
-  commit with your own git or Source Control.
+- **± Changes**: Diff and Blame in one popover. Diff marks the changes
+  between any two points of the folder's git history (or your working
+  tree) on the pages as `latexdiff` marks them, and the marks follow your
+  edits; Blame shows who wrote each line in the margin. Without git it
+  says what it needs; you commit with your own git or Source Control.
 - **Problems**: errors and warnings are listed in the preview and underlined
   on the page where they happen. **View log** shows the build's log.
 - **Bibliographies and indexes**: BibTeX, biber and makeindex run inside the

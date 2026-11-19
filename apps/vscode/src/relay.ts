@@ -8,7 +8,7 @@ import * as vscode from "vscode";
 import type { CoreEvent, CoreRes, CoreTransport } from "../../../common/src/viewer/session.ts";
 import type { Down, Up } from "./webview.ts";
 import { latexdiff } from "./compare.ts";
-import { blame } from "./blame.ts";
+import { blame, filesAt, log as gitLog } from "./blame.ts";
 import { availableParallelism } from "node:os";
 import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
@@ -60,7 +60,11 @@ export function relay(view: vscode.WebviewPanel, core: Relayed, folder: string, 
             : m.op.op === "vsc-source"
               ? await source(folder, String(m.op.file))
             : m.op.op === "blame"
-              ? await blame(folder, (m.op.files as string[] | undefined) ?? [], (path) => vscode.workspace.textDocuments.find((d) => d.uri.scheme === "file" && d.uri.fsPath === path)?.getText())
+              ? await blame(folder, (m.op.files as string[] | undefined) ?? [], (path) => vscode.workspace.textDocuments.find((d) => d.uri.scheme === "file" && d.uri.fsPath === path)?.getText(), { ws: m.op.ws as string | undefined, moved: m.op.moved as string | undefined, skip: m.op.skip as string[] | undefined })
+            : m.op.op === "vsc-log"
+              ? await gitLog(folder, Number(m.op.skip ?? 0), Number(m.op.limit ?? 200))
+            : m.op.op === "vsc-files"
+              ? await filesAt(folder, String(m.op.rev ?? ""), (m.op.files as string[] | undefined) ?? [])
             : await core.request(m.op as never).catch((e): CoreRes => ({ ok: false, error: String(e) }));
     void view.webview.postMessage({ t: "res", id: m.id, r } satisfies Down);
   });

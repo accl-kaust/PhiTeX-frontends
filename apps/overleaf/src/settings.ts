@@ -10,13 +10,15 @@
 import { NewerFormat, upgrade, type Steps } from "./common/format.ts";
 import { ENGINES, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
 
-export const FORMAT = 3;
+export const FORMAT = 4;
 /** `steps[n]`: all of format n's settings to format n + 1's. */
 export const STEPS: Steps = {
   // (Compare's own tip gone, the panel's animated tip in its place: 12e89f1)
   1: ({ cmpTipNext: _n, cmpTipOff: _o, cmpUsed: _u, ...s }) => s,
   // (the ⚡ chip over the pages gone, its numbers in the status's popover: its switch with it)
   2: ({ speedOff: _s, ...s }) => s,
+  // (Compare's latexdiff look gone with Compare: ± Changes keeps its own, with the panel's settings ("panel".changes))
+  3: ({ diffLook: _d, ...s }) => s,
 };
 
 /** `all` (chrome.storage.local's) in this extension's format: what to set and what to remove; null if as it is, or newer. */

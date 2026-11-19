@@ -16,11 +16,13 @@
 
 import "../../overleaf/src/platform.ts";
 import { platform } from "../../../common/src/platform.ts";
-import { Panel, type DiffLook, type PanelPrefs, type Prefs, type ViewPrefs } from "../../../common/src/viewer/panel.ts";
+import { Panel, type PanelPrefs, type Prefs, type ViewPrefs } from "../../../common/src/viewer/panel.ts";
 import { html } from "../../../common/src/viewer/html.ts";
 import { PreviewSession, guessMain, type EditorHost, type Options } from "../../../common/src/viewer/session.ts";
 import { charOffset, type Edit } from "../../../common/src/viewer/edits.ts";
-import { Compare, DiffControls, gate, type CompareHost } from "../../../common/src/viewer/compare.ts";
+import { Compare, gate, type CompareHost } from "../../../common/src/viewer/compare.ts";
+import type { ChangesHost } from "../../../common/src/viewer/changes.ts";
+import { matchLines, type BlameData, type BlameHost } from "../../../common/src/viewer/blame.ts";
 import { ENGINES, approximable, resolve, shimTexts, type Engine, type EngineChoice } from "../../../common/src/viewer/engines.ts";
 import { ago } from "../../../common/src/viewer/commits.ts";
 import { StripPages } from "../../../common/src/strippages.ts";
@@ -234,7 +236,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     save: (p) => local.set("panel", JSON.stringify(p)),
   };
   /** The session the panel shows: the compare's while its diff is in view. */
-  const shown = (): PreviewSession | undefined => (session ? compare.shown() : undefined);
+  const shown = (): PreviewSession | undefined => (session ? (compare?.shown() ?? session) : undefined);
 
   /** The panel's own choices as this page keeps them. */
   const viewPrefs = (): Partial<ViewPrefs> => {
@@ -244,6 +246,77 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       return {};
     }
   };
+  // (Changes: the project's versions as its history, newest first; the diff run by `compare` below)
+  let compare: Compare<Version> | undefined;
+  const byId = new Map<string, Version>();
+  const all = async () => {
+    const vs = await versions(P().id).catch((): Version[] => []);
+    for (const v of vs) byId.set(v.id, v);
+    return vs;
+  };
+  const webChanges: ChangesHost = {
+    words: { commit: "version", hashes: false },
+    tree: { title: "Your edits now", detail: "The editor's text" },
+    async log(skip, limit) {
+      const vs = await all();
+      return vs.slice(skip, skip + limit).map((v, i) => ({
+        id: v.id, short: titleOf(v), parents: vs[skip + i + 1] ? [vs[skip + i + 1].id] : [], author: "You", time: v.at / 1000,
+        subject: v.label ? `Saved "${v.label}"` : "Autosaved", refs: v.label ? [{ name: v.label, kind: "tag" as const }] : [],
+      }));
+    },
+    diff: {
+      start: (p, look, hide, say, count) => (compare ? compare.runner((id) => byId.get(id)!).start(p, look, hide, say, count) : Promise.reject(new Error("no project open"))),
+      show: (on) => compare?.show(on),
+      goto: (k) => compare?.goto(k),
+      restyle: (l, hide) => compare?.restyle(l, hide),
+      stop: () => compare?.stop(),
+      download: (w) => void compare?.download(w),
+    },
+  };
+  /**
+   * Blame by the saved versions (all the user's own): each line of the
+   * editor's text the version it first appears in, carried through each
+   * later version as long as it stays; a line no version has, not saved.
+   */
+  const webBlame: BlameHost = {
+    words: { commit: "version", hashes: false },
+    glyphs: (k) => session?.pageGlyphs(k) ?? Promise.resolve([]),
+    goto: (file, line) => {
+      if (!openFile(file)) return;
+      const at = editor.lineStart(line);
+      editor.select(at, at);
+    },
+    via: () => null,
+    async blame(files): Promise<BlameData | string> {
+      const vs = (await all()).slice().reverse();
+      if (!vs.length) return "No versions yet: they are saved every five minutes of editing, or by name in Versions";
+      const commits = vs.map((v) => ({ id: v.id, short: titleOf(v), author: "You", email: "", time: v.at / 1000, subject: v.label ? `Saved "${v.label}"` : "Autosaved", parent: undefined as string | undefined }));
+      commits.forEach((c, i) => (c.parent = vs[i - 1]?.id));
+      const out: BlameData["files"] = {};
+      for (const f of files) {
+        const now = shown()?.text(f) ?? P().files[f];
+        if (now === undefined) {
+          out[f] = { error: "no such file" };
+          continue;
+        }
+        let lines: string[] = [], who: number[] = [];
+        vs.forEach((v, k) => {
+          const t = v.files[f];
+          if (t === undefined) return void ((lines = []), (who = []));
+          const next = t.replace(/\n$/, "").split("\n");
+          const m = matchLines(lines, next);
+          who = next.map((_, j) => (m.has(j) ? who[m.get(j)!] : k));
+          lines = next;
+        });
+        const cur = now.replace(/\n$/, "").split("\n");
+        const m = matchLines(lines, cur);
+        out[f] = { text: now, lines: cur.map((_, j) => (m.has(j) ? who[m.get(j)!] : -1)) };
+      }
+      const named = vs.filter((v) => v.label).map((v) => ({ name: v.label, kind: "tag", time: v.at / 1000, id: v.id }));
+      return { commits, files: out, refs: named, now: Date.now() / 1000 };
+    },
+  };
+
   const panel = new Panel(
     {
       onPage: (p) => void shown()?.setPage(p),
@@ -266,7 +339,6 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       // packages and threads kept: the core's rebuild op), Clean rebuild from a fresh session)
       onRebuild: () => void core.request({ op: "rebuild" }),
       onClean: () => void session?.clean({ ...P().files }),
-      onCompare: () => void versionsDialog(),
       onClearCache: () => void cacheDialog(),
       onLog: () => shown()?.log() ?? Promise.resolve(null),
       // (a problem's culprit, underlined on the pages)
@@ -292,6 +364,9 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       outline: true,
       keys: true,
       header: true,
+      // (Changes: the project's saved versions, one lane, the named ones as tags; Blame by them, all yours)
+      changes: webChanges,
+      blame: webBlame,
       words: {
         badge: "in your browser",
         badgeTitle: "PhiTeX in WebAssembly, in this tab: nothing installed, nothing uploaded",
@@ -333,7 +408,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       for (const f of editListeners) f();
       dirty();
     },
-    cursor: (file, pos) => compare.follow(file, pos),
+    cursor: (file, pos) => compare?.follow(file, pos),
     selected: (file, from, to) => void session?.selectSource(file, from, to),
     dblclick: (file, pos) => void session?.toPage(file, pos),
   });
@@ -468,13 +543,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     save,
     msg: (t) => say(t, true),
     options: sessionOptions(),
-    loadLook: async () => JSON.parse(local.get("diffLook") ?? "{}") as Partial<DiffLook>,
-    saveLook: (l) => local.set("diffLook", JSON.stringify(l)),
   };
-  const compare = new Compare<Version>(compareHost);
-  const controls = new DiffControls<Version>(panel, compare);
-  const onKey = (e: KeyboardEvent) => void controls.key(e);
-  addEventListener("keydown", onKey);
+  compare = new Compare<Version>(compareHost);
 
   function sessionOptions(): Partial<Options> {
     return {
@@ -497,7 +567,9 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   let stopSettled: (() => void) | undefined;
 
   async function openProject(p: Project): Promise<void> {
-    if (controls.active) controls.stop();
+    panel.changes?.off();
+    compare?.stop();
+    panel.changes?.historyChanged();
     // (another project in the panel: a cold build's opening over the last one's pages, not its "last complete render")
     if (session) panel.opening();
     // (the session before stopped; its pages' transport is the core, shared: not closed)
@@ -519,7 +591,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     // was `s`, a gate reading `s` threw there, "Cannot access 's' before initialization", and
     // the demo never opened)
     let made: PreviewSession | undefined;
-    const s: PreviewSession = new PreviewSession(host, pages, gate(panel, () => (!made || session === made) && compare.showing !== "diff"), {
+    const s: PreviewSession = new PreviewSession(host, pages, gate(panel, () => (!made || session === made) && compare?.showing !== "diff"), {
       ...sessionOptions(),
       // (the core runs a live document, as the extension's: the session in its
       // remote mode, the document's events its own, its problems among them;
@@ -801,7 +873,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     const vs = await versions(P().id).catch((): Version[] => []);
     const b = showModal(
       "Versions",
-      (controls.active ? `<p><button type="button" data-stop="1">Stop comparing</button></p>` : "") +
+      (panel.changes?.on ? `<p><button type="button" data-stop="1">Stop comparing</button></p>` : "") +
         `<form class="phx-form phx-save"><input type="text" placeholder="Name this version" aria-label="Version name" spellcheck="false"><button type="submit">Save version</button></form>` +
         `<p class="phx-head">Compare the current version with…</p>` +
         (vs.length
@@ -821,9 +893,9 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       const t = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-v], button[data-stop]");
       if (!t) return;
       modal.hidden = true;
-      if (t.dataset.stop) return controls.stop();
+      if (t.dataset.stop) return panel.changes?.off();
       const v = vs.find((x) => x.id === t.dataset.v);
-      if (v) void controls.start(v, titleOf(v), ago(v.at / 1000));
+      if (v) panel.changes?.show({ from: v.id, to: null });
     };
     form.querySelector("input")!.focus();
   }
@@ -889,14 +961,13 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     setDoc: (i) => void openSample(i),
     tour: () => panel.tour(true),
     destroy() {
-      if (controls.active) controls.stop();
+      panel.changes?.off();
       session?.stop();
       core.close();
       diffCore?.close();
       clearInterval(versionTimer);
       themeWatch.disconnect();
       system.removeEventListener("change", followTheme);
-      removeEventListener("keydown", onKey);
       editor.destroy();
       root.remove();
       style.remove();

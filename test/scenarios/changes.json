@@ -1,0 +1,912 @@
+{
+ "project": "test/scenarios/changes",
+ "history": "test/scenarios/changes.history.json",
+ "strict": true,
+ "storage": {
+  "tipsSeen": [
+   "changes",
+   "compare",
+   "timing",
+   "clean",
+   "dark",
+   "blame"
+  ],
+  "panel": {},
+  "visits": {}
+ },
+ "name": "changes",
+ "steps": [
+  {
+   "type": "A sentence typed, not saved to the history yet.\n\n",
+   "after": "\\section{Results}\n",
+   "keys": 0
+  },
+  {
+   "onpage": "not saved to the history",
+   "ms": 60000
+  },
+  {
+   "idle": 1500
+  },
+  {
+   "eval": "chrome.storage.local.remove('olhist:mock').then(() => 'cache cleared')"
+  },
+  {
+   "check": "!!document.getElementById('phitex-changes') && !document.getElementById('phitex-blame') && !document.getElementById('phitex-compare')",
+   "page": true,
+   "what": "one \u00b1 Changes button in Overleaf's toolbar, no Compare or Blame buttons beside it"
+  },
+  {
+   "pointer": "#phitex-changes",
+   "ms": 900
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !C.querySelector('.chg-pop').hidden; })()",
+   "what": "hovering \u00b1 Changes peeks: the popover under the button"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.pin')?.textContent; })()",
+   "what": "a peek, not kept on",
+   "is": "peek"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "Diff first (nothing kept yet)",
+   "is": "diff"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('#chg-from b')?.textContent ?? null; })()",
+   "what": "From: the last label (no visit before this one)",
+   "is": "Submitted v1",
+   "ms": 30000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('#chg-to b')?.textContent ?? null; })()",
+   "what": "To: the editor's text, unsaved edits and all",
+   "is": "Your edits now"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^\\d+ changes?$/.test(C.querySelector('.foot [aria-live]')?.textContent ?? ''); })()",
+   "what": "the diff's changes counted in the footer",
+   "ms": 120000
+  },
+  {
+   "shot": "diff-peek-light"
+  },
+  {
+   "pointer": ".cm-content",
+   "dx": -200,
+   "ms": 1000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').hidden; })()",
+   "what": "the pointer gone: the peek closes"
+  },
+  {
+   "check": "globalThis.__phitexCompare.showing",
+   "is": "current",
+   "what": "a peek leaves no marks on the pages"
+  },
+  {
+   "pointer": "#phitex-changes",
+   "press": true,
+   "ms": 900
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.pin')?.textContent; })()",
+   "what": "clicked: kept on",
+   "is": "on"
+  },
+  {
+   "check": "document.getElementById('phitex-changes').getAttribute('aria-pressed')",
+   "page": true,
+   "what": "the button pressed",
+   "is": "true"
+  },
+  {
+   "check": "globalThis.__phitexCompare.showing",
+   "is": "diff",
+   "what": "kept on: the diff's pages shown",
+   "ms": 10000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.citem small')].some((s) => /not saved yet/.test(s.textContent)); })()",
+   "what": "the sentence not saved yet: You, not saved yet",
+   "ms": 30000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.citem small')].filter((s) => /(Ali Rahman|Lina Chen|Mary Okafor) \u00b7 .* \u00b7 v\\d+/.test(s.textContent)).length > 0; })()",
+   "what": "the history's changes each with its writer, when and version (exact, from /changes)",
+   "ms": 60000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.citem')].every((c) => c.querySelector('.k')?.textContent && c.querySelector('small')?.textContent); })()",
+   "what": "every change with its kind and who"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return getComputedStyle(C.querySelector('.citem ins')).color; })()",
+   "what": "added text in #1347ae",
+   "is": "rgb(19, 71, 174)"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.grp').length > 0; })()",
+   "what": "grouped by place (the section)"
+  },
+  {
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return (globalThis.__n = C.querySelectorAll('.citem').length); })()"
+  },
+  {
+   "click": ".fchip",
+   "nth": 0
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.citem').length < globalThis.__n && C.querySelector('.fchip').getAttribute('aria-pressed') === 'false'; })()",
+   "what": "a kind filtered out: its changes gone from the list"
+  },
+  {
+   "click": ".fchip",
+   "nth": 0
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.citem').length === globalThis.__n; })()",
+   "what": "back in"
+  },
+  {
+   "pointer": ".chg-pop .ttl h2",
+   "press": true,
+   "ms": 300
+  },
+  {
+   "key": "]",
+   "code": "BracketRight",
+   "vk": 221
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^1 of \\d+$/.test(C.querySelector('.foot [aria-live]')?.textContent ?? ''); })()",
+   "what": "] steps to the first change: 1 of n"
+  },
+  {
+   "key": "]",
+   "code": "BracketRight",
+   "vk": 221
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^2 of \\d+$/.test(C.querySelector('.foot [aria-live]').textContent) && C.querySelector('.citem.cur')?.dataset.i === '1'; })()",
+   "what": "] again: the second, marked in the list"
+  },
+  {
+   "key": "[",
+   "code": "BracketLeft",
+   "vk": 219
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^1 of \\d+$/.test(C.querySelector('.foot [aria-live]').textContent); })()",
+   "what": "[ steps back"
+  },
+  {
+   "click": "#chg-next"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^2 of \\d+$/.test(C.querySelector('.foot [aria-live]').textContent); })()",
+   "what": "\u203a steps on"
+  },
+  {
+   "click": "#chg-hide"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.body').classList.contains('hidedel'); })()",
+   "what": "Hide deletions: the list's deletions hidden"
+  },
+  {
+   "check": "chrome.storage.local.get('panel').then((p) => p.panel?.changes?.hide)",
+   "what": "Hide deletions kept with the panel's settings",
+   "ms": 3000
+  },
+  {
+   "shot": "diff-on-light"
+  },
+  {
+   "click": "#chg-hide"
+  },
+  {
+   "pointer": ".cm-content",
+   "dx": -200,
+   "ms": 1000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').hidden; })()",
+   "what": "kept on, the pointer gone: the popover closes"
+  },
+  {
+   "check": "globalThis.__phitexCompare.showing",
+   "is": "diff",
+   "what": "the marks stay"
+  },
+  {
+   "pointer": "#phitex-changes",
+   "ms": 900
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !C.querySelector('.chg-pop').hidden; })()",
+   "what": "hovering again: the popover back"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.pin')?.textContent; })()",
+   "what": "still on",
+   "is": "on"
+  },
+  {
+   "click": "#chg-from"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "From clicked: the picker in place of the list",
+   "is": "diff-pick"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.phx-commits .row[data-i]')].length >= 20; })()",
+   "what": "the history's sessions, as the graph's rows",
+   "ms": 30000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return new Set([...C.querySelectorAll('.phx-commits .row[data-i]')].map((r) => r.querySelector('svg circle').getAttribute('cx'))).size; })()",
+   "what": "one lane (Overleaf's history is linear)",
+   "is": 1
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.phx-commits .row[data-i]')].slice(0, 5).every((r) => / edited main\\.tex$/.test(r.querySelector('.s').textContent)); })()",
+   "what": "each a session: \"Lina Chen edited main.tex\""
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.qb')].map((b) => b.textContent); })()",
+   "what": "the quick choices",
+   "is": [
+    "The last label \u00b7 Submitted v1"
+   ]
+  },
+  {
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return (globalThis.__ids = [...C.querySelectorAll('.phx-commits .row[data-i]')].map((r) => r.dataset.id)).slice(0, 8); })()"
+  },
+  {
+   "pointer": ".phx-commits .row[data-i=\"5\"]",
+   "press": true,
+   "ms": 500
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Now click the other end/.test(C.querySelector('#chg-hint').textContent); })()",
+   "what": "one end clicked: the hint asks for the other"
+  },
+  {
+   "pointer": ".phx-commits .row[data-i=\"2\"]",
+   "ms": 500
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.phx-commits .row[data-i]')].filter((r) => r.classList.contains('aim')).map((r) => r.dataset.i); })()",
+   "what": "the pointer moved: the rows between marked (aim)",
+   "is": [
+    "2",
+    "3",
+    "4",
+    "5"
+   ]
+  },
+  {
+   "shot": "picker-aim-light"
+  },
+  {
+   "pointer": ".phx-commits .row[data-i=\"2\"]",
+   "press": true,
+   "ms": 800
+  },
+  {
+   "pointer": "#phitex-changes",
+   "ms": 300
+  },
+  {
+   "pointer": ".chg-pop .ttl h2",
+   "ms": 300
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "the other end clicked: the range chosen, the picker closed",
+   "is": "diff"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const g = [C.querySelector('#chg-from code')?.textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to code')?.textContent.split(' \u00b7 ')[0]].join(' '), w = [globalThis.__ids[5], globalThis.__ids[2]].join(' '); return g === w || `${g} for ${w}`; })()",
+   "what": "From the older end, To the newer"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^\\d+ changes?$/.test(C.querySelector('.foot [aria-live]')?.textContent ?? ''); })()",
+   "what": "that range's changes",
+   "ms": 120000
+  },
+  {
+   "click": "#chg-from"
+  },
+  {
+   "pointer": ".phx-commits .row[data-i=\"4\"]",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "pointer": ".phx-commits .row[data-i=\"4\"]",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Click one end/.test(C.querySelector('#chg-hint').textContent) && C.querySelector('.chg-pop').dataset.view === 'diff-pick'; })()",
+   "what": "the same session again cancels: no end, still picking"
+  },
+  {
+   "pointer": ".phx-commits .row[data-i=\"4\"]",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Click one end/.test(C.querySelector('#chg-hint').textContent) && C.querySelector('.chg-pop').dataset.view === 'diff-pick'; })()",
+   "what": "Esc lets go of the first end, the picker stays"
+  },
+  {
+   "pointer": ".phx-commits .row[data-i=\"3\"]",
+   "double": true,
+   "ms": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "a double-click: that session's own changes, the picker staying",
+   "is": "diff-pick"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const g = [C.querySelector('#chg-from code')?.textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to code')?.textContent.split(' \u00b7 ')[0]].join(' '), w = [globalThis.__ids[4], globalThis.__ids[3]].join(' '); return g === w || `${g} for ${w}`; })()",
+   "what": "From its parent, To it"
+  },
+  {
+   "pointer": ".phx-commits .row[data-i=\"1\"]",
+   "press": true,
+   "shift": true,
+   "ms": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "shift-click: the range complete, the picker closed",
+   "is": "diff"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const g = [C.querySelector('#chg-from code')?.textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to code')?.textContent.split(' \u00b7 ')[0]].join(' '), w = [globalThis.__ids[4], globalThis.__ids[1]].join(' '); return g === w || `${g} for ${w}`; })()",
+   "what": "Shift-click sets To, From kept"
+  },
+  {
+   "pointer": "#phitex-changes",
+   "ms": 300
+  },
+  {
+   "pointer": ".chg-pop .ttl h2",
+   "ms": 300
+  },
+  {
+   "click": "#chg-from"
+  },
+  {
+   "dragfrom": ".phx-commits .row[data-i=\"6\"]",
+   "to": ".phx-commits .row[data-i=\"2\"]",
+   "midshot": "picker-drag-light",
+   "ms": 800
+  },
+  {
+   "pointer": "#phitex-changes",
+   "ms": 300
+  },
+  {
+   "pointer": ".chg-pop .ttl h2",
+   "ms": 300
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "a drag: the range, the picker closed",
+   "is": "diff"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const g = [C.querySelector('#chg-from code')?.textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to code')?.textContent.split(' \u00b7 ')[0]].join(' '), w = [globalThis.__ids[6], globalThis.__ids[2]].join(' '); return g === w || `${g} for ${w}`; })()",
+   "what": "From the drag's older end, To its newer"
+  },
+  {
+   "click": "#chg-to"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Now click the other end/.test(C.querySelector('#chg-hint').textContent); })()",
+   "what": "opened from To: From is the first end already"
+  },
+  {
+   "pointer": ".phx-commits .row[data-i=\"0\"]",
+   "press": true,
+   "ms": 800
+  },
+  {
+   "pointer": "#phitex-changes",
+   "ms": 300
+  },
+  {
+   "pointer": ".chg-pop .ttl h2",
+   "ms": 300
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const g = [C.querySelector('#chg-from code')?.textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to code')?.textContent.split(' \u00b7 ')[0], C.querySelector('.chg-pop').dataset.view].join(' '), w = [globalThis.__ids[6], globalThis.__ids[0], 'diff'].join(' '); return g === w || `${g} for ${w}`; })()",
+   "what": "the click sets To; the picker closed"
+  },
+  {
+   "click": "#chg-from"
+  },
+  {
+   "click": "#chg-done"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const g = [C.querySelector('#chg-from code')?.textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to code')?.textContent.split(' \u00b7 ')[0], C.querySelector('.chg-pop').dataset.view].join(' '), w = [globalThis.__ids[6], globalThis.__ids[0], 'diff'].join(' '); return g === w || `${g} for ${w}`; })()",
+   "what": "Done: the picker closed, nothing changed"
+  },
+  {
+   "click": "#chg-from"
+  },
+  {
+   "click": ".qb"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('#chg-from b').textContent; })()",
+   "what": "a quick choice: from the label",
+   "is": "Submitted v1"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('#chg-to b')?.textContent ?? null; })()",
+   "what": "To kept: the editor's text",
+   "is": "Your edits now"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^\\d+ changes?$/.test(C.querySelector('.foot [aria-live]')?.textContent ?? ''); })()",
+   "what": "",
+   "ms": 120000
+  },
+  {
+   "click": "#chg-gear"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "\u2699: Diff's settings",
+   "is": "set-diff"
+  },
+  {
+   "shot": "diff-settings-light"
+  },
+  {
+   "click": "[data-look=colors][data-v=safe]"
+  },
+  {
+   "click": "[data-look=ins][data-v=mark]"
+  },
+  {
+   "click": "[data-look=del][data-v=caret]"
+  },
+  {
+   "click": "[data-look=fig][data-v=over]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.preview').className + ' ' + getComputedStyle(C.querySelector('.chg-pop')).getPropertyValue('--chg-add').trim(); })()",
+   "what": "the live preview follows",
+   "is": "preview i-mark d-caret #0072B2"
+  },
+  {
+   "check": "new Promise((ok) => { const on = (e) => { if (e.data?.src === 'phitex-dev' && e.data.type === 'stated') (removeEventListener('message', on), ok(JSON.parse(e.data.state))); }; addEventListener('message', on); postMessage({ src: 'phitex-dev', type: 'state' }, location.origin); setTimeout(() => ok(null), 5000); }).then((s) => /\\\\phitexdifhl/.test(s?.diffTex ?? '') && /\\\\wedge/.test(s?.diffTex ?? '') && /0072B2|0\\.447/.test(s?.diffTex ?? ''))",
+   "page": true,
+   "what": "the diff typeset again in that look: marker, caret, the colour-blind-safe blue",
+   "ms": 60000
+  },
+  {
+   "check": "chrome.storage.local.get('panel').then((p) => { const d = p.panel?.changes?.diff; return [d?.colors, d?.ins, d?.del, d?.fig]; })",
+   "is": [
+    "safe",
+    "mark",
+    "caret",
+    "over"
+   ],
+   "what": "Diff's look kept with the panel's settings",
+   "ms": 3000
+  },
+  {
+   "shot": "diff-settings-safe-light"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "Esc leaves the settings",
+   "is": "diff"
+  },
+  {
+   "click": "[data-m=blame]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "Blame",
+   "is": "blame"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.prow').length; })()",
+   "what": "who wrote this version: the three people, and what is not saved yet",
+   "is": 4,
+   "ms": 120000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.prow .nm > span:first-child')].map((e) => e.textContent).sort(); })()",
+   "what": "by their history names",
+   "is": [
+    "Ali Rahman",
+    "Lina Chen",
+    "Mary Okafor",
+    "Not saved yet"
+   ]
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20; })()",
+   "what": "bars in the margin"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar.bl-hatch').length >= 1; })()",
+   "what": "the sentence not saved yet hatched"
+  },
+  {
+   "shot": "blame-author-light"
+  },
+  {
+   "check": "new Promise((ok) => { const on = (e) => { if (e.data?.src === 'phitex-dev' && e.data.type === 'exacted') (removeEventListener('message', on), ok(JSON.parse(e.data.result))); }; addEventListener('message', on); postMessage({ src: 'phitex-dev', type: 'exact' }, location.origin); setTimeout(() => ok('timeout'), 120000); })",
+   "page": true,
+   "what": "exact: every character of main.tex by the session and person that typed it (the generator's truth; Character detail)",
+   "is": {
+    "main.tex": {
+     "chars": 6959,
+     "wrong": 0,
+     "unsaved": 49
+    }
+   }
+  },
+  {
+   "click": ".prow",
+   "nth": 1
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.prow.sel') !== null && P.querySelectorAll('.slot .bl-wash').length > 0; })()",
+   "what": "a person clicked: their lines picked out, the rest washed"
+  },
+  {
+   "shot": "blame-person-light"
+  },
+  {
+   "click": ".prow",
+   "nth": 1
+  },
+  {
+   "click": ".crow",
+   "nth": 0
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.crow.sel') !== null && P.querySelectorAll('.slot .bl-wash').length > 0; })()",
+   "what": "a version clicked: its lines picked out"
+  },
+  {
+   "click": ".crow",
+   "nth": 0
+  },
+  {
+   "click": "[data-col=age]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.ramp') !== null; })()",
+   "what": "colour by age: the ramp"
+  },
+  {
+   "shot": "blame-age-light"
+  },
+  {
+   "click": "[data-col=author]"
+  },
+  {
+   "pointer": ".cm-content",
+   "dx": -200,
+   "ms": 900
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').hidden && P.querySelectorAll('.slot .bl-bar').length > 0; })()",
+   "what": "kept on, the pointer gone: the popover closes, Blame's bars stay"
+  },
+  {
+   "pointer": ".slot .bl-bar:not(.bl-hatch)",
+   "nth": 6,
+   "dx": 140
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !P.querySelector('.blcard').hidden; })()",
+   "what": "the card on hover"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...P.querySelectorAll('.blcard .acts button')].map((b) => b.textContent); })()",
+   "what": "the card's actions, in Overleaf's words",
+   "is": [
+    "What this version changed",
+    "Show in editor"
+   ]
+  },
+  {
+   "shot": "blame-card-light"
+  },
+  {
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return (globalThis.__card = P.querySelector('.blcard .meta code').textContent); })()"
+  },
+  {
+   "click": ".blcard [data-a=cmp]",
+   "ms": 900
+  },
+  {
+   "pointer": "#phitex-changes",
+   "ms": 300
+  },
+  {
+   "pointer": ".chg-pop .ttl h2",
+   "ms": 300
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "What this version changed: Diff",
+   "is": "diff"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('#chg-to code')?.textContent.split(' \u00b7 ')[0] === globalThis.__card; })()",
+   "what": "To that version, From before it"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^\\d+ changes?$/.test(C.querySelector('.foot [aria-live]')?.textContent ?? ''); })()",
+   "what": "its changes",
+   "ms": 120000
+  },
+  {
+   "click": "[data-m=blame]"
+  },
+  {
+   "click": "#chg-gear"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').dataset.view; })()",
+   "what": "\u2699: Blame's settings",
+   "is": "set-blame"
+  },
+  {
+   "shot": "blame-settings-light"
+  },
+  {
+   "click": "[data-look=detail][data-v=line]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.note2').textContent; })()",
+   "what": "line detail, as git blame",
+   "is": "Each line takes the newest edit in it, as git blame does."
+  },
+  {
+   "click": "[data-look=detail][data-v=char]"
+  },
+  {
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return (globalThis.__skip = C.querySelector('[data-skip]').closest('label').querySelector('code').textContent); })()"
+  },
+  {
+   "click": "[data-skip]"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.crow small code')].map((c) => c.textContent).includes(globalThis.__skip); })()",
+   "what": "a version skipped: none of the lines are its",
+   "is": false,
+   "ms": 60000
+  },
+  {
+   "click": "#chg-gear"
+  },
+  {
+   "click": "[data-skip]"
+  },
+  {
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const s = C.querySelector('#chg-since'); const o = [...s.options].find((o) => /Submitted v1/.test(o.textContent)); s.value = o.value; s.dispatchEvent(new Event('change')); return o.textContent; })()"
+  },
+  {
+   "click": "[data-look=tint][data-v=all]"
+  },
+  {
+   "click": "[data-look=bars][data-v=right]"
+  },
+  {
+   "click": "[data-look=width][data-v='7']"
+  },
+  {
+   "click": "[data-look=people][data-v=overleaf]"
+  },
+  {
+   "click": "[data-look=ages][data-v=warm]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-wash').length > 0 && P.querySelectorAll('.slot .bl-tint').length > 0; })()",
+   "what": "changed since the label: older lines washed; tint everywhere",
+   "ms": 20000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const b = P.querySelector('.slot .bl-bar:not(.bl-wait)'); const s = b.closest('.slot').getBoundingClientRect(), r = b.getBoundingClientRect(); return [getComputedStyle(b).width, r.left > s.left + s.width / 2]; })()",
+   "what": "bars wide, in the right margin",
+   "is": [
+    "7px",
+    true
+   ]
+  },
+  {
+   "check": "chrome.storage.local.get('panel').then((p) => { const b = p.panel?.changes?.blame; return [b?.detail, b?.tint, b?.bars, b?.width, b?.people, b?.ages, b?.since?.endsWith('Submitted v1')]; })",
+   "is": [
+    "char",
+    "all",
+    "right",
+    7,
+    "overleaf",
+    "warm",
+    true
+   ],
+   "what": "Blame's settings kept with the panel's",
+   "ms": 3000
+  },
+  {
+   "shot": "blame-settings-set-light"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "shot": "blame-since-light"
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'default'; document.querySelector('phitex-preview').parentElement.classList.add('pdf-dark-mode'); return true; })()",
+   "page": true
+  },
+  {
+   "wait": 1200
+  },
+  {
+   "shot": "blame-since-dark"
+  },
+  {
+   "click": "#chg-gear"
+  },
+  {
+   "click": "[data-reset=blame]"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "shot": "blame-author-dark"
+  },
+  {
+   "click": "[data-m=diff]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^\\d+ changes?$/.test(C.querySelector('.foot [aria-live]')?.textContent ?? ''); })()",
+   "what": "",
+   "ms": 120000
+  },
+  {
+   "shot": "diff-on-dark"
+  },
+  {
+   "click": "#chg-gear"
+  },
+  {
+   "shot": "diff-settings-dark"
+  },
+  {
+   "click": "[data-reset=diff]"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "click": "#chg-from"
+  },
+  {
+   "shot": "picker-dark"
+  },
+  {
+   "click": "#chg-done"
+  },
+  {
+   "click": "#chg-x"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').hidden; })()",
+   "what": "\u2715: off, the popover closed"
+  },
+  {
+   "check": "document.getElementById('phitex-changes').getAttribute('aria-pressed')",
+   "page": true,
+   "what": "the button not pressed",
+   "is": "false"
+  },
+  {
+   "check": "globalThis.__phitexCompare.showing",
+   "is": "current",
+   "what": "off: the pages as they are",
+   "ms": 10000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl').length; })()",
+   "what": "off: no blame marks",
+   "is": 0
+  },
+  {
+   "pointer": "#phitex-changes",
+   "press": true,
+   "ms": 900
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').hidden; })()",
+   "what": "Esc turns it off"
+  },
+  {
+   "reload": 1,
+   "ms": 120000
+  },
+  {
+   "idle": 1500
+  },
+  {
+   "pointer": "#phitex-changes",
+   "press": true,
+   "ms": 900
+  },
+  {
+   "check": "document.getElementById('phitex-changes').getAttribute('aria-pressed')",
+   "page": true,
+   "what": "after the reload: on again with a click",
+   "is": "true"
+  },
+  {
+   "shot": "reopened-on-light"
+  },
+  {
+   "click": "[data-m=blame]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.prow').length; })()",
+   "what": "reopened: Blame from the history kept (only new versions read)",
+   "is": 4,
+   "ms": 8000
+  },
+  {
+   "shot": "reopened-blame-light"
+  },
+  {
+   "click": "#chg-x"
+  }
+ ]
+}
