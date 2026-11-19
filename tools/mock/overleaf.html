@@ -60,6 +60,13 @@
   <div class="pdf-viewer" id="olpdf">Overleaf's PDF: press Recompile (the local pdflatex)</div>
 </div>
 <script>
+// (localStorage mock:latepane: Overleaf's PDF pane laid out late, as overleaf.com lays out its panes after
+// the page loads (the extension's panel then shown while the project is read); mockShowPane() lays it out)
+if (localStorage.getItem("mock:latepane")) {
+  const pane = document.querySelector(".pdf");
+  pane.className = "pdf-late full-size";
+  window.mockShowPane = () => (pane.className = "pdf full-size");
+}
 // (Overleaf's socket: its frames heard by the extension's hook, as on the real page)
 new WebSocket(location.origin.replace(/^http/, "ws") + "/socket.io");
 </script>

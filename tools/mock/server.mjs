@@ -104,9 +104,10 @@ if (process.env.MOCK_BULK) {
   for (let i = 0; i < nb; i++) add(`bulk/figures/big-${i}.png`, crypto.randomBytes(mb * 1048576));
 }
 
-/** How the project's downloads answer (POST /project/mock/zipmode), and the hung ones' responses (ended when the mode changes). */
+/** How the project's downloads answer (POST /project/mock/zipmode), the hung ones' responses (ended when the mode changes), and the held ones (sent whole then). */
 let zipMode = "ok";
 const hung = [];
+const held = [];
 
 function zip(entries) {
   // (stored and deflated entries, as Overleaf's has both)
@@ -324,14 +325,18 @@ http.createServer((req, res) => {
     return;
   }
   // (how the next project downloads answer, for the start's failures: POST /project/mock/zipmode?mode=
-  // ok, fail (a 500), cut (half the bytes, then the connection dropped), hang (half, then nothing more, never ended))
+  // ok, fail (a 500), cut (half the bytes, then the connection dropped), hang (half, then nothing more, never ended),
+  // hold (nothing, not even its headers, as Overleaf answers while it makes a big project's ZIP; sent whole
+  // when the mode changes))
   if (u.pathname === "/project/mock/zipmode" && req.method === "POST") {
     zipMode = u.searchParams.get("mode") ?? "ok";
     for (const r of hung.splice(0)) r.destroy();
+    for (const [r, z] of held.splice(0)) (r.writeHead(200, { "content-type": "application/zip", "content-length": String(z.length), ...iso }), r.end(z));
     return send(204, "text/plain", "");
   }
   if (u.pathname === "/project/mock/download/zip" && zipMode !== "ok") {
     if (zipMode === "fail") return send(500, "text/plain", "mock: the download failed");
+    if (zipMode === "hold") return void held.push([res, zip([...[...docs.values()].map((d) => [d.path, d.text]), ...files])]);
     const z = zip([...[...docs.values()].map((d) => [d.path, d.text]), ...files]);
     res.writeHead(200, { "content-type": "application/zip", "content-length": String(z.length), ...iso });
     res.write(z.subarray(0, z.length >> 1));

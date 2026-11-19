@@ -268,6 +268,10 @@ pane.style.cssText = "position:fixed;inset:0";
 document.body.append(pane);
 panel.dock(pane);
 panel.shown(true);
+// (the builtin engine's preview: the document is opened in the engine now, built (or read back from
+// its saved graph), so its first step is said now, the opening playing while the engine starts.
+// Not a link's tab (its document's pages there already) nor the watch's (its document may be built)
+if (!watch && !startAt) panel.loadStep(0, "");
 // (opened at a place: the pages start there, and light it once this tab is shown)
 if (startAt) panel.startAt(startAt[0], startAt[1]);
 
