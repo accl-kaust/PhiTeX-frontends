@@ -75,9 +75,10 @@ test("typing merges into one edit", () => {
   const b = new Batch("Hi \n");
   for (const [i, c] of [..."wörld😀"].entries()) b.push({ from: 3 + [..."wörld😀"].slice(0, i).join("").length, to: 3 + [..."wörld😀"].slice(0, i).join("").length, text: c });
   b.push({ from: b.text.length - 3, to: b.text.length - 1, text: "" }); // (backspace over 😀: two code units)
-  const es = b.take();
-  assert.equal(es.length, 1);
-  assert.equal(applyCore("Hi \n", es), b.text);
+  // (a batch is one change since PhiTeX 1ca199d6: Batch.take gives one edit, or none)
+  const e = b.take();
+  assert.ok(e);
+  assert.equal(applyCore("Hi \n", [e]), b.text);
 });
 
 test("batch: random edits, as the core takes them, keep order and meaning", () => {
@@ -94,9 +95,8 @@ test("batch: random edits, as the core takes them, keep order and meaning", () =
         batch.push(e);
       }
       assert.equal(batch.text, s);
-      const es = batch.take();
-      assert.ok(es.length <= n);
-      core = applyCore(core, es);
+      const e = batch.take();
+      core = applyCore(core, e ? [e] : []);
       assert.equal(core, s);
     }
   }
