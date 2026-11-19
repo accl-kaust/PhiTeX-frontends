@@ -620,7 +620,7 @@ const DOCK_CSS = `
   #phitex-left.tight #phitex-changes .button-content { display: none; }
   #phitex-left.bare #phitex-status .phitex-st-text { display: none; }
   #phitex-left.bare > #phitex-status { flex: 0 0 auto; width: auto; }
-  #phitex-left.bare #phitex-clean, #phitex-left.bare #phitex-dlmore, #phitex-left.gone > #phitex-status, #phitex-controls.nozoom .dropdown:has(> #phitex-zoom) { display: none !important; }
+  #phitex-left.lean #phitex-clean, #phitex-left.lean #phitex-dlmore, #phitex-left.gone > #phitex-status, #phitex-controls.nozoom .dropdown:has(> #phitex-zoom) { display: none !important; }
   /* Overleaf's editor switch pads each label's inner edge more than its outer one: ours centers its text in the pill */
   #phitex-switch .toggle-switch-label > span { padding: 0 var(--spacing-05, 12px) !important; }
   #phitex-controls, #phitex-left { display: none !important; }
@@ -950,6 +950,8 @@ function dockInOverleaf(panel: Panel): Dock {
     b.querySelector(".phitex-st-text")!.textContent = st.text;
     b.querySelector(".phitex-st-more")!.textContent = st.more ? `· ${st.more}` : "";
     b.classList.toggle("err", st.err);
+    // (its title says the state it shows, the start's no more)
+    b.title = `${st.text}${st.more ? ` · ${st.more}` : ""}. Click for the last build's times (PhiTeX)`;
   });
 
   /** In Overleaf's left toolbar, where its logs and download are: ours (PhiTeX's diagnostics and PDF). */
@@ -1275,19 +1277,35 @@ function dockInOverleaf(panel: Panel): Dock {
     const cut = st?.offsetWidth ? statusNeed(st) - st.clientWidth : 0;
     return kids.length ? Math.max(...kids.map((r) => r.right)) - Math.min(...kids.map((r) => r.left)) + cut + 8 : 0;
   }
-  /** The width a build's status takes ("Built · 9,999 ms", or its time alone when bare), in its own fonts; measured once. */
-  let statusNeeds: [number, number] | null = null;
+  /**
+   * The width the status needs: its label's kind (the last build's label,
+   * "Built" or "First page", a step under way keeping it) at the worst time
+   * of its unit ("Built · 999 ms" while builds take under a second, "First
+   * page · 99.9 s" once one takes seconds), in its own fonts; before a
+   * build, "Built · 999 ms". Changes only when the kind does, never with
+   * each build's time, so what gives way stays put while builds run. Its
+   * time alone when bare.
+   */
+  let statusNeeds: [number, number] = [0, 0];
+  let statusKind: [string, string] = ["Built", "· 1 ms"];
+  let measure: CanvasRenderingContext2D | null = null;
   function statusNeed(st: HTMLElement): number {
-    if (!statusNeeds) {
-      const c = document.createElement("canvas").getContext("2d");
-      const word = st.querySelector<HTMLElement>(".phitex-st-text"), time = st.querySelector<HTMLElement>(".phitex-st-more");
-      if (!c || !word || !time) return 120;
-      c.font = getComputedStyle(word).font;
-      const w = c.measureText("Built").width;
-      c.font = getComputedStyle(time).font;
-      const t = c.measureText("· 9,999 ms").width;
-      statusNeeds = [Math.ceil(w + t + 4 + 16), Math.ceil(t + 16)];
-    }
+    const word = st.querySelector<HTMLElement>(".phitex-st-text"), time = st.querySelector<HTMLElement>(".phitex-st-more");
+    measure ??= document.createElement("canvas").getContext("2d");
+    if (!measure || !word || !time) return 120;
+    // (a step under way ("Typesetting…") keeps the kind before it: only a build's own label sets it)
+    if (boot.built && word.textContent && !/…$/.test(word.textContent)) statusKind = [word.textContent, time.textContent ?? ""];
+    const [label, t] = statusKind;
+    const worst = /\d\s*s$/.test(t) ? "· 99.9 s" : /min$/.test(t) ? "· 99 min" : "· 999 ms";
+    const font = (e: HTMLElement) => {
+      const c = getComputedStyle(e);
+      return `${c.fontStyle} ${c.fontWeight} ${c.fontSize} ${c.fontFamily}`;
+    };
+    measure.font = font(word);
+    const w = measure.measureText(label).width;
+    measure.font = font(time);
+    const tw = measure.measureText(worst).width;
+    statusNeeds = [Math.ceil(w + tw + 4 + 16), Math.ceil(tw + 16)];
     return statusNeeds[st.closest(".bare") ? 1 : 0];
   }
   /** The right side's: its first shown button to its last. */
@@ -1299,7 +1317,7 @@ function dockInOverleaf(panel: Panel): Dock {
   /** ± Changes' word's width, measured while shown. */
   let chgWord = 60;
   /** The status's words' width ("Built"), measured while shown. */
-  let statusWord = 40, statusAll = 120, zoomW = 60;
+  let statusWord = 40, statusAll = 120, zoomW = 60, leanW = 50;
   /** What the toolbar needs in full, in each mode (0 until it has shown). */
   const needs = { pdf: 0, phitex: 0 };
 
@@ -1366,21 +1384,27 @@ function dockInOverleaf(panel: Panel): Dock {
       const word = chg.querySelector<HTMLElement>(".button-content");
       const st = document.getElementById("phitex-status");
       if (!lf.classList.contains("tight") && word?.offsetWidth) chgWord = word.offsetWidth + 5;
+      const lean = [document.getElementById("phitex-clean"), document.getElementById("phitex-dlmore")];
+      if (!lf.classList.contains("lean") && lean.every((e) => e?.offsetWidth)) leanW = lean.reduce((n, e) => n + e!.offsetWidth, 0);
       // (the status's steps by what a build's status needs, not by what it says now)
-      if (st && statusNeed(st) && statusNeeds) (statusWord = statusNeeds[0] - statusNeeds[1] + 48), (statusAll = statusNeeds[1]);
+      if (st && statusNeed(st)) (statusWord = statusNeeds[0] - statusNeeds[1]), (statusAll = statusNeeds[1]);
       const z = document.getElementById("phitex-zoom");
       if (!ctl.classList.contains("nozoom") && z?.offsetWidth) zoomW = z.offsetWidth + 4;
     }
-    const given = ours ? (lf.classList.contains("tight") ? chgWord : 0) + (lf.classList.contains("bare") ? statusWord : 0) + (lf.classList.contains("gone") ? statusAll : 0) + (ctl.classList.contains("nozoom") ? zoomW : 0) : 0;
+    const given = ours ? (lf.classList.contains("lean") ? leanW : 0) + (lf.classList.contains("tight") ? chgWord : 0) + (lf.classList.contains("bare") ? statusWord : 0) + (lf.classList.contains("gone") ? statusAll : 0) + (ctl.classList.contains("nozoom") ? zoomW : 0) : 0;
     needs[mode] = leftSpan(left) + rightSpan(right) + 16 + (sw.classList.contains("narrow") ? swFull - swNarrow : 0) + given;
     sw.classList.toggle("narrow", Math.max(needs.pdf, needs.phitex) > bar.clientWidth);
     if (ours) {
       const need = needs[mode] - (sw.classList.contains("narrow") ? swFull - swNarrow : 0);
-      lf.classList.toggle("tight", need > bar.clientWidth);
-      lf.classList.toggle("bare", need - chgWord > bar.clientWidth);
-      lf.classList.toggle("gone", need - chgWord - statusWord > bar.clientWidth);
-      // (and last, the zoom's level: Zoom in and out stay in ⋯)
-      ctl.classList.toggle("nozoom", need - chgWord - statusWord - statusAll > bar.clientWidth);
+      // (first what has a menu of its own: the clean rebuild (Recompile's) and the download's ▾ (its button);
+      // then ± Changes' word; then the status's words, then the status; and last the zoom's level (⋯ zooms))
+      let over = need;
+      const step = (el: Element, cls: string, saves: number) => (el.classList.toggle(cls, over > bar.clientWidth), (over -= saves));
+      step(lf, "lean", leanW);
+      step(lf, "tight", chgWord);
+      step(lf, "bare", statusWord);
+      step(lf, "gone", statusAll);
+      step(ctl, "nozoom", zoomW);
     }
     (sw.querySelector(`input[value="${mode}"]`) as HTMLInputElement).checked = true;
     if (newsPending) {

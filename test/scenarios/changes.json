@@ -355,6 +355,17 @@
    "ms": 15000
   },
   {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const st = document.getElementById('phitex-status'); return st.title.startsWith(st.querySelector('.phitex-st-text').textContent) && !/Opening|first build/.test(st.title) || st.title; })()",
+   "what": "the status's title says the state it shows, not the start's"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const l = [...document.querySelectorAll('#phitex-left > *')].filter((e) => e.offsetWidth).map((e) => e.getBoundingClientRect().right), r = [...document.querySelectorAll('.toolbar-pdf-right button')].filter((e) => e.offsetWidth).map((e) => e.getBoundingClientRect().left); const st = document.getElementById('phitex-status'); const spare = Math.min(...r) - Math.max(...l) + st.clientWidth - [...st.children].reduce((n, e) => n + e.scrollWidth, 0) - 20; return document.querySelector('#phitex-changes .button-content').offsetWidth > 0 || spare < 60 || { spare, cls: document.getElementById('phitex-left').className }; })()",
+   "what": "1600 px, Overleaf's split: \u00b1 Changes keeps its word whenever the room for it is there (the status's spare room counted)"
+  },
+  {
+   "shot": "toolbar-1600-light"
+  },
+  {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.citem small')].some((s) => /not saved yet/.test(s.textContent)); })()",
    "what": "the sentence not saved yet: yours",
    "ms": 30000
