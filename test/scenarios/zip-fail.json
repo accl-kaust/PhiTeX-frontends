@@ -1,0 +1,12 @@
+{"project": "test/scenarios/ci", "name": "zip-fail", "nofirst": true, "noidle": true, "//": "Overleaf's download of the project failing once (a 500 while it saves a burst of edits) never stops the pane until a reload: the card says in plain words that Overleaf didn't hand the project over and what happens next; the start goes on at the next edit, the tab shown again, or Try again; the failure is in the start's errors and the session's trace, so a report has it. 1.0.4 stopped at the first 500 for good, and its report's trace was empty.",
+  "steps": [
+    {"start": {"zip": "fail"}, "until": "__phitexBoot().then((b) => b.head === 'Waiting for Overleaf…')", "ms": 30000},
+    {"what": "the card: waiting, in plain words, with Try again", "check": "(() => { const c = document.querySelector('phitex-preview')?.shadowRoot?.querySelector('#empty .card'); return c ? [c.querySelector('h3').textContent, c.querySelector('.count').textContent, [...c.querySelectorAll('button')].map((b) => b.textContent).includes('Try again')] : 'no card'; })()", "is": ["Waiting for Overleaf", "Overleaf didn't hand over the project just now (it answered 500).", true]},
+    {"what": "the start is not stopped, and its errors have the 500", "check": "__phitexBoot().then((b) => [b.failed, b.errors.some((e) => /download failed: 500/.test(e))])", "is": [false, true]},
+    {"what": "the session's trace has the start's steps and the failure (a report's trace)", "check": "(() => { const t = (globalThis.__phitexSession?.trace ?? []).map((e) => e.k); return [t.includes('start: Downloading the project from Overleaf…'), t.includes('start: failed')]; })()", "is": [true, true]},
+    {"shot": "waiting"},
+    {"zipmode": "ok"},
+    {"eval": "document.querySelector('phitex-preview').shadowRoot.querySelector('#empty .card button.reportbtn').click()"},
+    {"what": "Try again: the first page, the start built", "check": "new Promise((ok) => { const t0 = Date.now(); const f = () => __phitexBoot().then((b) => (b.built && document.querySelector('phitex-preview')?.shadowRoot?.querySelector('.slot svg.page, .slot canvas') ? ok(true) : Date.now() - t0 > 60000 ? ok('no page in 60 s') : setTimeout(f, 250))); f(); })", "is": true}
+  ]
+}

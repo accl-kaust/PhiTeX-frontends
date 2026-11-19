@@ -1,0 +1,11 @@
+{"project": "test/scenarios/ci", "name": "status-steady", "noidle": true, "//": "The ⚡ status in Overleaf's toolbar stays put while builds come fast: its slot is a fixed width (the buttons after it never move, whatever it says), and its words are drawn at most about four times a second, the latest. Before: it flickered between labels and moved the toolbar with every build's milliseconds.",
+  "steps": [
+    {"eval": "(() => { const st = document.getElementById('phitex-status'); const next = st.parentElement.lastElementChild; const s = globalThis.__steady = { xs: new Set(), ws: new Set(), texts: [], t0: performance.now(), on: true }; let last = ''; const f = () => { if (!s.on) return; s.xs.add(Math.round(next.getBoundingClientRect().left)); s.ws.add(Math.round(st.getBoundingClientRect().width)); const t = st.textContent; if (t !== last) (s.texts.push([Math.round(performance.now() - s.t0), t]), (last = t)); requestAnimationFrame(f); }; f(); })()", "page": true},
+    {"type": " quick brown fox jumps over the lazy dog", "after": "The release gate", "keys": 30},
+    {"wait": 1500},
+    {"eval": "globalThis.__steady.on = false", "page": true},
+    {"what": "nothing after the status moved, and the status kept one width", "check": "[globalThis.__steady.xs.size, globalThis.__steady.ws.size]", "is": [1, 1], "page": true},
+    {"what": "the words drawn no faster than four times a second (changes per second, rounded up)", "check": "(() => { const t = globalThis.__steady.texts; const span = Math.max(1, (t.at(-1)[0] - t[0][0]) / 1000); return t.length <= Math.ceil(span * 4) + 1; })()", "is": true, "page": true},
+    {"what": "never says no page changed while pages change", "check": "globalThis.__steady.texts.some(([, t]) => /no page changed/.test(t))", "is": false, "page": true}
+  ]
+}

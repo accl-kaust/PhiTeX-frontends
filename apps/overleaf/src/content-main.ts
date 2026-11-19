@@ -26,6 +26,7 @@ import { Panel, type DiffLook, type PanelPrefs, type Prefs, type SettingRow, typ
 import { resetAll, usable } from "./settings.ts";
 import { answer, channel, follow, mirrorOut, remoteCore, tee, type Ask } from "./mirror.ts";
 import { ENGINES, approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
+import { Calm } from "./common/viewer/sheetline.ts";
 import { StripPages } from "./common/strippages.ts";
 import { reportRow } from "./report.ts";
 
@@ -145,16 +146,19 @@ function reading(panel: Panel, r: Parameters<Panel["reading"]>[0], named = false
   const safe = [named ? "" : r.detail, r.total ? `${r.done ?? 0} of ${r.total}` : ""].filter(Boolean).join(", ");
   const last = boot.steps.at(-1);
   if (last?.h === r.h) last.far = safe;
-  else boot.steps.push({ h: r.h, t: performance.now() - boot.t0, far: safe });
+  else (boot.steps.push({ h: r.h, t: performance.now() - boot.t0, far: safe }), bootTrace?.(`start: ${r.h}`, safe ? { far: safe } : undefined));
   panel.reading(r);
   bootShown();
 }
+/** The open session's trace, once there is one: the start's steps and failures go in it too. */
+let bootTrace: ((k: string, d?: unknown) => void) | undefined;
 /** The start stopped at `e`: kept, with its step (for the debug info: the step's head and how far, no names). */
 function bootFailed(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   const why = `${boot.stage.replace(/…/, "")} failed: ${msg}`;
   const last = boot.steps.at(-1);
   boot.errors.push(`${last ? `${last.h.replace(/…/, "")}${last.far ? ` (${last.far})` : ""}` : "Starting"} failed: ${msg}`);
+  bootTrace?.("start: failed", { error: boot.errors.at(-1) });
   boot.stage = why;
   boot.head = "Couldn't start";
   boot.failed = true;
@@ -285,6 +289,20 @@ let takeBinary: ((path: string) => Promise<unknown>) | undefined;
 /** The project's binary files as last read (a compare's session gets them too). */
 let lastBinaries: Record<string, Uint8Array> = {};
 
+/** Overleaf did not hand the project over: its answer to the ZIP's request (`status`), or none (0: the network). */
+class NotHanded extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(status ? `project download failed: ${status}` : "project download failed: no answer");
+    this.status = status;
+  }
+  /** In plain words, for the card. */
+  get plain(): string {
+    return notHandedWords(this.status);
+  }
+}
+const notHandedWords = (status: number) => (status ? `Overleaf didn't hand over the project just now (it answered ${status}).` : "Overleaf didn't answer just now.");
+
 async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promise<Record<string, string>> {
   const t = performance.now();
   const files: Record<string, string> = {};
@@ -294,8 +312,10 @@ async function fetchDocs(panel: Panel, only?: (path: string) => boolean): Promis
     // first build. No waiting on the file tree, whose collapsed folders
     // never show their docs' ids)
     reading(panel, { h: "Downloading the project from Overleaf…" });
-    const z = await pageFetch(`${project()}/download/zip`, { credentials: "include" });
-    if (!z.ok) throw new Error(`project download failed: ${z.status}`);
+    const z = await pageFetch(`${project()}/download/zip`, { credentials: "include" }).catch(() => {
+      throw new NotHanded(0);
+    });
+    if (!z.ok) throw new NotHanded(z.status);
     const size = Number(z.headers.get("content-length")) || 0;
     const mb = (n: number) => (n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0)} MB`);
     // (the bytes as they arrive, said on the card: Chrome's fetch streams
@@ -569,9 +589,10 @@ const DOCK_CSS = `
   #phitex-zoom-menu { min-width: 120px; }
   /* the build's status, as the panel says it ("Built · 42 ms"): Overleaf's toolbar text, its timings on a click */
   #phitex-status { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums;
-    max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+    width: 220px; overflow: hidden; text-overflow: ellipsis; }
   #phitex-status .phitex-st-text { font-weight: 600; }
   #phitex-status .phitex-st-more { opacity: .75; }
+  /* (a fixed slot: its words change with every build, the buttons after it never move; a narrow toolbar squeezes it, by the toolbar's width, not its words) */
   /* cut short from its end (the times first, then the words), never from its middle */
   #phitex-status { justify-content: flex-start; }
   #phitex-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -868,12 +889,16 @@ function dockInOverleaf(panel: Panel): Dock {
     statusNow = st;
     // (before a build: where the start is, bootShown's)
     if (!boot.built) return bootShown();
+    if (st) statusLine.set({ text: st.text, more: st.more, err: st.err });
+  }
+  // (drawn calmly: at most four times a second, the latest, so a reader can follow it while builds come 30 a second)
+  const statusLine = new Calm<{ text: string; more: string; err: boolean }>((st) => {
     const b = document.getElementById("phitex-status");
-    if (!b || !st) return;
+    if (!b) return;
     b.querySelector(".phitex-st-text")!.textContent = st.text;
     b.querySelector(".phitex-st-more")!.textContent = st.more ? `· ${st.more}` : "";
     b.classList.toggle("err", st.err);
-  }
+  });
 
   /** In Overleaf's left toolbar, where its logs and download are: ours (PhiTeX's diagnostics and PDF). */
   /**
@@ -953,6 +978,8 @@ function dockInOverleaf(panel: Panel): Dock {
     compareButton(l, panel, project, pageFetch, diffRunner);
     blameButton(l, panel);
     left.append(l);
+    // (a new button, empty: the status drawn in it at once)
+    statusLine.reset();
     mirrorStatus();
     return l;
   }
@@ -1401,7 +1428,10 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     onReport: async () => {
       const m = chrome.runtime.getManifest();
       // (no session yet (the engine didn't start, the project wasn't read): the start's own lines)
-      return session?.report({ version: m.version, engine: m.version_name?.match(/engine ([0-9a-f]+)/)?.[1] ?? "?", userAgent: navigator.userAgent }) ?? [...(await bootLines()), `machine: ${navigator.userAgent}`].join("\n") + "\n";
+      const start = [...(await bootLines()).map((l) => l.replace(/; main file .*$/, "")), `machine: ${navigator.userAgent}`].join("\n") + "\n";
+      // (no build yet: the start's lines first, its steps and why it stopped, then the session's, whose trace has them too)
+      const own = session?.report({ version: m.version, engine: m.version_name?.match(/engine ([0-9a-f]+)/)?.[1] ?? "?", userAgent: navigator.userAgent });
+      return own === undefined ? start : boot.built ? own : `${start}\n${own}`;
     },
     // (Copy debug info: the extension, where the start is, its errors; the panel adds the build's and the machine's)
     onDebugInfo: async () => bootLines(),
@@ -1824,9 +1854,43 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     // (a compare's session: the marked-up document opened as a project of its own)
     diffImpl = compare = compareWith(host, transport, opts);
     devMark("start");
+    bootTrace = (k, d) => session.tr(k, d);
     // (the project read, its figures given to the core as they come; then
-    // opened: the core builds it and says when its pages are in)
-    const files = await host.loadProject();
+    // opened: the core builds it and says when its pages are in. Overleaf
+    // not handing it over (a 500 while it saves a burst of edits, the
+    // network): the start waits for Overleaf, and goes on at the next edit,
+    // the tab shown again, the network back, or Try again; never stopped
+    // until a reload)
+    let files: Record<string, string>;
+    for (;;) {
+      try {
+        files = await host.loadProject();
+        break;
+      } catch (e) {
+        if (!(e instanceof NotHanded)) throw e;
+        // (kept in the errors and the trace; the start is waiting, not stopped)
+        bootFailed(e);
+        boot.failed = false;
+        boot.head = "Waiting for Overleaf…";
+        boot.stage = e.plain;
+        bootShown();
+        await new Promise<void>((on) => {
+          let done = false;
+          const vis = () => void (document.hidden || again());
+          const again = () => {
+            if (done) return;
+            done = true;
+            document.removeEventListener("visibilitychange", vis);
+            removeEventListener("online", again);
+            on();
+          };
+          host.onChanges(() => again());
+          document.addEventListener("visibilitychange", vis);
+          addEventListener("online", again);
+          panel.error(e.plain, { title: "Waiting for Overleaf", note: "PhiTeX opens the project at your next edit, or when you come back to this tab.", again });
+        });
+      }
+    }
     session.refresh(files);
     // (the main file picked for this project, else the guess: never the file open for being open)
     // (then Overleaf's own main document, its Menu's, when the hook heard it already: else it follows when heard, followRoot)
