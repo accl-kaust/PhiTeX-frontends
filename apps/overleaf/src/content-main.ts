@@ -613,7 +613,14 @@ const DOCK_CSS = `
   .phitex-on .toolbar-pdf-left { min-width: 0; }
   #phitex-left { min-width: 0; }
   .phitex-on .toolbar-pdf-left > *, #phitex-left > * { flex-shrink: 0; }
-  .phitex-on .toolbar-pdf-left > #phitex-left, #phitex-left > #phitex-status { flex-shrink: 1; min-width: 0; }
+  .phitex-on .toolbar-pdf-left > #phitex-left { flex-shrink: 1; min-width: 0; }
+  /* the status's slot gives up its spare room; past that the other controls give way (compact, the switch's "PDF | ⚡",
+     ± Changes without its word: each decided on the status's cut, leftSpan), its time never cut */
+  #phitex-left > #phitex-status { flex: 0 1 220px; min-width: 0; }
+  #phitex-left.tight #phitex-changes .button-content { display: none; }
+  #phitex-left.bare #phitex-status .phitex-st-text { display: none; }
+  #phitex-left.bare > #phitex-status { flex: 0 0 auto; width: auto; }
+  #phitex-left.bare #phitex-clean, #phitex-left.bare #phitex-dlmore, #phitex-left.gone > #phitex-status, #phitex-controls.nozoom .dropdown:has(> #phitex-zoom) { display: none !important; }
   /* Overleaf's editor switch pads each label's inner edge more than its outer one: ours centers its text in the pill */
   #phitex-switch .toggle-switch-label > span { padding: 0 var(--spacing-05, 12px) !important; }
   #phitex-controls, #phitex-left { display: none !important; }
@@ -635,14 +642,13 @@ const DOCK_CSS = `
   #phitex-zoom-menu { min-width: 120px; }
   /* the build's status, as the panel says it ("Built · 42 ms"): Overleaf's toolbar text, its timings on a click */
   #phitex-status { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums;
-    width: 220px; overflow: hidden; text-overflow: ellipsis; }
+    width: 220px; overflow: hidden; }
   #phitex-status .phitex-st-text { font-weight: 600; }
   #phitex-status .phitex-st-more { opacity: .75; }
-  /* (a fixed slot: its words change with every build, the buttons after it never move; a narrow toolbar squeezes it, by the toolbar's width, not its words) */
-  /* cut short from its end (the times first, then the words), never from its middle */
+  /* (a slot of 220 px: its words change with every build, the buttons after it never move; long words cut short, its time never) */
   #phitex-status { justify-content: flex-start; }
   #phitex-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #phitex-status .phitex-st-text { flex-shrink: 1; } #phitex-status .phitex-st-more { flex-shrink: 1000; }
+  #phitex-status .phitex-st-text { flex-shrink: 1; } #phitex-status .phitex-st-more { flex-shrink: 0; }
   #phitex-status.err .phitex-st-text { color: var(--content-danger-dark, #e36d66); }
   [data-theme="light"] #phitex-status.err .phitex-st-text { color: var(--content-danger, #b83a33); }
   #phitex-status:empty, #phitex-status .phitex-st-text:empty + .phitex-st-more { display: none; }
@@ -1261,10 +1267,28 @@ function dockInOverleaf(panel: Panel): Dock {
 
   /** The left side's width as laid out in full: its first shown child to its last, the status text uncut. */
   function leftSpan(left: Element): number {
-    const kids = [...left.children].filter((e) => (e as HTMLElement).offsetWidth).map((e) => e.getBoundingClientRect());
+    // (#phitex-left's own controls by their own boxes: squeezed, its box is narrower than they are, and they spill over the right side)
+    const kids = [...left.children, ...(document.getElementById("phitex-left")?.children ?? [])].filter((e) => (e as HTMLElement).offsetWidth).map((e) => e.getBoundingClientRect());
     const st = document.getElementById("phitex-status");
-    const cut = st?.offsetWidth ? st.scrollWidth - st.clientWidth : 0;
+    // (the status by what a build's status needs, "Built · 9,999 ms", never by the words it says now: what gives way
+    // stays put while builds come fast. Its slot's spare room given up first; short of that, the others give way)
+    const cut = st?.offsetWidth ? statusNeed(st) - st.clientWidth : 0;
     return kids.length ? Math.max(...kids.map((r) => r.right)) - Math.min(...kids.map((r) => r.left)) + cut + 8 : 0;
+  }
+  /** The width a build's status takes ("Built · 9,999 ms", or its time alone when bare), in its own fonts; measured once. */
+  let statusNeeds: [number, number] | null = null;
+  function statusNeed(st: HTMLElement): number {
+    if (!statusNeeds) {
+      const c = document.createElement("canvas").getContext("2d");
+      const word = st.querySelector<HTMLElement>(".phitex-st-text"), time = st.querySelector<HTMLElement>(".phitex-st-more");
+      if (!c || !word || !time) return 120;
+      c.font = getComputedStyle(word).font;
+      const w = c.measureText("Built").width;
+      c.font = getComputedStyle(time).font;
+      const t = c.measureText("· 9,999 ms").width;
+      statusNeeds = [Math.ceil(w + t + 4 + 16), Math.ceil(t + 16)];
+    }
+    return statusNeeds[st.closest(".bare") ? 1 : 0];
   }
   /** The right side's: its first shown button to its last. */
   function rightSpan(right: Element): number {
@@ -1272,6 +1296,10 @@ function dockInOverleaf(panel: Panel): Dock {
     return shown.length ? Math.max(...shown.map((r) => r.right)) - Math.min(...shown.map((r) => r.left)) : 0;
   }
   let swFull = 149, swNarrow = 89;
+  /** ± Changes' word's width, measured while shown. */
+  let chgWord = 60;
+  /** The status's words' width ("Built"), measured while shown. */
+  let statusWord = 40, statusAll = 120, zoomW = 60;
   /** What the toolbar needs in full, in each mode (0 until it has shown). */
   const needs = { pdf: 0, phitex: 0 };
 
@@ -1329,8 +1357,31 @@ function dockInOverleaf(panel: Panel): Dock {
     // measured while it shows, so flipping the switch never changes its width too)
     if (sw.classList.contains("narrow")) swNarrow = sw.offsetWidth || swNarrow;
     else swFull = sw.offsetWidth || swFull;
-    needs[mode] = leftSpan(left) + rightSpan(right) + 16 + (sw.classList.contains("narrow") ? swFull - swNarrow : 0);
+    // (then ± Changes without its word; then the status its time alone ("· 97 ms"), the clean rebuild and the
+    // download's ▾ left to Recompile's menu and the download; then no status at all, never one cut short. Each
+    // step's room measured while it shows; every step decided on what the bar needs with all of them undone)
+    const lf = document.getElementById("phitex-left"), chg = document.getElementById("phitex-changes");
+    const ours = lf && chg && mode === "phitex";
+    if (ours) {
+      const word = chg.querySelector<HTMLElement>(".button-content");
+      const st = document.getElementById("phitex-status");
+      if (!lf.classList.contains("tight") && word?.offsetWidth) chgWord = word.offsetWidth + 5;
+      // (the status's steps by what a build's status needs, not by what it says now)
+      if (st && statusNeed(st) && statusNeeds) (statusWord = statusNeeds[0] - statusNeeds[1] + 48), (statusAll = statusNeeds[1]);
+      const z = document.getElementById("phitex-zoom");
+      if (!ctl.classList.contains("nozoom") && z?.offsetWidth) zoomW = z.offsetWidth + 4;
+    }
+    const given = ours ? (lf.classList.contains("tight") ? chgWord : 0) + (lf.classList.contains("bare") ? statusWord : 0) + (lf.classList.contains("gone") ? statusAll : 0) + (ctl.classList.contains("nozoom") ? zoomW : 0) : 0;
+    needs[mode] = leftSpan(left) + rightSpan(right) + 16 + (sw.classList.contains("narrow") ? swFull - swNarrow : 0) + given;
     sw.classList.toggle("narrow", Math.max(needs.pdf, needs.phitex) > bar.clientWidth);
+    if (ours) {
+      const need = needs[mode] - (sw.classList.contains("narrow") ? swFull - swNarrow : 0);
+      lf.classList.toggle("tight", need > bar.clientWidth);
+      lf.classList.toggle("bare", need - chgWord > bar.clientWidth);
+      lf.classList.toggle("gone", need - chgWord - statusWord > bar.clientWidth);
+      // (and last, the zoom's level: Zoom in and out stay in ⋯)
+      ctl.classList.toggle("nozoom", need - chgWord - statusWord - statusAll > bar.clientWidth);
+    }
     (sw.querySelector(`input[value="${mode}"]`) as HTMLInputElement).checked = true;
     if (newsPending) {
       sw.querySelector('label[for="phitex-v-phitex"]')?.classList.add("phitex-dot-new");

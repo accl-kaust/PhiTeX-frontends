@@ -453,6 +453,16 @@ export class ProjectHistory {
     return this.updatesBusy;
   }
 
+  /**
+   * The project's newest version now, by one small read of its newest
+   * session (`/updates?min_count=1`): Blame asks it when shown again, to
+   * learn whether "not saved yet" was saved since. Nothing kept from it.
+   */
+  async newest(): Promise<number | null> {
+    const page = await this.get<{ updates: OlUpdate[] }>("/updates?min_count=1");
+    return page.updates[0]?.toV ?? null;
+  }
+
   /** Whether every session is read. */
   get allUpdates(): boolean {
     return this.updatesDone;

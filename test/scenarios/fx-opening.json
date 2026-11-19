@@ -92,7 +92,7 @@
     {"start": {"zip": "hang"}, "stage": "^Downloading the project from Overleaf"},
     {"moving": "#opening .sheet", "what": "a download that will fail: Bad Apple plays meanwhile"},
     {"zipmode": "ok", "until": "!!document.querySelector('phitex-preview')?.shadowRoot?.querySelector('#empty:not([hidden]) .card')"},
-    {"what": "the download failed: its card, the sheet gone", "check": "document.querySelector('phitex-preview')?.shadowRoot.querySelector('#opening').hidden && /Downloading the project from Overleaf/.test(document.querySelector('phitex-preview')?.shadowRoot.querySelector('#empty .card').textContent)"},
+    {"what": "the download failed: its card, the sheet gone (Firefox reads the ZIP whole, so a cut one is no answer at all: the start waits for Overleaf, as since frontends 0f5d1e7, where Chromium's stream says how far it got)", "check": "document.querySelector('phitex-preview')?.shadowRoot.querySelector('#opening').hidden && /^Waiting for Overleaf/.test(document.querySelector('phitex-preview')?.shadowRoot.querySelector('#empty .card').textContent)"},
     {"moving": "#opening .sheet", "is": false, "ms": 0, "what": "no opening left running behind the card"},
     {"start": {}, "ms": 120000, "stage": ""},
     {"zipmode": "ok", "until": "!!document.querySelector('phitex-preview')?.shadowRoot?.querySelector('.slot svg.page, .slot canvas')", "ms": 120000}]}

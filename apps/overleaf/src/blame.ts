@@ -210,6 +210,11 @@ export function overleafHistory(o: OverleafChangesHost): { blame: BlameHost; cha
     // (Blame works on the sources and the history: the main file and what it inputs, no page needed)
     sources: () => sourceFiles(o.main(), o.names(), (f) => o.text(f)),
     text: (f) => o.text(f),
+    // (the newest version: one small read when Blame is shown again; moved, every file blamed again from the history read to it)
+    head: async () => {
+      const v = await h.newest();
+      return v === null ? null : String(v);
+    },
     goto: (file, line) => o.goto(file, line),
     // (one lane: no branch to have been merged from)
     via: () => null,
@@ -267,7 +272,7 @@ export function overleafHistory(o: OverleafChangesHost): { blame: BlameHost; cha
         out[file] = { text: now, runs };
       }
       const labels = await h.labels().catch(() => []);
-      return { commits, files: out, refs: labels.map((l) => ({ name: l.comment, kind: "tag", time: Date.parse(l.created_at) / 1000, id: `v${l.version}` })), now: Date.now() / 1000 };
+      return { commits, files: out, refs: labels.map((l) => ({ name: l.comment, kind: "tag", time: Date.parse(l.created_at) / 1000, id: `v${l.version}` })), now: Date.now() / 1000, head: String(r.version) };
     },
   };
 

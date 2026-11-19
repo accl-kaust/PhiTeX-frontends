@@ -81,6 +81,9 @@
    "click": "#chg-done"
   },
   {
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const seen = (globalThis.__progs = []); const note = () => { const p = C.querySelector('.prog'); const t = p && !p.hidden ? p.textContent : ''; if (seen.at(-1) !== t) seen.push(t); }; new MutationObserver(note).observe(C.querySelector('.chg-pop'), { subtree: true, childList: true, characterData: true, attributes: true }); return 1; })()"
+  },
+  {
    "click": "[data-m=blame]",
    "ms": 200
   },
@@ -133,6 +136,11 @@
    "what": "Blame done",
    "is": 3,
    "ms": 180000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const p = globalThis.__progs; return p.some((t) => /^Matching main\\.tex to the history\u2026/.test(t)) && !p.some((t) => /Reading history\u2026 ([\\d,]+) of ~\\1 edits/.test(t)) && C.querySelector('.prog').hidden || p; })()",
+   "what": "the progress line: the history read, then \"Matching main.tex to the history\u2026\", never a read stuck at its end; then gone",
+   "ms": 5000
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20 && P.querySelectorAll('.slot .bl-wait').length === 0; })()",

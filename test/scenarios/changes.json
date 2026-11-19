@@ -346,6 +346,15 @@
    "ms": 120000
   },
   {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const b = document.getElementById('phitex-changes-n'), n = C.querySelector('.foot .count').textContent.match(/^(\\d+) change/)?.[1]; return b.textContent === n && /The number: \\d+ changes? in the diff shown/.test(document.getElementById('phitex-changes').title); })()",
+   "what": "Diff: the badge is the diff's changes, as its button's title says"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const st = document.getElementById('phitex-status'); const sp = [...st.children].filter((e) => e.offsetWidth); return st.scrollWidth <= st.clientWidth + 1 && sp.every((e) => e.scrollWidth <= e.clientWidth + 1) && /^Built.*\u00b7 [\\d.,]+ (ms|s)$/.test(st.textContent.trim()) || st.textContent; })()",
+   "what": "the toolbar's status whole, its time never cut (1600 px, the badge showing)",
+   "ms": 15000
+  },
+  {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.citem small')].some((s) => /not saved yet/.test(s.textContent)); })()",
    "what": "the sentence not saved yet: yours",
    "ms": 30000
@@ -602,6 +611,14 @@
    "what": "counted in the sources' words (Word detail), not the pages' lines"
   },
   {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [document.getElementById('phitex-changes-n').textContent, /The number: 3 people wrote this version/.test(document.getElementById('phitex-changes').title)]; })()",
+   "what": "Blame: the badge is the people who wrote this version (not \"not saved\"), as the title says",
+   "is": [
+    "3",
+    true
+   ]
+  },
+  {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20 && P.querySelectorAll('.slot .bl-bar.bl-hatch').length >= 1; })()",
    "what": "bars in the margin, the unsaved text hatched",
    "ms": 10000
@@ -699,6 +716,10 @@
    "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return (globalThis.__skip = C.querySelector('[data-skip]').closest('label').querySelector('code').textContent); })()"
   },
   {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const ls = [...C.querySelectorAll('.skips label')]; return ls.length > 3 && ls.every((l) => l.querySelector('span').scrollWidth <= l.querySelector('span').clientWidth + 1 && / \u00b7 (Ali Rahman|Lina Chen|Mary Okafor)/.test(l.title)); })()",
+   "what": "Skip versions: every row whole (no name cut), its full text in its title"
+  },
+  {
    "click": "[data-skip]"
   },
   {
@@ -790,6 +811,140 @@
    "ms": 10000
   },
   {
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; C.querySelectorAll('.prow, .crow').forEach((e) => (e.__kept = 1)); return fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => (globalThis.__reads = n)); })()"
+  },
+  {
+   "click": "#chg-fold"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const pop = C.querySelector('.chg-pop'); return pop.classList.contains('folded') && pop.getBoundingClientRect().height < 130 && getComputedStyle(C.querySelector('.body')).display === 'none' && !!C.querySelector('[data-m=blame][aria-pressed=true]') && C.querySelector('#chg-fold').getAttribute('aria-expanded') === 'false'; })()",
+   "what": "Fold: the title row and Diff/Blame only"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20; })()",
+   "what": "folded: the marks still on the pages"
+  },
+  {
+   "check": "chrome.storage.local.get('panel').then((p) => p.panel?.changes?.folded)",
+   "what": "folded: kept with the panel's settings"
+  },
+  {
+   "shot": "folded-light"
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'default'; document.querySelector('phitex-preview').parentElement.classList.add('pdf-dark-mode'); return true; })()",
+   "page": true
+  },
+  {
+   "wait": 800
+  },
+  {
+   "shot": "folded-dark"
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'light'; document.querySelector('phitex-preview').parentElement.classList.remove('pdf-dark-mode'); return true; })()",
+   "page": true
+  },
+  {
+   "wait": 400
+  },
+  {
+   "pointer": "",
+   "at": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const pop = C.querySelector('.chg-pop').getBoundingClientRect(); const st = P.querySelector('#stage'); for (let n = 0; n < 30; n++) { const b = [...P.querySelectorAll('.slot .bl-bar:not(.bl-hatch):not(.bl-wait)')].find((b) => { const r = b.getBoundingClientRect(); return r.top > pop.bottom + 12 && r.bottom < innerHeight - 30 && r.height > 4; }); if (b) { const r = b.getBoundingClientRect(); return [r.right + 60, r.top + r.height / 2]; } st.scrollTop += 120; } return null; })()",
+   "ms": 600
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !P.querySelector('.blcard').hidden; })()",
+   "what": "folded: the card still comes",
+   "ms": 3000
+  },
+  {
+   "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads)",
+   "what": "folding reads nothing"
+  },
+  {
+   "viewport": 1100
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const pop = C.querySelector('.chg-pop').getBoundingClientRect(), b = document.getElementById('phitex-changes').getBoundingClientRect(), w = P.querySelector('.win').getBoundingClientRect(); return pop.left >= w.left - 1 && pop.right <= w.right + 1 && pop.top >= b.bottom - 1 && pop.height < 130; })()",
+   "what": "a narrow pane: folded, within the pane, under its button",
+   "ms": 3000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const l = [...document.querySelectorAll('#phitex-left > *')].filter((e) => e.offsetWidth).map((e) => e.getBoundingClientRect().right), r = [...document.querySelectorAll('.toolbar-pdf-right button')].filter((e) => e.offsetWidth).map((e) => e.getBoundingClientRect().left); const t = document.querySelector('#phitex-status .phitex-st-more'); return Math.max(...l) <= Math.min(...r) + 1 && (!t.offsetWidth || t.scrollWidth <= t.clientWidth + 1) && !!document.getElementById('phitex-changes').offsetWidth; })()",
+   "what": "a narrow pane: the toolbar's controls side by side, never over each other; the status's time whole, \u00b1 Changes there",
+   "ms": 5000
+  },
+  {
+   "shot": "folded-narrow-light"
+  },
+  {
+   "viewport": 0
+  },
+  {
+   "click": "#chg-fold"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !C.querySelector('.chg-pop').classList.contains('folded') && C.querySelectorAll('.prow').length === 4; })()",
+   "what": "unfolded: the lists back"
+  },
+  {
+   "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads + 1)",
+   "what": "unfolded on Blame: the history asked once (one small read)",
+   "ms": 5000
+  },
+  {
+   "idle": 1500
+  },
+  {
+   "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads + 1)",
+   "what": "the version unchanged: nothing more read, nothing blamed again"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.prow, .crow')].every((e) => e.__kept === 1); })()",
+   "what": "unfolded: the lists' nodes the same ones"
+  },
+  {
+   "eval": "(() => { document.dispatchEvent(new Event('visibilitychange')); return 1; })()",
+   "page": true
+  },
+  {
+   "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads + 2)",
+   "what": "the browser tab shown again: the history asked once more",
+   "ms": 5000
+  },
+  {
+   "click": "#chg-fold"
+  },
+  {
+   "pointer": ".chg-pop .ttl h2",
+   "press": true,
+   "ms": 300
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').hidden; })()",
+   "what": "folded: Esc still closes it"
+  },
+  {
+   "pointer": "#phitex-changes",
+   "press": true,
+   "ms": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').classList.contains('folded'); })()",
+   "what": "opened again: still folded"
+  },
+  {
+   "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads + 3)",
+   "what": "opened again on Blame: the history asked once more",
+   "ms": 5000
+  },
+  {
    "click": "#chg-x"
   },
   {
@@ -823,6 +978,13 @@
    "pointer": "#phitex-changes",
    "press": true,
    "ms": 900
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').classList.contains('folded'); })()",
+   "what": "reloaded: still folded, as kept"
+  },
+  {
+   "click": "#chg-fold"
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('#chg-blame-go') !== null && C.querySelectorAll('.prow').length === 0; })()",

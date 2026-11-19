@@ -35,6 +35,7 @@
 //       { "secondtab": true, "ms": 120000 }, // the project in a second tab: its first page, or its panel saying why it has none; else (neither in time) the run fails
 //       { "secondtab": "page", "ms": 120000 }, // the same, its first page required
 //       { "sweep": 2000, "frame": 34 }, // the mouse swept over the pages 2 s: no long task, frames' p95 within 34 ms
+//       { "viewport": 1000 },        // the window 1000 px wide (the PDF pane narrower); 0: as it was
 //       { "histfail": 2 },           // the mock's next 2 history reads fail (503): Changes' error and Try again
 //       { "rootdoc": "main.tex" },   // Overleaf's main document changed (its Menu), as its socket tells the editor
 //       { "graph": "saved", "ms": 60000 }, // until the build's persisted graph is saved and kept (IndexedDB), else the run fails
@@ -581,6 +582,12 @@ for (const s of sc.steps ?? []) {
     console.log(`compare ${s.compare}: ${bar || "no count"}; diff.tex ${tex.length} chars${missing.length ? `, lacks ${JSON.stringify(missing)}` : ""}`);
     if (!ok) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
     await evalIn(`${C}?.querySelector('#chg-x')?.click()`);
+  } else if (s.viewport !== undefined) {
+    // (`{"viewport": 1000}`: the window that wide (Overleaf's PDF pane narrows with it); 0: as it was)
+    if (s.viewport) await call("Emulation.setDeviceMetricsOverride", { width: s.viewport, height: s.height ?? 1000, deviceScaleFactor: 1, mobile: false });
+    else await call("Emulation.clearDeviceMetricsOverride");
+    await sleep(800);
+    console.log(`viewport ${s.viewport || "as the window"}`);
   } else if (s.sweep !== undefined) {
     // (`{"sweep": 2000}`: the mouse swept across the pages for that long, as a person moves it (a move every
     // 16 ms, zig-zag over the pages' box, the wheel scrolling them down), the main thread watched: no long task
