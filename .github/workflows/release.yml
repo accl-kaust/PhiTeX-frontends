@@ -209,7 +209,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+      # (ovsx 1 fails when the registry issues no token: ovsx 0 with an empty
+      # OVSX_PAT exited 0 having published nothing. What it published is served
+      # once the registry has processed it, a minute or two later, so the job
+      # does not ask for it: ovsx's "Published" is the registry's acceptance)
       - run: npx --yes ovsx@1 publish out/phitex-${{ needs.build.outputs.version }}.vsix
-      # (published is what the registry serves: ovsx 0.x without a token
-      # exited 0 having published nothing, and 1.0.4's job was green so)
-      - run: curl -sSf -o /dev/null https://open-vsx.org/api/accl-kaust/phitex/${{ needs.build.outputs.version }}
