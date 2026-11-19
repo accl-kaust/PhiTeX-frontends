@@ -1,7 +1,8 @@
 // The toolbar popup: the extension's settings, in chrome.storage.local (the
 // content script follows changes live), and actions on the open Overleaf tab.
 
-import { resetAll } from "./settings.ts";
+import { resetAll, usable } from "./settings.ts";
+import { ENGINES } from "./common/viewer/engines.ts";
 import "./platform.ts";
 import { type PackMeta, DEFAULT_CAP_MB, allMeta, capBytes, clearPacks, evict, kvGet, kvSet } from "./common/packstore.ts";
 import { type Ahead, setAheadOff } from "./common/prefetch.ts";
@@ -41,7 +42,9 @@ async function render(): Promise<void> {
     $("viewnote").textContent = v === "phitex" && !accepted ? "⚡ Instant asks you to accept its terms first, in Overleaf." : "";
   });
   seg("follow", (s.follow as string | undefined) ?? "cursor", (v) => void chrome.storage.local.set({ follow: v }));
-  seg("engine", (s.engine as string | undefined) ?? "auto", (v) => void chrome.storage.local.set({ engine: v }));
+  // (the engines that run, from ENGINES: one not ready yet is not offered, and a choice of it made before reads as Auto)
+  for (const [v, e] of Object.entries(ENGINES)) if (e.ready) $("engine").insertAdjacentHTML("beforeend", `<button data-v="${v}">${e.label}</button>`);
+  seg("engine", usable((s.engine as string | undefined) ?? "auto"), (v) => void chrome.storage.local.set({ engine: v }));
   // (projects given their own engine, from the card's buttons: they keep it; cleared here)
   const own = Object.keys((s.engines as Record<string, string> | undefined) ?? {}).length;
   const note = $("enginenote");

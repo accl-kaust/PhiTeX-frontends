@@ -23,9 +23,9 @@ import { filesAt, type Fetched, type PageFetch, type Version } from "./history.t
 import { Compare, gate, LATEXDIFF_LOOK } from "./common/viewer/compare.ts";
 import { SUPPORT, unseen, type News } from "./news.ts";
 import { Panel, type DiffLook, type PanelPrefs, type Prefs, type SettingRow, type SettingsGroup, type ViewPrefs, type ViewState } from "./common/viewer/panel.ts";
-import { resetAll } from "./settings.ts";
+import { resetAll, usable } from "./settings.ts";
 import { answer, channel, follow, mirrorOut, remoteCore, tee, type Ask } from "./mirror.ts";
-import { approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
+import { ENGINES, approximable, resolve, shimTexts, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
 import { StripPages } from "./common/strippages.ts";
 import { reportRow } from "./report.ts";
 
@@ -1482,7 +1482,7 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
         title: "Preview",
         rows: [
           { id: "o-view", label: "Opens with", help: "What Overleaf's PDF pane shows when a project opens", kind: "choice", options: [["pdf", "PDF"], ["phitex", "⚡ Instant"]], value: s.view === "phitex" ? "phitex" : "pdf", set: (v) => put({ view: v }) },
-          { id: "o-engine", label: "Engine", help: "Auto: what the project's preamble needs (a project given its own keeps it). LuaLaTeX: coming", kind: "choice", options: [["auto", "Auto"], ["pdflatex", "pdfLaTeX"], ["xelatex", "XeLaTeX"]], value: (s.engine as string | undefined) ?? "auto", set: (v) => put({ engine: v }) },
+          { id: "o-engine", label: "Engine", help: "Auto: what the project's preamble needs (a project given its own keeps it). LuaLaTeX: coming", kind: "choice", options: [["auto", "Auto"], ...Object.entries(ENGINES).filter(([, e]) => e.ready).map(([v, e]) => [v, e.label] as [string, string])], value: usable((s.engine as string | undefined) ?? "auto"), set: (v) => put({ engine: v }) },
           { id: "follow", label: "Highlight follows", help: "In yellow: the word you're at as the cursor moves, what you select, or a double-click alone", kind: "choice", options: [["cursor", "Cursor"], ["selection", "Selection"], ["dblclick", "Double-click"]], value: (s.follow as string | undefined) ?? "cursor", set: (v) => put({ follow: v }) },
           toggle("o-others", "Collaborators on the PDF", "Where each collaborator is, in their colour; the page never moves for them", !s.othersOff, (on) => put({ othersOff: !on })),
         ],
@@ -1779,7 +1779,7 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     let engineSetting: EngineChoice = "auto", projectEngine: Engine | undefined;
     const readEngine = async () => {
       const { engine, engines } = await chrome.storage.local.get(["engine", "engines"]);
-      engineSetting = (engine as EngineChoice | undefined) ?? "auto";
+      engineSetting = usable((engine as string | undefined) ?? "auto");
       projectEngine = (engines as Record<string, Engine> | undefined)?.[project()];
     };
     await readEngine();

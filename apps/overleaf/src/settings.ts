@@ -8,6 +8,7 @@
 // step here.
 
 import { NewerFormat, upgrade, type Steps } from "./common/format.ts";
+import { ENGINES, type Engine, type EngineChoice } from "./common/viewer/engines.ts";
 
 export const FORMAT = 3;
 /** `steps[n]`: all of format n's settings to format n + 1's. */
@@ -43,4 +44,9 @@ export async function settled(): Promise<void> {
 export async function resetAll(): Promise<void> {
   await chrome.storage.local.clear();
   await chrome.storage.local.set({ newsSeen: chrome.runtime.getManifest().version, format: FORMAT });
+}
+
+/** The engine setting as it runs: a choice of an engine that does not run yet (LuaLaTeX, picked before it left the choices) is Auto. */
+export function usable(v: string): EngineChoice {
+  return v !== "auto" && ENGINES[v as Engine]?.ready ? (v as Engine) : "auto";
 }
