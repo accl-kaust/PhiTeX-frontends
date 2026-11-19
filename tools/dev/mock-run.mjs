@@ -34,6 +34,7 @@
 //       { "reload": 3, "ms": 120000 }, // the tab reloaded 3 times, each until its first page, else the run fails
 //       { "secondtab": true, "ms": 120000 }, // the project in a second tab: its first page, or its panel saying why it has none; else (neither in time) the run fails
 //       { "secondtab": "page", "ms": 120000 }, // the same, its first page required
+//       { "sweep": 2000, "frame": 34 }, // the mouse swept over the pages 2 s: no long task, frames' p95 within 34 ms
 //       { "histfail": 2 },           // the mock's next 2 history reads fail (503): Changes' error and Try again
 //       { "rootdoc": "main.tex" },   // Overleaf's main document changed (its Menu), as its socket tells the editor
 //       { "graph": "saved", "ms": 60000 }, // until the build's persisted graph is saved and kept (IndexedDB), else the run fails
@@ -327,8 +328,10 @@ try {
   // (each run from the same settings: the highlight and the page format as a
   // new user has them, then the scenario's own `storage` over the onboarded state)
   for (let i = 0; i < 20 && !contexts.some((c) => c.auxData?.frameId === tab.id && c.auxData?.type === "isolated"); i++) await sleep(250);
-  // (the engine too: a scenario that sets it (plain-xetex's XeLaTeX) left every later run on it)
-  await evalIn(`chrome.storage.local.remove(["follow", "panel", "engine", "engines"])`, true);
+  // (the engine too: a scenario that sets it (plain-xetex's XeLaTeX) left every later run on it; and the
+  // main file picked: main-ask.json's kept main.tex for the mock project, and ci-rootdoc.json after it built
+  // that instead of Overleaf's main document)
+  await evalIn(`chrome.storage.local.remove(["follow", "panel", "engine", "engines", "mains"])`, true);
   // (and no start failure a run before asked for (startup-errors.json), the mock's downloads as they are)
   await evalIn(`localStorage.removeItem("phitex:test-failure"); localStorage.removeItem("mock:latepane")`);
   await fetch(`http://localhost:${MOCK}/project/mock/zipmode?mode=ok`, { method: "POST" }).catch(() => undefined);
@@ -578,6 +581,30 @@ for (const s of sc.steps ?? []) {
     console.log(`compare ${s.compare}: ${bar || "no count"}; diff.tex ${tex.length} chars${missing.length ? `, lacks ${JSON.stringify(missing)}` : ""}`);
     if (!ok) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
     await evalIn(`${C}?.querySelector('#chg-x')?.click()`);
+  } else if (s.sweep !== undefined) {
+    // (`{"sweep": 2000}`: the mouse swept across the pages for that long, as a person moves it (a move every
+    // 16 ms, zig-zag over the pages' box, the wheel scrolling them down), the main thread watched: no long task
+    // (over 50 ms), frames on time (their 95th percentile within "frame", 34 ms unset); else the run fails)
+    const box = await evalIn(`(() => { const st = document.querySelector("phitex-preview")?.shadowRoot?.querySelector("#stage"); const r = st?.getBoundingClientRect(); return r ? [r.left, r.top, r.width, r.height] : null; })()`, true);
+    if (!box) (console.log("FAIL sweep: no pages"), steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    else {
+      await evalIn(`(() => { const w = (globalThis.__sweep = { long: [], frames: [] }); try { new PerformanceObserver((l) => l.getEntries().forEach((e) => w.long.push(Math.round(e.duration)))).observe({ type: "longtask" }); } catch {} let last = performance.now(); const f = (t) => { w.frames.push(t - last); last = t; if (!w.stop) requestAnimationFrame(f); }; requestAnimationFrame(f); return 1; })()`, false);
+      const [x0, y0, w, h] = box;
+      const t1 = Date.now();
+      let i = 0;
+      while (Date.now() - t1 < s.sweep) {
+        const fx = (i % 60) / 60, row = Math.floor(i / 60);
+        const x = x0 + w * (0.2 + 0.6 * (row % 2 ? 1 - fx : fx)), y = y0 + h * (0.15 + 0.7 * ((i % 37) / 37));
+        await call("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+        if (i % 20 === 19) await call("Input.dispatchMouseEvent", { type: "mouseWheel", x, y, deltaX: 0, deltaY: 260 });
+        i++;
+        await sleep(16);
+      }
+      const r = await evalIn(`(() => { const w = globalThis.__sweep; w.stop = true; const fr = w.frames.slice(1).sort((a, b) => a - b); return { long: w.long, p95: Math.round(fr[Math.floor(fr.length * 0.95)] ?? 0), worst: Math.round(fr.at(-1) ?? 0), frames: fr.length }; })()`, false);
+      const ok = r && !r.long.length && r.p95 <= (s.frame ?? 34);
+      console.log(`${ok ? "ok  " : "FAIL"} ${s.what ?? "sweep"}: ${i} moves, ${r?.frames} frames, p95 ${r?.p95} ms, worst ${r?.worst} ms, long tasks ${JSON.stringify(r?.long)}`);
+      if (!ok) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    }
   } else if (s.histfail !== undefined) {
     // (`{"histfail": 2}`: the mock's next 2 reads of the history (/changes, /updates) fail, 503)
     await fetch(`http://localhost:${MOCK}/project/mock/history-fail?n=${s.histfail}`, { method: "POST" });
@@ -813,7 +840,8 @@ for (const s of sc.steps ?? []) {
   } else if (s.pointer !== undefined) {
     // (the mouse moved, as a person moves it, to the `nth` element matching the selector (the panel's
     // shadow root's, else the page's), `dx` points right of its middle; "press": true, then clicked there)
-    const at = await evalIn(`(() => { const q = ${JSON.stringify(s.pointer)}; ${ALL} const el = all[${s.nth ?? 0}]; if (!el) return null; el.scrollIntoView?.({ block: "nearest" }); const r = el.getBoundingClientRect(); return [r.left + r.width / 2 + ${s.dx ?? 0}, r.top + r.height / 2 + ${s.dy ?? 0}]; })()`, true);
+    // ("at": an expression (the content script's) giving the point itself, [x, y])
+    const at = s.at ? await evalIn(s.at, true) : await evalIn(`(() => { const q = ${JSON.stringify(s.pointer)}; ${ALL} const el = all[${s.nth ?? 0}]; if (!el) return null; el.scrollIntoView?.({ block: "nearest" }); const r = el.getBoundingClientRect(); return [r.left + r.width / 2 + ${s.dx ?? 0}, r.top + r.height / 2 + ${s.dy ?? 0}]; })()`, true);
     if (!at) console.log(`step: no ${s.pointer} to point at`), steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1);
     else {
       await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: at[0], y: at[1], modifiers: s.shift ? 8 : 0 });

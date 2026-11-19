@@ -21,7 +21,7 @@ export function changesButton(host: HTMLElement, panel: Panel): void {
   }
   const g = document.createElement("div");
   g.className = "btn-group";
-  g.replaceChildren(html`<button type="button" id="phitex-changes" aria-label="Changes" title="Changes: what changed between two versions, and who wrote what (hover to peek, click to keep on)" aria-pressed="false" class="pdf-toolbar-btn toolbar-item btn btn-link"><span class="chg-glyph" aria-hidden="true">±</span><span class="button-content">Changes</span><span class="chg-badge" id="phitex-changes-n"></span></button>`);
+  g.replaceChildren(html`<button type="button" id="phitex-changes" aria-label="Changes" title="Changes: what changed between two versions, and who wrote what" aria-pressed="false" class="pdf-toolbar-btn toolbar-item btn btn-link"><span class="chg-glyph" aria-hidden="true">±</span><span class="button-content">Changes</span><span class="chg-badge" id="phitex-changes-n"></span></button>`);
   host.append(g);
   panel.changes.attach(g.querySelector<HTMLElement>("#phitex-changes")!, g.querySelector<HTMLElement>("#phitex-changes-n")!);
 }

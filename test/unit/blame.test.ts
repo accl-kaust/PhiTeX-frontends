@@ -101,7 +101,7 @@ test("Overleaf: blame exact to the character from the first version, no cap: eac
   const history = new ProjectHistory(() => "/project/p1", fetcher);
   const said: string[] = [];
   history.onProgress((t) => t && said.push(t));
-  const { blame: host } = overleafHistory({ history, text: (f) => (f === "main.tex" ? text : undefined), glyphs: async () => [], goto: () => {}, own: undefined, lastVisit: () => null });
+  const { blame: host } = overleafHistory({ history, main: () => "main.tex", names: () => ["main.tex"], text: (f) => (f === "main.tex" ? text : undefined), glyphs: async () => [], goto: () => {}, own: undefined, lastVisit: () => null });
   const d = (await host.blame(["main.tex"], { detail: "char", ws: "count", moved: "keep", skip: [] })) as BlameData;
   assert.equal(typeof d, "object", String(d));
   const f = d.files["main.tex"];
@@ -128,7 +128,7 @@ test("Overleaf: the editor's text ahead of the history is not saved; moved text 
   const { fetcher, hist, text } = generated(450);
   const history = new ProjectHistory(() => "/project/p1", fetcher);
   const typed = text.replace("\\section{Results}\n", "\\section{Results}\nTyped, not saved yet.\n");
-  const { blame: host } = overleafHistory({ history, text: () => typed, glyphs: async () => [], goto: () => {}, own: undefined, lastVisit: () => null });
+  const { blame: host } = overleafHistory({ history, main: () => "main.tex", names: () => ["main.tex"], text: () => typed, glyphs: async () => [], goto: () => {}, own: undefined, lastVisit: () => null });
   const opts = { detail: "char" as const, ws: "count" as const, moved: "keep" as const, skip: [] as string[] };
   const d = (await host.blame(["main.tex"], opts)) as BlameData;
   const at = typed.indexOf("Typed, not saved");
@@ -153,7 +153,7 @@ test("Overleaf: the editor's text ahead of the history is not saved; moved text 
 test("Overleaf: the history's sessions as Changes lists them (one lane, \"Lina Chen edited main.tex\", the label a tag); each change's author and time between two versions", async () => {
   const { fetcher, hist, text } = generated(340);
   const history = new ProjectHistory(() => "/project/p1", fetcher);
-  const { changes } = overleafHistory({ history, text: () => text, glyphs: async () => [], goto: () => {}, own: undefined, lastVisit: () => 10 });
+  const { changes } = overleafHistory({ history, main: () => "main.tex", names: () => ["main.tex"], text: () => text, glyphs: async () => [], goto: () => {}, own: undefined, lastVisit: () => 10 });
   // (a page of Overleaf's sessions an ask: the graph shows each as it lands)
   const rows = (await changes.log(0, 200)) as Commit[];
   assert.equal(rows.length, 100);

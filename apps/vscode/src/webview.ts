@@ -10,7 +10,7 @@
 
 import { Panel, type PanelPrefs, type SettingRow, type SettingsGroup, type ViewPrefs } from "../../../common/src/viewer/panel.ts";
 import { Compare, gate } from "../../../common/src/viewer/compare.ts";
-import type { BlameData } from "../../../common/src/viewer/blame.ts";
+import { sourceFiles, type BlameData } from "../../../common/src/viewer/blame.ts";
 import type { ChangesHost, ChangesRunner } from "../../../common/src/viewer/changes.ts";
 import type { Commit } from "../../../common/src/viewer/commits.ts";
 import { html } from "../../../common/src/viewer/html.ts";
@@ -209,6 +209,9 @@ const panel = new Panel(
             return r.ok ? (r.json as unknown as BlameData) : (r.error ?? "no git history here");
           },
           glyphs: (k) => session.pageGlyphs(k),
+          // (the sources: the main file and what it inputs, as the session has them; none known (phitex watch): the pages')
+          sources: () => sourceFiles(session.main, Object.keys(session.texts()), (f) => session.text(f)),
+          text: (f) => session.text(f),
           goto: (file, line) => void relay.request({ op: "source", file, line, col: 1 }),
         },
     // (Changes: the folder's git history and its versions' files read by the extension host (relay.ts),

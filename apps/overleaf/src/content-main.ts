@@ -101,7 +101,7 @@ const pageFetch: PageFetch = (u, o) => {
 /**
  * A failure a scenario asks for (test/scenarios/startup-errors.json), on the
  * local mock only: the page's `phitex:test-failure` (engine-page,
- * engine-module, worker-fetch, worker-script). Never on overleaf.com.
+ * engine-module, worker-fetch, worker-script, build-hold). Never on overleaf.com.
  */
 function testFailure(): string | undefined {
   if (location.hostname !== "localhost") return undefined;
@@ -1132,7 +1132,7 @@ function dockInOverleaf(panel: Panel): Dock {
    */
   // (a body: text with a few inline tags (rich), or a function making its markup, a demo in it)
   const TIPS: { id: string; at: () => Element | null; title: string; body: string | (() => Node); isNew?: boolean }[] = [
-    { id: "compare", at: () => document.getElementById("phitex-cmp"), isNew: true, title: "Compare versions", body: () => html`See what changed since any version in the project's history, marked on the page as <code>latexdiff</code> marks it: additions in blue, deletions struck out. It follows your edits.<div class="phitex-cmp-demo" aria-hidden="true">The results are <span class="del">good</span><span class="add">&nbsp;excellent</span>.<span class="ver"><i class="v0">Submitted v1</i><i class="v1">Submitted v1 vs current</i></span><span class="tag">‹ 1 / 1 ›</span></div>` },
+    { id: "changes", at: () => document.getElementById("phitex-changes"), isNew: true, title: "Changes", body: () => html`Click <b>± Changes</b> to see what changed since any version in the project's history, marked on the page, or switch to <b>Blame</b> to see who wrote each line, from Overleaf's own history. Click it again to close it.<div class="phitex-cmp-demo" aria-hidden="true">The results are <span class="del">good</span><span class="add">&nbsp;excellent</span>.<span class="ver"><i class="v0">Submitted v1</i><i class="v1">Submitted v1 → Your edits now</i></span><span class="tag">‹ 1 / 1 ›</span></div>` },
     { id: "timing", at: () => document.getElementById("phitex-status"), title: "How long it took", body: "The last build, and how long a keystroke takes to reach the page. Click it for the details." },
     { id: "clean", at: () => document.getElementById("phitex-clean"), title: "Clean rebuild", body: "Builds already run as you type. This one reads the project again and typesets it from the start." },
     { id: "dark", at: () => document.querySelector("#toolbar-pdf-controls .theme-toggle-btn"), title: "Dark PDF", body: "Overleaf's dark PDF switch darkens ⚡ Instant's pages too. Off by default: it inverts figures and photos as well." },
@@ -1159,6 +1159,8 @@ function dockInOverleaf(panel: Panel): Dock {
     });
     // (seen once shown: a tip never comes back by itself)
     void chrome.storage.local.set({ tipsSeen: [...new Set([...((tipsSeen as string[] | undefined) ?? []), tip.id])] });
+    // (the control it points at used: the tip has done its work and goes)
+    target.addEventListener("click", () => (document.getElementById("phitex-feature")?.remove(), target.classList.remove("phitex-ring")), { capture: true, once: true });
     el.onclick = async (e) => {
       const a = (e.target as HTMLElement).closest<HTMLElement>("[data-t]")?.dataset.t;
       if (!a) return;
@@ -1419,11 +1421,14 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     set: (k, v) => chrome.storage.local.set({ [k]: v }),
   });
   addEventListener("pagehide", () => history.abort.abort());
-  void history.moreUpdates().then(() => (history.latest ? visits.seen(project().replace(/.*\//, ""), history.latest) : undefined)).catch(() => undefined);
+  // (nothing read before ± Changes asks: the visit noted once the history's first page is read for it)
+  const noteVisit = () => void (history.latest ? visits.seen(project().replace(/.*\//, ""), history.latest) : undefined);
   const olHistory = overleafHistory({
     history,
     // (the editor's own text and pages, whatever the panel shows (Diff's pages, Changes on): Blame marks those)
     text: (file) => session?.text(file),
+    main: () => session?.main ?? null,
+    names: () => Object.keys(session?.texts() ?? {}),
     glyphs: (k) => session?.pageGlyphs(k) ?? Promise.resolve([]),
     goto: (file, line) => (DETACHED ? ask({ t: "goto", file, line }) : window.postMessage({ src: "phitex-content", type: "goto", file, line }, location.origin)),
     own: document.querySelector<HTMLMetaElement>('meta[name="ol-user_id"]')?.content || undefined,
@@ -1528,7 +1533,15 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     // (Changes and Blame: the project's history, exact to the character (olhistory.ts, blame.ts here),
     // the pages' places from the session's glyphs; the diff compare.ts's, its button Overleaf's toolbar's)
     blame: olHistory.blame,
-    changes: { ...olHistory.changes, diff: diffRunner },
+    changes: {
+      ...olHistory.changes,
+      diff: diffRunner,
+      log: async (skip: number, limit: number) => {
+        const r = await olHistory.changes.log(skip, limit);
+        if (!skip) noteVisit();
+        return r;
+      },
+    },
     ownChangesButton: true,
   });
   if (location.hostname === "localhost") (globalThis as Record<string, unknown>).__phitexPanel = panel;
@@ -1793,6 +1806,14 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
   // (a detached tab draws its own pages from this core's strips: this tab's
   // own, its panel off screen, drawn small, not at the zoom over again)
   const offScreen = () => mirrored && !document.querySelector("phitex-preview")?.checkVisibility();
+  // (a scenario's slow first build, on the local mock only: the project's open held till the page calls
+  // phitexReleaseBuild(): its files known, no page drawn, as a long first build is on a big project)
+  if (testFailure() === "build-hold") {
+    const request = transport.request.bind(transport);
+    let held: (() => void)[] | null = [];
+    window.addEventListener("message", (e) => e.data?.src === "phitex-dev" && e.data.type === "release-build" && (held?.forEach((f) => f()), (held = null)));
+    transport.request = ((op: { op: string }) => (op.op === "open" && held ? new Promise((ok) => held!.push(() => ok(request(op as never)))) : request(op as never))) as typeof transport.request;
+  }
   pages = new StripPages(
     transport,
     {
@@ -1960,6 +1981,8 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     resyncMains = () => sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), session.main);
     if (!main) throw new Error("no main .tex file found");
     await session.setMain(main);
+    // (Overleaf's main document heard while the project was read, after the guess above: followed now)
+    void followRoot();
     // (the editor's open file announced again: its text, unsaved edits and all, wins over the ZIP's)
     host.ready();
     devMark("started");

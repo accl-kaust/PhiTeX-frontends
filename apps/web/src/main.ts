@@ -22,7 +22,7 @@ import { PreviewSession, guessMain, type EditorHost, type Options } from "../../
 import { charOffset, type Edit } from "../../../common/src/viewer/edits.ts";
 import { Compare, gate, type CompareHost } from "../../../common/src/viewer/compare.ts";
 import type { ChangesHost } from "../../../common/src/viewer/changes.ts";
-import { matchLines, type BlameData, type BlameHost } from "../../../common/src/viewer/blame.ts";
+import { matchLines, sourceFiles, type BlameData, type BlameHost } from "../../../common/src/viewer/blame.ts";
 import { ENGINES, approximable, resolve, shimTexts, type Engine, type EngineChoice } from "../../../common/src/viewer/engines.ts";
 import { ago } from "../../../common/src/viewer/commits.ts";
 import { StripPages } from "../../../common/src/strippages.ts";
@@ -281,6 +281,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   const webBlame: BlameHost = {
     words: { commit: "version", hashes: false },
     glyphs: (k) => session?.pageGlyphs(k) ?? Promise.resolve([]),
+    sources: () => sourceFiles(session?.main ?? null, Object.keys(P().files), (f) => session?.text(f) ?? P().files[f]),
+    text: (f) => session?.text(f) ?? P().files[f],
     goto: (file, line) => {
       if (!openFile(file)) return;
       const at = editor.lineStart(line);
@@ -873,7 +875,7 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
     const vs = await versions(P().id).catch((): Version[] => []);
     const b = showModal(
       "Versions",
-      (panel.changes?.on ? `<p><button type="button" data-stop="1">Stop comparing</button></p>` : "") +
+      (panel.changes?.open ? `<p><button type="button" data-stop="1">Stop comparing</button></p>` : "") +
         `<form class="phx-form phx-save"><input type="text" placeholder="Name this version" aria-label="Version name" spellcheck="false"><button type="submit">Save version</button></form>` +
         `<p class="phx-head">Compare the current version with…</p>` +
         (vs.length

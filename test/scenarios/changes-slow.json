@@ -5,12 +5,12 @@
  "name": "changes-slow",
  "storage": {
   "tipsSeen": [
-   "changes",
    "compare",
+   "blame",
    "timing",
    "clean",
    "dark",
-   "blame"
+   "changes"
   ],
   "panel": {},
   "visits": {}
@@ -19,6 +19,10 @@
   "MOCK_HISTORY_DELAY": "700"
  },
  "steps": [
+  {
+   "eval": "(() => { document.body.dataset.theme = 'light'; document.querySelector('phitex-preview').parentElement.classList.remove('pdf-dark-mode'); return true; })()",
+   "page": true
+  },
   {
    "onpage": "Introduction",
    "ms": 60000
@@ -43,14 +47,12 @@
    "ms": 100
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.skrow, .skel').length > 0 || /Reading/.test(C.querySelector('.prog')?.textContent ?? ''); })()",
-   "what": "at once: skeleton rows or the progress line, never blank"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.body .empty b')?.textContent; })()",
+   "what": "opened: nothing read, what to do next",
+   "is": "Pick a version to compare with"
   },
   {
-   "shot": "slow-first-light"
-  },
-  {
-   "click": "#chg-from",
+   "click": "#chg-start",
    "ms": 200
   },
   {
@@ -59,16 +61,21 @@
    "ms": 3000
   },
   {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /Reading/.test(C.querySelector('.prog')?.textContent ?? ''); })()",
+   "what": "the progress line",
+   "ms": 3000
+  },
+  {
    "shot": "slow-picker-skeleton-light"
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.phx-commits .row[data-i]').length > 0; })()",
-   "what": "the first page of sessions shows as it lands",
+   "what": "the first page of sessions as it lands",
    "ms": 10000
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.phx-commits .row[data-i]').length < 650; })()",
-   "what": "not all yet: the rest still being read"
+   "what": "not all yet"
   },
   {
    "click": "#chg-done"
@@ -90,11 +97,11 @@
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.skrow').length > 0 || C.querySelectorAll('.prow').length > 0; })()",
-   "what": "who wrote it: skeleton rows while it is worked out"
+   "what": "skeleton rows while it is worked out"
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-wait').length > 0; })()",
-   "what": "the pages: a quiet placeholder where the bars will be",
+   "what": "the pages: a quiet placeholder",
    "ms": 10000
   },
   {
@@ -102,12 +109,12 @@
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return Number(C.querySelector('.prog [role=progressbar]')?.getAttribute('aria-valuenow') ?? -1) > globalThis.__p; })()",
-   "what": "the bar moves as pages of the history land",
+   "what": "the bar moves",
    "ms": 20000
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-in').length > 0; })()",
-   "what": "each file's bars fade in as its blame lands",
+   "what": "each file's bars fade in",
    "ms": 60000
   },
   {
@@ -119,29 +126,11 @@
    "is": "diff"
   },
   {
-   "click": "#chg-gear"
-  },
-  {
-   "click": "[data-look=ins][data-v=line]"
-  },
-  {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.preview').classList.contains('i-line'); })()",
-   "what": "its settings answer at once"
-  },
-  {
-   "click": "[data-reset=diff]"
-  },
-  {
-   "key": "Escape",
-   "code": "Escape",
-   "vk": 27
-  },
-  {
    "click": "[data-m=blame]"
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.prow').length; })()",
-   "what": "Blame done, its work kept across the switches",
+   "what": "Blame done",
    "is": 3,
    "ms": 180000
   },
@@ -172,10 +161,6 @@
    "ms": 300
   },
   {
-   "pointer": ".chg-pop .ttl h2",
-   "ms": 100
-  },
-  {
    "click": "[data-m=blame]"
   },
   {
@@ -197,6 +182,60 @@
    "what": "Try again: read",
    "is": 3,
    "ms": 180000
+  },
+  {
+   "click": "#chg-x"
+  },
+  {
+   "start": {
+    "failure": "build-hold"
+   },
+   "until": "!!document.getElementById('phitex-changes')",
+   "ms": 60000
+  },
+  {
+   "wait": 1500
+  },
+  {
+   "pointer": "#phitex-changes",
+   "press": true,
+   "ms": 300
+  },
+  {
+   "click": "[data-m=blame]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.prow').length >= 3 && C.querySelectorAll('.crow').length > 10 && P.querySelectorAll('.slot').length === 0; })()",
+   "what": "who wrote it, with no page built yet",
+   "ms": 180000
+  },
+  {
+   "shot": "blame-no-pages-light"
+  },
+  {
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; C.querySelectorAll('.prow').forEach((e) => (e.__kept = 1)); return fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => (globalThis.__reads = n)); })()"
+  },
+  {
+   "eval": "(() => { postMessage({ src: 'phitex-dev', type: 'release-build' }, location.origin); return 1; })()",
+   "page": true
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20; })()",
+   "what": "the pages come: each gets its bars, no blame again",
+   "ms": 120000
+  },
+  {
+   "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads)",
+   "what": "nothing read again as the pages streamed"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.prow')].every((e) => e.__kept === 1); })()",
+   "what": "the lists left as they were"
+  },
+  {
+   "start": {},
+   "until": "!!document.getElementById('phitex-changes')",
+   "ms": 60000
   }
  ]
 }

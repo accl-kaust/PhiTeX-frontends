@@ -209,6 +209,7 @@ const histAt = (ago) => {
 const exact = hist?.changes ? hist : null;
 const histDelay = +(process.env.MOCK_HISTORY_DELAY ?? 0);
 let histFail = +(process.env.MOCK_HISTORY_FAIL ?? 0);
+let histReads = 0;
 const exUser = (id) => Object.values(exact.users).find((u) => u.id === id) ?? null;
 const exUpdate = (s) => ({ fromV: s.fromV, toV: s.toV, meta: { users: s.who.map((w) => exact.users[w]), start_ts: s.start, end_ts: s.end }, pathnames: s.fromV === 0 ? [] : ["main.tex"], project_ops: s.fromV === 0 ? [{ add: { pathname: "main.tex" }, atV: 0 }] : [], labels: exact.labels.filter((l) => l.version === s.toV).map((l) => ({ comment: l.comment, version: l.version })) });
 /** The files after `n` changes, each character with the change that typed it (and the ones deleted, for /diff). */
@@ -270,6 +271,9 @@ const handle = (req, res) => {
     dash = readDash(u.searchParams.get("path"));
     return send(204, "text/plain", "");
   }
+  // (the history's reads so far, for a scenario's "nothing read yet": GET /project/mock/hist-count)
+  if (exact && u.pathname === "/project/mock/hist-count") return send(200, "application/json", JSON.stringify({ reads: histReads }));
+  if (exact && /^\/project\/mock\/(updates|labels|changes|blob\/|version\/|diff)/.test(u.pathname) && !req.headers["x-mock-delayed"]) histReads++;
   if (exact && /^\/project\/mock\/(updates|labels|changes|blob\/|version\/|diff|truth)/.test(u.pathname) && !req.headers["x-mock-delayed"] && histDelay) {
     req.headers["x-mock-delayed"] = "1";
     return void setTimeout(() => handle(req, res), histDelay);

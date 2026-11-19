@@ -28,8 +28,8 @@ frontend also gives you:
 
 - **Source ↔ page**: the word at your cursor is marked on the page, and a
   double-click on the page opens its source.
-- **± Changes**: Diff and Blame in one popover under one button; hover to
-  peek, click to keep the marks on. Diff compares any two versions (a commit
+- **± Changes**: Diff and Blame in one popover under one button; click to
+  open it, click again to close it. Diff compares any two versions (a commit
   graph coloured by branch, your last visit, a tag), lists the changes by
   section and steps through them with `]` and `[`. Blame shows who wrote
   each line, word or character, as bars in the margin by author or age,

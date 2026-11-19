@@ -10,7 +10,7 @@
 // is one lane of sessions; "What this version changed" is Changes' Diff of
 // the session.
 
-import type { BlameCommit, BlameData, BlameFile, BlameHost, BlameOpts } from "./common/viewer/blame.ts";
+import { sourceFiles, type BlameCommit, type BlameData, type BlameFile, type BlameHost, type BlameOpts } from "./common/viewer/blame.ts";
 import type { ChangeItem, ChangesHost, Pair } from "./common/viewer/changes.ts";
 import type { Commit } from "./common/viewer/commits.ts";
 import type { Glyph } from "./common/viewer/sync.ts";
@@ -122,6 +122,9 @@ export interface OverleafChangesHost {
   history: ProjectHistory;
   /** The editor's text of a file (the session's), as the build reads it. */
   text(file: string): string | undefined;
+  /** The project's main file and its files' names (the session's): the sources Blame works out. */
+  main(): string | null;
+  names(): string[];
   glyphs(k: number): Promise<Glyph[]>;
   goto(file: string, line: number): void;
   /** The user's own id (Overleaf's `ol-user_id`). */
@@ -204,6 +207,9 @@ export function overleafHistory(o: OverleafChangesHost): { blame: BlameHost; cha
   const blame: BlameHost = {
     words: { commit: "version", hashes: false },
     glyphs: (k) => o.glyphs(k),
+    // (Blame works on the sources and the history: the main file and what it inputs, no page needed)
+    sources: () => sourceFiles(o.main(), o.names(), (f) => o.text(f)),
+    text: (f) => o.text(f),
     goto: (file, line) => o.goto(file, line),
     // (one lane: no branch to have been merged from)
     via: () => null,
