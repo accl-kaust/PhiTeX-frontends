@@ -15,7 +15,14 @@
 //                  // clicked), until the diff bar counts changes; diff.tex has each regex, else fails
 //       { "replacefile": "fig.png", "b64": "…", "ms": 60000 }, // the file replaced as Overleaf says it
 //                  // is; until the session's PDF changes, else the run fails
-//       { "wait": 1000 } ] }
+//       { "wait": 1000 },
+//       { "settings": { "viewPrefs": { "opening": "badapple" } } }, // the extension's settings changed
+//       { "start": { "zip": "hold", "pane": "late" }, "stage": "^Downloading" }, // the tab's start again (the mock's
+//                  // zipmode; Overleaf's PDF pane laid out late), until the start's step matches
+//       { "eval": "mockShowPane()" }, { "check": "expr", "is": true }, // the page's world
+//       { "moving": "#opening .sheet", "is": true }, // the panel's element on screen, its pixels changing
+//       { "zipmode": "ok", "until": "expr" }, // the mock's downloads answer so from here (a held one sent whole)
+//       { "shot": "name" } ] }               // target/fx-run-<name>-<shot>.png
 // A scenario starts the mock itself (its own port, the scenario's project
 // and history), headless, and the project's first page is its first check:
 // a start that fails (its card's error) fails the run.
@@ -133,7 +140,7 @@ try {
     if (/^[1-9]\d* pages, [1-9]/.test(pages)) break;
   }
   console.log(`${pages} after ${((Date.now() - t0) / 1000).toFixed(1)} s`);
-  if (sc) await scenario(ev, pages);
+  if (sc) await scenario(ev, pages, ctx);
   // (the timing popover's words: the first page's time by step)
   console.log("timing:", await ev(`(async () => { const r = document.querySelector('phitex-preview')?.shadowRoot; if (!r) return '-'; r.querySelector('#st')?.click(); await new Promise((f) => setTimeout(f, 300)); const t = r.querySelector('#m-time')?.innerText.replace(/\\s+/g, ' ').trim() ?? '-'; r.querySelector('#st')?.click(); return t; })()`));
   // (--frame-eval EXPR: EXPR in the tab's engine iframe (engine.html: the extension's origin), its value said)
@@ -176,7 +183,7 @@ function stateScript() {
 }
 
 /** A scenario's steps, after its first page (the first check): each that fails throws. */
-async function scenario(ev, pages) {
+async function scenario(ev, pages, ctx) {
   const state = async () => JSON.parse(await ev(stateScript()));
   const shadow = `document.querySelector('phitex-preview')?.shadowRoot`;
   if (!/^[1-9]\d* pages, [1-9]/.test(pages)) {
@@ -216,6 +223,55 @@ async function scenario(ev, pages) {
       for (; now === was && Date.now() - t < (s.ms ?? 60000); await sleep(300)) now = (await state()).pdf;
       if (now === was) throw new Error(`replacefile ${s.replacefile}: the PDF unchanged (${was}); ${(await state()).errors.join(" | ")}`);
       console.log(`replacefile ${s.replacefile}: the PDF changed (${was} to ${now})`);
+    } else if (s.settings !== undefined) {
+      // (the extension's settings changed, as Settings or the popup changes them: a "start" after reads them all)
+      await ev(`new Promise((ok) => { addEventListener("message", (e) => e.data?.src === "phitex-dev" && e.data.type === "onboarded" && ok()); postMessage({ src: "phitex-dev", type: "onboard", storage: ${JSON.stringify(s.settings)} }, location.origin); })`);
+    } else if (s.start !== undefined) {
+      // (the tab's start again: failing as `failure` asks (content-main.ts testFailure), the mock's
+      // downloads answering as `zip` asks (tools/mock/server.mjs zipmode),
+      // Overleaf's PDF pane laid out late with "pane": "late" (mockShowPane() lays it out); until the
+      // start's step matches `stage`, else the run fails)
+      await ev(`${s.start.pane === "late" ? `localStorage.setItem("mock:latepane", "1")` : `localStorage.removeItem("mock:latepane")`}`);
+      await ev(`${s.start.failure ? `localStorage.setItem("phitex:test-failure", ${JSON.stringify(s.start.failure)})` : `localStorage.removeItem("phitex:test-failure")`}`);
+      await fetch(`http://localhost:${MOCK}/project/mock/zipmode?mode=${s.start.zip ?? "ok"}`, { method: "POST" });
+      await send("browsingContext.reload", { context: ctx, wait: "interactive" });
+      let st = null;
+      for (; !(st && new RegExp(s.stage ?? "").test(st.stage)) && Date.now() - t < (s.ms ?? 30000); await sleep(250)) st = await state().catch(() => null);
+      if (!(st && new RegExp(s.stage ?? "").test(st.stage))) throw new Error(`start ${JSON.stringify(s.start)}: not at ${s.stage}: ${st?.stage}`);
+      console.log(`start ${JSON.stringify(s.start)}: ${st.stage}`);
+    } else if (s.zipmode !== undefined) {
+      // (the mock's downloads answer so from here (a held one sent whole), the tab not reloaded; until `until` (the page's world) holds)
+      await fetch(`http://localhost:${MOCK}/project/mock/zipmode?mode=${s.zipmode}`, { method: "POST" });
+      let ok = !s.until;
+      for (; !ok && Date.now() - t < (s.ms ?? 60000); await sleep(250)) ok = !!(await ev(s.until));
+      if (!ok) throw new Error(`zipmode ${s.zipmode}: not ${s.until} within ${s.ms ?? 60000} ms`);
+      console.log(`zipmode ${s.zipmode}`);
+    } else if (s.eval !== undefined) await ev(s.eval);
+    else if (s.check !== undefined) {
+      // (an expression in the page's world is `is` (deep; unset: true))
+      const got = JSON.parse((await ev(`(async () => JSON.stringify(await (${s.check})) ?? "null")()`)) ?? "null");
+      if (JSON.stringify(got) !== JSON.stringify(s.is ?? true)) throw new Error(`${s.what ?? s.check}: ${JSON.stringify(got)}, not ${JSON.stringify(s.is ?? true)}`);
+      console.log(`ok   ${s.what ?? s.check}`);
+    } else if (s.moving !== undefined) {
+      // (the panel's element `moving` drawn twice, `gap` ms apart, as the screen shows it: its pixels changed
+      // (an animation playing) is `is` (unset: true); waited for up to `ms` to be on screen, else not moving)
+      const rect = `(() => { const el = ${shadow}?.querySelector(${JSON.stringify(s.moving)}); if (!el?.checkVisibility()) return null; const r = el.getBoundingClientRect(); return r.width > 4 && r.height > 4 ? JSON.stringify({ type: "box", x: r.x, y: r.y, width: r.width, height: r.height }) : null; })()`;
+      let clip = null;
+      for (; !(clip = await ev(rect)) && Date.now() - t < (s.ms ?? 5000); ) await sleep(100);
+      const grab = async () => (await send("browsingContext.captureScreenshot", { context: ctx, clip: JSON.parse(clip) })).data;
+      let moving = false;
+      if (clip) {
+        const a = await grab();
+        await sleep(s.gap ?? 600);
+        moving = a !== (await grab());
+      }
+      if (moving !== (s.is ?? true)) throw new Error(`${s.what ?? `${s.moving} moving`}: ${clip ? (moving ? "moving" : "still") : "not on screen"}`);
+      console.log(`ok   ${s.what ?? `${s.moving} moving`}`);
+    } else if (s.shot !== undefined) {
+      const r = await send("browsingContext.captureScreenshot", { context: ctx });
+      const f = path.join(root, `target/fx-run-${sc.name ?? "run"}-${s.shot}.png`);
+      fs.writeFileSync(f, Buffer.from(r.data, "base64"));
+      console.log("screenshot:", f);
     } else throw new Error(`unknown step ${JSON.stringify(s)}`);
   }
   const st = await state();

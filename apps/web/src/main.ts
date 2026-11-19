@@ -313,6 +313,10 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
   panel.viewPrefs(viewPrefs());
   panel.dock(pane);
   panel.shown(true);
+  // (a project is opened below, always (the last one, else the first sample), and built: its first
+  // step said now, the compiler loading, so the opening plays from here. Said by none, nothing
+  // played until the first package's fetch, a second and more on)
+  panel.loadStep(0, "");
   // (the contents closed until the visitor opens them: most samples have no outline, and narrow pages no room)
   let sideKept = false;
   try {
