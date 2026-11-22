@@ -1,0 +1,575 @@
+{
+ "project": "test/scenarios/jumps",
+ "name": "settings",
+ "strict": true,
+ "root": "main.tex",
+ "storage": {
+  "tipsSeen": [
+   "changes",
+   "timing",
+   "clean",
+   "dark"
+  ]
+ },
+ "steps": [
+  {
+   "idle": 1500
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'dark'; return 1; })()",
+   "page": true
+  },
+  {
+   "wait": 600
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'light'; return 1; })()",
+   "page": true
+  },
+  {
+   "wait": 600
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const t = [...S.querySelectorAll('.stabs [data-tab]')]; const n = S.querySelector('.stabs'); return t.map((b) => b.dataset.section).join(',') + (new Set(t.map((b) => Math.round(b.getBoundingClientRect().top))).size === 1 && n.scrollWidth <= n.clientWidth && S.scrollWidth <= S.clientWidth && t.every((b) => b.scrollWidth <= b.clientWidth) ? ' on one line' : ' WRAPPED OR CUT ' + JSON.stringify([n.scrollWidth, n.clientWidth, S.scrollWidth, S.clientWidth, t.map((b) => [Math.round(b.getBoundingClientRect().top), b.scrollWidth, b.clientWidth])])); })()",
+   "what": "the sections, on one line, no name cut, no sideways scroll",
+   "is": "View,Colours,Build,Changes,General on one line"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); return [...S.querySelectorAll('section')].map((s) => s.dataset.section + ': ' + [...s.querySelectorAll('.sgroup')].map((g) => g.dataset.group).join(' / ')).join(' | '); })()",
+   "what": "each section's sub-headings",
+   "is": "View: Preview / Links / Loading | Colours: Page colours / Colour lines | Build: Project / Builds / Packages / Warnings and errors | Changes: Diff / Blame | General: Updates and tips / Overleaf"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const ids = [...S.querySelectorAll('.srow[data-id]')].map((r) => r.dataset.id); return ['follow','margin','opening','o-view','o-others','peeks','backs','flashes','newTabs','dark-pdf','page-colours','page-custom','mark-colour','wasp','wasp-colours','wasp-custom','wasp-strength','wasp-length','wasp-text','wasp-sample','o-engine','o-clean','reload','o-cache','kind-error','kind-other','underline','chg-colors','bl-detail','tips','o-tip','o-news','o-enabled','o-reset'].filter((i) => !ids.includes(i)).join(','); })()",
+   "what": "every row there, by its id (none missing)",
+   "is": ""
+  },
+  {
+   "pointer": "#settings [data-section='Colours']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); return S.querySelector(\".srow[data-id='page-custom']\").hidden; })()",
+   "what": "Custom's pickers hidden under its tile (Paper picked)",
+   "is": true
+  },
+  {
+   "pointer": "#settings [data-id='page-colours'] .sw[data-v='custom']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const c = S.querySelector(\".srow[data-id='page-custom']\"); return !c.hidden && c.offsetWidth > 0 && c.querySelectorAll('input[type=color]').length; })()",
+   "what": "Custom picked: its page and text pickers under its tile",
+   "is": 2
+  },
+  {
+   "shot": "colours-custom-light-wide"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); return S.querySelector(\".srow[data-id='mark-colour'] .rst\").hidden; })()",
+   "what": "the marker as it came: no Reset",
+   "is": true
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const i = S.querySelector(\".srow[data-id='mark-colour'] input[type=color]\"); i.value = '#33aaff'; i.dispatchEvent(new Event('input', { bubbles: true, composed: true })); return true; })()",
+   "what": "(the marker made blue)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); return !S.querySelector(\".srow[data-id='mark-colour'] .rst\").hidden; })()",
+   "what": "a blue marker: Reset beside it",
+   "is": true
+  },
+  {
+   "check": "chrome.storage.local.get('panel').then((p) => p.panel?.markColour)",
+   "is": "#33aaff",
+   "what": "the marker's colour kept",
+   "ms": 3000
+  },
+  {
+   "shot": "colours-marker-light-wide"
+  },
+  {
+   "pointer": "#settings [data-id='mark-colour'] .rst",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); return S.querySelector(\".srow[data-id='mark-colour'] .rst\").hidden + ',' + S.querySelector(\".srow[data-id='mark-colour'] input[type=color]\").value; })()",
+   "what": "Reset: the marker's own amber, the button gone",
+   "is": "true,#ffd600"
+  },
+  {
+   "check": "chrome.storage.local.get('panel').then((p) => p.panel?.markColour)",
+   "is": "",
+   "what": "its colour as it came, kept",
+   "ms": 3000
+  },
+  {
+   "pointer": "#settings [data-id='page-colours'] .sw[data-v='paper']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); return S.querySelector(\".srow[data-id='page-custom']\").hidden; })()",
+   "what": "Paper again: Custom's pickers gone",
+   "is": true
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const q = S.querySelector('.sfind input'); q.value = 'marker'; q.dispatchEvent(new Event('input', { bubbles: true, composed: true })); return [...S.querySelectorAll('.srow[data-id]')].filter((r) => r.offsetParent && !r.classList.contains('sub')).map((r) => r.dataset.id).join(','); })()",
+   "what": "search 'marker': its rows, from every section",
+   "is": "mark-colour"
+  },
+  {
+   "shot": "search-light-wide"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const q = S.querySelector('.sfind input'); q.value = 'collab'; q.dispatchEvent(new Event('input', { bubbles: true, composed: true })); return [...S.querySelectorAll('.srow[data-id]')].filter((r) => r.offsetParent).map((r) => r.dataset.id).join(','); })()",
+   "what": "search 'collab': Collaborators on the PDF",
+   "is": "o-others"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const q = S.querySelector('.sfind input'); q.value = 'zzzz'; q.dispatchEvent(new Event('input', { bubbles: true, composed: true })); return !S.querySelector('.snone').hidden; })()",
+   "what": "search with no match: says so",
+   "is": true
+  },
+  {
+   "shot": "search-none-light-wide"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const q = S.querySelector('.sfind input'); q.value = ''; q.dispatchEvent(new Event('input', { bubbles: true, composed: true })); return [...S.querySelectorAll('.stabs [aria-selected=true]')].map((b) => b.dataset.section).join(',') + ':' + [...S.querySelectorAll('section')].filter((s) => !s.hidden).length; })()",
+   "what": "search cleared: the section shown before, alone",
+   "is": "Colours:1"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "wait": 300
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); return [...S.querySelectorAll('.stabs [aria-selected=true]')].map((b) => b.dataset.section).join(','); })()",
+   "what": "opened again: the section last shown",
+   "is": "Colours"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "wait": 300
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "pointer": "#settings [data-section='View']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "view-light-wide"
+  },
+  {
+   "pointer": "#settings [data-section='Colours']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "colours-light-wide"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const b = S.querySelector('.sbody'); b.scrollTop = b.scrollHeight; return true; })()",
+   "what": "(scrolled to Colour lines)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "colours-lines-light-wide"
+  },
+  {
+   "pointer": "#settings [data-section='Build']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "build-light-wide"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const b = S.querySelector('.sbody'); b.scrollTop = b.scrollHeight; return true; })()",
+   "what": "(scrolled to the warnings)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "build-end-light-wide"
+  },
+  {
+   "pointer": "#settings [data-section='Changes']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "changes-light-wide"
+  },
+  {
+   "pointer": "#settings [data-section='General']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "general-light-wide"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'dark'; return 1; })()",
+   "page": true
+  },
+  {
+   "wait": 600
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "pointer": "#settings [data-section='View']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "view-dark-wide"
+  },
+  {
+   "pointer": "#settings [data-section='Colours']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "colours-dark-wide"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const b = S.querySelector('.sbody'); b.scrollTop = b.scrollHeight; return true; })()",
+   "what": "(scrolled to Colour lines)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "colours-lines-dark-wide"
+  },
+  {
+   "pointer": "#settings [data-section='Build']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "build-dark-wide"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const b = S.querySelector('.sbody'); b.scrollTop = b.scrollHeight; return true; })()",
+   "what": "(scrolled to the warnings)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "build-end-dark-wide"
+  },
+  {
+   "pointer": "#settings [data-section='Changes']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "changes-dark-wide"
+  },
+  {
+   "pointer": "#settings [data-section='General']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "general-dark-wide"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "viewport": 760
+  },
+  {
+   "wait": 800
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const t = [...S.querySelectorAll('.stabs [data-tab]')]; const n = S.querySelector('.stabs'); return t.map((b) => b.dataset.section).join(',') + (new Set(t.map((b) => Math.round(b.getBoundingClientRect().top))).size === 1 && n.scrollWidth <= n.clientWidth && S.scrollWidth <= S.clientWidth && t.every((b) => b.scrollWidth <= b.clientWidth) ? ' on one line' : ' WRAPPED OR CUT ' + JSON.stringify([n.scrollWidth, n.clientWidth, S.scrollWidth, S.clientWidth, t.map((b) => [Math.round(b.getBoundingClientRect().top), b.scrollWidth, b.clientWidth])])); })()",
+   "what": "the sections, on one line, no name cut, no sideways scroll",
+   "is": "View,Colours,Build,Changes,General on one line"
+  },
+  {
+   "pointer": "#settings [data-section='View']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "view-dark-narrow"
+  },
+  {
+   "pointer": "#settings [data-section='Colours']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "colours-dark-narrow"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const b = S.querySelector('.sbody'); b.scrollTop = b.scrollHeight; return true; })()",
+   "what": "(scrolled to Colour lines)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "colours-lines-dark-narrow"
+  },
+  {
+   "pointer": "#settings [data-section='Build']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "build-dark-narrow"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const b = S.querySelector('.sbody'); b.scrollTop = b.scrollHeight; return true; })()",
+   "what": "(scrolled to the warnings)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "build-end-dark-narrow"
+  },
+  {
+   "pointer": "#settings [data-section='Changes']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "changes-dark-narrow"
+  },
+  {
+   "pointer": "#settings [data-section='General']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "general-dark-narrow"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'light'; return 1; })()",
+   "page": true
+  },
+  {
+   "wait": 600
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const t = [...S.querySelectorAll('.stabs [data-tab]')]; const n = S.querySelector('.stabs'); return t.map((b) => b.dataset.section).join(',') + (new Set(t.map((b) => Math.round(b.getBoundingClientRect().top))).size === 1 && n.scrollWidth <= n.clientWidth && S.scrollWidth <= S.clientWidth && t.every((b) => b.scrollWidth <= b.clientWidth) ? ' on one line' : ' WRAPPED OR CUT ' + JSON.stringify([n.scrollWidth, n.clientWidth, S.scrollWidth, S.clientWidth, t.map((b) => [Math.round(b.getBoundingClientRect().top), b.scrollWidth, b.clientWidth])])); })()",
+   "what": "the sections, on one line, no name cut, no sideways scroll",
+   "is": "View,Colours,Build,Changes,General on one line"
+  },
+  {
+   "pointer": "#settings [data-section='View']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "view-light-narrow"
+  },
+  {
+   "pointer": "#settings [data-section='Colours']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "colours-light-narrow"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const b = S.querySelector('.sbody'); b.scrollTop = b.scrollHeight; return true; })()",
+   "what": "(scrolled to Colour lines)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "colours-lines-light-narrow"
+  },
+  {
+   "pointer": "#settings [data-section='Build']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "build-light-narrow"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const b = S.querySelector('.sbody'); b.scrollTop = b.scrollHeight; return true; })()",
+   "what": "(scrolled to the warnings)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "build-end-light-narrow"
+  },
+  {
+   "pointer": "#settings [data-section='Changes']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "changes-light-narrow"
+  },
+  {
+   "pointer": "#settings [data-section='General']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "wait": 300
+  },
+  {
+   "shot": "general-light-narrow"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "viewport": 0
+  },
+  {
+   "check": "chrome.storage.local.get('panel').then((p) => chrome.storage.local.set({ panel: { ...p.panel, pageColours: 'paper', markColour: '' } })).then(() => true)",
+   "what": "(Paper and the marker's own colour again, for the runs after)"
+  }
+ ]
+}

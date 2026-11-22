@@ -529,7 +529,7 @@
    "wait": 800
   },
   {
-   "pointer": "[data-group=Changes]",
+   "pointer": "#settings [data-section=Changes]",
    "press": true,
    "ms": 600
   },

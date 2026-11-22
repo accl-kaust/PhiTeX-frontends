@@ -266,13 +266,18 @@ async function vscodeSettings(): Promise<SettingsGroup[]> {
     {
       title: "Preview",
       rows: [
-        { id: "v-main", label: "Main file", help: "phitex.main: empty, the open file if it has \\documentclass", kind: "action", button: c.main ? String(c.main) : "The open file", set: open("main") },
-        { id: "v-tex", label: "Engine", help: "What the project needs: a % !TEX program line in its main file, else its preamble", kind: "choice", options: [["auto", "Auto"], ["pdflatex", "pdfLaTeX"], ["xelatex", "XeLaTeX"]], value: String(c.texEngine ?? "auto"), set: set("texEngine") },
         { id: "v-follow", label: "Highlight follows", help: "Where your editor is, on the page: as the cursor moves, what you select, or a double-click alone", kind: "choice", options: [["cursor", "Cursor"], ["selection", "Selection"], ["dblclick", "Double-click"]], value: String(c.follow ?? "cursor"), set: set("follow") },
       ],
     },
     {
-      title: "Build",
+      title: "Project",
+      rows: [
+        { id: "v-main", label: "Main file", help: "phitex.main: empty, the open file if it has \\documentclass", kind: "action", button: c.main ? String(c.main) : "The open file", set: open("main") },
+        { id: "v-tex", label: "Engine", help: "What the project needs: a % !TEX program line in its main file, else its preamble", kind: "choice", options: [["auto", "Auto"], ["pdflatex", "pdfLaTeX"], ["xelatex", "XeLaTeX"]], value: String(c.texEngine ?? "auto"), set: set("texEngine") },
+      ],
+    },
+    {
+      title: "Builds",
       rows: [
         { id: "v-engine", label: "Engine backend", help: "builtin: PhiTeX in WebAssembly inside VS Code. phitex watch: the native engine. From the preview's next open", kind: "choice", options: [["builtin", "builtin"], ["phitex watch", "phitex watch"]], value: String(c.engine ?? "builtin"), set: set("engine") },
         {

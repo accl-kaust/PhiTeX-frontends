@@ -1681,12 +1681,17 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
         title: "Preview",
         rows: [
           { id: "o-view", label: "Opens with", help: "What Overleaf's PDF pane shows when a project opens", kind: "choice", options: [["pdf", "PDF"], ["phitex", "⚡ Instant"]], value: s.view === "phitex" ? "phitex" : "pdf", set: (v) => put({ view: v }) },
-          { id: "o-engine", label: "Engine", help: "Auto: what the project's preamble needs (a project given its own keeps it). LuaLaTeX: coming", kind: "choice", options: [["auto", "Auto"], ...Object.entries(ENGINES).filter(([, e]) => e.ready).map(([v, e]) => [v, e.label] as [string, string])], value: usable((s.engine as string | undefined) ?? "auto"), set: (v) => put({ engine: v }) },
           { id: "follow", label: "Highlight follows", help: "In yellow: the word you're at as the cursor moves, what you select, or a double-click alone", kind: "choice", options: [["cursor", "Cursor"], ["selection", "Selection"], ["dblclick", "Double-click"]], value: (s.follow as string | undefined) ?? "cursor", set: (v) => put({ follow: v }) },
           toggle("o-others", "Collaborators on the PDF", "Where each collaborator is, in their colour; the page never moves for them", !s.othersOff, (on) => put({ othersOff: !on })),
         ],
       },
-      { title: "Build", rows: [{ id: "o-clean", label: "Clean rebuild", help: "Read the project again and typeset it from the start", kind: "action", button: "Rebuild", set: () => (void panel.settings(false), panel.clean()) }] },
+      {
+        title: "Project",
+        rows: [
+          { id: "o-engine", label: "Engine", help: "Auto: what the project's preamble needs (a project given its own keeps it). LuaLaTeX: coming", kind: "choice", options: [["auto", "Auto"], ...Object.entries(ENGINES).filter(([, e]) => e.ready).map(([v, e]) => [v, e.label] as [string, string])], value: usable((s.engine as string | undefined) ?? "auto"), set: (v) => put({ engine: v }) },
+        ],
+      },
+      { title: "Builds", rows: [{ id: "o-clean", label: "Clean rebuild", help: "Read the project again and typeset it from the start", kind: "action", button: "Rebuild", set: () => (void panel.settings(false), panel.clean()) }] },
       {
         title: "Packages",
         rows: c && !c.error

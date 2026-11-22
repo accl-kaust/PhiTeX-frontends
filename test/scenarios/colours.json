@@ -15,7 +15,7 @@
    "wait": 800
   },
   {
-   "pointer": "[data-group='Page colours']",
+   "pointer": "#settings [data-section='Colours']",
    "press": true,
    "ms": 600
   },
@@ -101,7 +101,7 @@
    "wait": 800
   },
   {
-   "pointer": "[data-group='Page colours']",
+   "pointer": "#settings [data-section='Colours']",
    "press": true,
    "ms": 600
   },
