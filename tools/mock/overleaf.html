@@ -67,6 +67,21 @@ if (localStorage.getItem("mock:latepane")) {
   pane.className = "pdf-late full-size";
   window.mockShowPane = () => (pane.className = "pdf full-size");
 }
+// (the PDF opened in its own tab (detached.html sets mock:detached): this tab without its PDF pane, SyncTeX's → beside the
+// editor, as Overleaf lays out its editor tab then)
+function mockDetached() {
+  const on = localStorage.getItem("mock:detached") === "1", pane = document.querySelector("body > .pdf");
+  if (on && pane) {
+    pane.remove();
+    document.body.style.gridTemplateColumns = "200px 1fr";
+    const c = document.createElement("div");
+    c.className = "synctex-controls";
+    c.innerHTML = '<button type="button" class="synctex-control" id="mock-to-pdf" aria-label="Go to PDF location"><span class="synctex-control-icon material-symbols">arrow_right_alt</span></button>';
+    document.querySelector("main .bar").append(c);
+  }
+}
+localStorage.removeItem("mock:detached");
+addEventListener("storage", (e) => e.key === "mock:detached" && mockDetached());
 // (Overleaf's socket: its frames heard by the extension's hook, as on the real page)
 new WebSocket(location.origin.replace(/^http/, "ws") + "/socket.io");
 </script>

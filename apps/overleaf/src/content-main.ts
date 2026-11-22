@@ -1770,6 +1770,12 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     const own = new StripPages(remoteCore(ch), panel, panel.stripsChip());
     pages = own;
     (globalThis as any).__phitexPages = own; // (tests, devtools)
+    // (Overleaf's ← here: the place on these pages found in the source by the editor tab's session, as a double-click here is)
+    window.addEventListener("message", (e) => {
+      if (e.source !== window || e.data?.src !== "phitex-hook" || e.data.type !== "toCode") return;
+      const p = panel.spot();
+      if (p) ask({ t: "sync", k: p.k, x: p.x, y: p.y });
+    });
     return follow(ch, panel, (k) => own.request({ op: "png", page: k }));
   }
   // (the detached tab's asks; what the session tells the panel goes there too)
@@ -1777,9 +1783,11 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     const a = e.data;
     if (a.t === "hello") {
       mirrored = true;
+      // (the hook's: Overleaf's → beside the editor goes to the detached tab's ⚡ pages, not its hidden PDF)
+      document.body.classList.add("phitex-mirrored");
       void session?.resync();
     }
-    if (a.t === "bye") mirrored = false;
+    if (a.t === "bye") (mirrored = false), document.body.classList.remove("phitex-mirrored");
     if (a.t === "need") void session?.fetch(a.k);
     if (a.t === "page") void session?.setPage(a.k);
     if (a.t === "sync") void session?.toSource(a.k, a.x, a.y);

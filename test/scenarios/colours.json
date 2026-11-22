@@ -1,0 +1,158 @@
+{
+ "project": "test/scenarios/jumps",
+ "name": "colours",
+ "strict": true,
+ "steps": [
+  {
+   "idle": 1500
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "pointer": "[data-group='Page colours']",
+   "press": true,
+   "ms": 600
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return [...P.querySelectorAll(\"#settings [data-id='page-colours'] .sw\")].map((s) => s.dataset.v); })()",
+   "what": "Settings, Page colours: the presets and Custom",
+   "is": [
+    "paper",
+    "sepia",
+    "dark",
+    "contrast",
+    "custom"
+   ]
+  },
+  {
+   "shot": "settings-light"
+  },
+  {
+   "pointer": "#settings [data-id='page-colours'] .sw[data-v='sepia']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return P.querySelector('.win').classList.contains('paged') && /phx-page-colours/.test(getComputedStyle(P.querySelector('.slot canvas')).filter); })()",
+   "what": "Sepia: the pages' canvases through the colour filter",
+   "ms": 3000
+  },
+  {
+   "check": "chrome.storage.local.get('panel').then((p) => p.panel?.pageColours)",
+   "is": "sepia",
+   "what": "kept with the panel's settings",
+   "ms": 3000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; globalThis.__pm = 0; const n = () => globalThis.__pm++; new MutationObserver(n).observe(P.querySelector('svg.phx-theme'), { subtree: true, attributes: true, childList: true }); new MutationObserver(n).observe(P.querySelector('.win'), { attributes: true, attributeFilter: ['class'] }); return true; })()",
+   "what": "(the colours' filter watched)"
+  },
+  {
+   "wait": 3000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return globalThis.__pm; })()",
+   "what": "the toolbar's passes (every 0.7 s) write nothing of the colours again",
+   "is": 0
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'dark'; return 1; })()",
+   "page": true
+  },
+  {
+   "wait": 600
+  },
+  {
+   "shot": "settings-dark"
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'light'; return 1; })()",
+   "page": true
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "wait": 400
+  },
+  {
+   "shot": "sepia"
+  },
+  {
+   "viewport": 1100
+  },
+  {
+   "wait": 600
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "pointer": "[data-group='Page colours']",
+   "press": true,
+   "ms": 600
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const r = P.querySelector('#settings').getBoundingClientRect(); return [...P.querySelectorAll(\"#settings [data-id='page-colours'] .sw\")].every((s) => s.offsetWidth > 0 && s.getBoundingClientRect().right <= r.right + 1); })()",
+   "what": "1100 px: every preset in view"
+  },
+  {
+   "shot": "settings-narrow"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "viewport": 0
+  },
+  {
+   "eval": "(() => { document.querySelector('.pdf').classList.add('pdf-dark-mode'); return 1; })()",
+   "page": true
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return P.querySelector('.win').classList.contains('pdf-dark') && !P.querySelector('.win').classList.contains('paged'); })()",
+   "what": "Overleaf's dark PDF on: its filter, Page colours' off",
+   "ms": 5000
+  },
+  {
+   "eval": "(() => { document.querySelector('.pdf').classList.remove('pdf-dark-mode'); return 1; })()",
+   "page": true
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return P.querySelector('.win').classList.contains('paged'); })()",
+   "what": "off again: Sepia",
+   "ms": 5000
+  },
+  {
+   "reload": 1,
+   "ms": 120000
+  },
+  {
+   "idle": 1500
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return P.querySelector('.win').classList.contains('paged'); })()",
+   "what": "reloaded: Sepia kept",
+   "ms": 10000
+  },
+  {
+   "check": "chrome.storage.local.get('panel').then((p) => chrome.storage.local.set({ panel: { ...p.panel, pageColours: 'paper' } })).then(() => true)",
+   "what": "(Paper again, for the runs after)"
+  }
+ ]
+}

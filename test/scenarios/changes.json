@@ -704,6 +704,73 @@
    "ms": 120000
   },
   {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [C.querySelector('#chg-stop')?.textContent, [...C.querySelectorAll('.cmpacts [data-dl]')].map((b) => b.textContent), C.querySelectorAll('.lookbox [data-dl]').length, C.querySelector('#chg-stop').offsetWidth > 0]; })()",
+   "what": "Stop comparing and the downloads under From \u2192 To, not in Diff's look",
+   "is": [
+    "\u2715 Stop comparing",
+    [
+     "PDF",
+     "diff.tex"
+    ],
+    0,
+    true
+   ],
+   "ms": 10000
+  },
+  {
+   "shot": "stop-light"
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'default'; document.querySelector('phitex-preview').parentElement.classList.add('pdf-dark-mode'); return true; })()",
+   "page": true
+  },
+  {
+   "wait": 800
+  },
+  {
+   "shot": "stop-dark"
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'light'; document.querySelector('phitex-preview').parentElement.classList.remove('pdf-dark-mode'); return true; })()",
+   "page": true
+  },
+  {
+   "wait": 400
+  },
+  {
+   "viewport": 1100
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const a = C.querySelector('.cmpacts'); return a.scrollWidth <= a.clientWidth + 1 && C.querySelector('#chg-stop').getBoundingClientRect().right <= C.querySelector('.cmpacts .dls').getBoundingClientRect().left; })()",
+   "what": "1100 px: Stop comparing and the downloads side by side, none cut"
+  },
+  {
+   "shot": "stop-narrow-light"
+  },
+  {
+   "viewport": 0
+  },
+  {
+   "click": "#chg-stop"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [C.querySelector('.body .empty b')?.textContent, C.querySelector('.foot .count').textContent, !!C.querySelector('#chg-stop'), document.getElementById('phitex-changes-n').textContent]; })()",
+   "what": "stopped: Pick a version again, no count, the badge empty",
+   "is": [
+    "Pick a version to compare with",
+    "No diff yet",
+    false,
+    ""
+   ],
+   "ms": 5000
+  },
+  {
+   "check": "globalThis.__phitexCompare.showing",
+   "is": "current",
+   "what": "stopped: the pages back to the current version",
+   "ms": 5000
+  },
+  {
    "click": "[data-m=blame]"
   },
   {

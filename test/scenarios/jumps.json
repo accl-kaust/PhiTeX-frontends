@@ -1,0 +1,202 @@
+{
+ "project": "test/scenarios/jumps",
+ "pid": "64aa00000000000000000001",
+ "name": "jumps",
+ "strict": true,
+ "steps": [
+  {
+   "idle": 2000
+  },
+  {
+   "check": "(() => { mockEditor.view.dispatch({ selection: { anchor: 0 } }); mockEditor.view.scrollDOM.scrollTop = 0; return true; })()",
+   "page": true,
+   "what": "(the editor at its top)"
+  },
+  {
+   "check": "(async () => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const n = \"The very last paragraph\"; const find = () => [...R.querySelectorAll('.slot text')].find((e) => e.textContent.includes(n)); let t = find(); for (const sl of R.querySelectorAll('.slot')) { if (t) break; sl.scrollIntoView(); await new Promise((r) => setTimeout(r, 400)); t = find(); } if (!t) return 'no text ' + n; t.scrollIntoView({ block: 'center' }); const b = t.getBoundingClientRect(), i = t.textContent.indexOf(n), x = b.left + b.width * (i + 2) / Math.max(1, t.textContent.length), y = b.top + b.height / 2; const slot = t.closest('.slot'); for (const type of [\"click\", \"click\", \"dblclick\"]) slot.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, clientX: x, clientY: y, detail: type === 'dblclick' ? 2 : 1 })); return true; })()",
+   "what": "(a dblclick on the pages at \"The very last paragraph\")"
+  },
+  {
+   "check": "(() => { const v = mockEditor.view, h = v.state.selection.main.head, c = v.coordsAtPos(h), r = v.scrollDOM.getBoundingClientRect(), t = v.state.doc.toString(), at = t.indexOf(\"The very last paragraph\"); const line = (p) => v.state.doc.lineAt(p).number; return document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label') === \"main.tex\" && at >= 0 && line(h) === line(at) && !!c && c.top >= r.top && c.bottom <= r.bottom || { file: document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label'), line: line(h), want: at >= 0 ? line(at) : -1, inView: !!c && c.top >= r.top && c.bottom <= r.bottom, top: v.scrollDOM.scrollTop }; })()",
+   "page": true,
+   "ms": 5000,
+   "what": "PDF \u2192 source, a line far down the file: the editor opened there, scrolled to it"
+  },
+  {
+   "check": "(() => { mockEditor.view.dispatch({ selection: { anchor: 0 } }); mockEditor.view.scrollDOM.scrollTop = 0; return true; })()",
+   "page": true,
+   "what": "(the editor at its top)"
+  },
+  {
+   "check": "(async () => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const n = \"Part paragraph 4\"; const find = () => [...R.querySelectorAll('.slot text')].find((e) => e.textContent.includes(n)); let t = find(); for (const sl of R.querySelectorAll('.slot')) { if (t) break; sl.scrollIntoView(); await new Promise((r) => setTimeout(r, 400)); t = find(); } if (!t) return 'no text ' + n; t.scrollIntoView({ block: 'center' }); const b = t.getBoundingClientRect(), i = t.textContent.indexOf(n), x = b.left + b.width * (i + 2) / Math.max(1, t.textContent.length), y = b.top + b.height / 2; const slot = t.closest('.slot'); for (const type of [\"click\", \"click\", \"dblclick\"]) slot.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, clientX: x, clientY: y, detail: type === 'dblclick' ? 2 : 1 })); return true; })()",
+   "what": "(a dblclick on the pages at \"Part paragraph 4\")"
+  },
+  {
+   "check": "(() => { const v = mockEditor.view, h = v.state.selection.main.head, c = v.coordsAtPos(h), r = v.scrollDOM.getBoundingClientRect(), t = v.state.doc.toString(), at = t.indexOf(\"Part paragraph 4\"); const line = (p) => v.state.doc.lineAt(p).number; return document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label') === \"part.tex\" && at >= 0 && line(h) === line(at) && !!c && c.top >= r.top && c.bottom <= r.bottom || { file: document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label'), line: line(h), want: at >= 0 ? line(at) : -1, inView: !!c && c.top >= r.top && c.bottom <= r.bottom, top: v.scrollDOM.scrollTop }; })()",
+   "page": true,
+   "ms": 5000,
+   "what": "PDF \u2192 source, another file: opened, scrolled to the line"
+  },
+  {
+   "check": "(() => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const s = R.querySelector('.slot'); const m = document.createElement('div'); m.className = 'mark seltext'; s.append(m); const c = getComputedStyle(m); const out = [c.boxShadow, c.backgroundColor]; m.remove(); return out; })()",
+   "is": [
+    "none",
+    "rgba(0, 100, 255, 0.25)"
+   ],
+   "what": "text selected on the pages: its blue, no marker outline round it (#39's screenshot)"
+  },
+  {
+   "check": "(async () => { await mockEditor.open(\"main.tex\"); mockEditor.view.scrollDOM.scrollTop = 0; return true; })()",
+   "page": true,
+   "what": "(the editor on main.tex, at its top)"
+  },
+  {
+   "check": "(async () => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const n = \"Paragraph 2 near\"; const find = () => [...R.querySelectorAll('.slot text')].find((e) => e.textContent.includes(n)); let t = find(); for (const sl of R.querySelectorAll('.slot')) { if (t) break; sl.scrollIntoView(); await new Promise((r) => setTimeout(r, 400)); t = find(); } if (!t) return 'no text ' + n; t.scrollIntoView({ block: 'center' }); const b = t.getBoundingClientRect(), i = t.textContent.indexOf(n), x = b.left + b.width * (i + 2) / Math.max(1, t.textContent.length), y = b.top + b.height / 2; const slot = t.closest('.slot'); for (const type of [\"click\", \"click\", \"dblclick\"]) slot.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, clientX: x, clientY: y, detail: type === 'dblclick' ? 2 : 1 })); return true; })()",
+   "what": "(a dblclick on the pages at \"Paragraph 2 near\")"
+  },
+  {
+   "check": "(() => { const v = mockEditor.view, h = v.state.selection.main.head, c = v.coordsAtPos(h), r = v.scrollDOM.getBoundingClientRect(), t = v.state.doc.toString(), at = t.indexOf(\"Paragraph 2 near\"); const line = (p) => v.state.doc.lineAt(p).number; return document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label') === \"main.tex\" && at >= 0 && line(h) === line(at) && !!c && c.top >= r.top && c.bottom <= r.bottom || { file: document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label'), line: line(h), want: at >= 0 ? line(at) : -1, inView: !!c && c.top >= r.top && c.bottom <= r.bottom, top: v.scrollDOM.scrollTop }; })()",
+   "page": true,
+   "ms": 5000,
+   "what": "PDF \u2192 source, back in the main file near its top"
+  },
+  {
+   "check": "(() => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const s = R.querySelector('.stage') ?? R.querySelector('#stage'); if (s) s.scrollTop = 0; return true; })()",
+   "what": "(the pages at their top)"
+  },
+  {
+   "check": "(async () => { if (document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label') !== \"main.tex\") await mockEditor.open(\"main.tex\"), await new Promise((r) => setTimeout(r, 500)); const t = mockEditor.text(), i = t.indexOf(\"The very last paragraph\"); mockEditor.select(i + 2); return i >= 0; })()",
+   "page": true,
+   "what": "(the cursor in main.tex at \"The very last paragraph\")"
+  },
+  {
+   "check": "(() => { document.querySelector('.cm-content').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return true; })()",
+   "page": true,
+   "what": "(a double-click in the editor)"
+  },
+  {
+   "check": "(() => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const v = (R.querySelector('.stage') ?? R.querySelector('#stage')).getBoundingClientRect(); const m = [...R.querySelectorAll('.slot .mark:not(.sel):not(.seltext):not(.fnd)')]; const hit = m.find((e) => { const r = e.getBoundingClientRect(); return r.bottom > v.top && r.top < v.bottom && [...e.parentElement.querySelectorAll('text')].some((t) => t.textContent.includes(\"The very last paragraph\")); }); return !!hit || { marks: m.map((e) => e.parentElement.dataset.k + '@' + Math.round(e.getBoundingClientRect().top)), view: [Math.round(v.top), Math.round(v.bottom)] }; })()",
+   "ms": 5000,
+   "what": "source \u2192 PDF, a far page: the marker there, in view"
+  },
+  {
+   "check": "(() => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const s = R.querySelector('.stage') ?? R.querySelector('#stage'); if (s) s.scrollTop = 0; return true; })()",
+   "what": "(the pages at their top)"
+  },
+  {
+   "check": "(async () => { if (document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label') !== \"part.tex\") await mockEditor.open(\"part.tex\"), await new Promise((r) => setTimeout(r, 500)); const t = mockEditor.text(), i = t.indexOf(\"Part paragraph 4\"); mockEditor.select(i + 2); return i >= 0; })()",
+   "page": true,
+   "what": "(the cursor in part.tex at \"Part paragraph 4\")"
+  },
+  {
+   "check": "(() => { document.querySelector('.cm-content').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return true; })()",
+   "page": true,
+   "what": "(a double-click in the editor)"
+  },
+  {
+   "check": "(() => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const v = (R.querySelector('.stage') ?? R.querySelector('#stage')).getBoundingClientRect(); const m = [...R.querySelectorAll('.slot .mark:not(.sel):not(.seltext):not(.fnd)')]; const hit = m.find((e) => { const r = e.getBoundingClientRect(); return r.bottom > v.top && r.top < v.bottom && [...e.parentElement.querySelectorAll('text')].some((t) => t.textContent.includes(\"Part paragraph 4\")); }); return !!hit || { marks: m.map((e) => e.parentElement.dataset.k + '@' + Math.round(e.getBoundingClientRect().top)), view: [Math.round(v.top), Math.round(v.bottom)] }; })()",
+   "ms": 5000,
+   "what": "source \u2192 PDF, from another file: the marker on its page, in view"
+  },
+  {
+   "shot": "split"
+  },
+  {
+   "check": "(async () => { await mockEditor.open(\"main.tex\"); mockEditor.view.scrollDOM.scrollTop = 0; return true; })()",
+   "page": true,
+   "what": "(the editor on main.tex, at its top)"
+  },
+  {
+   "tab": "detached"
+  },
+  {
+   "check": "(() => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; return R.querySelectorAll('.slot text').length > 0; })()",
+   "ms": 60000,
+   "what": "the detached tab: the pages drawn"
+  },
+  {
+   "check": "(async () => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const n = \"The very last paragraph\"; const find = () => [...R.querySelectorAll('.slot text')].find((e) => e.textContent.includes(n)); let t = find(); for (const sl of R.querySelectorAll('.slot')) { if (t) break; sl.scrollIntoView(); await new Promise((r) => setTimeout(r, 400)); t = find(); } if (!t) return 'no text ' + n; t.scrollIntoView({ block: 'center' }); const b = t.getBoundingClientRect(), i = t.textContent.indexOf(n), x = b.left + b.width * (i + 2) / Math.max(1, t.textContent.length), y = b.top + b.height / 2; const slot = t.closest('.slot'); for (const type of [\"click\", \"click\", \"dblclick\"]) slot.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, clientX: x, clientY: y, detail: type === 'dblclick' ? 2 : 1 })); return true; })()",
+   "what": "(a dblclick on the pages at \"The very last paragraph\")"
+  },
+  {
+   "tab": "main"
+  },
+  {
+   "check": "(() => { const v = mockEditor.view, h = v.state.selection.main.head, c = v.coordsAtPos(h), r = v.scrollDOM.getBoundingClientRect(), t = v.state.doc.toString(), at = t.indexOf(\"The very last paragraph\"); const line = (p) => v.state.doc.lineAt(p).number; return document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label') === \"main.tex\" && at >= 0 && line(h) === line(at) && !!c && c.top >= r.top && c.bottom <= r.bottom || { file: document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label'), line: line(h), want: at >= 0 ? line(at) : -1, inView: !!c && c.top >= r.top && c.bottom <= r.bottom, top: v.scrollDOM.scrollTop }; })()",
+   "page": true,
+   "ms": 5000,
+   "what": "detached, PDF \u2192 source: the editor tab at the far line, in view"
+  },
+  {
+   "check": "(() => { mockEditor.view.dispatch({ selection: { anchor: 0 } }); mockEditor.view.scrollDOM.scrollTop = 0; return true; })()",
+   "page": true,
+   "what": "(the editor at its top)"
+  },
+  {
+   "tab": "detached"
+  },
+  {
+   "check": "(async () => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const n = \"Part paragraph 2\"; const find = () => [...R.querySelectorAll('.slot text')].find((e) => e.textContent.includes(n)); let t = find(); for (const sl of R.querySelectorAll('.slot')) { if (t) break; sl.scrollIntoView(); await new Promise((r) => setTimeout(r, 400)); t = find(); } if (!t) return 'no text ' + n; t.scrollIntoView({ block: 'center' }); const b = t.getBoundingClientRect(), i = t.textContent.indexOf(n), x = b.left + b.width * (i + 2) / Math.max(1, t.textContent.length), y = b.top + b.height / 2; const slot = t.closest('.slot'); for (const type of [\"click\"]) slot.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, clientX: x, clientY: y, detail: type === 'dblclick' ? 2 : 1 })); return true; })()",
+   "what": "(a click on the pages at \"Part paragraph 2\")"
+  },
+  {
+   "check": "(() => { document.getElementById('mock-to-code').click(); return true; })()",
+   "page": true,
+   "what": "(Overleaf's \u2190 in the detached tab)"
+  },
+  {
+   "tab": "main"
+  },
+  {
+   "check": "(() => { const v = mockEditor.view, h = v.state.selection.main.head, c = v.coordsAtPos(h), r = v.scrollDOM.getBoundingClientRect(), t = v.state.doc.toString(), at = t.indexOf(\"Part paragraph 2\"); const line = (p) => v.state.doc.lineAt(p).number; return document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label') === \"part.tex\" && at >= 0 && line(h) === line(at) && !!c && c.top >= r.top && c.bottom <= r.bottom || { file: document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label'), line: line(h), want: at >= 0 ? line(at) : -1, inView: !!c && c.top >= r.top && c.bottom <= r.bottom, top: v.scrollDOM.scrollTop }; })()",
+   "page": true,
+   "ms": 5000,
+   "what": "detached, \u2190 to the code: the other file opened at the clicked line, in view"
+  },
+  {
+   "check": "(async () => { if (document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label') !== \"main.tex\") await mockEditor.open(\"main.tex\"), await new Promise((r) => setTimeout(r, 500)); const t = mockEditor.text(), i = t.indexOf(\"The very last paragraph\"); mockEditor.select(i + 2); return i >= 0; })()",
+   "page": true,
+   "what": "(the cursor in main.tex at \"The very last paragraph\")"
+  },
+  {
+   "check": "(() => { document.getElementById('mock-to-pdf').click(); return true; })()",
+   "page": true,
+   "what": "(Overleaf's \u2192 beside the editor, the PDF detached)"
+  },
+  {
+   "tab": "detached"
+  },
+  {
+   "check": "(() => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const v = (R.querySelector('.stage') ?? R.querySelector('#stage')).getBoundingClientRect(); const m = [...R.querySelectorAll('.slot .mark:not(.sel):not(.seltext):not(.fnd)')]; const hit = m.find((e) => { const r = e.getBoundingClientRect(); return r.bottom > v.top && r.top < v.bottom && [...e.parentElement.querySelectorAll('text')].some((t) => t.textContent.includes(\"The very last paragraph\")); }); return !!hit || { marks: m.map((e) => e.parentElement.dataset.k + '@' + Math.round(e.getBoundingClientRect().top)), view: [Math.round(v.top), Math.round(v.bottom)] }; })()",
+   "ms": 5000,
+   "what": "detached, source \u2192 PDF (Overleaf's \u2192): the detached tab's pages at the far line, the marker in view"
+  },
+  {
+   "shot": "detached"
+  },
+  {
+   "tab": "main"
+  },
+  {
+   "check": "(async () => { if (document.querySelector('[aria-selected=\"true\"]')?.getAttribute('aria-label') !== \"part.tex\") await mockEditor.open(\"part.tex\"), await new Promise((r) => setTimeout(r, 500)); const t = mockEditor.text(), i = t.indexOf(\"Part paragraph 4\"); mockEditor.select(i + 2); return i >= 0; })()",
+   "page": true,
+   "what": "(the cursor in part.tex at \"Part paragraph 4\")"
+  },
+  {
+   "check": "(() => { document.querySelector('.cm-content').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return true; })()",
+   "page": true,
+   "what": "(a double-click in the editor)"
+  },
+  {
+   "tab": "detached"
+  },
+  {
+   "check": "(() => { const R = document.querySelector('phitex-preview')?.shadowRoot ?? document; const v = (R.querySelector('.stage') ?? R.querySelector('#stage')).getBoundingClientRect(); const m = [...R.querySelectorAll('.slot .mark:not(.sel):not(.seltext):not(.fnd)')]; const hit = m.find((e) => { const r = e.getBoundingClientRect(); return r.bottom > v.top && r.top < v.bottom && [...e.parentElement.querySelectorAll('text')].some((t) => t.textContent.includes(\"Part paragraph 4\")); }); return !!hit || { marks: m.map((e) => e.parentElement.dataset.k + '@' + Math.round(e.getBoundingClientRect().top)), view: [Math.round(v.top), Math.round(v.bottom)] }; })()",
+   "ms": 5000,
+   "what": "detached, source \u2192 PDF from another file: its page, the marker in view"
+  },
+  {
+   "tab": "main"
+  }
+ ]
+}

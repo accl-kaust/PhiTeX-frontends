@@ -243,8 +243,19 @@ const filePart = (body, type) => {
 };
 const escapeAttr = (t) => t.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
+/** The mock project under an Overleaf-shaped id too (/project/<24 hex>): its editor tab, and its "Open PDF in separate tab" at …/detached. */
+const PID = "64aa00000000000000000001";
+
 const handle = (req, res) => {
   const u = new URL(req.url, "http://x");
+  // (/project/<PID>/X is /project/mock/X; …/detached is the PDF's own tab, Overleaf's detached view)
+  const pm = new RegExp(`^/project/${PID}(/.*)?$`).exec(u.pathname);
+  if (pm && pm[1]?.replace(/\/$/, "") === "/detached") {
+    const nonce = Math.random().toString(36).slice(2);
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": `script-src 'nonce-${nonce}' 'unsafe-inline' 'strict-dynamic' https: 'report-sample'`, "cross-origin-opener-policy": "same-origin", "cross-origin-embedder-policy": "credentialless" });
+    return res.end(fs.readFileSync(path.join(dir, "detached.html"), "utf8").replaceAll("<script", `<script nonce="${nonce}"`));
+  }
+  if (pm) u.pathname = `/project/mock${pm[1] ?? ""}`;
   // (served as overleaf.com is: COOP same-origin and COEP credentialless,
   // so the tab is cross-origin isolated, as the core's offscreen page is
   // by its manifest; tools/dev/mock-run.mjs asserts both before the

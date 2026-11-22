@@ -4,13 +4,41 @@
 // never changes the editor. No imports (a classic script).
 
 (() => {
-  // (only Overleaf's editor: /project/<24 hex id>; the local mock too)
-  if (!/^\/project\/([0-9a-f]{24}|mock)\/?$/.test(location.pathname)) return;
   const SRC = "phitex-hook";
+  const post = (msg: object) => window.postMessage({ src: SRC, ...msg }, location.origin);
   let view: any = null;
   let file: string | null = null;
 
-  const post = (msg: object) => window.postMessage({ src: SRC, ...msg }, location.origin);
+  /**
+   * Overleaf's arrows beside the PDF (its SyncTeX's), while ⚡ shows: ours.
+   * → the cursor's place on the ⚡ page, as a double-click in the editor; ←
+   * the ⚡ page's place in the editor. Told apart by their icons (the labels
+   * are translated), Overleaf's own handler not reached (React's, at its
+   * root). In the editor's tab, and in the PDF's own ("Open PDF in separate
+   * tab": its ← is there, Overleaf's going by its own PDF, hidden under ⚡).
+   */
+  function arrows(): void {
+    document.addEventListener(
+      "click",
+      (e) => {
+        const b = (e.target as Element).closest?.(".synctex-control");
+        // (⚡ here, or in the detached PDF tab following this one: its pages, not Overleaf's hidden PDF)
+        if (!b || !(document.querySelector(".phitex-on") || document.body.classList.contains("phitex-mirrored"))) return;
+        const icon = b.querySelector(".synctex-control-icon")?.textContent ?? "";
+        if (!/arrow_(right|left)/.test(icon)) return;
+        e.stopPropagation();
+        e.preventDefault();
+        if (icon.includes("left")) return post({ type: "toCode" });
+        if (view && file !== null) post({ type: "sync", file, pos: view.state.selection?.main?.head ?? 0 });
+      },
+      true,
+    );
+  }
+
+  // (the PDF's own tab: its arrows only, no editor there)
+  if (/^\/project\/([0-9a-f]{24}|mock)\/detached\/?$/.test(location.pathname)) return arrows();
+  // (only Overleaf's editor: /project/<24 hex id>; the local mock too)
+  if (!/^\/project\/([0-9a-f]{24}|mock)\/?$/.test(location.pathname)) return;
 
   // A figure uploaded or replaced: Overleaf tells each editor of the project on
   // its socket (socket.io 0.9's event frame, `5:::{"name":"reciveNewFile","args":
@@ -159,6 +187,12 @@
     }
     identifyTries = 0;
     file = name;
+    // (a jump into this file, waiting for it: now)
+    if (opening?.path === name) {
+      const go = opening.then;
+      opening = null;
+      go();
+    }
     // (the whole text: changes made while the file was not known are in it)
     post({ type: "open", file: name, text: view.state.doc.toString() });
     // (and its collaborators' cursors, told anew for this file)
@@ -243,15 +277,38 @@
     }
   }, 500);
 
+  /**
+   * Select [from, to) and bring it to the middle of the editor, wherever it
+   * is, as Overleaf's own SyncTeX jump does (its cursor-position.ts): after
+   * the event that asked (a double-click's own selection and focus done
+   * first), the selection with EditorView.scrollIntoView's effect, centred,
+   * then the focus. A line far off screen is not drawn yet; the effect
+   * scrolls to it by the editor's measure of the whole text, and the
+   * selection lands there.
+   */
+  function reveal(from: number, to: number, focus: boolean): void {
+    setTimeout(() => {
+      const v = view;
+      if (!v) return;
+      const n = v.state.doc.length;
+      const sel = { anchor: Math.min(from, n), head: Math.min(to, n) };
+      const into = v.constructor?.scrollIntoView;
+      v.dispatch(typeof into === "function" ? { selection: sel, effects: into.call(v.constructor, Math.min(to, n), { y: "center" }) } : { selection: sel, scrollIntoView: true });
+      if (focus) v.focus();
+    });
+  }
+
   /** Put the cursor at the start of `line` (1-based) and scroll to it. */
   function gotoLine(line: number): void {
     const doc = view.state.doc;
     const at = doc.line(Math.max(1, Math.min(line, doc.lines))).from;
-    view.dispatch({ selection: { anchor: at }, scrollIntoView: true });
-    view.focus();
+    reveal(at, at, true);
   }
 
-  /** Open `path` in the editor (its file tree item, its folders opened first), then `then`. */
+  /** A jump waiting for its file to open: run when the file is the one identified (identify), not polled for. */
+  let opening: { path: string; then: () => void } | null = null;
+
+  /** Open `path` in the editor (its file tree item, its folders opened first), then `then`, once the editor has it. */
   function openThen(path: string, then: () => void): void {
     const items = () => [...document.querySelectorAll(TREE)];
     const parts = path.split("/");
@@ -259,28 +316,20 @@
       const dir = items().find((li) => pathOf(li) === parts.slice(0, i).join("/"));
       if (dir?.getAttribute("aria-expanded") === "false") dir.querySelector<HTMLElement>(".folder-expand-collapse-button")?.click();
     }
+    // (the latest jump's: an earlier one's file is no longer wanted)
+    opening = { path, then };
     // (a folder opened: its items drawn on the next frame)
     setTimeout(() => {
       const item = items().find((li) => pathOf(li) === path);
       const target = item?.querySelector<HTMLElement>(".entity, .item-name-button, .entity-name") ?? (item as HTMLElement | undefined);
-      if (!target) return;
+      if (!target) return void (opening = null);
       target.click();
-      let tries = 0;
-      const wait = setInterval(() => {
-        if (file === path || ++tries > 30) {
-          clearInterval(wait);
-          if (file === path) then();
-        }
-      }, 100);
     }, parts.length > 1 ? 150 : 0);
   }
 
-  /** Select [from, to) of the open file (UTF-16 offsets) and scroll to it. */
+  /** Select [from, to) of the open file (UTF-16 offsets) and scroll to it; a selection made on the page keeps the page focused, and its own selection. */
   function gotoRange(from: number, to: number, focus = true): void {
-    const n = view.state.doc.length;
-    view.dispatch({ selection: { anchor: Math.min(from, n), head: Math.min(to, n) }, scrollIntoView: true });
-    // (a selection made on the page keeps the page focused, and its own selection)
-    if (focus) view.focus();
+    reveal(from, to, focus);
   }
 
   /**
@@ -359,24 +408,7 @@
     true,
   );
 
-  // Overleaf's arrows beside the PDF (its SyncTeX's), while ⚡ shows: ours.
-  // → the cursor's place on the ⚡ page, as a double-click in the editor; ←
-  // the ⚡ page's place in the editor. Told apart by their icons (the labels
-  // are translated), Overleaf's own handler not reached (React's, at its root).
-  document.addEventListener(
-    "click",
-    (e) => {
-      const b = (e.target as Element).closest?.(".synctex-control");
-      if (!b || !document.querySelector(".phitex-on")) return;
-      const icon = b.querySelector(".synctex-control-icon")?.textContent ?? "";
-      if (!/arrow_(right|left)/.test(icon)) return;
-      e.stopPropagation();
-      e.preventDefault();
-      if (icon.includes("left")) return post({ type: "toCode" });
-      if (view && file !== null) post({ type: "sync", file, pos: view.state.selection?.main?.head ?? 0 });
-    },
-    true,
-  );
+  arrows();
 
   window.addEventListener("message", (e) => {
     if (e.source !== window || e.data?.src !== "phitex-content") return;

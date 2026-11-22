@@ -112,20 +112,31 @@ const mock = spawn("node", ["tools/mock/server.mjs", String(MOCK)], { cwd: root,
 await new Promise((r) => mock.stdout.once("data", r));
 // Chromium with the extension
 if (fresh) fs.rmSync(path.join(root, PROFILE, "Default/IndexedDB"), { recursive: true, force: true });
-execFileSync("bash", ["tools/dev/chrome.sh", `http://localhost:${MOCK}/project/mock`], { cwd: root, env: { ...process.env, PHITEX_CDP_PORT: String(PORT), PHITEX_PROFILE: PROFILE, PHITEX_HEADLESS: "1" } });
+// ("pid": the project at an Overleaf-shaped id (tools/mock/server.mjs's PID), so its "Open PDF in separate tab" view,
+// …/detached, is the same project's: the "tab" step opens it)
+const PROJ = sc.pid ? `project/${sc.pid}` : "project/mock";
+execFileSync("bash", ["tools/dev/chrome.sh", `http://localhost:${MOCK}/${PROJ}`], { cwd: root, env: { ...process.env, PHITEX_CDP_PORT: String(PORT), PHITEX_PROFILE: PROFILE, PHITEX_HEADLESS: "1" } });
 
 // the tab, over the DevTools protocol: page world (the editor) and the content script's
 let tab;
 for (let i = 0; i < 60 && !tab; i++) {
   await sleep(250);
-  try { tab = (await (await fetch(`http://localhost:${PORT}/json`)).json()).find((t) => t.type === "page" && t.url.includes("project/mock")); } catch {}
+  try { tab = (await (await fetch(`http://localhost:${PORT}/json`)).json()).find((t) => t.type === "page" && t.url.includes(PROJ)); } catch {}
 }
-const ws = new WebSocket(tab.webSocketDebuggerUrl);
-await new Promise((r) => ws.addEventListener("open", r));
 let id = 0;
 const pending = new Map(), contexts = [], events = [];
 const T0 = Date.now();
-ws.addEventListener("message", (m) => {
+let ws;
+/** The steps' tab from now on (`t` a DevTools target): its page world and content script's, its errors heard. */
+async function attach(t) {
+  tab = t;
+  contexts.length = 0;
+  ws = new WebSocket(t.webSocketDebuggerUrl);
+  await new Promise((r) => ws.addEventListener("open", r));
+  ws.addEventListener("message", heard);
+  await call("Runtime.enable");
+}
+function heard(m) {
   const d = JSON.parse(m.data);
   if (d.method === "Runtime.executionContextCreated") contexts.push(d.params.context);
   if (d.method === "Runtime.executionContextsCleared") contexts.length = 0;
@@ -141,9 +152,11 @@ ws.addEventListener("message", (m) => {
   if (d.method === "Runtime.exceptionThrown") events.push({ t: Date.now() - T0, k: "EXCEPTION", d: `${d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text}${d.params.exceptionDetails.url ? ` (${d.params.exceptionDetails.url}:${d.params.exceptionDetails.lineNumber + 1})` : ""}` });
   if (d.method === "Runtime.consoleAPICalled" && /error|warn/.test(d.params.type)) events.push({ t: Date.now() - T0, k: `console.${d.params.type}`, d: d.params.args.map((a) => a.value ?? a.description).join(" ") });
   pending.get(d.id)?.(d);
-});
+}
 const call = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
-await call("Runtime.enable");
+await attach(tab);
+/** The tabs the "tab" step switches between: the editor's, and the detached PDF's once opened. */
+const tabs = { main: tab };
 const evalIn = async (expr, cs = false) => {
   // (the tab's own frame (its id is the target's), not an iframe's (the
   // engine's, Overleaf's PDF); the newest, a reload's)
@@ -737,6 +750,18 @@ for (const s of sc.steps ?? []) {
       if (!pages) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: { ...s, at: k + 1 } }), (process.exitCode = 1));
       if (pages) budget(s.budget, st, `reload ${k + 1}`);
     }
+  } else if (s.tab !== undefined) {
+    // ("detached": Overleaf's "Open PDF in separate tab" view of the project ("pid"), opened once and brought to the
+    // front; "main": the editor's tab again. The steps after it run in that tab)
+    if (s.tab === "detached" && !tabs.detached) {
+      tabs.detached = await (await fetch(`http://localhost:${PORT}/json/new?${encodeURIComponent(`http://localhost:${MOCK}/${PROJ}/detached`)}`, { method: "PUT" })).json();
+    }
+    const to = tabs[s.tab];
+    ws.removeEventListener("message", heard);
+    ws.close();
+    await fetch(`http://localhost:${PORT}/json/activate/${to.id}`).catch(() => undefined);
+    await attach(to);
+    console.log(`tab → ${s.tab}`);
   } else if (s.secondtab) {
     // (a second tab on the project: its own core, beside the first one's)
     const tw = await (await fetch(`http://localhost:${PORT}/json/new?${encodeURIComponent(`http://localhost:${MOCK}/project/mock`)}`, { method: "PUT" })).json();
