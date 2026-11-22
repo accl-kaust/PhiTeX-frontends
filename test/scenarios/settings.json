@@ -38,6 +38,11 @@
    "wait": 800
   },
   {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); return [...S.querySelectorAll('.stabs [aria-selected=true]')].map((b) => b.dataset.section).join(',') + ':' + [...S.querySelectorAll('.sbody > section')].filter((s) => !s.hidden).map((s) => s.dataset.section).join(','); })()",
+   "what": "opened the first time: View, the first section",
+   "is": "View:View"
+  },
+  {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const t = [...S.querySelectorAll('.stabs [data-tab]')]; const n = S.querySelector('.stabs'); return t.map((b) => b.dataset.section).join(',') + (new Set(t.map((b) => Math.round(b.getBoundingClientRect().top))).size === 1 && n.scrollWidth <= n.clientWidth && S.scrollWidth <= S.clientWidth && t.every((b) => b.scrollWidth <= b.clientWidth) ? ' on one line' : ' WRAPPED OR CUT ' + JSON.stringify([n.scrollWidth, n.clientWidth, S.scrollWidth, S.clientWidth, t.map((b) => [Math.round(b.getBoundingClientRect().top), b.scrollWidth, b.clientWidth])])); })()",
    "what": "the sections, on one line, no name cut, no sideways scroll",
    "is": "View,Colours,Build,Changes,General on one line"
