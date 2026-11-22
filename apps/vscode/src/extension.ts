@@ -75,7 +75,7 @@ const graphOn = async () => vscode.workspace.getConfiguration("phitex").get<bool
 /** The status bar's item (status.ts). */
 let status: StatusItem;
 /** The preview last opened: what the menu's Stop, Restart and Save PDF act on. */
-let current: { folder: string; view: vscode.WebviewPanel; save(): void } | undefined;
+let current: { folder: string; view: vscode.WebviewPanel; save(): void; rescan?(): Promise<void> } | undefined;
 
 /** The language server of the preview open (the watch's), for the protocol's commands (docs/spec-editor-protocol.md). */
 let server: LanguageClient | undefined;
@@ -168,7 +168,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeConfiguration((e) => void (e.affectsConfiguration("phitex.texEngine") && current && builtinView === current.view && restart())),
     vscode.commands.registerCommand("phitex.savePdf", () => (current ? current.save() : void vscode.window.showWarningMessage("PhiTeX: open the preview first."))),
     vscode.commands.registerCommand("phitex.showLog", () => log.show()),
-    vscode.commands.registerCommand("phitex.rebuild", () => exec("phitex.rebuild")),
+    // (from scratch: the builtin engine's files read again from disk first, as the watch reads them itself)
+    vscode.commands.registerCommand("phitex.rebuild", async () => (await current?.rescan?.(), exec("phitex.rebuild"))),
     vscode.commands.registerCommand("phitex.clearCache", async (scope?: string) => {
       scope ??= (await vscode.window.showQuickPick(["build", "packages", "all"], { title: "PhiTeX: clear which cache?" })) ?? undefined;
       if (!scope) return;
@@ -210,7 +211,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
               { label: "$(eye) Show the preview", run: () => current?.view.reveal(vscode.ViewColumn.Beside, true) },
               { label: "$(file-pdf) Save the PDF…", run: () => current?.save() },
               { label: "$(debug-restart) Restart", run: restart },
-              ...(server ? [{ label: "$(refresh) Rebuild from scratch", run: () => exec("phitex.rebuild") }, { label: "$(database) Caches…", run: () => vscode.commands.executeCommand("phitex.caches") }] : []),
+              ...(server ? [{ label: "$(refresh) Rebuild from scratch", run: () => vscode.commands.executeCommand("phitex.rebuild") }, { label: "$(database) Caches…", run: () => vscode.commands.executeCommand("phitex.caches") }] : []),
               { label: "$(debug-stop) Stop", description: "closes the preview", run: stop },
             ]
           : [{ label: "$(zap) Open the preview", description: "Ctrl+Alt+P", run: () => open() }]),
@@ -344,13 +345,21 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   const channel = lspChannel(core, storeDir, graphKv);
   const client = ownCommands(new LanguageClient("phitex", "PhiTeX", async () => ({ reader: new ChannelReader(channel), writer: new ChannelWriter(channel) }), clientOptions(folder, log)));
   let closed = false;
+  // (the disk's changes given to the core, once it is open)
+  let sync: DiskSync | undefined;
+  const rescan = async () => void (await sync?.rescan());
+  // (the preview's Clean rebuild: every file read again from disk, then built from the start)
+  const fresh: Relayed = {
+    request: async (op) => ((op as { op?: string }).op === "cold" && (await rescan()), session.request(op as never)),
+    onEvent: (cb) => session.onEvent(cb),
+  };
   const subs: vscode.Disposable[] = [
     disk,
-    relay(view, session, folder, () => void savePdf(session, folder, main), (s) => log.appendLine(s), tabsAt(ctx.extensionUri, view, "builtin", session, folder, () => void savePdf(session, folder, main), log)),
+    relay(view, fresh, folder, () => void savePdf(session, folder, main), (s) => log.appendLine(s), tabsAt(ctx.extensionUri, view, "builtin", fresh, folder, () => void savePdf(session, folder, main), log)),
     // (Compare, View log, Clear cache: what the webview asks of this host)
     compareHost(view, { root, folder, main, files: Object.keys(project.files), binaries: project.binaries, log: (s) => log.append(s.endsWith("\n") ? s : s + "\n") }),
   ];
-  current = { folder, view, save: () => void savePdf(session, folder, main) };
+  current = { folder, view, save: () => void savePdf(session, folder, main), rescan };
   view.onDidDispose(() => {
     closed = true;
     subs.forEach((s) => s.dispose());
@@ -392,7 +401,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
   }
   if (closed) return;
   // (the disk's changes from now on, and those heard since the read: the core given them, and built)
-  disk.start(new DiskSync({
+  disk.start((sync = new DiskSync({
     folder,
     main,
     given: { ...project.files, ...project.binaries },
@@ -407,7 +416,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
       changed: (files) => void session.request({ op: "changed", files } as never),
     },
     log: (s) => log.appendLine(s),
-  }));
+  })));
   const opened = settings();
   subs.push(
     client.onNotification("phitex/status", (s: EngineStatus) => status.set(s)),

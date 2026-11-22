@@ -171,6 +171,18 @@ export class DiskSync {
     return this.running;
   }
 
+  /**
+   * Every file of the folder read again now (a clean rebuild: what changed on
+   * disk unseen, an event lost while the machine slept, given before it
+   * builds); resolved when they are given.
+   */
+  async rescan(): Promise<void> {
+    // (the files there now, and those given before, a removed one among them)
+    for (const p of await walk(this.o.folder)) this.touched(p);
+    for (const rel of this.known.keys()) this.touched(join(this.o.folder, rel));
+    return this.flush();
+  }
+
   dispose(): void {
     this.disposed = true;
     clearTimeout(this.timer);

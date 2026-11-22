@@ -159,7 +159,11 @@ const panel = new Panel(
     onPdf: () => up({ t: "pdf" }),
     onMain: () => {},
     onReload: () => void session.resync(),
-    onClean: () => void session.resync(),
+    // (Rebuild: the engine builds again now, every file it read checked on disk
+    // (the watch's `r`); Clean rebuild: from the start, the project read again, no
+    // saved graph taken, as a fresh engine would; either engine's, through the relay)
+    onRebuild: () => void relay.request({ op: "rebuild" }),
+    onClean: () => void relay.request({ op: "cold" }),
     onGoto: (file, line) => void relay.request({ op: "source", file, line, col: 1 }),
     onSyncSource: (k, x, y) => void shown().toSource(k, x, y),
     // (text selected on the pages: its source selected in the editor, remote.select)
