@@ -1371,45 +1371,64 @@ function dockInOverleaf(panel: Panel): Dock {
     // button, the gaps, our settings), and some air)
     const ctl = controlsEl(right);
     const bar = pane.querySelector<HTMLElement>(".toolbar-pdf") ?? pane;
-    if (mode === "phitex") {
-      if (!ctl.classList.contains("compact") && ctl.offsetWidth) fullRight = rightSpan(right) + 16;
-      ctl.classList.toggle("compact", bar.clientWidth - leftSpan(left) < fullRight);
-    }
-    // (then, if the bar still has no room: the switch says "PDF | ⚡", back in full once the
-    // room it takes is there again. Decided on the wider of the two modes' needs, each
-    // measured while it shows, so flipping the switch never changes its width too)
-    if (sw.classList.contains("narrow")) swNarrow = sw.offsetWidth || swNarrow;
-    else swFull = sw.offsetWidth || swFull;
-    // (then ± Changes without its word; then the status its time alone ("· 97 ms"), the clean rebuild and the
-    // download's ▾ left to Recompile's menu and the download; then no status at all, never one cut short. Each
-    // step's room measured while it shows; every step decided on what the bar needs with all of them undone)
-    const lf = document.getElementById("phitex-left"), chg = document.getElementById("phitex-changes");
-    const ours = lf && chg && mode === "phitex";
-    if (ours) {
-      const word = chg.querySelector<HTMLElement>(".button-content");
-      const st = document.getElementById("phitex-status");
-      if (!lf.classList.contains("tight") && word?.offsetWidth) chgWord = word.offsetWidth + 5;
-      const lean = [document.getElementById("phitex-clean"), document.getElementById("phitex-dlmore")];
-      if (!lf.classList.contains("lean") && lean.every((e) => e?.offsetWidth)) leanW = lean.reduce((n, e) => n + e!.offsetWidth, 0);
-      // (the status's steps by what a build's status needs, not by what it says now)
-      if (st && statusNeed(st)) (statusWord = statusNeeds[0] - statusNeeds[1]), (statusAll = statusNeeds[1]);
-      const z = document.getElementById("phitex-zoom");
-      if (!ctl.classList.contains("nozoom") && z?.offsetWidth) zoomW = z.offsetWidth + 4;
-    }
-    const given = ours ? (lf.classList.contains("lean") ? leanW : 0) + (lf.classList.contains("tight") ? chgWord : 0) + (lf.classList.contains("bare") ? statusWord : 0) + (lf.classList.contains("gone") ? statusAll : 0) + (ctl.classList.contains("nozoom") ? zoomW : 0) : 0;
-    needs[mode] = leftSpan(left) + rightSpan(right) + 16 + (sw.classList.contains("narrow") ? swFull - swNarrow : 0) + given;
-    sw.classList.toggle("narrow", Math.max(needs.pdf, needs.phitex) > bar.clientWidth);
-    if (ours) {
-      const need = needs[mode] - (sw.classList.contains("narrow") ? swFull - swNarrow : 0);
-      // (first what has a menu of its own: the clean rebuild (Recompile's) and the download's ▾ (its button);
-      // then ± Changes' word; then the status's words, then the status; and last the zoom's level (⋯ zooms))
-      let over = need;
-      const step = (el: Element, cls: string, saves: number) => (el.classList.toggle(cls, over > bar.clientWidth), (over -= saves));
-      step(lf, "lean", leanW);
-      step(lf, "tight", chgWord);
-      step(lf, "bare", statusWord);
-      step(lf, "gone", statusAll);
-      step(ctl, "nozoom", zoomW);
+    // (measured, decided, and measured again until nothing more gives way, all in this one pass: what a
+    // step frees is only known once it is taken (± Changes' word, the clean rebuild's room), and one
+    // step a tick took three ticks, 1.4 s, to settle once the toolbar was drawn; a first page that came
+    // within them saw the toolbar move under it (status-steady on the runner, nightly 45010729081))
+    for (let pass = 0, was = ""; pass < 4; pass++) {
+      if (mode === "phitex") {
+        if (!ctl.classList.contains("compact") && ctl.offsetWidth) fullRight = rightSpan(right) + 16;
+        ctl.classList.toggle("compact", bar.clientWidth - leftSpan(left) < fullRight);
+      }
+      // (then, if the bar still has no room: the switch says "PDF | ⚡", back in full once the
+      // room it takes is there again. Decided on the wider of the two modes' needs, each
+      // measured while it shows, so flipping the switch never changes its width too)
+      if (sw.classList.contains("narrow")) swNarrow = sw.offsetWidth || swNarrow;
+      else swFull = sw.offsetWidth || swFull;
+      // (then ± Changes without its word; then the status its time alone ("· 97 ms"), the clean rebuild and the
+      // download's ▾ left to Recompile's menu and the download; then no status at all, never one cut short. Each
+      // step's room measured while it shows; every step decided on what the bar needs with all of them undone)
+      const lf = document.getElementById("phitex-left"), chg = document.getElementById("phitex-changes");
+      const ours = lf && chg && mode === "phitex";
+      if (ours) {
+        const word = chg.querySelector<HTMLElement>(".button-content");
+        const st = document.getElementById("phitex-status");
+        if (!lf.classList.contains("tight") && word?.offsetWidth) chgWord = word.offsetWidth + 5;
+        const lean = [document.getElementById("phitex-clean"), document.getElementById("phitex-dlmore")];
+        if (!lf.classList.contains("lean") && lean.every((e) => e?.offsetWidth)) leanW = lean.reduce((n, e) => n + e!.offsetWidth, 0);
+        // (the status's steps by what a build's status needs, not by what it says now)
+        if (st && statusNeed(st)) (statusWord = statusNeeds[0] - statusNeeds[1]), (statusAll = statusNeeds[1]);
+        const z = document.getElementById("phitex-zoom");
+        if (!ctl.classList.contains("nozoom") && z?.offsetWidth) zoomW = z.offsetWidth + 4;
+      }
+      const given = ours ? (lf.classList.contains("lean") ? leanW : 0) + (lf.classList.contains("tight") ? chgWord : 0) + (lf.classList.contains("bare") ? statusWord : 0) + (lf.classList.contains("gone") ? statusAll : 0) + (ctl.classList.contains("nozoom") ? zoomW : 0) : 0;
+      needs[mode] = leftSpan(left) + rightSpan(right) + 16 + (sw.classList.contains("narrow") ? swFull - swNarrow : 0) + given;
+      sw.classList.toggle("narrow", Math.max(needs.pdf, needs.phitex) > bar.clientWidth);
+      if (ours) {
+        const need = needs[mode] - (sw.classList.contains("narrow") ? swFull - swNarrow : 0);
+        // (first what has a menu of its own: the clean rebuild (Recompile's) and the download's ▾ (its button);
+        // then ± Changes' word; then the status's words, then the status; and last the zoom's level (⋯ zooms))
+        let over = need;
+        const step = (el: Element, cls: string, saves: number) => (el.classList.toggle(cls, over > bar.clientWidth), (over -= saves));
+        step(lf, "lean", leanW);
+        step(lf, "tight", chgWord);
+        step(lf, "bare", statusWord);
+        step(lf, "gone", statusAll);
+        step(ctl, "nozoom", zoomW);
+        // (the local mock only: each change of what gave way, with what decided it, for the toolbar's checks)
+        if (location.hostname === "localhost") {
+          const k = `${lf.className}|${ctl.className}|${sw.className}`;
+          const g = globalThis as { __phitexBar?: { k: string; log: string[] } };
+          g.__phitexBar ??= { k: "", log: [] };
+          if (g.__phitexBar.k !== k) {
+            g.__phitexBar.k = k;
+            g.__phitexBar.log.push(`${Math.round(performance.now())} ms ${lf.className} | need ${Math.round(need)} bar ${bar.clientWidth} left ${Math.round(leftSpan(left))} right ${Math.round(rightSpan(right))} given ${Math.round(given)} | lean ${leanW} word ${chgWord} status ${statusNeeds.join("/")} ${statusFont} | st ${document.getElementById("phitex-status")?.clientWidth} ${document.getElementById("phitex-status")?.style.minWidth}`);
+          }
+        }
+      }
+      const now = `${document.getElementById("phitex-left")?.className}|${ctl.className}|${sw.className}`;
+      if (now === was) break;
+      was = now;
     }
     (sw.querySelector(`input[value="${mode}"]`) as HTMLInputElement).checked = true;
     if (newsPending) {

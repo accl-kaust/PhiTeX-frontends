@@ -9,7 +9,7 @@
    "what": "(the tab's CPU six times slower, as a loaded runner's: a first page over a second, then builds of a few hundred ms; the status must keep one width through the change of its words)"
   },
   {
-   "eval": "(() => { const st = document.getElementById('phitex-status'); const next = st.parentElement.lastElementChild; const s = globalThis.__steady = { xs: new Set(), ws: new Set(), texts: [], t0: performance.now(), on: true }; let last = ''; const f = () => { if (!s.on) return; s.xs.add(Math.round(next.getBoundingClientRect().left)); s.ws.add(Math.round(st.getBoundingClientRect().width)); const t = st.textContent; if (t !== last) (s.texts.push([Math.round(performance.now() - s.t0), t]), (last = t)); requestAnimationFrame(f); }; f(); })()",
+   "eval": "(() => { const st = document.getElementById('phitex-status'); const next = st.parentElement.lastElementChild; const s = globalThis.__steady = { xs: new Set(), ws: new Set(), texts: [], t0: performance.now(), on: true }; let last = ''; const f = () => { if (!s.on) return; s.xs.add(Math.round(next.getBoundingClientRect().left)); s.ws.add(Math.round(st.getBoundingClientRect().width)); const lf = document.getElementById('phitex-left'), at = (e) => Math.round(e.getBoundingClientRect().width); const c = [Math.round(next.getBoundingClientRect().left), at(st), lf.className, document.getElementById('phitex-controls')?.className.replace('pdfjs-viewer-controls ', ''), document.getElementById('phitex-switch')?.className.replace('editor-toggle-switch', 'sw'), [...lf.children].map(at).join(','), [...document.querySelectorAll('.toolbar-pdf-left > *, .toolbar-pdf-right button')].filter((e) => e.offsetWidth).map(at).join(','), document.fonts.status].join(' | '); if (c !== s.lc) ((s.log = s.log ?? []).push(Math.round(performance.now() - s.t0) + ' ms: ' + c + ' | ' + st.textContent), (s.lc = c)); const t = st.textContent; if (t !== last) (s.texts.push([Math.round(performance.now() - s.t0), t]), (last = t)); requestAnimationFrame(f); }; f(); })()",
    "page": true
   },
   {
@@ -25,6 +25,15 @@
    "page": true
   },
   {
+   "eval": "JSON.stringify(globalThis.__steady.log)",
+   "page": true,
+   "what": "(each change of the toolbar while recorded: when, the next item's x, the status's width, the classes, every item's width, the fonts' status, the words)"
+  },
+  {
+   "eval": "JSON.stringify(globalThis.__phitexBar?.log)",
+   "what": "(each change of what gave way in the toolbar, and what decided it)"
+  },
+  {
    "what": "nothing after the status moved, and the status kept one width",
    "check": "[globalThis.__steady.xs.size, globalThis.__steady.ws.size]",
    "is": [
@@ -32,6 +41,10 @@
     1
    ],
    "page": true
+  },
+  {
+   "check": "(() => { const l = (globalThis.__phitexBar?.log ?? []).filter((e) => !/ right 0 /.test(e)).map((e) => parseInt(e)); return l.length > 0 && l.every((t) => t - l[0] < 50) || l; })()",
+   "what": "the toolbar settled in one pass once drawn whole: what gives way decided together, never a step a tick"
   },
   {
    "what": "the words drawn no faster than four times a second (changes per second, rounded up)",
