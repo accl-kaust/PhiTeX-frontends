@@ -750,6 +750,10 @@ for (const s of sc.steps ?? []) {
       if (!pages) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: { ...s, at: k + 1 } }), (process.exitCode = 1));
       if (pages) budget(s.budget, st, `reload ${k + 1}`);
     }
+  } else if (s.throttle !== undefined) {
+    // (the tab's CPU slowed `throttle` times (1: as it is), as a loaded runner's: builds over a second)
+    await call("Emulation.setCPUThrottlingRate", { rate: s.throttle });
+    console.log(`throttle → ${s.throttle}×`);
   } else if (s.tab !== undefined) {
     // ("detached": Overleaf's "Open PDF in separate tab" view of the project ("pid"), opened once and brought to the
     // front; "main": the editor's tab again. The steps after it run in that tab)

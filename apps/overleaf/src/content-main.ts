@@ -1278,35 +1278,40 @@ function dockInOverleaf(panel: Panel): Dock {
     return kids.length ? Math.max(...kids.map((r) => r.right)) - Math.min(...kids.map((r) => r.left)) + cut + 8 : 0;
   }
   /**
-   * The width the status needs: its label's kind (the last build's label,
-   * "Built" or "First page", a step under way keeping it) at the worst time
-   * of its unit ("Built · 999 ms" while builds take under a second, "First
-   * page · 99.9 s" once one takes seconds), in its own fonts; before a
-   * build, "Built · 999 ms". Changes only when the kind does, never with
-   * each build's time, so what gives way stays put while builds run. Its
-   * time alone when bare.
+   * The width the status needs: one width whatever the builds do, the
+   * widest of what a build's status says ("Built" or "First page", at the
+   * worst time of each unit: "· 999 ms", "· 99.9 s", "· 99 min"), in its
+   * own fonts; its time alone when bare. Never by the words it says now or
+   * the last build's kind: a first page over a second, then builds of a
+   * few ms, moved what gives way and everything after it (a runner's
+   * fonts, nightly 45005369645). Its box held at least that wide
+   * (min-width), so nothing after it moves as its words change; said on
+   * it (data-need) for the toolbar's checks.
    */
   let statusNeeds: [number, number] = [0, 0];
-  let statusKind: [string, string] = ["Built", "· 1 ms"];
+  let statusFont = "";
   let measure: CanvasRenderingContext2D | null = null;
   function statusNeed(st: HTMLElement): number {
     const word = st.querySelector<HTMLElement>(".phitex-st-text"), time = st.querySelector<HTMLElement>(".phitex-st-more");
     measure ??= document.createElement("canvas").getContext("2d");
     if (!measure || !word || !time) return 120;
-    // (a step under way ("Typesetting…") keeps the kind before it: only a build's own label sets it)
-    if (boot.built && word.textContent && !/…$/.test(word.textContent)) statusKind = [word.textContent, time.textContent ?? ""];
-    const [label, t] = statusKind;
-    const worst = /\d\s*s$/.test(t) ? "· 99.9 s" : /min$/.test(t) ? "· 99 min" : "· 999 ms";
     const font = (e: HTMLElement) => {
       const c = getComputedStyle(e);
       return `${c.fontStyle} ${c.fontWeight} ${c.fontSize} ${c.fontFamily}`;
     };
-    measure.font = font(word);
-    const w = measure.measureText(label).width;
-    measure.font = font(time);
-    const tw = measure.measureText(worst).width;
-    statusNeeds = [Math.ceil(w + tw + 4 + 16), Math.ceil(tw + 16)];
-    return statusNeeds[st.closest(".bare") ? 1 : 0];
+    const fw = font(word), ft = font(time);
+    // (measured again only when its fonts change: Overleaf's theme or zoom)
+    if (fw + ft !== statusFont) {
+      statusFont = fw + ft;
+      measure.font = fw;
+      const w = Math.max(...["Built", "First page"].map((l) => measure!.measureText(l).width));
+      measure.font = ft;
+      const tw = Math.max(...["· 999 ms", "· 99.9 s", "· 99 min"].map((t) => measure!.measureText(t).width));
+      statusNeeds = [Math.ceil(w + tw + 4 + 16), Math.ceil(tw + 16)];
+    }
+    const need = statusNeeds[st.closest(".bare") ? 1 : 0];
+    if (st.dataset.need !== String(need)) (st.dataset.need = String(need)), (st.style.minWidth = `${need}px`);
+    return need;
   }
   /** The right side's: its first shown button to its last. */
   function rightSpan(right: Element): number {
