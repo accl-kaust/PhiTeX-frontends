@@ -359,8 +359,8 @@
    "what": "the status's title says the state it shows, not the start's"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const l = [...document.querySelectorAll('#phitex-left > *')].filter((e) => e.offsetWidth).map((e) => e.getBoundingClientRect().right), r = [...document.querySelectorAll('.toolbar-pdf-right button')].filter((e) => e.offsetWidth).map((e) => e.getBoundingClientRect().left); const st = document.getElementById('phitex-status'); const spare = Math.min(...r) - Math.max(...l) + st.clientWidth - [...st.children].reduce((n, e) => n + e.scrollWidth, 0) - 20; return document.querySelector('#phitex-changes .button-content').offsetWidth > 0 || spare < 60 || { spare, cls: document.getElementById('phitex-left').className }; })()",
-   "what": "1600 px, Overleaf's split: \u00b1 Changes keeps its word whenever the room for it is there (the status's spare room counted)"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const lf = document.getElementById('phitex-left'), st = document.getElementById('phitex-status'), time = st.querySelector('.phitex-st-more'); if (!lf.classList.contains('tight')) return document.querySelector('#phitex-changes .button-content').offsetWidth > 0; const was = time.textContent; lf.classList.remove('tight'); time.textContent = /\\d\\s*s$/.test(was) ? '\u00b7 99.9 s' : /min$/.test(was) ? '\u00b7 99 min' : '\u00b7 999 ms'; const l = [...document.querySelectorAll('.toolbar-pdf-left > *, #phitex-left > *')].filter((e) => e.offsetWidth).map((e) => e.getBoundingClientRect().right), r = [...document.querySelectorAll('.toolbar-pdf-right button')].filter((e) => e.offsetWidth).map((e) => e.getBoundingClientRect().left); const room = Math.min(...r) - Math.max(...l) + st.clientWidth - 16 - [...st.children].reduce((n, e) => n + e.scrollWidth, 0); lf.classList.add('tight'); time.textContent = was; return room < 24 || { room }; })()",
+   "what": "1600 px, Overleaf's split: \u00b1 Changes drops its word only when, with it, the bar would have less than its 24 px of air (the status at its worst time, in the runner's own fonts)"
   },
   {
    "shot": "toolbar-1600-light"
@@ -825,22 +825,11 @@
    "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; C.querySelectorAll('.prow, .crow').forEach((e) => (e.__kept = 1)); return fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => (globalThis.__reads = n)); })()"
   },
   {
-   "click": "#chg-fold"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const pop = C.querySelector('.chg-pop').getBoundingClientRect(), h = C.querySelector('.ttl h2').getBoundingClientRect(), g = C.querySelector('#chg-gear').getBoundingClientRect(), x = C.querySelector('#chg-x').getBoundingClientRect(); return !C.querySelector('#chg-fold') && !C.querySelector('.chg-pop.folded') && Math.abs((h.left + h.right) / 2 - (pop.left + pop.right) / 2) < 2 && g.left > h.right && x.left > g.right && pop.right - x.right < 16 || [h.left, h.right, pop.left, pop.right]; })()",
+   "what": "the title row: the title centred, \u2699 and \u2715 at the right, no fold"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const pop = C.querySelector('.chg-pop'); return pop.classList.contains('folded') && pop.getBoundingClientRect().height < 130 && getComputedStyle(C.querySelector('.body')).display === 'none' && !!C.querySelector('[data-m=blame][aria-pressed=true]') && C.querySelector('#chg-fold').getAttribute('aria-expanded') === 'false'; })()",
-   "what": "Fold: the title row and Diff/Blame only"
-  },
-  {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20; })()",
-   "what": "folded: the marks still on the pages"
-  },
-  {
-   "check": "chrome.storage.local.get('panel').then((p) => p.panel?.changes?.folded)",
-   "what": "folded: kept with the panel's settings"
-  },
-  {
-   "shot": "folded-light"
+   "shot": "title-light"
   },
   {
    "eval": "(() => { document.body.dataset.theme = 'default'; document.querySelector('phitex-preview').parentElement.classList.add('pdf-dark-mode'); return true; })()",
@@ -850,7 +839,7 @@
    "wait": 800
   },
   {
-   "shot": "folded-dark"
+   "shot": "title-dark"
   },
   {
    "eval": "(() => { document.body.dataset.theme = 'light'; document.querySelector('phitex-preview').parentElement.classList.remove('pdf-dark-mode'); return true; })()",
@@ -860,25 +849,11 @@
    "wait": 400
   },
   {
-   "pointer": "",
-   "at": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const pop = C.querySelector('.chg-pop').getBoundingClientRect(); const st = P.querySelector('#stage'); for (let n = 0; n < 30; n++) { const b = [...P.querySelectorAll('.slot .bl-bar:not(.bl-hatch):not(.bl-wait)')].find((b) => { const r = b.getBoundingClientRect(); return r.top > pop.bottom + 12 && r.bottom < innerHeight - 30 && r.height > 4; }); if (b) { const r = b.getBoundingClientRect(); return [r.right + 60, r.top + r.height / 2]; } st.scrollTop += 120; } return null; })()",
-   "ms": 600
-  },
-  {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !P.querySelector('.blcard').hidden; })()",
-   "what": "folded: the card still comes",
-   "ms": 3000
-  },
-  {
-   "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads)",
-   "what": "folding reads nothing"
-  },
-  {
    "viewport": 1100
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const pop = C.querySelector('.chg-pop').getBoundingClientRect(), b = document.getElementById('phitex-changes').getBoundingClientRect(), w = P.querySelector('.win').getBoundingClientRect(); return pop.left >= w.left - 1 && pop.right <= w.right + 1 && pop.top >= b.bottom - 1 && pop.height < 130; })()",
-   "what": "a narrow pane: folded, within the pane, under its button",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const pop = C.querySelector('.chg-pop').getBoundingClientRect(), b = document.getElementById('phitex-changes').getBoundingClientRect(), w = P.querySelector('.win').getBoundingClientRect(), h = C.querySelector('.ttl h2').getBoundingClientRect(); return pop.left >= w.left - 1 && pop.right <= w.right + 1 && pop.top >= b.bottom - 1 && Math.abs((h.left + h.right) / 2 - (pop.left + pop.right) / 2) < 2; })()",
+   "what": "a narrow pane: within the pane, under its button, its title centred",
    "ms": 3000
   },
   {
@@ -887,21 +862,18 @@
    "ms": 5000
   },
   {
-   "shot": "folded-narrow-light"
+   "shot": "narrow-light"
   },
   {
    "viewport": 0
   },
   {
-   "click": "#chg-fold"
-  },
-  {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !C.querySelector('.chg-pop').classList.contains('folded') && C.querySelectorAll('.prow').length === 4; })()",
-   "what": "unfolded: the lists back"
+   "eval": "(() => { document.dispatchEvent(new Event('visibilitychange')); return 1; })()",
+   "page": true
   },
   {
    "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads + 1)",
-   "what": "unfolded on Blame: the history asked once (one small read)",
+   "what": "the browser tab shown again on Blame: the history asked once (one small read)",
    "ms": 5000
   },
   {
@@ -913,19 +885,7 @@
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.prow, .crow')].every((e) => e.__kept === 1); })()",
-   "what": "unfolded: the lists' nodes the same ones"
-  },
-  {
-   "eval": "(() => { document.dispatchEvent(new Event('visibilitychange')); return 1; })()",
-   "page": true
-  },
-  {
-   "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads + 2)",
-   "what": "the browser tab shown again: the history asked once more",
-   "ms": 5000
-  },
-  {
-   "click": "#chg-fold"
+   "what": "the lists' nodes the same ones"
   },
   {
    "pointer": ".chg-pop .ttl h2",
@@ -939,7 +899,7 @@
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').hidden; })()",
-   "what": "folded: Esc still closes it"
+   "what": "Esc closes it"
   },
   {
    "pointer": "#phitex-changes",
@@ -947,11 +907,12 @@
    "ms": 800
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').classList.contains('folded'); })()",
-   "what": "opened again: still folded"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelectorAll('.prow').length; })()",
+   "what": "opened again on Blame: the lists at once",
+   "is": 4
   },
   {
-   "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads + 3)",
+   "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads).then((n) => n === globalThis.__reads + 2)",
    "what": "opened again on Blame: the history asked once more",
    "ms": 5000
   },
@@ -974,6 +935,10 @@
    "is": 0
   },
   {
+   "check": "chrome.storage.local.get('panel').then((p) => chrome.storage.local.set({ panel: { ...p.panel, changes: { ...p.panel.changes, folded: true } } })).then(() => true)",
+   "what": "(an earlier build's folded kept)"
+  },
+  {
    "reload": 1,
    "ms": 120000
   },
@@ -991,11 +956,13 @@
    "ms": 900
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').classList.contains('folded'); })()",
-   "what": "reloaded: still folded, as kept"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !C.querySelector('.chg-pop.folded') && !C.querySelector('#chg-fold') && getComputedStyle(C.querySelector('.body')).display !== 'none'; })()",
+   "what": "an earlier build's \"folded\" kept: opened whole all the same"
   },
   {
-   "click": "#chg-fold"
+   "check": "chrome.storage.local.get('panel').then((p) => !('folded' in (p.panel?.changes ?? {})))",
+   "what": "and the old key dropped from the settings kept",
+   "ms": 3000
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('#chg-blame-go') !== null && C.querySelectorAll('.prow').length === 0; })()",
