@@ -26,6 +26,8 @@
 //       { "recompile": true },       // Overleaf's Recompile (the local pdflatex)
 //       { "dblpage": [0, 0.3, 0.4] }, // double-click page 0 at 30% across, 40% down: the editor's selection after
 //       { "cursor": "Every writer" },  // the cursor put in that text: the word's highlight boxes 150 ms after
+//       { "select": "Every writer", "lines": 3 }, // that text selected in the editor: the page's marks 1.5 s after,
+//                                    // one a line on 3 lines and no cursor's word marked, else the run fails
 //       { "dbltext": "Every writer" }, // double-click the editor at that text: the page's highlight boxes after
 //       { "dbloutline": "Section 3" }, // double-click that heading in the file outline
 //       { "replacefile": "fig.png", "b64": "…", "ms": 60000 }, // the binary file replaced as Overleaf says it is; until the session's PDF changes, else the run fails
@@ -955,6 +957,14 @@ for (const s of sc.steps ?? []) {
     await sleep(1500);
     s.result = await evalIn(`[...document.querySelector("phitex-preview").shadowRoot.querySelectorAll(".mark.sel")].map((m) => m.parentElement.dataset.k + "@" + m.style.top)`, true);
     console.log("select →", JSON.stringify(s.result));
+    // (`"lines": n`: the selection marked on n lines of the pages, a mark each, and no cursor's word
+    // marked beside it (the word its end stands before); else the run fails)
+    if (s.lines !== undefined) {
+      const cursor = await evalIn(`document.querySelector("phitex-preview").shadowRoot.querySelectorAll(".mark:not(.sel):not(.fnd):not(.seltext):not(.fade)").length`, true);
+      const lines = new Set(s.result ?? []).size;
+      console.log(`select: ${lines} lines marked (want ${s.lines}), ${cursor} cursor marks (want 0)`);
+      if (lines !== s.lines || lines !== (s.result ?? []).length || cursor !== 0) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
+    }
   } else if (s.auxdump !== undefined) {
     // (the auxiliary files carried in, held and written: into DIR/<name>/{carried,files,written}/)
     const j = await evalIn(`(async () => (await globalThis.__phitexSession.core.request({ op: "auxdump" })).json)()`, true);

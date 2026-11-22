@@ -386,13 +386,16 @@ export class Core {
   /**
    * The graph kept for `doc`, given to the core before its open (`on`:
    * graphs kept, the host's setting): its first build loads it where its
-   * keys hold. Whether graphs are kept for this open.
+   * keys hold. Whether graphs are kept for this open. `fresh` (a clean
+   * rebuild): the one kept dropped, none given, the build made from the
+   * start; its own saved as any build's.
    */
-  async giveGraph(doc: string, on: boolean): Promise<boolean> {
+  async giveGraph(doc: string, on: boolean, fresh = false): Promise<boolean> {
     const g = this.o.graphs;
     on &&= !!g;
     let b: Uint8Array | null = null;
-    if (on) {
+    if (on && fresh) await g!.drop(doc).catch((e) => this.o.log?.(`graph ${doc}: ${e}\n`));
+    else if (on) {
       try {
         b = await g!.get(doc);
       } catch (e) {
@@ -897,7 +900,7 @@ export class CoreSession implements CoreTransport {
         for (const [name, text] of Object.entries(o.files)) if (name !== o.main) this.opened.set(name, this.core.provide(name, { path: "./" + name, bytes: new TextEncoder().encode(text) }));
         const text = o.files[o.main] ?? "";
         // (the document's graph, where the host keeps graphs and its setting says so: given before the open)
-        const graph = await this.core.giveGraph(o.main, await (this.core.graphs?.on() ?? Promise.resolve(false)).catch(() => false));
+        const graph = await this.core.giveGraph(o.main, await (this.core.graphs?.on() ?? Promise.resolve(false)).catch(() => false), !!o.clean);
         this.core.open({ ...this.opts, main: o.main, text, engine: engineFor(text, o.engine ?? this.opts.engine), latexmk: o.latexmk, projectFiles: o.projectFiles, graph });
       } catch (e) {
         return { ok: false, error: String(e) };

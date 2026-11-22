@@ -177,3 +177,17 @@ test("a core's files across its previews: one removed, and those another open no
   assert.deepEqual(said.splice(0).sort(), ["a.tex withdrawn", "fig.png 1", "new.pdf withdrawn"]);
   assert.equal(jobPdf("src/thesis.tex"), "src/thesis.pdf");
 });
+
+test("a clean rebuild's rescan: the files changed and removed with no event heard (the machine asleep) given, the rest not", async () => {
+  const t = setup();
+  t.write("part.tex", "part, edited while no event came");
+  t.write("chap/two.tex", "a new chapter");
+  rmSync(join(t.folder, "refs.bib"));
+  await t.sync.rescan();
+  assert.deepEqual(t.log.slice().sort(), ["changed chap/two.tex part.tex refs.bib", "give chap/two.tex a new chapter", "give part.tex part, edited while no event came", "give refs.bib null"]);
+  // (nothing moved since: a second rescan gives nothing)
+  t.log.length = 0;
+  await t.sync.rescan();
+  assert.deepEqual(t.log, []);
+  t.done();
+});
