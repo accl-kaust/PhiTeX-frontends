@@ -41,6 +41,15 @@ function shellOf(root: string, log: (s: string) => void) {
   });
 }
 
+/** The core's module, compiled once a session: a compare's core is another instance of the editor's. */
+const modules = new Map<string, Promise<WebAssembly.Module>>();
+const compiled = (root: string) => {
+  let m = modules.get(root);
+  if (!m) modules.set(root, (m = readFile(join(root, "dist/core.wasm")).then((b) => WebAssembly.compile(b))));
+  m.catch(() => modules.delete(root));
+  return m;
+};
+
 /**
  * The core for the extension at `root`; `folder()`: the project shown, whose
  * document keys are its own; `trapped`: told when a thread traps (the core
@@ -53,7 +62,7 @@ export async function startCore(root: string, folder: () => string, log: (s: str
   let told = false;
   // (which Shelf host answers first, found while the core compiles)
   void order();
-  const core = await Core.start(await WebAssembly.compile(await readFile(join(root, "dist/core.wasm"))), {
+  const core = await Core.start(await compiled(root), {
     spawn: spawner(pathToFileURL(join(root, "dist/thread.js"))),
     fetch: pack,
     resolve: texmfFile,

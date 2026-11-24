@@ -279,8 +279,7 @@ if (location.hostname === "localhost") {
         // (FNV-1a, here: crypto.subtle's answer would be the page's ArrayBuffer in Firefox)
         let h = 0x811c9dc5;
         for (const b of pdf ?? []) h = Math.imul(h ^ b, 0x01000193) >>> 0;
-        const shown = (globalThis as unknown as { __phitexCompare?: { shown(): { texts(): Record<string, string> } } }).__phitexCompare?.shown();
-        const state = { session: !!s, pdf: pdf ? `${pdf.length}:${h.toString(16)}` : "", diffTex: shown?.texts()["diff.tex"] ?? null, failed: boot.failed, stage: boot.stage, errors: [...boot.errors, ...devErrors.slice(-30)] };
+        const state = { session: !!s, pdf: pdf ? `${pdf.length}:${h.toString(16)}` : "", diffTex: (globalThis as unknown as { __phitexCompare?: { tex(): string | null } }).__phitexCompare?.tex() ?? null, failed: boot.failed, stage: boot.stage, errors: [...boot.errors, ...devErrors.slice(-30)] };
         window.postMessage({ src: "phitex-dev", type: "stated", state: JSON.stringify(state) }, location.origin);
       })();
     } else if (e.data.type === "exact") {
@@ -487,15 +486,11 @@ const GONE = "PhiTeX Instant was updated or reloaded: reload this tab to use it"
  * The tab's engine: an extension page in a hidden iframe of this tab
  * (engine.html, engine.ts), its core a worker there, and a MessagePort to
  * it, as the web demo talks to its worker: requests and replies are
- * structured clones, bytes as they are. Each transport is a core of its own
- * (the tab's, a compare's), gone with its iframe.
+ * structured clones, bytes as they are. One for the tab, its core gone
+ * with its iframe; a compare's marked-up document is another document of
+ * that same core (docOf).
  */
 class FrameTransport implements CoreTransport {
-  /** Whether the core keeps its document's persisted graph (the tab's; a compare's marked-up document keeps none). */
-  private graph: boolean;
-  constructor(graph = true) {
-    this.graph = graph;
-  }
   private port!: MessagePort;
   private frame: HTMLIFrameElement | undefined;
   private nextId = 1;
@@ -524,7 +519,13 @@ class FrameTransport implements CoreTransport {
       this.port.onmessage = (m: MessageEvent<any>) => {
         const r = m.data;
         if (r.event === "engine") return r.ok ? ok() : no(new Error(r.error));
-        if (r.event) return this.events.forEach((f) => f(r));
+        // (a compare's document's events to its view (doc), the rest to the editor's; the
+        // engine's worker gone (its trap, no doc) is every document's)
+        if (r.event) {
+          if (typeof r.doc === "string") return this.docEvents.get(r.doc)?.forEach((f) => f(r));
+          if (r.event === "trapped") for (const fs of this.docEvents.values()) fs.forEach((f) => f(r));
+          return this.events.forEach((f) => f(r));
+        }
         this.answer(r.id, r);
       };
     });
@@ -537,7 +538,7 @@ class FrameTransport implements CoreTransport {
     wait("its page loaded, waiting for it to answer");
     await started;
     // (the project: the core keeps the document's records under it)
-    this.port.postMessage({ id: 0, op: "hello", project: project(), graph: this.graph });
+    this.port.postMessage({ id: 0, op: "hello", project: project() });
   }
   private answer(id: number, r: CoreRes) {
     this.waiting.get(id)?.(r);
@@ -548,7 +549,28 @@ class FrameTransport implements CoreTransport {
   private lost(why: string) {
     this.gone_ ??= why;
     for (const id of [...this.waiting.keys()]) this.answer(id, { ok: false, error: why } as CoreRes);
-    this.events.forEach((f) => f({ event: "trapped", error: why } as unknown as CoreEvent));
+    for (const f of [...this.events, ...[...this.docEvents.values()].flat()]) f({ event: "trapped", error: why } as unknown as CoreEvent);
+  }
+  /** Each other document's event listeners, by its name (docOf). */
+  private docEvents = new Map<string, ((e: CoreEvent) => void)[]>();
+  /**
+   * Another document on this same core (Compare's marked-up one, "diff"):
+   * its requests carry its name, its events come to its listeners only.
+   * The engine's worker runs it beside the editor's (worker1.ts): the
+   * format, the store, Shelf's index and the packs had are shared, nothing
+   * started or fetched again. Its close ends that document's core alone.
+   */
+  docOf(doc: string): CoreTransport & { close(): void } {
+    const listeners: ((e: CoreEvent) => void)[] = [];
+    this.docEvents.set(doc, listeners);
+    return {
+      request: (req) => this.request({ ...req, doc } as unknown as CoreReq),
+      onEvent: (cb) => void listeners.push(cb),
+      close: () => {
+        if (this.docEvents.get(doc) === listeners) this.docEvents.delete(doc);
+        void this.request({ op: "close", doc } as never);
+      },
+    };
   }
   /** Let go of the core (a compare stopped): its iframe, and the core with it. */
   close(): void {
@@ -1766,8 +1788,10 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
 
   /**
    * A compare (diffui.ts's runner, compare.ts): the version's files from
-   * Overleaf's history, the marked-up document's session on a port of its
-   * own, its binary files the project's as last read.
+   * Overleaf's history, the marked-up document's session on the editor's
+   * core (another document of its worker, FrameTransport.docOf: the
+   * project's figures, format and packs already there), in the session's
+   * remote mode as the editor's is.
    */
   function compareWith(host: OverleafHost, core: FrameTransport, opts: ConstructorParameters<typeof PreviewSession>[3]): Compare<Version> {
     return new Compare<Version>({
@@ -1779,9 +1803,7 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
         return (await filesAt(project(), v.v, pageFetch)).files;
       },
       async connect() {
-        const t = new FrameTransport(false);
-        await t.connect();
-        for (const [p, b] of Object.entries(lastBinaries)) await t.request({ op: "binary", file: p, bytes: b } as never);
+        const t = core.docOf("diff");
         // (the diff's pages as strips too, composed here)
         return new StripPages(t, panel, panel.stripsChip());
       },
@@ -1796,7 +1818,10 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
         setTimeout(() => URL.revokeObjectURL(url), 10_000);
       },
       msg: (t) => panel.msg(t, true),
-      options: opts ?? {},
+      // (the session's remote mode, as the editor's: this core tells its builds as `phitex watch`
+      // does; out of it the diff's problems were dropped and a diff that stopped before a page
+      // showed "Fetching packages" for ever. Its double-clicks mapped to the user's file, compare.ts)
+      options: { ...(opts ?? {}), remote: { source: () => undefined } },
     });
   }
   chrome.storage.onChanged.addListener((c) => {
