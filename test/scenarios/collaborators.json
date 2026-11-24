@@ -1,0 +1,53 @@
+{
+ "project": "test/scenarios/ci",
+ "name": "collaborators",
+ "strict": true,
+ "//": "Collaborators on the PDF: each collaborator's cursor, as Overleaf keeps it (its cursor highlights, tools/mock/editor/editor.mjs), marked on the pages in their colour with their name; moved when they move, gone when they leave.",
+ "steps": [
+  {
+   "idle": 1500
+  },
+  {
+   "check": "(mockEditor.collaborators([{ label: 'Ada Lovelace', hue: 200, pos: mockEditor.text().indexOf('release gate') + 2 }]), true)",
+   "page": true,
+   "what": "(Ada's cursor in \"release\")"
+  },
+  {
+   "what": "her cursor on the page: her name, in her colour, at \"release\"",
+   "check": "(() => { const R = document.querySelector('phitex-preview')?.shadowRoot; const t = R && [...R.querySelectorAll('.peer-tag')].find((e) => e.textContent === 'Ada Lovelace'); return !!t && t.style.getPropertyValue('--hue') === '200' && R.querySelectorAll('.peer:not(.peer-tag)').length > 0; })()",
+   "ms": 10000
+  },
+  {
+   "what": "and seen: her name's tag and her word's tint have a size and a colour on the page",
+   "check": "(() => { const R = document.querySelector('phitex-preview').shadowRoot; const t = R.querySelector('.peer-tag'), m = R.querySelector('.peer:not(.peer-tag)'); const r = t.getBoundingClientRect(), q = m.getBoundingClientRect(); return r.width > 4 && r.height > 4 && q.width > 2 && q.height > 2 && getComputedStyle(t).backgroundColor !== 'rgba(0, 0, 0, 0)' && getComputedStyle(t).display !== 'none' && getComputedStyle(m).visibility !== 'hidden' || { tag: [r.width, r.height, getComputedStyle(t).backgroundColor, getComputedStyle(t).display], mark: [q.width, q.height] }; })()",
+   "ms": 5000
+  },
+  {
+   "shot": "ada"
+  },
+  {
+   "check": "(() => { const R = document.querySelector('phitex-preview').shadowRoot; window.__adaAt = R.querySelector('.peer-tag').getBoundingClientRect().top; return true; })()",
+   "what": "(where her name is)"
+  },
+  {
+   "check": "(mockEditor.collaborators([{ label: 'Ada Lovelace', hue: 200, pos: mockEditor.text().indexOf('e^{i') + 1 }]), true)",
+   "page": true,
+   "what": "(Ada moves to the equation)"
+  },
+  {
+   "what": "her mark moved with her: one name, lower on the page",
+   "check": "(() => { const R = document.querySelector('phitex-preview').shadowRoot; const t = [...R.querySelectorAll('.peer-tag')]; return t.length === 1 && t[0].getBoundingClientRect().top > window.__adaAt + 5; })()",
+   "ms": 10000
+  },
+  {
+   "check": "(mockEditor.collaborators([]), true)",
+   "page": true,
+   "what": "(Ada leaves)"
+  },
+  {
+   "what": "and gone when she leaves",
+   "check": "document.querySelector('phitex-preview').shadowRoot.querySelectorAll('.peer').length === 0",
+   "ms": 10000
+  }
+ ]
+}

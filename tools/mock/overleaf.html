@@ -89,7 +89,7 @@ new WebSocket(location.origin.replace(/^http/, "ws") + "/socket.io");
 // CodeMirror 6, as Overleaf runs it (tools/mock/editor/editor.mjs, bundled by
 // tools/build/mock-editor.sh): the extension's hook finds its EditorView from
 // `.cm-editor .cm-content`, as on overleaf.com.
-import { EditorState, EditorView, extensions } from "/project/mock/editor.js";
+import { EditorState, EditorView, extensions, setCursorHighlights } from "/project/mock/editor.js";
 const ext = extensions(() => {});
 const view = new EditorView({ state: EditorState.create({ doc: "", extensions: ext }), parent: document.getElementById("editor") });
 let docs = await (await fetch("/project/mock/docs")).json();
@@ -179,6 +179,8 @@ window.mockEditor = {
   /** The selection, as a click or drag makes it (then focus, as a click). */
   select(anchor, head = anchor) { view.dispatch({ selection: { anchor, head }, userEvent: "select.pointer" }); view.focus(); },
   open: (path) => openDoc(docs.find((d) => d.path === path)),
+  /** Collaborators' cursors, as Overleaf's socket tells it: [{ label, hue, pos }], the whole set ([] none). */
+  collaborators(list) { view.dispatch({ effects: setCursorHighlights.of(list) }); },
   text: () => view.state.doc.toString(),
 };
 // (the main file: main.tex, else the doc with \documentclass)
