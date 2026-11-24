@@ -62,8 +62,11 @@
 //                  // changing (an animation playing) is `is`, else the run fails
 //   { "zipmode": "ok", "until": "expr", "ms": 60000 } // the mock's downloads answer so from here (a held one sent
 //                  // whole), the tab not reloaded; until `expr` (content script) holds, else the run fails
-//                { "debuginfo": "status" | "logs", "has": ["regex", …], "hasnt": […] } // Copy debug info reached from that
-//                  // toolbar button and copied; the clipboard's text has each, and none of hasnt
+//   { "ua": { "userAgent": "…", "metadata": { "platform": "macOS", "platformVersion": "27.2.1", … } } } // the tab's
+//                  // user agent and client hints as another machine's (Emulation.setUserAgentOverride)
+//                { "debuginfo": "status" | "logs", "has": ["regex", …], "hasnt": […], "badge": true } // Copy debug info reached from that
+//                  // toolbar button and copied; the clipboard's text has each, and none of hasnt; "badge": its problems line
+//                  // (errors + warnings) the diagnostics button's badge
 //   "root": "report.tex"         // (top level) Overleaf's main document for the project (the mock's MOCK_ROOT; unset, none)
 //   "history": "test/scenarios/changes.history.json" // (top level) the project's history (the mock's MOCK_HISTORY:
 //                  // a generated one, change by change, tools/mock/history-gen.mjs; or a sketch of its sessions,
@@ -752,6 +755,12 @@ for (const s of sc.steps ?? []) {
       if (!pages) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: { ...s, at: k + 1 } }), (process.exitCode = 1));
       if (pages) budget(s.budget, st, `reload ${k + 1}`);
     }
+  } else if (s.ua !== undefined) {
+    // (`{"ua": {"userAgent": "…", "metadata": {platform, platformVersion, architecture, bitness, model, mobile,
+    // brands, fullVersionList}}}`: the tab's browser as another machine's (Emulation.setUserAgentOverride: its
+    // frozen string and its client hints), for this tab until the steps leave it)
+    await call("Emulation.setUserAgentOverride", { userAgent: s.ua.userAgent, userAgentMetadata: s.ua.metadata });
+    console.log(`ua → ${s.ua.metadata?.platform ?? "?"} ${s.ua.metadata?.platformVersion ?? ""} ${s.ua.metadata?.architecture ?? ""}`);
   } else if (s.throttle !== undefined) {
     // (the tab's CPU slowed `throttle` times (1: as it is), as a loaded runner's: builds over a second)
     await call("Emulation.setCPUThrottlingRate", { rate: s.throttle });
@@ -861,6 +870,12 @@ for (const s of sc.steps ?? []) {
     const text = (await evalIn(`navigator.clipboard.readText()`)) ?? "";
     await evalIn(`document.getElementById(${JSON.stringify(s.debuginfo === "logs" ? "phitex-logs" : "phitex-status")}).click()`);
     const miss = [...(s.has ?? []).filter((r) => !new RegExp(r, "m").test(text)), ...(s.hasnt ?? []).filter((r) => new RegExp(r, "m").test(text)).map((r) => `not ${r}`)];
+    // ("badge": true: its problems line counts what the diagnostics button's badge does, errors and warnings)
+    if (s.badge) {
+      const badge = Number((await evalIn(`document.getElementById("phitex-badge")?.textContent ?? ""`)) || 0);
+      const m = /^problems: (\d+) errors?, (\d+) warnings?/m.exec(text);
+      if (!m || +m[1] + +m[2] !== badge) miss.push(`the problems line ${m ? `${m[1]} + ${m[2]}` : "missing"} = the badge's ${badge}`);
+    }
     const ok = said === "clicked" && !miss.length;
     console.log(`${ok ? "ok  " : "FAIL"} ${s.what ?? "Copy debug info"}${ok ? "" : `: ${said}; ${miss.join(" | ")} in:\n${text}`}`);
     if (!ok) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
