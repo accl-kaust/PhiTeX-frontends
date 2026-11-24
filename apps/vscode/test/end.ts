@@ -67,11 +67,13 @@ async function core(open: boolean, settle: boolean) {
   return c;
 }
 
-/** `c` ended: its end resolved, every thread of its returned. */
+/** `c` ended: its end resolved, every thread of its returned, and every worker of its gone by then (none tearing down after). */
 async function ended(c: Awaited<ReturnType<typeof core>>, what: string) {
   const t = performance.now();
   const r = await within(c.core.end(), 120_000);
+  const left = liveWorkers();
   check(r !== "late" && c.core.threadCount === 0, `${what}: every thread returned (${Math.round(performance.now() - t)} ms${r === "late" ? ", NOT within 120 s: " + c.core.threadCount + " left" : ""})`);
+  check(r !== "late" && left === 0, `${what}: no worker of it left when its end resolves (${left} live)`);
 }
 
 const never = await core(false, false);

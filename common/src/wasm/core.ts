@@ -450,13 +450,25 @@ export class Core {
     this.threads.set(d.tid, this.o.spawn(d));
   }
 
-  /** Thread `tid` returned, or was ended: once none is left of an ending core, its channels closed and its end told. */
+  /**
+   * Thread `tid` returned, or was ended: counted gone once its worker is
+   * (the host's `exited`, where it tells one: a Node worker's isolate torn
+   * down, not only the thread's last message posted); once none is left of
+   * an ending core, its channels closed and its end told. Before, the end
+   * was told at the threads' last messages, their workers still tearing
+   * down while the next core started.
+   */
   private gone(tid: number): void {
-    this.threads.delete(tid);
-    if (this.ending && !this.threads.size) {
-      for (const c of this.channels) c.close();
-      this.ended();
-    }
+    const out = () => {
+      this.threads.delete(tid);
+      if (this.ending && !this.threads.size) {
+        for (const c of this.channels) c.close();
+        this.ended();
+      }
+    };
+    const w = this.threads.get(tid);
+    if (w?.exited) void w.exited.then(out);
+    else out();
   }
 
   private heard(m: ThreadMsg): void {
