@@ -1,0 +1,76 @@
+{
+ "project": "test/scenarios/changes-defs",
+ "history": "test/scenarios/changes-defs.history.json",
+ "strict": true,
+ "//": "changes-defs.json with the other looks (Settings, Changes): change bars, a marker for added text, a caret for deleted (its math fonts at script size, in a document with no math): a first comparison still downloads nothing.",
+ "storage": {
+  "tipsSeen": [
+   "compare",
+   "blame",
+   "timing",
+   "clean",
+   "dark",
+   "changes"
+  ],
+  "panel": {
+   "changes": {
+    "diff": {
+     "colors": "safe",
+     "ins": "mark",
+     "del": "caret",
+     "fig": "side",
+     "bars": true
+    }
+   }
+  },
+  "visits": {}
+ },
+ "steps": [
+  {
+   "onpage": "Introduction",
+   "ms": 60000
+  },
+  {
+   "idle": 1500
+  },
+  {
+   "check": "globalThis.__phitexSession.trace.some((x) => x.k === 'core: graph' && (x.d?.loaded === true || x.d?.saved > 0))",
+   "what": "the editor's graph kept (loaded at the open, or saved after its build)",
+   "ms": 60000
+  },
+  {
+   "compare": 1,
+   "ms": 60000
+  },
+  {
+   "check": "(globalThis.__phitexCompare?.c?.session?.hashes?.length ?? 0) > 0",
+   "what": "a first comparison: the diff's pages, within 20 s of its changes",
+   "ms": 20000
+  },
+  {
+   "check": "document.querySelectorAll('iframe[src$=\"engine.html\"]').length",
+   "what": "the diff on the editor's core: one engine, no second started",
+   "is": 1
+  },
+  {
+   "check": "(globalThis.__phitexCompare.c.session.trace ?? []).some((x) => x.k === 'core: graph' && x.d?.loaded === true)",
+   "what": "its first build an edit of the editor's (the editor's persisted graph loaded)",
+   "ms": 20000
+  },
+  {
+   "check": "(globalThis.__phitexCompare.c.session.trace ?? []).filter((x) => /host fetches/.test(x.k) && x.d?.state === 'fetching').map((x) => x.d.id)",
+   "what": "a first comparison downloads nothing (its packages kept at the extension's start)",
+   "is": []
+  },
+  {
+   "check": "globalThis.__phitexCompare.c.session.core.request({ op: 'diagnostics' }).then((r) => (r.json?.items ?? []).filter((i) => i.kind === 'error').map((i) => i.message))",
+   "what": "the diff's build without an error (each \\def knob changed whole, in force)",
+   "is": [],
+   "ms": 5000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return !/Fetching packages|stopped before a page/.test(P.querySelector('#empty')?.hidden === false ? P.querySelector('#empty').innerText : ''); })()",
+   "what": "no loading or stopped card over the diff"
+  }
+ ]
+}

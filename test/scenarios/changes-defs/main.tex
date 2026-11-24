@@ -1,0 +1,32 @@
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\newcommand\seedline[2]{#2 seeds, each turned #1 degrees.}
+\begin{document}
+\section{Introduction}
+Every figure has its knobs at its top: one number changed, and the figure
+is drawn again. 
+\section{A sunflower}
+Seeds placed at a fixed angle from each other pack into spirals only when
+that angle is the golden angle (Figure~\ref{fig:sunflower}).
+
+\begin{figure}[h]
+\centering
+\def\seedangle{222.5}% KNOB: degrees between seeds
+\def\seeds{140}%   KNOB: how many seeds
+\fbox{\seedline{\seedangle}{\seeds}}
+\caption{\seeds{} seeds, each turned \seedangle{} degrees from the last.}
+\label{fig:sunflower}
+\end{figure}
+
+\section{A square wave}
+A square wave is a sum of sine waves.
+
+\begin{figure}[h]
+\centering
+\gdef\terms{6}% KNOB: number of sine terms
+\fbox{The sum of the first \terms{} terms.}
+\caption{A square wave and the sum of its first \terms{} terms.}
+\end{figure}
+
+{\fontfamily{qpl}\selectfont Closing words, after the figures:} \terms{} terms in all.
+\end{document}

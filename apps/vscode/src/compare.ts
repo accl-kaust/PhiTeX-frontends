@@ -3,8 +3,12 @@
 // versions' files read by relay.ts's `vsc-log` and `vsc-files` from the
 // folder's git) gets the files as they are and each edit (`cmp-texts`),
 // latexdiff run here (the diff wasm, the `latexdiff` op), and the
-// marked-up document built by a second core of its own (requests and
-// events on channel 2); and the panel's View log (an editor tab), Clear
+// marked-up document built by a second core (requests and events on
+// channel 2): another instance of the compiled core (core.ts keeps the
+// module), its records apart from the editor's, its first build started
+// from the editor's persisted graph (the marked-up text opened as the
+// editor's main file, compare.ts: the editor's job), an edit of the
+// editor's build where that graph is kept; and the panel's View log (an editor tab), Clear
 // cache (phitex.caches) and a diff's file saved.
 
 import * as vscode from "vscode";
@@ -12,6 +16,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startCore } from "./core.ts";
 import { loadDiff, type DiffReq, type DiffReply } from "../../../common/src/viewer/diff.ts";
+import type { GraphStore } from "../../../common/src/wasm/graphs.ts";
 import type { CoreRes } from "../../../common/src/viewer/session.ts";
 import type { Down, Up } from "./webview.ts";
 
@@ -39,6 +44,8 @@ export interface CompareProject {
   files: string[];
   /** Its binary files (figures), given to the second core as to the first. */
   binaries: Record<string, Uint8Array>;
+  /** Where the editor's core keeps the document's persisted graph (the builtin engine's), read by the second core, never written. */
+  graphs?: GraphStore;
   log: (s: string) => void;
 }
 
@@ -69,7 +76,10 @@ export function compareHost(view: vscode.WebviewPanel, p: CompareProject): vscod
 
   async function open(): Promise<void> {
     try {
-      second ??= await startCore(p.root, () => p.folder, p.log);
+      // (its records under a key of their own (the marked-up document is the editor's job, its main
+      // file's name); the editor's graph read, none saved: the diff's is not the document's)
+      const graphs: GraphStore | undefined = p.graphs && { on: () => p.graphs!.on(), get: (d) => p.graphs!.get(d), put: async () => {}, drop: async () => {} };
+      second ??= await startCore(p.root, () => `${p.folder}~diff`, p.log, undefined, undefined, undefined, graphs);
       for (const [file, bytes] of Object.entries(p.binaries)) second.core.provide(file, { path: "./" + file, bytes });
       const s = second.session;
       stopEvents?.();

@@ -8,6 +8,7 @@ import { prefetch } from "./common/prefetch.ts";
 import { settled } from "./settings.ts";
 import { DEFAULT_CAP_MB, allMeta, capBytes, clearPacks, evict, kvGet, kvSet } from "./common/packstore.ts";
 import { setAheadOff } from "./common/prefetch.ts";
+import { keepDiffPacks } from "./common/wasm/host.ts";
 
 chrome.runtime.onMessage.addListener((m, _sender, reply) => {
   // (the panel's Clear cache: the packs kept in this browser, and how much they held)
@@ -60,7 +61,12 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
 // browser start, and every few hours (a new Shelf release; a run the
 // service worker's stop cut short). Progress goes to chrome.storage, for
 // the popup (and, each pack, keeps the service worker going).
-const ahead = () => void prefetch((a) => void chrome.storage.local.set({ ahead: a })).catch(() => undefined);
+// (and, whatever the fetch ahead's switch, the few packs a compare's markup may
+// load, host.ts keepDiffPacks: a first comparison then downloads nothing)
+const ahead = () => {
+  void keepDiffPacks().catch(() => undefined);
+  void prefetch((a) => void chrome.storage.local.set({ ahead: a })).catch(() => undefined);
+};
 chrome.runtime.onInstalled.addListener(ahead);
 chrome.runtime.onStartup.addListener(ahead);
 void chrome.alarms.create("prefetch", { periodInMinutes: 360 });

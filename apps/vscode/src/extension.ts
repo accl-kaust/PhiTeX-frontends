@@ -20,7 +20,7 @@ import type { CoreTransport } from "../../../common/src/viewer/session.ts";
 import type { Core, CoreSession } from "../../../common/src/wasm/core.ts";
 import { findMain, relPath } from "./changes.ts";
 import { prefetch, startCore } from "./core.ts";
-import { lspChannel, type CoreIndex, type LspChannel } from "../../../common/src/wasm/host.ts";
+import { keepDiffPacks, lspChannel, type CoreIndex, type LspChannel } from "../../../common/src/wasm/host.ts";
 import { fsKeyValue, nodePlatform } from "./platform.ts";
 import { kvGraphs, type GraphCap } from "../../../common/src/wasm/graphs.ts";
 import type { KeyValue } from "../../../common/src/platform.ts";
@@ -133,6 +133,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
   setPlatform(nodePlatform(root, storeDir));
   // (the documents' graphs in this workspace's storage, the global one without a workspace)
   graphKv = fsKeyValue(join((ctx.storageUri ?? ctx.globalStorageUri).fsPath, "graphs"));
+  // (the few packs a Compare's markup may load, kept on this machine now: a first diff downloads nothing)
+  void keepDiffPacks().catch(() => undefined);
   const log = vscode.window.createOutputChannel("PhiTeX");
   status = new StatusItem();
   const open = (folder?: string) => preview(ctx, root, log, folder);
@@ -357,7 +359,8 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     disk,
     relay(view, fresh, folder, () => void savePdf(session, folder, main), (s) => log.appendLine(s), tabsAt(ctx.extensionUri, view, "builtin", fresh, folder, () => void savePdf(session, folder, main), log)),
     // (Compare, View log, Clear cache: what the webview asks of this host)
-    compareHost(view, { root, folder, main, files: Object.keys(project.files), binaries: project.binaries, log: (s) => log.append(s.endsWith("\n") ? s : s + "\n") }),
+    // (its core started from the editor's persisted graph, the editor's own job: the diff's first build an edit of the editor's)
+    compareHost(view, { root, folder, main, files: Object.keys(project.files), binaries: project.binaries, graphs: graphKv && kvGraphs(graphKv, () => folder, GRAPH_CAP, graphOn), log: (s) => log.append(s.endsWith("\n") ? s : s + "\n") }),
   ];
   current = { folder, view, save: () => void savePdf(session, folder, main), rescan };
   view.onDidDispose(() => {

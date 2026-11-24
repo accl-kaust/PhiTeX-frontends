@@ -243,25 +243,45 @@ export function packsOf(ix: CoreIndex, files: Record<string, string>, engine: st
 }
 
 /**
- * The packs a compare's marked-up document loads besides the project's
- * (latexdiff's preambles, phitex-diff's: ulem and xcolor for its default
- * markup, footmisc and changebar for the others), and those their loading
- * reads, kept on this machine ahead of the first compare: its build then
- * waits on no download. Asked once a session, after the project's first
- * build (its own packs first).
+ * What a compare's marked-up document may load besides the project's
+ * (phitex-diff's markup, crates/editor/diff/src/look.rs: its own macros,
+ * which load no package and no font, but for the looks that do): change
+ * bars (changebar, coloured by xcolor), and the math fonts of a deleted
+ * part's caret (`$\scriptstyle\wedge$`: LaTeX loads every math family at
+ * the script sizes at a document's first math), for both engines.
  */
-export async function warmDiff(ix: CoreIndex, engine: string): Promise<void> {
+export const DIFF_NAMES = ["changebar.sty", "xcolor.sty", "cmr7.tfm", "cmmi7.tfm", "cmsy7.tfm", "cmr5.tfm", "cmmi5.tfm", "cmsy5.tfm", "cmex10.tfm", "cmsy7.pfb"];
+
+/** The packs DIFF_NAMES are in, and those their loading reads, for `engine`. */
+export function diffPacksOf(ix: CoreIndex, engine: string): Set<string> {
   let lookup = lookups.get(ix);
   if (!lookup) lookups.set(ix, (lookup = new Index(new TextDecoder().decode(ix.tsv), ix.meta)));
   const bundled = new Set(ix.names);
   const e = shelfEngine(engine);
   const ids = new Set<string>();
-  // (and what a diff's build asked for beyond the project's, measured on the demo's
-  // Article: atbegshi, grfext, the sans italic its markup sets added text in)
-  for (const name of ["ulem.sty", "xcolor.sty", "footmisc.sty", "changebar.sty", "atbegshi.sty", "grfext.sty", "cmssi10.tfm", "cmssi10.pfb"]) {
+  for (const name of DIFF_NAMES) {
     if (bundled.has(name)) continue;
     const path = lookup.resolve(name, formatOf(name), e);
     if (path) for (const id of lookup.packs(path, e)) ids.add(id);
   }
-  for (const id of ids) await packRaw(id).catch(() => undefined);
+  return ids;
+}
+
+/**
+ * The diff's packs (diffPacksOf) for every engine the extension runs, kept
+ * on this machine: fetched once, at the extension's start (the background,
+ * at its install and each browser start; a core's worker too, at its start,
+ * in case), so that a first comparison downloads nothing. Those kept are
+ * not asked again.
+ */
+export async function keepDiffPacks(ix?: CoreIndex): Promise<void> {
+  ix ??= await coreIndex();
+  const have = await shipped();
+  const ids = new Set([...diffPacksOf(ix, "pdflatex"), ...diffPacksOf(ix, "xelatex")]);
+  for (const id of ids) if (!have.has(id)) await packRaw(id).catch(() => undefined);
+}
+
+/** @deprecated the threaded worker's name for keepDiffPacks (worker.ts). */
+export async function warmDiff(_ix: CoreIndex, _engine: string): Promise<void> {
+  await keepDiffPacks();
 }
