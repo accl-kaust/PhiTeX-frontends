@@ -564,6 +564,8 @@ const diffRunner: ChangesRunner = {
   download: (w) => diffImpl?.download?.(w),
   restyle: (l, hide) => diffImpl?.restyle(l, hide),
   stop: () => diffImpl?.stop(),
+  marks: (k) => diffImpl?.marks?.(k) ?? [],
+  source: (n) => diffImpl?.source?.(n),
 };
 
 /**

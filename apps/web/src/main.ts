@@ -271,6 +271,8 @@ export async function mount(el: HTMLElement, o: MountOptions = {}): Promise<Web>
       restyle: (l, hide) => compare?.restyle(l, hide),
       stop: () => compare?.stop(),
       download: (w) => void compare?.download(w),
+      marks: (k) => compare?.marks(k) ?? [],
+      source: (n) => compare?.source(n),
     },
   };
   /**

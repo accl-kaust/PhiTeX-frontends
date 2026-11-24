@@ -129,6 +129,8 @@ const diffRunner: ChangesRunner = {
   restyle: (l, hide) => compare?.restyle(l, hide),
   stop: () => compare?.stop(),
   download: (w) => void compare?.download(w),
+  marks: (k) => compare?.marks(k) ?? [],
+  source: (n) => compare?.source(n),
 };
 let visit: string | null = null;
 const changesHost: ChangesHost = {

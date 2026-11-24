@@ -129,7 +129,7 @@
   {
    "pointer": "#phitex-changes",
    "dy": 300,
-   "dx": -300,
+   "dx": -460,
    "ms": 900
   },
   {
@@ -139,13 +139,26 @@
   {
    "pointer": "#phitex-changes",
    "dy": 400,
-   "dx": -300,
+   "dx": -460,
+   "press": true,
+   "ms": 700
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').hidden && document.getElementById('phitex-changes').getAttribute('aria-pressed') === 'false'; })()",
+   "what": "a press on the pages beside it closes it (nothing compared yet: the button let go)"
+  },
+  {
+   "pointer": "#phitex-changes",
    "press": true,
    "ms": 700
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !C.querySelector('.chg-pop').hidden; })()",
-   "what": "a click on the pages beside it: still open"
+   "what": "opened again"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const l = C.querySelector('#chg-look'); return !!l && C.querySelector('.body').firstElementChild === l && l.offsetHeight > 0 && !C.querySelector('.lookbox, .lookhead, details'); })()",
+   "what": "Diff's look at the top of the list, open, no fold"
   },
   {
    "click": "#chg-start"
@@ -464,11 +477,16 @@
    "shot": "diff-on-light"
   },
   {
-   "click": "#chg-lookhead"
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; C.querySelector('.body').scrollTop = 1e6; return 1; })()"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !C.querySelector('#chg-look').hidden && C.querySelectorAll('.citem').length > 0 && C.querySelector('.chg-pop').dataset.view === 'diff'; })()",
-   "what": "the look opens under the list, the list still there"
+   "click": "#chg-gear",
+   "ms": 700
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.body').scrollTop === 0 && C.querySelector('#chg-look').classList.contains('mark') && C.querySelectorAll('.citem').length > 0 && C.querySelector('.chg-pop').dataset.view === 'diff'; })()",
+   "what": "\u2699: the look at the top of the list, marked, the list still there",
+   "ms": 3000
   },
   {
    "click": "[data-look=colors][data-v=safe]"
@@ -480,9 +498,9 @@
    "click": "[data-look=del][data-v=caret]"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.preview').className + ' ' + getComputedStyle(C.querySelector('.chg-pop')).getPropertyValue('--chg-add').trim(); })()",
-   "what": "the live preview follows",
-   "is": "preview i-mark d-caret #0072B2"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return ['colors', 'ins', 'del'].map((k) => C.querySelector('#chg-look [data-look=' + k + '][aria-pressed=true]')?.dataset.v).join(' ') + ' ' + getComputedStyle(C.querySelector('.chg-pop')).getPropertyValue('--chg-add').trim(); })()",
+   "what": "the look's choices pressed, its colours",
+   "is": "safe mark caret #0072B2"
   },
   {
    "check": "new Promise((ok) => { const on = (e) => { if (e.data?.src === 'phitex-dev' && e.data.type === 'stated') (removeEventListener('message', on), ok(JSON.parse(e.data.state))); }; addEventListener('message', on); postMessage({ src: 'phitex-dev', type: 'state' }, location.origin); setTimeout(() => ok(null), 5000); }).then((s) => /\\\\phitexdifhl/.test(s?.diffTex ?? '') && /\\\\wedge/.test(s?.diffTex ?? ''))",
@@ -498,6 +516,120 @@
     "caret"
    ],
    "what": "kept with the panel's settings",
+   "ms": 3000
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.chg-pop').hidden; })()",
+   "what": "Esc closes the popover"
+  },
+  {
+   "check": "globalThis.__phitexCompare.showing",
+   "is": "diff",
+   "what": "closed: the diff stays on the pages, to be read",
+   "ms": 5000
+  },
+  {
+   "check": "[document.getElementById('phitex-changes').getAttribute('aria-pressed'), document.getElementById('phitex-changes').classList.contains('chg-comparing'), document.getElementById('phitex-changes').getAttribute('aria-expanded'), /^Comparing /.test(document.getElementById('phitex-changes').title)]",
+   "page": true,
+   "what": "the button says a diff is on: pressed, comparing, not expanded",
+   "is": [
+    "true",
+    true,
+    "false",
+    true
+   ]
+  },
+  {
+   "shot": "closed-comparing-light"
+  },
+  {
+   "check": "!!(() => { const P = document.querySelector('phitex-preview').shadowRoot; for (const x of P.querySelectorAll('.slot .phx-text text')) { const k = x.textContent.indexOf('\u2227'); if (k < 0 || !x.firstChild) continue; x.scrollIntoView({ block: 'center' }); const r = document.createRange(); r.setStart(x.firstChild, k); r.setEnd(x.firstChild, k + 1); const b = r.getBoundingClientRect(); if (b.width) return [b.left + b.width / 2, b.top + b.height / 2]; } return null; })()",
+   "what": "the pages' text in: a caret among it",
+   "ms": 30000
+  },
+  {
+   "pointer": "",
+   "at": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; for (const x of P.querySelectorAll('.slot .phx-text text')) { const k = x.textContent.indexOf('\u2227'); if (k < 0 || !x.firstChild) continue; x.scrollIntoView({ block: 'center' }); const r = document.createRange(); r.setStart(x.firstChild, k); r.setEnd(x.firstChild, k + 1); const b = r.getBoundingClientRect(); if (b.width) return [b.left + b.width / 2, b.top + b.height / 2]; } return null; })()",
+   "ms": 900
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const c = P.querySelector('.blcard.delcard'); return !!c && !c.hidden && c.querySelector('.dtx').textContent.length > 2 && getComputedStyle(c.querySelector('.dtx')).textDecorationLine === 'line-through'; })()",
+   "what": "a caret hovered: the deleted words in a card, struck",
+   "ms": 5000
+  },
+  {
+   "shot": "deleted-card-light"
+  },
+  {
+   "pointer": "",
+   "at": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; for (const x of P.querySelectorAll('.slot .phx-text text')) { const k = x.textContent.indexOf('\u2227'); if (k < 0 || !x.firstChild) continue; x.scrollIntoView({ block: 'center' }); const r = document.createRange(); r.setStart(x.firstChild, k); r.setEnd(x.firstChild, k + 1); const b = r.getBoundingClientRect(); if (b.width) return [b.left + b.width / 2, b.top + b.height / 2]; } return null; })()",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "pointer": "#phitex-changes",
+   "dy": 500,
+   "dx": -400,
+   "ms": 600
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !P.querySelector('.blcard.delcard').hidden; })()",
+   "what": "clicked: pinned, the pointer gone"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelector('.blcard.delcard').hidden; })()",
+   "what": "Esc: the card gone"
+  },
+  {
+   "pointer": "",
+   "at": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; for (const x of P.querySelectorAll('.slot .phx-text text')) { const k = x.textContent.indexOf('\u2227'); if (k < 0 || !x.firstChild) continue; x.scrollIntoView({ block: 'center' }); const r = document.createRange(); r.setStart(x.firstChild, k); r.setEnd(x.firstChild, k + 1); const b = r.getBoundingClientRect(); if (b.width) return [b.left + b.width / 2, b.top + b.height / 2]; } return null; })()",
+   "press": true,
+   "right": true,
+   "ms": 600
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...P.querySelectorAll('.phx-ctx button')].map((b) => b.textContent); })()",
+   "what": "a right-click on a change: its menu (no Accept here: a version compared)",
+   "is": [
+    "Show in the list",
+    "Go to source"
+   ]
+  },
+  {
+   "shot": "diff-menu-light"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !P.querySelector('.phx-ctx'); })()",
+   "what": "Esc closes the menu"
+  },
+  {
+   "pointer": "",
+   "at": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; for (const x of P.querySelectorAll('.slot .phx-text text')) { const k = x.textContent.indexOf('\u2227'); if (k < 0 || !x.firstChild) continue; x.scrollIntoView({ block: 'center' }); const r = document.createRange(); r.setStart(x.firstChild, k); r.setEnd(x.firstChild, k + 1); const b = r.getBoundingClientRect(); if (b.width) return [b.left + b.width / 2, b.top + b.height / 2]; } return null; })()",
+   "press": true,
+   "right": true,
+   "ms": 600
+  },
+  {
+   "click": ".phx-ctx button"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !C.querySelector('.chg-pop').hidden && !!C.querySelector('.citem.cur'); })()",
+   "what": "Show in the list: the popover open at the change",
    "ms": 3000
   },
   {
@@ -550,10 +682,8 @@
    "what": "Esc closes Settings first, Changes stays"
   },
   {
-   "click": "[data-reset=diff]"
-  },
-  {
-   "click": "#chg-lookhead"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; P.querySelector('#settings [data-id=chg-reset] button')?.click(); return true; })()",
+   "what": "(the panel's Settings: Diff's look as it came)"
   },
   {
    "pointer": ".chg-pop .ttl h2",
@@ -571,8 +701,8 @@
   },
   {
    "check": "globalThis.__phitexCompare.showing",
-   "is": "current",
-   "what": "closed: the pages as they are",
+   "is": "diff",
+   "what": "closed: the diff stays on the pages",
    "ms": 5000
   },
   {
@@ -630,9 +760,13 @@
    ]
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20 && P.querySelectorAll('.slot .bl-bar.bl-hatch').length >= 1; })()",
-   "what": "bars in the margin, the unsaved text hatched",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot svg.bl-paint.s-wash rect').length > 20 && P.querySelectorAll('.slot svg.bl-paint rect[fill^=\"url(#blh-\"]').length >= 1 && !P.querySelector('.slot div.bl') && C.querySelector('#chg-look [data-look=style][aria-pressed=true]')?.dataset.v === 'wash'; })()",
+   "what": "every line coloured, a wash by default (one SVG a page, no box a line), the unsaved text hatched",
    "ms": 10000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const l = C.querySelector('#chg-look'); return C.querySelector('.body').firstElementChild === l && ['color', 'style', 'wip'].every((k) => l.querySelector('[data-look=' + k + ']')) && !C.querySelector('.lookbox, .lookhead, .skips, .chg-pop > .foot'); })()",
+   "what": "Blame's look at the top, open: Colour by, Style, Not saved yet; no fold, no footer"
   },
   {
    "check": "new Promise((ok) => { const on = (e) => { if (e.data?.src === 'phitex-dev' && e.data.type === 'exacted') (removeEventListener('message', on), ok(JSON.parse(e.data.result))); }; addEventListener('message', on); postMessage({ src: 'phitex-dev', type: 'exact' }, location.origin); setTimeout(() => ok('timeout'), 120000); })",
@@ -654,8 +788,11 @@
    "nth": 1
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.prow.sel') !== null && P.querySelectorAll('.slot .bl-wash').length > 0; })()",
-   "what": "a person clicked: their lines picked out"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return C.querySelector('.prow.sel') !== null && P.querySelectorAll('.slot svg.bl.hl').length > 0 && P.querySelectorAll('.slot svg.bl-paint g.on').length > 0; })()",
+   "what": "a person clicked: their lines picked out, the rest set back"
+  },
+  {
+   "shot": "blame-person-light"
   },
   {
    "click": ".prow",
@@ -663,12 +800,17 @@
   },
   {
    "pointer": "",
-   "at": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const pop = C.querySelector('.chg-pop').getBoundingClientRect(); const st = P.querySelector('#stage'); for (let n = 0; n < 30; n++) { const b = [...P.querySelectorAll('.slot .bl-bar:not(.bl-hatch):not(.bl-wait)')].find((b) => { const r = b.getBoundingClientRect(); return r.top > pop.bottom + 12 && r.bottom < innerHeight - 30 && r.height > 4; }); if (b) { const r = b.getBoundingClientRect(); return [r.right + 60, r.top + r.height / 2]; } st.scrollTop += 120; } return null; })()",
+   "at": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const pop = C.querySelector('.chg-pop').getBoundingClientRect(); const st = P.querySelector('#stage'); for (let n = 0; n < 30; n++) { const b = [...P.querySelectorAll('.slot svg.bl-paint rect:not([fill^=\"url\"])')].find((b) => { const r = b.getBoundingClientRect(); return r.top > pop.bottom + 12 && r.bottom < innerHeight - 30 && r.height > 4; }); if (b) { const r = b.getBoundingClientRect(); return [r.left + Math.min(20, r.width / 2), r.top + r.height / 2]; } st.scrollTop += 120; } return null; })()",
    "ms": 600
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !P.querySelector('.blcard').hidden; })()",
    "what": "the card after a short dwell",
+   "ms": 3000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot svg.bl.hl').length > 0 && P.querySelectorAll('.slot svg.bl-paint g.on').length > 0; })()",
+   "what": "hovered, its card up: the line's writer's lines picked out everywhere",
    "ms": 3000
   },
   {
@@ -774,63 +916,254 @@
    "click": "[data-m=blame]"
   },
   {
-   "click": "#chg-lookhead"
-  },
-  {
    "shot": "look-blame-light"
   },
   {
-   "click": "[data-look=detail][data-v=line]"
+   "click": "#chg-look [data-look=style][data-v=text]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot svg.bl-paint.s-text rect').length > 20 && getComputedStyle(P.querySelector('.slot svg.bl-paint')).mixBlendMode === 'lighten'; })()",
+   "what": "Text: the words themselves coloured",
+   "ms": 5000
+  },
+  {
+   "shot": "blame-text-light"
+  },
+  {
+   "click": "#chg-look [data-look=style][data-v=bar]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !P.querySelector('.slot svg.bl-paint') && P.querySelectorAll('.slot svg.bl-marks rect.b').length > 20; })()",
+   "what": "Bar: a bar a line, in the margin",
+   "ms": 5000
+  },
+  {
+   "shot": "blame-bar-light"
+  },
+  {
+   "click": "#chg-look [data-look=style][data-v=wash]"
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "pointer": "#settings [data-section='Colours']",
+   "press": true,
+   "ms": 500
+  },
+  {
+   "pointer": "#settings [data-id='page-colours'] .sw[data-v='sepia']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelector('.win').classList.contains('paged') && getComputedStyle(P.querySelector('.slot svg.bl-paint')).mixBlendMode === 'multiply' && getComputedStyle(P.querySelector('.slot svg.bl-marks')).getPropertyValue('--bl-veil').trim() === '#f4ecd8'; })()",
+   "what": "Sepia: the wash multiplied into the sheet, the veil the sheet's colour",
+   "ms": 5000
+  },
+  {
+   "shot": "blame-sepia-light"
+  },
+  {
+   "click": "#chg-look [data-look=style][data-v=text]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return getComputedStyle(P.querySelector('.slot svg.bl-paint')).mixBlendMode === 'lighten'; })()",
+   "what": "Sepia: the words' own colour",
+   "ms": 5000
+  },
+  {
+   "shot": "blame-sepia-text-light"
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "pointer": "#settings [data-id='page-colours'] .sw[data-v='dark']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelector('.win').classList.contains('paged-dark') && getComputedStyle(P.querySelector('.slot svg.bl-paint')).mixBlendMode === 'darken'; })()",
+   "what": "Dark pages: the words' colour darkened in",
+   "ms": 5000
+  },
+  {
+   "shot": "blame-darkpages-text-light"
+  },
+  {
+   "click": "#chg-look [data-look=style][data-v=wash]"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return getComputedStyle(P.querySelector('.slot svg.bl-paint')).mixBlendMode === 'screen'; })()",
+   "what": "Dark pages: the wash screened",
+   "ms": 5000
+  },
+  {
+   "shot": "blame-darkpages-light"
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "pointer": "#settings [data-id='page-colours'] .sw[data-v='paper']",
+   "press": true,
+   "ms": 400
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'default'; document.querySelector('phitex-preview').parentElement.classList.add('pdf-dark-mode'); return true; })()",
+   "page": true
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return getComputedStyle(P.querySelector('.slot svg.bl-paint')).mixBlendMode === 'screen'; })()",
+   "what": "Overleaf's dark PDF: the wash screened",
+   "ms": 5000
+  },
+  {
+   "shot": "blame-darkpdf-dark"
+  },
+  {
+   "eval": "(() => { document.body.dataset.theme = 'light'; document.querySelector('phitex-preview').parentElement.classList.remove('pdf-dark-mode'); return true; })()",
+   "page": true
+  },
+  {
+   "wait": 500
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; P.querySelector('#settings') && document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "pointer": "#settings [data-section=Changes]",
+   "press": true,
+   "ms": 600
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const r = P.querySelector('#settings [data-id=bl-detail] [data-v=line]'); r.click(); return true; })()",
+   "what": "Line detail, from Settings"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /\u00b7 [\\d,]+ lines$/.test(C.querySelector('.sec h3 span').textContent); })()",
-   "what": "Line detail: counted in source lines",
+   "what": "Line detail: counted in lines",
+   "ms": 30000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; P.querySelector('#settings [data-id=bl-detail] [data-v=char]').click(); return true; })()",
+   "what": "Character detail"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
+  },
+  {
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const r = [...C.querySelectorAll('.crw')].find((r) => r.querySelector('.skipb') && r.querySelector('.s')); return (globalThis.__skip = r.querySelector('.s').textContent); })()"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.crw')].filter((r) => r.querySelector('.skipb')).length > 3; })()",
+   "what": "each version's row has its Skip",
+   "ms": 30000
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; [...C.querySelectorAll('.crw')].find((r) => r.querySelector('.s')?.textContent === globalThis.__skip).querySelector('.skipb').click(); return true; })()",
+   "what": "(a version skipped from its row)"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const r = [...C.querySelectorAll('.crw')].find((r) => r.querySelector('.s')?.textContent === globalThis.__skip); return !!r && r.classList.contains('skipped') && r.querySelector('.skipb').getAttribute('aria-pressed') === 'true' && r.querySelector('.ct').textContent === '\u2013'; })()",
+   "what": "a version skipped: none of the lines are its, its row stays, said skipped",
    "ms": 60000
   },
   {
-   "click": "[data-look=detail][data-v=char]"
+   "check": "chrome.storage.local.get('panel').then((p) => (p.panel?.changes?.blame?.skip ?? []).length === 1)",
+   "what": "the skip kept with the panel's settings",
+   "ms": 3000
   },
   {
-   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return (globalThis.__skip = C.querySelector('[data-skip]').closest('label').querySelector('code').textContent); })()"
+   "shot": "blame-skipped-light"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const ls = [...C.querySelectorAll('.skips label')]; return ls.length > 3 && ls.every((l) => l.querySelector('span').scrollWidth <= l.querySelector('span').clientWidth + 1 && / \u00b7 (Ali Rahman|Lina Chen|Mary Okafor)/.test(l.title)); })()",
-   "what": "Skip versions: every row whole (no name cut), its full text in its title"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; [...C.querySelectorAll('.crw')].find((r) => r.querySelector('.s')?.textContent === globalThis.__skip).querySelector('.skipb').click(); return true; })()",
+   "what": "(taken back from its row)"
   },
   {
-   "click": "[data-skip]"
-  },
-  {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return [...C.querySelectorAll('.crow small code')].map((c) => c.textContent).includes(globalThis.__skip); })()",
-   "what": "a version skipped: none of the lines are its",
-   "is": false,
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const r = [...C.querySelectorAll('.crw')].find((r) => r.querySelector('.s')?.textContent === globalThis.__skip); return !!r && !r.classList.contains('skipped'); })()",
+   "what": "taken back: its lines its own again",
    "ms": 60000
   },
   {
-   "click": "[data-skip]"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(Settings)"
   },
   {
-   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const s = C.querySelector('#chg-since'); const o = [...s.options].find((o) => /Submitted v1/.test(o.textContent)); s.value = o.value; s.dispatchEvent(new Event('change')); return o.textContent; })()"
+   "wait": 800
   },
   {
-   "click": "[data-look=tint][data-v=all]"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const s = P.querySelector('#settings [data-id=bl-since] select'); const o = [...s.options].find((o) => /Submitted v1/.test(o.textContent)); s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); P.querySelector('#settings [data-id=bl-bars] [data-v=right]').click(); P.querySelector('#settings [data-id=bl-width] [data-v=\"7\"]').click(); P.querySelector('#settings [data-id=bl-style] [data-v=bar]').click(); return !!o; })()",
+   "what": "Settings: since the label, Bar in the right margin, wide"
   },
   {
-   "click": "[data-look=bars][data-v=right]"
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
   },
   {
-   "click": "[data-look=width][data-v='7']"
-  },
-  {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-wash').length > 0 && P.querySelectorAll('.slot .bl-tint').length > 0; })()",
-   "what": "since the label: older lines washed; tint everywhere",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot svg.bl-marks rect.v.o').length > 0; })()",
+   "what": "since the label: older lines set back",
    "ms": 20000
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const b = P.querySelector('.slot .bl-bar:not(.bl-wait)'); const s = b.closest('.slot').getBoundingClientRect(), r = b.getBoundingClientRect(); return [getComputedStyle(b).width, r.left > s.left + s.width / 2]; })()",
-   "what": "bars wide, in the right margin",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const b = P.querySelector('.slot svg.bl-marks rect.b'); const s = b.closest('.slot').getBoundingClientRect(), r = b.getBoundingClientRect(); return [r.width >= 5, r.left > s.left + s.width / 2]; })()",
+   "what": "the bars wide, in the right margin",
    "is": [
-    "7px",
+    true,
     true
    ]
   },
@@ -855,10 +1188,21 @@
    "wait": 400
   },
   {
-   "click": "[data-reset=blame]"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(Settings)"
   },
   {
-   "click": "#chg-lookhead"
+   "wait": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; P.querySelector('#settings [data-id=bl-reset] button').click(); return true; })()",
+   "what": "Blame's look as it came, from Settings"
+  },
+  {
+   "key": "Escape",
+   "code": "Escape",
+   "vk": 27
   },
   {
    "sweep": 2000,
@@ -884,8 +1228,8 @@
    "what": "the lists' nodes the same ones: no flash"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20; })()",
-   "what": "the new pages' bars, mapped from the blame known",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot svg.bl-paint rect').length > 20; })()",
+   "what": "the new pages' colours, mapped from the blame known",
    "ms": 10000
   },
   {

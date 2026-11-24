@@ -878,12 +878,12 @@ for (const s of sc.steps ?? []) {
   } else if (s.pointer !== undefined) {
     // (the mouse moved, as a person moves it, to the `nth` element matching the selector (the panel's
     // shadow root's, else the page's), `dx` points right of its middle; "press": true, then clicked there)
-    // ("at": an expression (the content script's) giving the point itself, [x, y])
+    // ("at": an expression (the content script's) giving the point itself, [x, y]; "right": true, the press a right-click: the context menu)
     const at = s.at ? await evalIn(s.at, true) : await evalIn(`(() => { const q = ${JSON.stringify(s.pointer)}; ${ALL} const el = all[${s.nth ?? 0}]; if (!el) return null; el.scrollIntoView?.({ block: "nearest" }); const r = el.getBoundingClientRect(); return [r.left + r.width / 2 + ${s.dx ?? 0}, r.top + r.height / 2 + ${s.dy ?? 0}]; })()`, true);
     if (!at) console.log(`step: no ${s.pointer} to point at`), steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1);
     else {
       await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: at[0], y: at[1], modifiers: s.shift ? 8 : 0 });
-      if (s.press) for (const type of ["mousePressed", "mouseReleased"]) await call("Input.dispatchMouseEvent", { type, x: at[0], y: at[1], button: "left", clickCount: 1, modifiers: s.shift ? 8 : 0 });
+      if (s.press) for (const type of ["mousePressed", "mouseReleased"]) await call("Input.dispatchMouseEvent", { type, x: at[0], y: at[1], button: s.right ? "right" : "left", clickCount: 1, modifiers: s.shift ? 8 : 0 });
       // ("double": a double-click there, as the mouse makes one: two presses, the second's count 2)
       if (s.double) for (const n of [1, 2]) for (const type of ["mousePressed", "mouseReleased"]) await call("Input.dispatchMouseEvent", { type, x: at[0], y: at[1], button: "left", clickCount: n });
     }

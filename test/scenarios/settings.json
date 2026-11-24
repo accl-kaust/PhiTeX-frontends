@@ -260,6 +260,10 @@
    "shot": "changes-light-wide"
   },
   {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const ids = [...S.querySelectorAll('.srow[data-id]')].map((r) => r.dataset.id); return ['bl-style', 'bl-wip', 'bl-since', 'bl-ages', 'bl-reset', 'chg-reset'].every((x) => ids.includes(x)) && !ids.includes('bl-tint') && [...S.querySelectorAll(\".srow[data-id='bl-style'] [data-v]\")].map((b) => b.textContent).join() === 'Wash,Text,Bar'; })()",
+   "what": "Settings, Changes: Blame's Style (Wash, Text, Bar), not committed, since, the age colours, resets; no tint"
+  },
+  {
    "pointer": "#settings [data-section='General']",
    "press": true,
    "ms": 400
@@ -571,6 +575,63 @@
   },
   {
    "viewport": 0
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(the panel's Settings)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "pointer": "#stage",
+   "press": true,
+   "ms": 500,
+   "at": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, s = P.querySelector('#stage').getBoundingClientRect(), d = P.querySelector('#settings').getBoundingClientRect(); const out = (x, y) => x < d.left || x > d.right || y < d.top || y > d.bottom; return [[s.left + 12, s.bottom - 12], [s.right - 24, s.bottom - 12], [s.left + 12, s.top + 12], [s.right - 24, s.top + 12]].find(([x, y]) => out(x, y)) ?? null; })()"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return P.querySelector('#settings').hidden; })()",
+   "what": "a press on the pages, outside Settings, closes it"
+  },
+  {
+   "pointer": "#phitex-settings",
+   "press": true,
+   "ms": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return !P.querySelector('#settings').hidden; })()",
+   "what": "its \u2699 opens it"
+  },
+  {
+   "pointer": "#phitex-settings",
+   "press": true,
+   "ms": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return P.querySelector('#settings').hidden; })()",
+   "what": "its \u2699 pressed again closes it, not closed and opened again by the one press"
+  },
+  {
+   "pointer": ".cm-content",
+   "ms": 300
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
+   "page": true,
+   "what": "(Settings again)"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "pointer": ".cm-content",
+   "press": true,
+   "ms": 500
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; return P.querySelector('#settings').hidden; })()",
+   "what": "a press in the editor, outside the panel, closes it too"
   },
   {
    "check": "chrome.storage.local.get('panel').then((p) => chrome.storage.local.set({ panel: { ...p.panel, pageColours: 'paper', markColour: '' } })).then(() => true)",

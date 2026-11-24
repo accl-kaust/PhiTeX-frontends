@@ -84,7 +84,7 @@
    "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const seen = (globalThis.__progs = []); const note = () => { const p = C.querySelector('.prog'); const t = p && !p.hidden ? p.textContent : ''; if (seen.at(-1) !== t) seen.push(t); }; new MutationObserver(note).observe(C.querySelector('.chg-pop'), { subtree: true, childList: true, characterData: true, attributes: true }); return 1; })()"
   },
   {
-   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; globalThis.__faded = false; new MutationObserver((rs) => rs.some((r) => [...r.addedNodes].some((n) => n.classList?.contains('bl-in'))) && (globalThis.__faded = true)).observe(P.querySelector('#stage'), { childList: true, subtree: true }); return 1; })()"
+   "eval": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; globalThis.__drawn = false; new MutationObserver((rs) => rs.some((r) => [...r.addedNodes].some((n) => n.classList?.contains('bl-paint') && n.querySelector('rect'))) && P.querySelectorAll('.slot svg.bl-marks rect.w').length > 0 && (globalThis.__drawn = true)).observe(P.querySelector('#stage'), { childList: true, subtree: true }); return 1; })()"
   },
   {
    "click": "[data-m=blame]",
@@ -106,7 +106,7 @@
    "what": "skeleton rows while it is worked out"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-wait').length > 0; })()",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot svg.bl-marks rect.w').length > 0; })()",
    "what": "the pages: a quiet placeholder",
    "ms": 10000
   },
@@ -119,8 +119,8 @@
    "ms": 20000
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return globalThis.__faded === true; })()",
-   "what": "each file's bars fade in (a bar drawn fading in, seen as it was added)",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return globalThis.__drawn === true; })()",
+   "what": "each file's colours drawn as its blame comes (a page's coloured lines in while others still wait)",
    "ms": 60000
   },
   {
@@ -146,7 +146,7 @@
    "ms": 5000
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20 && P.querySelectorAll('.slot .bl-wait').length === 0; })()",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot svg.bl-paint rect').length > 20 && P.querySelectorAll('.slot svg.bl-marks rect.w').length === 0; })()",
    "what": "the bars in, the placeholders gone",
    "ms": 10000
   },
@@ -231,7 +231,7 @@
    "page": true
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl-bar:not(.bl-wait)').length > 20; })()",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot svg.bl-paint rect').length > 20; })()",
    "what": "the pages come: each gets its bars, no blame again",
    "ms": 120000
   },
