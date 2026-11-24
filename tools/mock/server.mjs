@@ -245,6 +245,8 @@ const escapeAttr = (t) => t.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repla
 
 /** The mock project under an Overleaf-shaped id too (/project/<24 hex>): its editor tab, and its "Open PDF in separate tab" at …/detached. */
 const PID = "64aa00000000000000000001";
+/** MOCK_NOISO=1: the pages served without COOP and COEP, not cross-origin isolated (overleaf.com as #60 found it). */
+const NOISO = process.env.MOCK_NOISO === "1";
 
 const handle = (req, res) => {
   const u = new URL(req.url, "http://x");
@@ -252,15 +254,15 @@ const handle = (req, res) => {
   const pm = new RegExp(`^/project/${PID}(/.*)?$`).exec(u.pathname);
   if (pm && pm[1]?.replace(/\/$/, "") === "/detached") {
     const nonce = Math.random().toString(36).slice(2);
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": `script-src 'nonce-${nonce}' 'unsafe-inline' 'strict-dynamic' https: 'report-sample'`, "cross-origin-opener-policy": "same-origin", "cross-origin-embedder-policy": "credentialless" });
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": `script-src 'nonce-${nonce}' 'unsafe-inline' 'strict-dynamic' https: 'report-sample'`, ...(NOISO ? {} : { "cross-origin-opener-policy": "same-origin", "cross-origin-embedder-policy": "credentialless" }) });
     return res.end(fs.readFileSync(path.join(dir, "detached.html"), "utf8").replaceAll("<script", `<script nonce="${nonce}"`));
   }
   if (pm) u.pathname = `/project/mock${pm[1] ?? ""}`;
-  // (served as overleaf.com is: COOP same-origin and COEP credentialless,
-  // so the tab is cross-origin isolated, as the core's offscreen page is
-  // by its manifest; tools/dev/mock-run.mjs asserts both before the
-  // first page is waited for)
-  const iso = { "cross-origin-opener-policy": "same-origin", "cross-origin-embedder-policy": "credentialless" };
+  // (served as overleaf.com was: COOP same-origin and COEP credentialless,
+  // so the tab is cross-origin isolated; MOCK_NOISO=1: neither, as
+  // overleaf.com is now (#60's report: crossOriginIsolated false, no
+  // SharedArrayBuffer in the tab))
+  const iso = NOISO ? {} : { "cross-origin-opener-policy": "same-origin", "cross-origin-embedder-policy": "credentialless" };
   const send = (code, type, body) => (res.writeHead(code, { "content-type": type, ...iso }), res.end(body));
   let m;
   // (with Overleaf's script policy: a nonce, strict-dynamic, and no

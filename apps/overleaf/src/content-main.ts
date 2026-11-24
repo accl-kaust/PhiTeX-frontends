@@ -31,6 +31,7 @@ import { ENGINES, approximable, resolve, shimTexts, type Engine, type EngineChoi
 import { Calm } from "./common/viewer/sheetline.ts";
 import { StripPages } from "./common/strippages.ts";
 import { reportRow } from "./report.ts";
+import { machineLine } from "./common/viewer/machine.ts";
 
 /** The panel's preferences, in the extension's own storage (not the page's). */
 const prefs: Prefs = {
@@ -117,6 +118,11 @@ function testFailure(): string | undefined {
  * has run: the card, the diagnostics button's title, the download's
  * message, Copy debug info and the report. Each step sets it; a failure
  * keeps it and says why (issue #39: a start that never ended said nothing).
+ * The start is the editor tab's: Overleaf's detached PDF tab runs none of
+ * its own, it is told the editor tab's (`bootTold`), so it says where that
+ * start is, and that it built, with its steps, its project and its errors
+ * (#60: the detached tab kept its own, never begun, and said "Starting…"
+ * for ever over pages it drew).
  */
 const boot = {
   /** The step under way, as the card says it ("Downloading the project from Overleaf… (3.1 MB of 12 MB)"). */
@@ -135,7 +141,24 @@ const boot = {
   built: false,
   /** The project as last read: how many files, how big (no names; the main file's only). */
   read: { files: 0, binaries: 0, bytes: 0, largest: [] as number[], main: "" },
+  /** Whose start it is: "" this tab's, else the tab it was told by ("the editor tab"). */
+  whose: "",
 };
+/** The start as told to a detached tab: its state, its clock (t0) on the shared one (performance.timeOrigin's). */
+type BootTold = { t: "boot"; boot: Omit<typeof boot, "t0" | "whose">; at: number };
+/** The editor tab's: the start told to a detached tab, at each change and when one says hello. */
+let bootOut: ((b: BootTold) => void) | undefined;
+const bootTold = (): BootTold => {
+  const { t0, whose, ...rest } = boot;
+  return { t: "boot", boot: rest, at: performance.timeOrigin + t0 };
+};
+/** The detached tab's: the editor tab's start, taken as this tab's. */
+function bootHeard(b: BootTold): void {
+  Object.assign(boot, b.boot, { t0: b.at - performance.timeOrigin, whose: "the editor tab" });
+  bootShown();
+}
+/** The status's own drawing, once docked (dockInOverleaf's mirrorStatus): the build's, when the start has built. */
+let statusAgain = () => {};
 /**
  * The step, as the card says it (with how far: "12 of 3,000"), kept for the
  * rest. `named`: its detail is a file's name, said on the card, never in
@@ -174,7 +197,8 @@ function bootFailed(e: unknown): string {
  * After a build, the panel's own (onState).
  */
 function bootShown(): void {
-  if (boot.built) return;
+  bootOut?.(bootTold());
+  if (boot.built) return statusAgain();
   const b = document.getElementById("phitex-logs");
   if (b) b.title = `PhiTeX diagnostics · ${boot.stage}`;
   const st = document.getElementById("phitex-status");
@@ -212,10 +236,11 @@ async function bootLines(): Promise<string[]> {
     `PhiTeX Instant ${m.version_name ?? m.version}, engine identity ${await engineIdentity()}, on ${location.host}`,
     `browser: ${nav.userAgentData?.brands?.map((b) => `${b.brand} ${b.version}`).join(", ") || navigator.userAgent}; system: ${nav.userAgentData?.platform || navigator.platform}; ${navigator.hardwareConcurrency ?? "?"} cores`,
     `isolation: crossOriginIsolated ${String(globalThis.crossOriginIsolated)}, SharedArrayBuffer ${typeof SharedArrayBuffer === "function" ? "available" : "missing"}`,
-    `start: ${boot.built ? "built" : boot.failed ? "stopped" : "under way"}, ${s(performance.now() - boot.t0)} since the page loaded`,
+    `start: ${boot.built ? "built" : boot.failed ? "stopped" : "under way"}${boot.whose ? ` (${boot.whose}'s)` : ""}, ${s(performance.now() - boot.t0)} since ${boot.whose ? "it" : "the page"} loaded`,
     ...boot.steps.map((st) => `  ${s(st.t)} ${st.h}${st.far ? ` (${st.far})` : ""}`),
     `project: ${r.files} text files, ${r.binaries} other files, a ${mb(r.bytes)} download${r.largest.length ? `; largest files ${r.largest.map(mb).join(", ")}` : ""}${r.main ? `; main file ${r.main}` : ""}`,
-    ...(boot.errors.length ? ["errors:", ...boot.errors.slice(-12).map((e) => `  ${e}`)] : ["errors: none"]),
+    // (the start's own errors; the document's problems, the badge's, are the panel's line after)
+    ...(boot.errors.length ? ["start errors:", ...boot.errors.slice(-12).map((e) => `  ${e}`)] : ["start errors: none"]),
   ];
 }
 
@@ -937,6 +962,9 @@ function dockInOverleaf(panel: Panel): Dock {
    * hidden here, Overleaf's toolbar being the bar).
    */
   let statusNow: ViewState["status"] | null = null;
+  /** The problems the last build said (the badge's count): the diagnostics button opens their list whenever there are any. */
+  let problemsNow = 0;
+  statusAgain = () => mirrorStatus();
   function mirrorStatus(st: ViewState["status"] | null = statusNow): void {
     statusNow = st;
     // (before a build: where the start is, bootShown's)
@@ -992,9 +1020,10 @@ function dockInOverleaf(panel: Panel): Dock {
       `<li><button type="button" class="dropdown-item" data-dl="instant">⚡ Instant PDF <span class="text-muted small">PhiTeX, experimental</span></button></li>` +
       `<li><button type="button" class="dropdown-item" data-dl="compiled">Compiled PDF <span class="text-muted small">Overleaf</span></button></li></ul></div>`;
     l.querySelector<HTMLElement>("#phitex-clean")!.onclick = () => panel.clean();
-    // (before a build there are no diagnostics: the start's step or error, and Copy debug info, as the status's click opens them)
+    // (the problems' list whenever a build has said any, the badge's, whatever the start's state; with none and no
+    // build yet: the start's step or error, and Copy debug info, as the status's click opens them)
     l.querySelector<HTMLElement>("#phitex-logs")!.onclick = (e) => {
-      if (boot.built) return panel.diagnostics();
+      if (boot.built || problemsNow) return panel.diagnostics();
       e.stopPropagation();
       panel.msg(boot.failed ? boot.stage : `No build yet: ⚡ Instant is at "${boot.stage}".`, boot.failed);
       panel.timingAt(e.currentTarget as HTMLElement);
@@ -1049,6 +1078,7 @@ function dockInOverleaf(panel: Panel): Dock {
       (c.querySelector("#phitex-next") as HTMLButtonElement).disabled = s.page >= s.pages - 1;
       c.querySelector("#phitex-zoom")!.textContent = `${s.percent}%`;
     }
+    problemsNow = s.diagCount;
     const b = document.getElementById("phitex-badge");
     if (b) {
       b.textContent = s.diagCount ? String(s.diagCount) : "";
@@ -1596,7 +1626,7 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     onReport: async () => {
       const m = chrome.runtime.getManifest();
       // (no session yet (the engine didn't start, the project wasn't read): the start's own lines)
-      const start = [...(await bootLines()).map((l) => l.replace(/; main file .*$/, "")), `machine: ${navigator.userAgent}`].join("\n") + "\n";
+      const start = [...(await bootLines()).map((l) => l.replace(/; main file .*$/, "")), await machineLine()].join("\n") + "\n";
       // (no build yet: the start's lines first, its steps and why it stopped, then the session's, whose trace has them too)
       const own = session?.report({ version: m.version, engine: m.version_name?.match(/engine ([0-9a-f]+)/)?.[1] ?? "?", userAgent: navigator.userAgent });
       return own === undefined ? start : boot.built ? own : `${start}\n${own}`;
@@ -1649,7 +1679,7 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
   // given its row as it appears; the panel draws them again, the row is put back)
   {
     const root = (panel as unknown as { root: ShadowRoot }).root;
-    const debugText = async () => [...(await bootLines()), `machine: ${navigator.userAgent}`].join("\n") + "\n";
+    const debugText = async () => [...(await bootLines()), await machineLine()].join("\n") + "\n";
     const add = () => {
       const card = root.querySelector<HTMLElement>("#empty:not([hidden]) .card");
       if (card && /Couldn't open/.test(card.querySelector("h3")?.textContent ?? "") && !card.querySelector(".phx-report")) card.append(reportRow(debugText));
@@ -1788,13 +1818,18 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     if (m?.type === "phitex-news") dock?.news();
     // (the toolbar popup's Copy debug info: this tab's, whatever state it is in)
     if (m?.type === "phitex-debug-info") {
-      void bootLines().then((l) => reply([...l, `machine: ${navigator.userAgent}`].join("\n") + "\n"));
+      void Promise.all([bootLines(), machineLine()]).then(([l, m]) => reply([...l, m].join("\n") + "\n"));
       return true;
     }
   });
   /** The session: the core connected, the project loaded, closed docs followed. */
   async function go(): Promise<void> {
   if (DETACHED) {
+    // (the start is the editor tab's, told here as it goes, and when this tab says hello: until then, waiting for it)
+    boot.head = boot.stage = "Waiting for the editor tab…";
+    boot.whose = "the editor tab";
+    bootShown();
+    ch.addEventListener("message", (e: MessageEvent<BootTold>) => void (e.data?.t === "boot" && bootHeard(e.data)));
     // (its pages drawn here, at this tab's zoom, from the editor tab's core's strips)
     const own = new StripPages(remoteCore(ch), panel, panel.stripsChip());
     pages = own;
@@ -1807,11 +1842,15 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     });
     return follow(ch, panel, (k) => own.request({ op: "png", page: k }));
   }
+  // (the start, told to a detached tab as it goes: its status and debug info are this one's)
+  bootOut = (b) => ch.postMessage(b);
   // (the detached tab's asks; what the session tells the panel goes there too)
   ch.addEventListener("message", (e: MessageEvent<Ask>) => {
     const a = e.data;
     if (a.t === "hello") {
       mirrored = true;
+      // (the start as it is, for the detached tab's status and debug info)
+      ch.postMessage(bootTold());
       // (the hook's: Overleaf's → beside the editor goes to the detached tab's ⚡ pages, not its hidden PDF)
       document.body.classList.add("phitex-mirrored");
       void session?.resync();
@@ -2033,8 +2072,11 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     // would stay "loading"; and the build's own times in the trace)
     transport.onEvent((e) => {
       if (e.event !== "settled") return;
-      if (!boot.built) boot.steps.push({ h: "Built", t: performance.now() - boot.t0, far: "" });
-      boot.built = true;
+      if (!boot.built) {
+        boot.steps.push({ h: "Built", t: performance.now() - boot.t0, far: "" });
+        boot.built = true;
+        bootShown();
+      }
       session.tr("settled", e);
       void (session as unknown as { core: CoreTransport }).core.request({ op: "status" });
     });
