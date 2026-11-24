@@ -30,11 +30,15 @@ export function spawner(entry: URL | string): Spawn {
     // (a file: URL as a URL object)
     const w = new Worker(new URL(String(entry)), { workerData: { phitexThread: d } });
     live.add(w);
-    w.once("exit", () => {
-      live.delete(w);
-      if (!live.size) for (const f of none.splice(0)) f();
-    });
-    return w;
+    // (gone for good: the core's end waits for this, not only for its thread's "exit" message)
+    const exited = new Promise<void>((ok) =>
+      w.once("exit", () => {
+        live.delete(w);
+        if (!live.size) for (const f of none.splice(0)) f();
+        ok();
+      }),
+    );
+    return Object.assign(w, { exited });
   };
 }
 

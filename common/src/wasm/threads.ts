@@ -37,6 +37,13 @@ export interface ThreadData {
 /** A thread's worker, as the host started it: ended by force only for a core that trapped (a live core's threads return by themselves, `Core.end`). */
 export interface Thread {
   terminate(): unknown;
+  /**
+   * Resolved once the worker is gone, not only its thread returned: its
+   * isolate torn down (Node's `exit` event). `Core.end` waits for it, so a
+   * core ended has no worker of it left tearing down while the next core
+   * starts. A host whose workers say no such thing (a browser's) gives none.
+   */
+  exited?: Promise<unknown>;
 }
 
 /** Starts a worker on `data` that calls `runThread(data)`, and gives it (thread 0 only). */
