@@ -12,8 +12,11 @@
 // The document (by default one made here: an article of sections, lists and
 // equations, a few pages) is opened with graphs kept; its first build's
 // graph is saved at once. Each of the first three saves is interrupted by
-// an edit, typed 0, 25 and 80 ms after the save began (the core's
-// `graph` event `saving`); the fourth is let run. Checks:
+// an edit, typed as the host's next task at once (the core's `graph` event
+// `saving`), after the save's first slice and after its third (its steps
+// counted): by the save's own progress, not the clock (typed 25 and 80 ms
+// in, a save of 59 ms on a faster runner ended before the third edit,
+// which then gave up none); the fourth is let run. Checks:
 //   - each edit's task ran within one slice of the save: its delay past
 //     its time at most the longest slice the core says it ran (`slice_ms`),
 //     and a few ms for the timer;
@@ -188,9 +191,39 @@ async function open(keep: boolean, text: string, on: (e: any, c: { core: Core; s
 const fails: string[] = [];
 const say = (ok: boolean, what: string, how: string) => (console.log(`${ok ? "ok  " : "FAIL"} ${what}: ${how}`), ok || fails.push(what));
 
-// (1: the document opened, graphs kept; its saves interrupted by edits)
-const DELAYS = [0, 25, 80];
+// (1: the document opened, graphs kept; its saves interrupted by edits, the
+// k-th typed in the host's task after SLICES[k-1] of the save's slices (0:
+// at once): a whole save is more than 3 slices, as checked below)
+const SLICES = [0, 1, 3];
 interface Edit { k: number; at: number; lag: number; givenUp?: any; built?: any }
+/** The save under way's steps so far (its slices), and what to do after the n-th. */
+let saving: { steps: number; after: number; then: () => void } | null = null;
+let stepsHooked = false;
+/** Each step of the core counted while a save is under way: its step wrapped (through JSPI where Node has it, else the export), nothing else changed. */
+function hookSteps(core: Core): void {
+  if (stepsHooked) return;
+  stepsHooked = true;
+  const stepped = () => {
+    if (saving && ++saving.steps === saving.after) {
+      const s = saving;
+      saving = null;
+      s.then();
+    }
+  };
+  const c = core as unknown as { x: Record<string, unknown> & { ph_step: () => number }; stepAsync?: () => Promise<number> };
+  const step = c.x.ph_step;
+  c.x = { ...c.x, ph_step: () => {
+    const more = step();
+    stepped();
+    return more;
+  } };
+  const stepAsync = c.stepAsync;
+  if (stepAsync) c.stepAsync = async () => {
+    const more = await stepAsync();
+    stepped();
+    return more;
+  };
+}
 const edits: Edit[] = [];
 const graphEvents: any[] = [];
 let saved: any;
@@ -200,6 +233,7 @@ const buildAt: number[] = [];
 let done!: () => void;
 const finished = new Promise<void>((ok) => (done = ok));
 const o = await open(true, text0, (e, c) => {
+  hookSteps(c.core);
   if (e.event === "graph") {
     graphEvents.push({ ...e, at: ms() });
     if (e.given_up) {
@@ -207,18 +241,23 @@ const o = await open(true, text0, (e, c) => {
       if (ed) ed.givenUp = e;
     }
     if (e.saved) (saved = e), setTimeout(done, 50);
-    // (a save begun: the k-th of the first three interrupted after DELAYS[k])
-    if (e.saving && edits.length < DELAYS.length) {
+    // (a save begun (said in its first slice's step): the k-th of the first
+    // three interrupted after SLICES[k-1] more of its slices, the edit typed in the
+    // host's next task, queued before the save's next step)
+    if (e.saving && edits.length < SLICES.length) {
       const k = edits.length + 1;
-      const due = performance.now() + DELAYS[k - 1];
       const ed: Edit = { k, at: 0, lag: 0 };
       edits.push(ed);
-      setTimeout(() => {
-        const now = performance.now();
-        ed.at = ms();
-        ed.lag = now - due;
-        void c.session.request({ op: "set_file", file: docMain, text: edited(k) } as never);
-      }, DELAYS[k - 1]);
+      const then = () => {
+        const due = performance.now();
+        setTimeout(() => {
+          ed.lag = performance.now() - due;
+          ed.at = ms();
+          void c.session.request({ op: "set_file", file: docMain, text: edited(k) } as never);
+        }, 0);
+      };
+      if (SLICES[k - 1] === 0) then();
+      else saving = { steps: 0, after: SLICES[k - 1], then };
     }
   }
   if (e.event === "build" || e.event === "failed") {
@@ -238,7 +277,7 @@ await o.core.end();
 const longest = Math.max(...graphEvents.filter((e) => e.slice_ms !== undefined).map((e) => e.slice_ms));
 console.log(`the document: ${cold.pages ?? "?"} pages, its clean build ${Math.round(cold.wall_ms ?? 0)} ms; ${builds} builds`);
 for (const e of graphEvents) if (e.saving || e.saved || e.given_up) console.log(`  ${String(e.at).padStart(7)} ms  graph ${e.saving ? "saving" : e.saved ? `saved ${(e.saved / 1048576).toFixed(1)} MB in ${Math.round(e.ms)} ms of slices, ${e.slices} slices, the longest ${(e.slice_ms ?? NaN).toFixed(1)} ms` : `given up after ${e.slices} slices (${Math.round(e.ms)} ms), the longest ${(e.slice_ms ?? NaN).toFixed(1)} ms`}`);
-for (const ed of edits) console.log(`  edit ${ed.k} at ${ed.at} ms (${DELAYS[ed.k - 1]} ms into its save): its task ${ed.lag.toFixed(1)} ms late; ${ed.givenUp ? "the save given up" : "NO SAVE GIVEN UP"}; its build ${ed.built ? `at ${ed.built.at} ms` : "NONE"}`);
+for (const ed of edits) console.log(`  edit ${ed.k} at ${ed.at} ms (after its save's slice ${SLICES[ed.k - 1]}): its task ${ed.lag.toFixed(1)} ms late; ${ed.givenUp ? "the save given up" : "NO SAVE GIVEN UP"}; its build ${ed.built ? `at ${ed.built.at} ms` : "NONE"}`);
 
 // (2: the checks)
 // (each save begun soon after the build before it: the first of an open, or
@@ -247,8 +286,8 @@ for (const ed of edits) console.log(`  edit ${ed.k} at ${ed.at} ms (${DELAYS[ed.
 // (nightly 2026-11-16, ci-graph: "graph saved: NO after 30161 ms"))
 const starts = graphEvents.filter((e) => e.saving).map((e) => e.at);
 const waits = starts.map((t) => t - Math.max(...buildAt.filter((b) => b <= t)));
-say(starts.length === DELAYS.length + 1 && waits.every((w) => w < 5000), "each save begun at once after the build before it", `${starts.length} begun, ${waits.map((w) => `${w} ms`).join(", ")} after their builds`);
-say(edits.length === DELAYS.length && edits.every((e) => e.givenUp && e.built), "each of the first three saves given up for the edit typed during it, then the edit built", `${edits.filter((e) => e.givenUp).length} given up, ${edits.filter((e) => e.built).length} built`);
+say(starts.length === SLICES.length + 1 && waits.every((w) => w < 5000), "each save begun at once after the build before it", `${starts.length} begun, ${waits.map((w) => `${w} ms`).join(", ")} after their builds`);
+say(edits.length === SLICES.length && edits.every((e) => e.givenUp && e.built), "each of the first three saves given up for the edit typed during it, then the edit built", `${edits.filter((e) => e.givenUp).length} given up, ${edits.filter((e) => e.built).length} built`);
 // (an edit's task waits for the slice under way at most, and the timer's own jitter)
 const late = Math.max(...edits.map((e) => e.lag));
 say(late <= longest + 5, "each edit taken within one slice of the save", `latest ${late.toFixed(1)} ms; the longest slice ${longest.toFixed(1)} ms`);
@@ -256,10 +295,10 @@ say(puts === 1 && !!saved && saved.slices > 3, "only the last save kept, made in
 
 // (3: the graph kept loads on a fresh core: nothing run, the last build's PDF, a clean build's)
 const graphNotes: string[] = [];
-const again = await open(true, edited(DELAYS.length), (e) => e.event === "graph" && graphNotes.push(...(e.notes ?? [])));
+const again = await open(true, edited(SLICES.length), (e) => e.event === "graph" && graphNotes.push(...(e.notes ?? [])));
 const pdfAgain = Buffer.from(again.core.mainOutput()?.bytes ?? new Uint8Array());
 await again.core.end();
-const clean = await open(false, edited(DELAYS.length));
+const clean = await open(false, edited(SLICES.length));
 const pdfClean = Buffer.from(clean.core.mainOutput()?.bytes ?? new Uint8Array());
 await clean.core.end();
 say(graphNotes.some((n) => n.startsWith("graph: loaded")) && again.first.ran === 0, "the saved graph loads on a fresh core, no node run", `${again.first.ran} nodes run; ${graphNotes.join(" | ")}`);
@@ -270,7 +309,7 @@ say(pdf.length > 0 && Buffer.compare(pdfAgain, pdf) === 0 && Buffer.compare(pdfC
 // that open's build left nothing pending, and the save waited 30 s))
 const t4 = ms();
 let saved4: number | undefined;
-const changed = await open(true, edited(DELAYS.length + 1), (e) => e.event === "graph" && e.saved && saved4 === undefined && (saved4 = ms()));
+const changed = await open(true, edited(SLICES.length + 1), (e) => e.event === "graph" && e.saved && saved4 === undefined && (saved4 = ms()));
 const built4 = ms();
 await new Promise((ok) => setTimeout(ok, 8000));
 await changed.core.end();

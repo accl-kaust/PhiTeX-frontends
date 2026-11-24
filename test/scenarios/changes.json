@@ -760,8 +760,8 @@
    ]
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot svg.bl-paint.s-wash rect').length > 20 && P.querySelectorAll('.slot svg.bl-paint rect[fill^=\"url(#blh-\"]').length >= 1 && !P.querySelector('.slot div.bl') && C.querySelector('#chg-look [data-look=style][aria-pressed=true]')?.dataset.v === 'wash'; })()",
-   "what": "every line coloured, a wash by default (one SVG a page, no box a line), the unsaved text hatched",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot svg.bl-paint.s-highlight rect').length > 20 && P.querySelectorAll('.slot svg.bl-paint rect[fill^=\"url(#blh-\"]').length >= 1 && !P.querySelector('.slot div.bl') && C.querySelector('#chg-look [data-look=style][aria-pressed=true]')?.dataset.v === 'highlight'; })()",
+   "what": "every line coloured, a highlight by default (one SVG a page, no box a line), the unsaved text hatched",
    "ms": 10000
   },
   {
@@ -933,7 +933,7 @@
    "click": "#chg-look [data-look=style][data-v=bar]"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !P.querySelector('.slot svg.bl-paint') && P.querySelectorAll('.slot svg.bl-marks rect.b').length > 20; })()",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !P.querySelector('.slot svg.bl-paint') && P.querySelectorAll('.slot svg.bl-marks .b').length > 20; })()",
    "what": "Bar: a bar a line, in the margin",
    "ms": 5000
   },
@@ -941,7 +941,7 @@
    "shot": "blame-bar-light"
   },
   {
-   "click": "#chg-look [data-look=style][data-v=wash]"
+   "click": "#chg-look [data-look=style][data-v=highlight]"
   },
   {
    "check": "(() => { document.getElementById('phitex-settings').click(); return true; })()",
@@ -968,7 +968,7 @@
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelector('.win').classList.contains('paged') && getComputedStyle(P.querySelector('.slot svg.bl-paint')).mixBlendMode === 'multiply' && getComputedStyle(P.querySelector('.slot svg.bl-marks')).getPropertyValue('--bl-veil').trim() === '#f4ecd8'; })()",
-   "what": "Sepia: the wash multiplied into the sheet, the veil the sheet's colour",
+   "what": "Sepia: the highlight multiplied into the sheet, the veil the sheet's colour",
    "ms": 5000
   },
   {
@@ -1012,11 +1012,11 @@
    "shot": "blame-darkpages-text-light"
   },
   {
-   "click": "#chg-look [data-look=style][data-v=wash]"
+   "click": "#chg-look [data-look=style][data-v=highlight]"
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return getComputedStyle(P.querySelector('.slot svg.bl-paint')).mixBlendMode === 'screen'; })()",
-   "what": "Dark pages: the wash screened",
+   "what": "Dark pages: the highlight screened",
    "ms": 5000
   },
   {
@@ -1046,7 +1046,7 @@
   },
   {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return getComputedStyle(P.querySelector('.slot svg.bl-paint')).mixBlendMode === 'screen'; })()",
-   "what": "Overleaf's dark PDF: the wash screened",
+   "what": "Overleaf's dark PDF: the highlight screened",
    "ms": 5000
   },
   {
@@ -1160,8 +1160,8 @@
    "ms": 20000
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const b = P.querySelector('.slot svg.bl-marks rect.b'); const s = b.closest('.slot').getBoundingClientRect(), r = b.getBoundingClientRect(); return [r.width >= 5, r.left > s.left + s.width / 2]; })()",
-   "what": "the bars wide, in the right margin",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const b = P.querySelector('.slot svg.bl-marks .b'); const s = b.closest('.slot').getBoundingClientRect(), r = b.getBoundingClientRect(); return [parseFloat(getComputedStyle(b).strokeWidth) >= 5 && b.getAttribute('vector-effect') === 'non-scaling-stroke', r.left > s.left + s.width / 2]; })()",
+   "what": "the bars wide on the screen whatever the zoom, in the right margin",
    "is": [
     true,
     true

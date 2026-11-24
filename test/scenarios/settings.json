@@ -260,8 +260,8 @@
    "shot": "changes-light-wide"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const ids = [...S.querySelectorAll('.srow[data-id]')].map((r) => r.dataset.id); return ['bl-style', 'bl-wip', 'bl-since', 'bl-ages', 'bl-reset', 'chg-reset'].every((x) => ids.includes(x)) && !ids.includes('bl-tint') && [...S.querySelectorAll(\".srow[data-id='bl-style'] [data-v]\")].map((b) => b.textContent).join() === 'Wash,Text,Bar'; })()",
-   "what": "Settings, Changes: Blame's Style (Wash, Text, Bar), not committed, since, the age colours, resets; no tint"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot; const S = P.querySelector('#settings'); const ids = [...S.querySelectorAll('.srow[data-id]')].map((r) => r.dataset.id); return ['bl-style', 'bl-wip', 'bl-since', 'bl-ages', 'bl-reset', 'chg-reset'].every((x) => ids.includes(x)) && !ids.includes('bl-tint') && [...S.querySelectorAll(\".srow[data-id='bl-style'] [data-v]\")].map((b) => b.textContent).join() === 'Highlight,Text,Bar'; })()",
+   "what": "Settings, Changes: Blame's Style (Highlight, Text, Bar), not committed, since, the age colours, resets; no tint"
   },
   {
    "pointer": "#settings [data-section='General']",
