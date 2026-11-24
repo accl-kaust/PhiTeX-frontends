@@ -1,0 +1,12 @@
+{
+  "users": {
+    "ali": { "id": "5f00000000000000000a1101", "first_name": "Ali", "last_name": "Rahman", "email": "ali@example.org" },
+    "lina": { "id": "5f00000000000000000a1102", "first_name": "Lina", "last_name": "Chen", "email": "lina@example.org" }
+  },
+  "updates": [
+    { "v": 1, "user": "ali", "ago": "3d", "files": ["main.tex"] },
+    { "v": 2, "user": "lina", "ago": "1h", "files": ["main.tex"] }
+  ],
+  "labels": [],
+  "versions": { "1": "changes-defs-v1" }
+}
