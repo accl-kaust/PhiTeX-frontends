@@ -6,8 +6,11 @@ text and headings reach the page in a few milliseconds. This repository
 holds the places you use it from: a browser extension for Overleaf, VS
 Code, Emacs and Neovim, a demo in the browser, and phitex.org.
 
-> **Experimental.** When PhiTeX's pages and a regular `pdflatex` run
-> disagree, `pdflatex` is right.
+> **What is exact, and what is experimental.** PhiTeX's pdfLaTeX output is
+> the PDF `pdflatex` makes, byte for byte, checked on every change. Its
+> XeLaTeX output, multi-threaded builds and the browser extension for
+> Overleaf are experimental. If a PDF ever differs from `pdflatex`'s, that
+> is a bug: please report it.
 
 ![The ⚡ Instant preview in Overleaf's PDF pane](store/screenshot-1-instant.png)
 
@@ -67,12 +70,16 @@ Overleaf's Recompile for the PDF you submit.
 - The download button gives the ⚡ PDF; its ▾ menu still gives Overleaf's.
 - It follows Overleaf's light or dark theme and its dark PDF switch.
 - **Folders** on the project dashboard: nested folders and a status column
-  (idea, drafting, submitted, …), kept in a project of yours,
-  `.phitex-data`.
+  (idea, drafting, submitted, …). They are kept in a small project the
+  extension makes in your account, **`.phitex-data`**: you will see it in
+  your project list. Leave it there while you use folders; deleting it
+  forgets them, nothing else.
 
-**Install**: from the Chrome Web Store, Microsoft Edge Add-ons or Firefox
-Add-ons *(links with the public release)*. It works in Chromium browsers
-and Firefox 142 or later. Open a project on overleaf.com, switch the PDF
+**Install**: from the
+[Chrome Web Store](https://chromewebstore.google.com/detail/phitex-instant-for-overle/joimneigjammmhdbgaonlepnlllceajl),
+[Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/phitex-instant-for-overle/gkcnpagkdjaefnnpkoogdpacdmgpihpd)
+or [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/phitex-for-overleaf-unofficial/).
+It works in Chromium browsers and Firefox 142 or later. Open a project on overleaf.com, switch the PDF
 pane to ⚡ Instant, and accept the short terms the first time. A project's
 first open downloads the packages it uses (a few seconds, up to a minute on
 a slow connection); later opens start at once and work offline.
@@ -81,12 +88,11 @@ a slow connection); later opens start at once and work offline.
 
 | Tab | |
 | --- | --- |
-| Preview | what a project opens with, the engine (Auto, pdfLaTeX, XeLaTeX), what the highlight follows, collaborators, the main file |
-| Appearance | dark PDF (off, on, match the theme), the loading animation, underlines |
-| Build | clean rebuild, reload the files, a debug check against a fresh build |
-| Packages | the packs kept (Clear), the most to keep, fetching common ones ahead |
-| Updates and tips | tips, the tour, what's new |
-| Overleaf | on or off, the dashboard's folders, the terms, reset |
+| View | what a project opens with, what the highlight follows, collaborators, link previews, the loading animation |
+| Colours | dark PDF (off, on, match the theme), page colours, Colour lines |
+| Build | the main file and the engine (Auto, pdfLaTeX, XeLaTeX), clean rebuild, a debug check against a fresh build, the packages kept (Clear, the most to keep, fetching common ones ahead), warnings and underlines |
+| Changes | how Diff and Blame look |
+| General | tips, the tour, what's new; on or off, the dashboard's folders, the terms, reset |
 
 **Limits**:
 - LuaLaTeX can't be previewed yet. The card offers pdfLaTeX instead.
@@ -113,10 +119,13 @@ package names, files named `file1.tex`, …). Nothing is sent unless you send it
 
 ### VS Code
 
+From the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=accl-kaust.phitex)
+or [Open VSX](https://open-vsx.org/extension/accl-kaust/phitex).
 **Ctrl+Alt+P** (**Cmd+Alt+P**) on a `.tex` file opens the preview beside
 the editor. It also compares the document with a past git commit, marking
-the changes as `latexdiff` would. The built-in engine needs nothing
-installed; `phitex.engine` switches to the `phitex` command. See
+the changes as `latexdiff` would. It works with nothing else installed: its
+engine is built in. The `phitex` command is optional, for the native
+engine and your own TeX Live (`phitex.engine`). See
 [apps/vscode/README.md](apps/vscode/README.md).
 
 ### Emacs and Neovim

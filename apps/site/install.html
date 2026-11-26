@@ -59,8 +59,11 @@
         <ul class="facts">
           <li><b>Update</b><span><code>phitex upgrade</code></span></li>
           <li><b>PDF file</b><span><code>phitex watch --write paper.tex</code></span></li>
-          <li data-os-only="unix"><b>Remove</b><span>delete <code>~/.local/bin/phitex</code></span></li>
-          <li data-os-only="windows" hidden><b>Remove</b><span>delete <code>%LOCALAPPDATA%\Programs\phitex</code> and <code>%LOCALAPPDATA%\phitex</code></span></li>
+          <li data-os-only="unix"><b>Elsewhere</b><span><code>PHITEX_PREFIX=/opt/phitex</code> before <code>sh</code> installs into <code>/opt/phitex/bin</code> (default <code>~/.local</code>); <code>PHITEX_CHANNEL=nightly</code> takes the nightly, and <code>phitex upgrade</code> then follows it</span></li>
+          <li data-os-only="unix"><b>Not on PATH?</b><span><code>export PATH="$HOME/.local/bin:$PATH"</code> for this terminal; add that line to <code>~/.profile</code> for new ones</span></li>
+          <li data-os-only="unix"><b>Remove</b><span>the program: <code>~/.local/bin/phitex</code> and its record <code>~/.local/share/phitex</code> (with <code>PHITEX_PREFIX</code>: its <code>bin/phitex</code> and <code>share/phitex</code>). Its cache and settings: on Linux <code>~/.cache/phitex</code>, <code>~/.local/state/phitex</code>, <code>~/.config/phitex</code>; on macOS the same paths (PhiTeX uses XDG's folders there too). <code>phitex clean --all</code> empties the cache first</span></li>
+          <li data-os-only="windows" hidden><b>Elsewhere</b><span><code>$env:PHITEX_PREFIX</code> installs into another folder; <code>$env:PHITEX_CHANNEL = "nightly"</code> takes the nightly</span></li>
+          <li data-os-only="windows" hidden><b>Remove</b><span>the program: <code>%LOCALAPPDATA%\Programs\phitex</code>; its record, cache and state: <code>%LOCALAPPDATA%\phitex</code>; its settings: <code>%APPDATA%\phitex</code>. Then take the folder off your user <code>PATH</code></span></li>
           <li data-os-only="windows" hidden><b>MiKTeX</b><span>only with <code>files = "shelf"</code> in your config: packages from Shelf</span></li>
           <li data-os-only="windows" hidden><b>Download</b><span><a data-winzip="x86_64" href="#"><code>x86-64</code></a> · <a data-winzip="aarch64" href="#"><code>ARM</code></a></span></li>
           <li data-nowin><b>Windows</b><span>coming soon</span></li>
@@ -116,10 +119,10 @@
           <header><svg width="34" height="34" class="ed-ico i-vscode" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"/></svg><div><h3>VS Code</h3><p class="need">VS Code 1.85+ · brings its own engine</p></div></header>
           <p><b>PhiTeX ⚡ Instant</b> (<code>accl-kaust.phitex</code>): a live page beside your editor, errors in the Problems panel, click-to-source both ways.</p>
           <ol class="setup-steps">
-            <li>Install it. The Marketplace and Open VSX listings are coming soon; until then, from a <code>.vsix</code> built from <a data-ext href="#">PhiTeX-frontends</a>:
-              <div class="cmd"><pre><code>code --install-extension phitex-1.0.4.vsix</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
-            <li>Open a <code>.tex</code> file and run <b>PhiTeX: Open Preview</b> from the Command Palette.</li>
-            <li>Optional: with <a href="#binary">phitex</a> installed, <b>PhiTeX: Switch Engine</b> runs <code>phitex watch</code> instead of the built-in engine.</li>
+            <li>Install it from the <a href="https://marketplace.visualstudio.com/items?itemName=accl-kaust.phitex" target="_blank" rel="noopener">VS Code Marketplace</a> or <a href="https://open-vsx.org/extension/accl-kaust/phitex" target="_blank" rel="noopener">Open VSX</a> (VSCodium, Cursor), or from a terminal:
+              <div class="cmd"><pre><code>code --install-extension accl-kaust.phitex</code></pre><button class="copy" type="button" aria-label="Copy">Copy</button></div></li>
+            <li>Open a <code>.tex</code> file and run <b>PhiTeX: Open preview</b> from the Command Palette, or click the <b>Φ</b> button in the editor's title bar. Nothing else to install: the engine is built in.</li>
+            <li>Optional: with <a href="#binary">phitex</a> installed, <b>PhiTeX: Switch engine</b> runs <code>phitex watch</code> (your own TeX Live) instead of the built-in engine.</li>
           </ol>
         </article>
         <article class="setup reveal" id="neovim">

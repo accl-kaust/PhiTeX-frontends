@@ -116,6 +116,13 @@ export const CSS = `
 @media (max-width: 760px) {
   .phx-narrow { display: inline-block; }
   .phx-engine, .phx-logo { display: none; }
+  /* (every control in the bar at a phone's width: the project's name gives way (cut short), its caption goes, Files first among the rest, never cut off) */
+  .phx-proj { flex: 0 1 auto; min-width: 0; margin-right: 0; }
+  .phx-proj .cap { display: none; }
+  .phx-proj select { min-width: 0; width: 100%; max-width: 100%; text-overflow: ellipsis; }
+  .phx-bar > .grow { display: none; }
+  .phx-bar #phx-files { order: -1; }
+  .phx-bar > button, .phx-menu > button { padding: 0 8px; }
   /* (a column: the editor's 40% and the pages' rest, neither grown to its contents, the editor's own text a scroll inside it) */
   .phx-body { flex-direction: column; min-height: 0; }
   .phx-tree { display: none; position: absolute; z-index: 30; top: 40px; bottom: 0; left: 0; width: min(260px, 80%); box-shadow: 4px 0 16px rgb(0 0 0 / 20%); }

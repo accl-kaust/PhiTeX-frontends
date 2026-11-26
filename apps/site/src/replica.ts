@@ -124,7 +124,7 @@ export function initReplica() {
   if (!ol) setInstant(true);
 
   const type = async (text: string) => {
-    const at = () => src.value.indexOf("Everything on the page");
+    const at = () => src.value.indexOf("Everything on this page");
     for (const ch of text) {
       if (userTyped) return false;
       const pos = at();

@@ -34,6 +34,7 @@ export function initChrome() {
 
   const nav = $("#nav");
   if (nav) addEventListener("scroll", () => nav.classList.toggle("scrolled", scrollY > 20), { passive: true });
+  if (nav) navMenu(nav);
 
   const rev = new IntersectionObserver(
     (es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add("in"), rev.unobserve(e.target))),
@@ -53,4 +54,34 @@ export function initChrome() {
     const u = STORES[a.dataset.store!];
     if (u) a.href = u;
   });
+}
+
+/**
+ * The sections' links at a phone's width: a menu button (☰) beside the theme
+ * toggle opens them in a panel under the bar; a link taken, Escape, or a
+ * click elsewhere closes it. Wide, the links are in the bar and the button
+ * is hidden (style.css .nav-menu).
+ */
+function navMenu(nav: HTMLElement) {
+  const links = nav.querySelector("nav");
+  if (!links) return;
+  links.id ||= "nav-links";
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "nav-menu";
+  b.setAttribute("aria-label", "Menu");
+  b.setAttribute("aria-controls", links.id);
+  b.setAttribute("aria-expanded", "false");
+  b.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path class="open" d="M3 6h18M3 12h18M3 18h18"/><path class="close" d="M5 5l14 14M19 5L5 19"/></svg>`;
+  const set = (open: boolean) => {
+    nav.classList.toggle("menu-open", open);
+    b.setAttribute("aria-expanded", String(open));
+  };
+  b.addEventListener("click", (e) => (e.stopPropagation(), set(!nav.classList.contains("menu-open"))));
+  links.addEventListener("click", (e) => (e.target as Element).closest("a") && set(false));
+  document.addEventListener("click", (e) => !nav.contains(e.target as Node) && set(false));
+  document.addEventListener("keydown", (e) => e.key === "Escape" && nav.classList.contains("menu-open") && (set(false), b.focus()));
+  const theme = nav.querySelector("#theme");
+  if (theme) theme.before(b);
+  else nav.append(b);
 }

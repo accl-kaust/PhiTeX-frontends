@@ -6,8 +6,11 @@
 # Downloads the phitex binary for this machine from PhiTeX's GitHub
 # release, checks it against the release's SHA256SUMS (and that file's
 # minisign signature when minisign is installed), and puts it in
-# ~/.local/bin. Nothing else on the machine is touched, and nothing is
-# sent but the downloads themselves.
+# ~/.local/bin. It writes two files, the binary (PREFIX/bin/phitex) and
+# its install record beside it (PREFIX/share/phitex/install.json, which
+# `phitex upgrade` reads); nothing else on the machine is touched, and
+# nothing is sent but the downloads themselves. Another install (another
+# PREFIX) keeps its own binary and record.
 #
 # Settings (environment):
 #   PHITEX_VERSION=1.0     a version instead of the latest release
@@ -104,12 +107,17 @@ chmod 755 "$PREFIX/bin/.phitex.new"
 mv -f "$PREFIX/bin/.phitex.new" "$PREFIX/bin/phitex"
 
 installed=$("$PREFIX/bin/phitex" --version 2>/dev/null | head -1 || true)
-data=${XDG_DATA_HOME:-$HOME/.local/share}/phitex
+# (the record beside the prefix, one per install: never another install's overwritten)
+data=$PREFIX/share/phitex
 mkdir -p "$data"
 printf '{"method": "script", "prefix": "%s", "asset": "%s", "channel": "%s"}\n' "$PREFIX" "$asset" "$CHANNEL" > "$data/install.json"
 
 say "installed ${installed:-phitex} in $PREFIX/bin"
 case ":$PATH:" in
   *":$PREFIX/bin:"*) ;;
-  *) say "add $PREFIX/bin to your PATH, for example: echo 'export PATH=\"$PREFIX/bin:\$PATH\"' >> ~/.profile" ;;
+  *)
+    say "$PREFIX/bin is not on your PATH. To use phitex in this terminal now:"
+    say "  export PATH=\"$PREFIX/bin:\$PATH\""
+    say "and for new terminals too: echo 'export PATH=\"$PREFIX/bin:\$PATH\"' >> ~/.profile"
+    ;;
 esac

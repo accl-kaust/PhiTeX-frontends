@@ -22,7 +22,7 @@ const article = String.raw`\documentclass{article}
 \maketitle
 
 \section{Instant}
-Everything on the page to the right is set by \textbf{PhiTeX} as you
+Everything on this page is set by \textbf{PhiTeX} as you
 type. Change a word: the paragraph you touched is built again, and the
 page is repainted before you lift your finger. Nothing is uploaded.
 
@@ -48,7 +48,7 @@ const plain = String.raw`\font\rm=Times-Roman at 11pt
 \centerline{\big Type here.}
 \vskip 18pt
 
-Everything on the page to the right is set by {\bf PhiTeX}, a TeX
+Everything on this page is set by {\bf PhiTeX}, a TeX
 engine compiled to WebAssembly and running in this tab. Change a word:
 the paragraph you touched is built again, and the page is repainted.
 Nothing is sent anywhere.

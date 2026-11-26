@@ -250,3 +250,12 @@
 .r-file i { font-size: .85em; }
 button.r-recompile { cursor: pointer; }
 button.r-switch { cursor: pointer; }
+
+/* a phone's column (the page below the code): the lines wrap, as a phone's editor wraps them, so every line is read from its
+   start and the code never scrolls sideways mid-word; the line numbers, which wrapped lines would no longer match, go */
+@media (max-width: 600px) {
+  .r-editor .r-scroll { grid-template-columns: minmax(0, 1fr); overflow-x: hidden; }
+  .r-editor .gutter { display: none; }
+  .r-editor .code { min-width: 0; }
+  .r-editor .code pre, .r-editor .code textarea { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 12px; }
+}

@@ -91,6 +91,20 @@ b { font-weight: 600; color: var(--text); }
 :root[data-theme="dark"] .theme .sun { display: block; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .theme .moon { display: none; } :root:not([data-theme="light"]) .theme .sun { display: block; } }
 @media (max-width: 860px) { .nav nav { display: none; } .theme { margin-left: auto; } }
+/* the sections' menu at a phone's width (ui.ts navMenu): ☰ beside the theme toggle, the links in a panel under the bar */
+.nav-menu { display: none; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--text); cursor: pointer; }
+.nav-menu:hover { background: var(--surface-2); }
+.nav-menu svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.nav-menu .close, .nav.menu-open .nav-menu .open { display: none; }
+.nav.menu-open .nav-menu .close { display: inline; }
+@media (max-width: 860px) {
+  .nav-menu { display: inline-flex; margin-left: auto; }
+  .nav-menu + .theme { margin-left: 0; }
+  .nav.menu-open nav { display: flex; flex-direction: column; align-items: stretch; gap: 0; position: absolute; top: 68px; left: 0; right: 0; margin: 0;
+    padding: 8px clamp(16px, 4vw, 48px) 12px; background: var(--bg); border-bottom: 1px solid var(--line); box-shadow: 0 12px 24px rgb(0 0 0 / 12%); }
+  .nav.menu-open nav a { padding: 12px; font-size: 17px; }
+  .nav.menu-open nav .nsep { height: 1px; margin: 4px 0; background: var(--line); }
+}
 
 /* sections */
 main > section { position: relative; max-width: 1280px; margin: 0 auto; padding: 96px clamp(16px, 4vw, 48px); }
