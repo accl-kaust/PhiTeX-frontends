@@ -13,7 +13,9 @@
 -- progress (vim.lsp.status(), or a plugin such as fidget.nvim).
 --
 -- Commands: :PhiTeXInstall, :PhiTeXViewer, :PhiTeXStop, :PhiTeXRestart, :PhiTeXRebuild,
--- :PhiTeXSavePdf [path], :PhiTeXCaches, :PhiTeXClearCache [build|packages|all].
+-- :PhiTeXAttach, :PhiTeXSavePdf [path], :PhiTeXCaches, :PhiTeXClearCache [build|packages|all],
+-- :PhiTeXDoctor (the setup, for a bug report; also :checkhealth phitex).
+-- README.md beside this file: install, the commands, troubleshooting.
 --
 -- Settings, in PhitexSettings before this file runs, e.g.
 -- PhitexSettings = { threads = 4, follow = "selection", mark_selection = false }.
@@ -66,6 +68,21 @@ local CLIENT = { name = "phitex.nvim", version = "0.1.0" }
 --- The editor protocol this file speaks: an older server's (capabilities.experimental.phitex.protocol) is said.
 local PROTOCOL = 1
 
+--- Where a problem with PhiTeX itself is reported.
+local ISSUES = "https://github.com/accl-kaust/PhiTeX/issues/new/choose"
+--- The line a message about PhiTeX itself (not the document's TeX) ends with.
+local DOCTOR_LINE = "Run :PhiTeXDoctor and, if it looks like a bug, open an issue: " .. ISSUES
+
+--- The last thing that went wrong with PhiTeX itself (:PhiTeXDoctor shows it).
+local last_error
+
+--- Something wrong with PhiTeX itself (not found, too old, the watch failing or gone, an
+--- internal error; never a TeX error in the document): said, with the doctor's line, and kept.
+local function trouble(msg)
+  last_error = os.date("%H:%M:%S ") .. msg
+  vim.schedule(function() vim.notify(msg .. "\n" .. DOCTOR_LINE, vim.log.levels.ERROR) end)
+end
+
 --- phitex/status, per client.
 local status = {}
 
@@ -93,7 +110,7 @@ local function exec(name, args, done)
   local c = client()
   if not c then return end
   c:request("workspace/executeCommand", { command = name, arguments = args }, function(err, result)
-    if err then return vim.notify("PhiTeX: " .. (err.message or vim.inspect(err)), vim.log.levels.ERROR) end
+    if err then return trouble("PhiTeX: " .. name .. ": " .. (err.message or vim.inspect(err))) end
     if done then done(result) end
   end, 0)
 end
@@ -215,7 +232,7 @@ local function install()
   end
   local r = vim.system({ "sh", "-c", INSTALL_SCRIPT, "sh", base, i.key or KEYS[i.channel], i.prefix, i.channel }, { text = true }):wait()
   if r.code ~= 0 then
-    vim.notify(string.format("PhiTeX: not installed from the %s channel (%s): %s", i.channel, base, vim.trim((r.stdout or "") .. (r.stderr or ""))), vim.log.levels.ERROR)
+    trouble(string.format("PhiTeX: not installed from the %s channel (%s): %s", i.channel, base, vim.trim((r.stdout or "") .. (r.stderr or ""))))
     return false
   end
   vim.env.PATH = i.prefix .. "/bin:" .. vim.env.PATH
@@ -231,7 +248,10 @@ local function ensure_binary()
     vim.env.PATH = bin .. ":" .. vim.env.PATH
     return true
   end
-  if declined then return false end
+  if declined then
+    trouble("PhiTeX: no phitex on PATH (:PhiTeXInstall downloads it, or see https://phitex.org/install).")
+    return false
+  end
   return install()
 end
 
@@ -269,8 +289,21 @@ local function session_for(file)
   return best
 end
 
---- Clients attached to a watch this Neovim did not start, by id.
+--- Clients attached to a watch this Neovim did not start, by id: the session they attached to.
 local attached = {}
+--- Clients whose end was asked for here (:PhiTeXStop, :PhiTeXRestart, the last buffer
+--- closed, Neovim quitting), by id: their end is no surprise.
+local ending = {}
+--- The buffers each client served, by id (an ended watch's buffers get one of their own).
+local served = {}
+local leaving = false
+vim.api.nvim_create_autocmd("VimLeavePre", { callback = function() leaving = true end })
+
+--- Client `c` stopped, as asked here.
+local function stop(c)
+  ending[c.id] = true
+  c:stop()
+end
 
 --- The buffer's watch: `mode` (PhitexSettings.attach, "auto" by default) "auto"
 --- uses a running one whose folder holds the file (`phitex session list`: one
@@ -310,26 +343,38 @@ local function start(buf, mode)
     -- (a phitex older than this file's protocol: said, the watch kept)
     on_init = function(c, result)
       if session then
-        attached[c.id] = true
+        attached[c.id] = session
         vim.schedule(function() vim.notify(string.format("PhiTeX: attached to the watch of %s (pid %s).", session.main, session.pid)) end)
       end
       local p = vim.tbl_get(result, "capabilities", "experimental", "phitex", "protocol")
       if type(p) ~= "number" or p < PROTOCOL then
         local v = vim.tbl_get(result, "serverInfo", "version") or "(of an unknown version)"
-        vim.schedule(function() vim.notify("PhiTeX: phitex " .. v .. " is too old for this phitex.lua. Run `phitex upgrade` in a terminal, then :PhiTeXRestart.", vim.log.levels.ERROR) end)
+        trouble("PhiTeX: phitex " .. v .. " is too old for this phitex.lua. Run `phitex upgrade` in a terminal, then :PhiTeXRestart.")
       end
     end,
     on_exit = function(code, signal, client_id)
       status[client_id] = nil
-      -- (attached: the watch keeps running where it was started)
-      if attached[client_id] then
-        attached[client_id] = nil
-        vim.schedule(function() vim.notify("PhiTeX: detached from the watch (it keeps running where it was started).") end)
+      local was, asked, bufs = attached[client_id], ending[client_id], served[client_id] or {}
+      attached[client_id], ending[client_id], served[client_id] = nil, nil, nil
+      if asked or leaving then return end
+      -- (attached, and the watch in the terminal ended: one started here for the buffers it
+      -- served, so the pages and problems go on)
+      if was then
+        vim.schedule(function()
+          vim.notify("PhiTeX: the watch in the terminal ended; starting one here.")
+          local started = false
+          for b in pairs(bufs) do
+            if vim.api.nvim_buf_is_loaded(b) and #vim.lsp.get_clients({ bufnr = b, name = "phitex" }) == 0 then
+              if start(b, "never") then started = true end
+            end
+          end
+          if not started and next(bufs) then trouble("PhiTeX: no watch could be started here.") end
+        end)
         return
       end
       -- (an exit not asked for: said, with how to start it again)
       if code ~= 0 or signal ~= 0 then
-        vim.schedule(function() vim.notify(string.format("PhiTeX: phitex watch exited (code %d). :PhiTeXRestart starts it again.", code), vim.log.levels.ERROR) end)
+        trouble(string.format("PhiTeX: phitex watch exited (code %d). :PhiTeXRestart starts it again.", code))
       end
     end,
   }, {
@@ -389,30 +434,64 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+-- (the buffers each watch serves: one that ends unasked has them served by another)
+vim.api.nvim_create_autocmd("LspAttach", {
+  callback = function(ev)
+    local c = vim.lsp.get_client_by_id(ev.data.client_id)
+    if not c or c.name ~= "phitex" then return end
+    served[c.id] = served[c.id] or {}
+    served[c.id][ev.buf] = true
+  end,
+})
+
+-- (a buffer read again from disk (:e!, a change outside taken by :checktime): its text sent
+-- whole, so the problems, the status and the pages are of the text now shown)
+vim.api.nvim_create_autocmd({ "BufReadPost", "FileChangedShellPost" }, {
+  callback = function(ev)
+    local buf = ev.buf
+    vim.schedule(function()
+      if not vim.api.nvim_buf_is_loaded(buf) then return end
+      for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf, name = "phitex" })) do
+        local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+        if vim.bo[buf].eol then text = text .. "\n" end
+        c:notify("textDocument/didChange", {
+          textDocument = { uri = vim.uri_from_bufnr(buf), version = vim.lsp.util.buf_versions[buf] or 0 },
+          contentChanges = { { text = text } },
+        })
+      end
+    end)
+  end,
+})
+
 -- (the watch ends with its last buffer: closed, or its client detached)
 vim.api.nvim_create_autocmd("LspDetach", {
   callback = function(ev)
     local c = vim.lsp.get_client_by_id(ev.data.client_id)
     if not c or c.name ~= "phitex" then return end
     vim.schedule(function()
+      if served[c.id] then served[c.id][ev.buf] = nil end
       local left = vim.tbl_filter(function(b) return b ~= ev.buf and vim.api.nvim_buf_is_loaded(b) end, vim.tbl_keys(c.attached_buffers))
-      if #left == 0 and not c:is_stopped() then c:stop() end
+      if #left == 0 and not c:is_stopped() then stop(c) end
     end)
   end,
 })
 
 vim.api.nvim_create_user_command("PhiTeXInstall", function() install() end, { desc = "PhiTeX: download the latest release, checked against its signature" })
 vim.api.nvim_create_user_command("PhiTeXViewer", function() exec("phitex.openViewer") end, { desc = "PhiTeX: open the pages in a browser" })
-vim.api.nvim_create_user_command("PhiTeXStop", function() exec("phitex.stop") end, { desc = "PhiTeX: stop the watch" })
+vim.api.nvim_create_user_command("PhiTeXStop", function()
+  local c = client()
+  if c then ending[c.id] = true end
+  exec("phitex.stop")
+end, { desc = "PhiTeX: stop the watch" })
 vim.api.nvim_create_user_command("PhiTeXRebuild", function() exec("phitex.rebuild") end, { desc = "PhiTeX: build again from scratch" })
 vim.api.nvim_create_user_command("PhiTeXAttach", function()
   local buf = vim.api.nvim_get_current_buf()
-  for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf, name = "phitex" })) do c:stop() end
+  for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf, name = "phitex" })) do stop(c) end
   vim.defer_fn(function() start(buf, "always") end, 300)
 end, { desc = "PhiTeX: attach to a phitex watch already running for this file (one started in a terminal)" })
 vim.api.nvim_create_user_command("PhiTeXRestart", function()
   local buf = vim.api.nvim_get_current_buf()
-  for _, c in ipairs(vim.lsp.get_clients({ name = "phitex" })) do c:stop() end
+  for _, c in ipairs(vim.lsp.get_clients({ name = "phitex" })) do stop(c) end
   -- (once stopped: a client still stopping holds the server's commands)
   vim.defer_fn(function() start(buf) end, 500)
 end, { desc = "PhiTeX: start the watch again" })
@@ -437,3 +516,111 @@ vim.api.nvim_create_user_command("PhiTeXClearCache", function(o)
   local scope = o.args ~= "" and o.args or "build"
   exec("phitex.clearCache", { { scope = scope } }, function(r) vim.notify(string.format("PhiTeX: %s cache cleared, %s freed", scope, size(r and r.freed_bytes or 0))) end)
 end, { nargs = "?", complete = function() return { "build", "packages", "all" } end, desc = "PhiTeX: clear a cache" })
+
+--- What :PhiTeXDoctor and :checkhealth phitex check, for buffer `buf`: sections of
+--- { ok = true/false/nil (a fact), text = ..., fix = ... }. File names and settings only,
+--- never the document's text: the report is made to be pasted into an issue.
+function PhitexDoctorFindings(buf)
+  buf = buf or vim.api.nvim_get_current_buf()
+  local out = {}
+  local function section(title)
+    local s = { title = title, items = {} }
+    table.insert(out, s)
+    return function(ok, text, fix) table.insert(s.items, { ok = ok, text = text, fix = fix }) end
+  end
+  local v = vim.version()
+  local line = section("This Neovim")
+  line(nil, string.format("Neovim %d.%d.%d", v.major, v.minor, v.patch))
+  local src = debug.getinfo(1, "S").source:gsub("^@", "")
+  line(nil, string.format("phitex.lua %s, from %s, editor protocol %d", CLIENT.version, src, PROTOCOL))
+  line = section("The phitex program")
+  local name = (PhitexSettings.command or {})[1] or "phitex"
+  local exe = vim.fn.exepath(name)
+  if exe == "" then
+    line(false, name .. " not on PATH", ":PhiTeXInstall, or https://phitex.org/install")
+  else
+    line(true, exe)
+    local ok, r = pcall(function() return vim.system({ exe, "--version" }, { text = true }):wait(5000) end)
+    local text = ok and r.code == 0 and r.stdout or nil
+    if not text then
+      line(false, "phitex --version failed", "run phitex --version in a terminal")
+    else
+      line(true, vim.split(text, "\n")[1])
+      local proto = tonumber(text:match("editor protocol (%d+)"))
+      if proto then
+        line(proto >= PROTOCOL, string.format("editor protocol: phitex %d, phitex.lua %d", proto, PROTOCOL),
+          proto < PROTOCOL and "run phitex upgrade in a terminal" or nil)
+      end
+    end
+  end
+  line = section("This buffer")
+  local file = vim.api.nvim_buf_get_name(buf)
+  line(file ~= "", file ~= "" and ("file " .. file) or "no file", "save the buffer to a file")
+  local c = vim.lsp.get_clients({ bufnr = buf, name = "phitex" })[1]
+  local list = sessions()
+  local mine = file ~= "" and session_for(file) or nil
+  if c then
+    local how = attached[c.id] and "attached to a watch started elsewhere" or "its watch started here"
+    line(true, string.format("%s (client %d), %s", how, c.id, PhitexStatus()))
+  else
+    line(false, "no watch for this buffer", ":PhiTeXRestart starts one, :PhiTeXAttach uses a running one")
+  end
+  if mine then
+    line(nil, string.format("the watch: %s, pid %s%s", tostring(mine.main), tostring(mine.pid),
+      type(mine.viewer) == "string" and (", viewer " .. mine.viewer) or ""))
+  end
+  line = section("Running watches (phitex session list)")
+  if #list == 0 then line(nil, "none") end
+  for _, s in ipairs(list) do
+    line(nil, string.format("%s  pid %s%s", tostring(s.main), tostring(s.pid),
+      type(s.viewer) == "string" and ("  viewer " .. s.viewer) or ""))
+  end
+  line = section("Settings in effect")
+  local keys = vim.tbl_keys(PhitexSettings)
+  table.sort(keys)
+  for _, k in ipairs(keys) do line(nil, string.format("PhitexSettings.%s = %s", k, vim.inspect(PhitexSettings[k]))) end
+  line(nil, string.format("PhitexInstall.channel = %q, prefix = %s", tostring(PhitexInstall.channel), tostring(PhitexInstall.prefix)))
+  line = section("The last error")
+  line(last_error == nil, last_error or "none")
+  return out
+end
+
+--- The doctor's report as lines, ending with where to report a problem.
+local function doctor_lines(buf)
+  local lines = { "PhiTeX doctor  " .. os.date("%Y-%m-%d %H:%M:%S") }
+  local bad = 0
+  for _, s in ipairs(PhitexDoctorFindings(buf)) do
+    table.insert(lines, "")
+    table.insert(lines, s.title)
+    for _, i in ipairs(s.items) do
+      local mark = i.ok == true and "✓ " or i.ok == false and "✗ " or ""
+      if i.ok == false then bad = bad + 1 end
+      table.insert(lines, "  " .. mark .. i.text)
+      if i.ok == false and i.fix then table.insert(lines, "      → " .. i.fix) end
+    end
+  end
+  table.insert(lines, "")
+  table.insert(lines, string.format("%d to look at. If it looks like a bug, open an issue with this report:", bad))
+  table.insert(lines, ISSUES)
+  table.insert(lines, "")
+  table.insert(lines, "y copies the report, q closes it")
+  return lines
+end
+
+vim.api.nvim_create_user_command("PhiTeXDoctor", function()
+  local lines = doctor_lines(vim.api.nvim_get_current_buf())
+  vim.cmd("botright new")
+  local b = vim.api.nvim_get_current_buf()
+  vim.bo[b].buftype, vim.bo[b].bufhidden, vim.bo[b].swapfile = "nofile", "wipe", false
+  pcall(vim.api.nvim_buf_set_name, b, "phitex-doctor")
+  vim.api.nvim_buf_set_lines(b, 0, -1, false, lines)
+  vim.bo[b].modifiable = false
+  -- (the report, its last line of keys left out, for the issue)
+  local report = table.concat(vim.list_slice(lines, 1, #lines - 2), "\n")
+  vim.keymap.set("n", "y", function()
+    vim.fn.setreg('"', report)
+    pcall(vim.fn.setreg, "+", report)
+    vim.notify("PhiTeX: the report is copied (paste it into the issue)")
+  end, { buffer = b, desc = "PhiTeX: copy the doctor's report" })
+  vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = b, desc = "close" })
+end, { desc = "PhiTeX: check the setup (the program, the watch, the settings), for a bug report" })

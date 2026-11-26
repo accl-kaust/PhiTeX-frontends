@@ -45,14 +45,16 @@
 ;; and for the download: `phitex-channel' ("stable" or "nightly"),
 ;; `phitex-release-base', `phitex-release-key', `phitex-install-prefix'.
 ;;
-;; Load this file and turn the mode on in TeX buffers:
+;; Load this file and turn the mode on in TeX buffers, with AUCTeX or
+;; without (Emacs's own latex-mode): `phitex-setup' adds it to both modes'
+;; hooks, and to plain TeX's:
 ;;   (load "~/path/to/phitex.el")
-;;   (add-hook 'LaTeX-mode-hook #'phitex-mode) ; and/or latex-mode-hook
+;;   (phitex-setup)
 ;; or with use-package, Emacs 30's :vc:
 ;;   (use-package phitex
 ;;     :vc (:url "https://github.com/accl-kaust/PhiTeX-frontends"
 ;;          :lisp-dir "apps/editors/emacs" :rev :newest)
-;;     :hook ((LaTeX-mode latex-mode) . phitex-mode)
+;;     :config (phitex-setup)
 ;;     :custom (phitex-settings '(:follow "selection")))
 ;; or with straight.el (with straight as use-package's default, this, not :vc;
 ;; :nonrecursive t skips the repository's PhiTeX submodule, which this file
@@ -60,8 +62,10 @@
 ;;   (use-package phitex
 ;;     :straight (phitex :type git :host github :repo "accl-kaust/PhiTeX-frontends"
 ;;                       :files ("apps/editors/emacs/*.el") :depth 1 :nonrecursive t)
-;;     :hook ((LaTeX-mode latex-mode) . phitex-mode)
+;;     :config (phitex-setup)
 ;;     :custom (phitex-settings '(:follow "selection")))
+;; README.md beside this file: install, the commands, troubleshooting
+;; (M-x phitex-doctor).
 ;; With no `phitex' on PATH, the mode asks before downloading the latest
 ;; release into ~/.local/bin (M-x phitex-install does the same). It needs
 ;; minisign and curl: the release's SHA256SUMS must verify against the
@@ -191,6 +195,7 @@ Its arguments are the base, the key, the prefix and the channel.")
     (message "PhiTeX: downloading...")
     (with-temp-buffer
       (unless (eql 0 (call-process "sh" nil t nil "-c" phitex--install-script "sh" base (phitex--release-key) prefix phitex-channel))
+        (phitex--trouble "PhiTeX: not installed from the %s channel (%s): %s" phitex-channel base (string-trim (buffer-string)))
         (user-error "PhiTeX: not installed from the %s channel (%s): %s" phitex-channel base (string-trim (buffer-string)))))
     (add-to-list 'exec-path (concat prefix "/bin"))
     (message "PhiTeX: installed in %s/bin" prefix)))
@@ -204,6 +209,7 @@ On `exec-path', in the install folder, or downloaded when the user agrees."
       (if (file-executable-p (expand-file-name name bin))
           (add-to-list 'exec-path bin)
         (when phitex--install-declined
+          (phitex--trouble "PhiTeX: no phitex on PATH (M-x phitex-install downloads it)")
           (user-error "PhiTeX: no phitex on PATH (M-x phitex-install downloads it)"))
         (phitex-install)))))
 
@@ -213,6 +219,38 @@ See docs/spec-editor-protocol.md §1.")
 
 (defconst phitex--protocol 1
   "The editor protocol this file speaks: an older server's is said.")
+
+(defconst phitex--issues "https://github.com/accl-kaust/PhiTeX/issues/new/choose"
+  "Where a problem with PhiTeX itself is reported.")
+
+(defconst phitex--doctor-line
+  (concat "Run M-x phitex-doctor and, if it looks like a bug, open an issue: " phitex--issues)
+  "The line a message about PhiTeX itself ends with (never a TeX error's).")
+
+(defvar phitex--last-error nil
+  "The last thing that went wrong with PhiTeX itself, for the doctor.")
+
+(defun phitex--trouble (format-string &rest args)
+  "Something wrong with PhiTeX itself, said: FORMAT-STRING with ARGS.
+Not found, too old, the watch failing or gone, an internal error; never a
+TeX error in the document.  The message ends with `phitex--doctor-line'
+and is kept for `phitex-doctor'."
+  (let ((m (apply #'format format-string args)))
+    (setq phitex--last-error (concat (format-time-string "%T ") m))
+    (display-warning 'phitex (concat m "\n" phitex--doctor-line) :error)))
+
+;;;###autoload
+(defun phitex-setup ()
+  "Turn `phitex-mode' on in every LaTeX and plain TeX buffer.
+With AUCTeX (`LaTeX-mode', `plain-TeX-mode') or without it (Emacs's own
+`latex-mode', `plain-tex-mode'): their hooks all get it, once a buffer."
+  (dolist (h '(latex-mode-hook LaTeX-mode-hook plain-tex-mode-hook plain-TeX-mode-hook))
+    (add-hook h #'phitex--turn-on)))
+
+(defun phitex--turn-on ()
+  "`phitex-mode' on, if not on already (a mode may run two of the hooks)."
+  (unless (bound-and-true-p phitex-mode)
+    (phitex-mode 1)))
 
 ;;; The servers: one a project
 
@@ -346,26 +384,46 @@ one started for a chapter that found its main file a folder up, or (by
                (protocol (map-nested-elt init '(:capabilities :experimental :phitex :protocol))))
           ;; (a phitex older than this file's protocol: said, the watch kept)
           (unless (and (numberp protocol) (>= protocol phitex--protocol))
-            (display-warning 'phitex
-                             (format "phitex %s is too old for this phitex.el.  Run `phitex upgrade' in a terminal, then M-x phitex-restart"
-                                     (or (map-nested-elt init '(:serverInfo :version)) "(of an unknown version)"))
-                             :error)))
+            (phitex--trouble "phitex %s is too old for this phitex.el.  Run `phitex upgrade' in a terminal, then M-x phitex-restart"
+                             (or (map-nested-elt init '(:serverInfo :version)) "(of an unknown version)"))))
         (jsonrpc-notify s :initialized (make-hash-table))
         (when session (message "PhiTeX: attached to the watch of %s (pid %s)" (plist-get session :main) (plist-get session :pid)))
         s)))
 
+(defvar phitex--ending (make-hash-table :test #'eq)
+  "The servers whose end was asked for here.
+By `phitex-stop', `phitex-restart', or their last buffer closed.")
+
+(defvar phitex--leaving nil "Emacs is ending: a watch that ends with it is no surprise.")
+(add-hook 'kill-emacs-hook (lambda () (setq phitex--leaving t)))
+
 (defun phitex--ended (server root)
-  "SERVER exited: its buffers told; said unless it was asked to stop."
+  "SERVER exited: its buffers told; said unless it was asked to stop.
+An attached watch that ended (the terminal's) is replaced by one started
+here for its buffers."
   (remhash root phitex--servers)
   (remhash server phitex--roots)
-  (dolist (b (phitex--buffers server))
-    (with-current-buffer b (setq phitex--server nil)))
-  (cond ((gethash server phitex--attached)
-         (remhash server phitex--attached)
-         (message "PhiTeX: detached from the watch in %s (it keeps running where it was started)" root))
-        ((not (equal (plist-get phitex--status :state) "stopped"))
-         (message "PhiTeX: phitex watch exited (M-x phitex-restart starts it again)")))
-  (setq phitex--status nil)
+  (let ((buffers (phitex--buffers server))
+        (asked (or (gethash server phitex--ending)
+                   (equal (plist-get phitex--status :state) "stopped")))
+        (was-attached (gethash server phitex--attached)))
+    (remhash server phitex--ending)
+    (remhash server phitex--attached)
+    (dolist (b buffers)
+      (with-current-buffer b (setq phitex--server nil)))
+    (setq phitex--status nil)
+    (cond ((or asked phitex--leaving) nil)
+          (was-attached
+           (message "PhiTeX: the watch in the terminal ended; starting one here")
+           (dolist (b buffers)
+             (when (buffer-live-p b)
+               (with-current-buffer b
+                 (when (bound-and-true-p phitex-mode)
+                   (condition-case e
+                       (progn (setq phitex--server (phitex--connect (phitex--root) 'never))
+                              (phitex--open))
+                     (error (phitex--trouble "PhiTeX: no watch could be started here: %s" (error-message-string e)))))))))
+          (t (phitex--trouble "PhiTeX: phitex watch exited (M-x phitex-restart starts it again)"))))
   (force-mode-line-update t))
 
 ;;; Positions: LSP's lines and UTF-16 columns
@@ -420,6 +478,7 @@ one started for a chapter that found its main file a folder up, or (by
       ;; watch ends, as phitex-stop ends it)
       (unless (cl-remove (current-buffer) (phitex--buffers s))
         (setq phitex--status (list :state "stopped"))
+        (puthash s t phitex--ending)
         (ignore-errors (jsonrpc-shutdown s)))))
   (setq phitex--server nil))
 
@@ -626,6 +685,7 @@ After `phitex-diagnostics-delay' seconds."
 (defun phitex-stop ()
   "Stop the watch."
   (interactive)
+  (puthash (phitex--check) t phitex--ending)
   (phitex--exec "phitex.stop"))
 
 (defun phitex-attach ()
@@ -633,6 +693,7 @@ After `phitex-diagnostics-delay' seconds."
 One started in a terminal, as `phitex session list' lists them."
   (interactive)
   (when (and phitex--server (jsonrpc-running-p phitex--server))
+    (puthash phitex--server t phitex--ending)
     (jsonrpc-shutdown phitex--server))
   (setq phitex--server (phitex--connect (phitex--root) 'always))
   ;; (the mode on already: the buffer opened on the new connection)
@@ -643,6 +704,7 @@ One started in a terminal, as `phitex session list' lists them."
   (interactive)
   (let ((buffers (if phitex--server (phitex--buffers phitex--server) (list (current-buffer)))))
     (when (and phitex--server (jsonrpc-running-p phitex--server))
+      (puthash phitex--server t phitex--ending)
       (jsonrpc-shutdown phitex--server))
     (dolist (b buffers)
       (with-current-buffer b
@@ -743,10 +805,31 @@ watch and connection."
                               (or (gethash server phitex--roots) "?"))
                     "not connected")
                   "M-x phitex-restart, or M-x phitex-attach"))
-          (insert (format "\n%d fine, %d to look at\n" ok bad)))
+          (insert "\nSettings in effect\n")
+          (dolist (v '(phitex-settings phitex-attach phitex-command phitex-channel phitex-install-prefix
+                       phitex-follow-delay phitex-diagnostics-delay))
+            (when (boundp v) (insert (format "  %s = %S\n" v (symbol-value v)))))
+          (insert "\nThe last error\n")
+          (line (null phitex--last-error) (or phitex--last-error "none"))
+          (insert (format "\n%d fine, %d to look at.  If it looks like a bug, open an issue with this report:\n%s\n"
+                          ok bad phitex--issues))
+          (insert "\nw copies the report, q closes it\n"))
         (special-mode)
+        (local-set-key (kbd "w") #'phitex-doctor-copy)
+        (local-set-key (kbd "c") #'phitex-doctor-copy)
         (goto-char (point-min))))
     (pop-to-buffer "*phitex-doctor*")))
+
+(defun phitex-doctor-copy ()
+  "Copy the doctor's report, to paste into an issue.
+File names and settings only, never a document's text."
+  (interactive)
+  (with-current-buffer "*phitex-doctor*"
+    (save-excursion
+      (goto-char (point-max))
+      (let ((end (if (search-backward "\nw copies the report" nil t) (point) (point-max))))
+        (kill-new (buffer-substring-no-properties (point-min) end)))))
+  (message "PhiTeX: the report is copied (paste it into the issue)"))
 
 (define-derived-mode phitex-caches-mode tabulated-list-mode "PhiTeX caches"
   "The watch's caches: c clears the one at point, g reads them again."
