@@ -65,7 +65,7 @@
 //                  // whole), the tab not reloaded; until `expr` (content script) holds, else the run fails
 //   { "ua": { "userAgent": "…", "metadata": { "platform": "macOS", "platformVersion": "27.2.1", … } } } // the tab's
 //                  // user agent and client hints as another machine's (Emulation.setUserAgentOverride)
-//                { "debuginfo": "status" | "logs", "has": ["regex", …], "hasnt": […], "badge": true } // Copy debug info reached from that
+//                { "debuginfo": "status" | "logs" | "problems", "has": ["regex", …], "hasnt": […], "badge": true } // Copy debug info reached from that
 //                  // toolbar button and copied; the clipboard's text has each, and none of hasnt; "badge": its problems line
 //                  // (errors + warnings) the diagnostics button's badge
 //   "root": "report.tex"         // (top level) Overleaf's main document for the project (the mock's MOCK_ROOT; unset, none)
@@ -865,12 +865,23 @@ for (const s of sc.steps ?? []) {
     await call("Browser.grantPermissions", { origin: `http://localhost:${MOCK}`, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
     await call("Emulation.setFocusEmulationEnabled", { enabled: true });
     await evalIn(`navigator.clipboard.writeText("")`);
-    await evalIn(`document.getElementById(${JSON.stringify(s.debuginfo === "logs" ? "phitex-logs" : "phitex-status")}).click()`);
+    // ("problems": the diagnostics button opens the problems' list (a status naming errors opens it too),
+    // its "Build timings…" the popover with Copy debug info, as there with ⋯ hidden)
+    const opener = s.debuginfo === "status" ? "phitex-status" : "phitex-logs";
+    // (the problems' list open already, as a build with errors may leave it: not clicked shut)
+    const listOpen = s.debuginfo === "problems" && (await evalIn(`!document.querySelector("phitex-preview").shadowRoot.querySelector("#logs").hidden`, true));
+    if (!listOpen) await evalIn(`document.getElementById(${JSON.stringify(opener)}).click()`);
     await sleep(400);
-    const said = await evalIn(`(() => { const b = document.querySelector("phitex-preview").shadowRoot.querySelector("#m-time:not([hidden]) .copydbg"); if (!b) return "no Copy debug info"; b.click(); return "clicked"; })()`, true);
+    let said = "";
+    if (s.debuginfo === "problems") {
+      said = await evalIn(`(() => { const P = document.querySelector("phitex-preview").shadowRoot; const t = P.querySelector("#logs:not([hidden]) .timingsln"); if (!t) return "no problems' list with Build timings (list " + (P.querySelector("#logs").hidden ? "hidden" : "shown") + ", Build timings " + P.querySelectorAll(".timingsln").length + ")"; t.click(); return ""; })()`, true);
+      await sleep(400);
+    }
+    said ||= await evalIn(`(() => { const b = document.querySelector("phitex-preview").shadowRoot.querySelector("#m-time:not([hidden]) .copydbg"); if (!b) return "no Copy debug info"; b.click(); return "clicked"; })()`, true);
     await sleep(800);
     const text = (await evalIn(`navigator.clipboard.readText()`)) ?? "";
-    await evalIn(`document.getElementById(${JSON.stringify(s.debuginfo === "logs" ? "phitex-logs" : "phitex-status")}).click()`);
+    if (s.debuginfo === "problems") await evalIn(`(() => { const P = document.querySelector("phitex-preview").shadowRoot; if (!P.querySelector("#m-time").hidden) globalThis.__phitexPanel?.menu(null); })()`, true);
+    else await evalIn(`document.getElementById(${JSON.stringify(opener)}).click()`);
     const miss = [...(s.has ?? []).filter((r) => !new RegExp(r, "m").test(text)), ...(s.hasnt ?? []).filter((r) => new RegExp(r, "m").test(text)).map((r) => `not ${r}`)];
     // ("badge": true: its problems line counts what the diagnostics button's badge does, errors and warnings)
     if (s.badge) {
