@@ -20,7 +20,7 @@ export type Ask =
   | { t: "hello" }
   | { t: "need"; k: number }
   | { t: "page"; k: number }
-  | { t: "goto"; file: string; line: number }
+  | { t: "goto"; file: string; line: number; col?: number }
   | { t: "sync"; k: number; x: number; y: number }
   | { t: "bye" }
   /** A request for the editor tab's core (a page's frame, its strips), answered by `cored` with the same id. */

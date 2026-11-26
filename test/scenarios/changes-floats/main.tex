@@ -1,0 +1,45 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{hyperref}
+
+\title{PhiTeX UX test}
+\author{A. Tester}
+\date{November 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+Hello world. This is my first paragraph typed with PhiTeX, and I want to see it appear right away.
+
+I can write math like $E = mc^2$ and a display:
+\begin{equation}
+  \int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}
+\end{equation}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.5\linewidth]{example-image-a}
+  \caption{A placeholder figure.}
+  \label{fig:a}
+\end{figure}
+
+\section{Results}
+Table~\ref{tab:r} and Figure~\ref{fig:a} show it all (see the classic~\cite{knuth84}).
+\begin{table}[h]
+  \centering
+  \begin{tabular}{lrr}
+    Name & A & B \\
+    \hline
+    one & 1 & 2 \\
+    two & 3 & 4 \\
+  \end{tabular}
+  \caption{A small table.}
+  \label{tab:r}
+\end{table}
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}

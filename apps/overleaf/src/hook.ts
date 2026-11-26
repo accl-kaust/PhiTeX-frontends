@@ -200,6 +200,7 @@
     // (and its collaborators' cursors, told anew for this file)
     lastOthers = "";
     othersSoon();
+    marksSoon();
   }
 
   /** Editors whose hook failed (guard): never hooked again. */
@@ -255,6 +256,8 @@
       if (trs.some((tr: any) => tr.selection)) selectionSoon();
       // (collaborators' cursors: moved by their own transactions, or by the text's)
       othersSoon();
+      // (the build's marks: where their commands are now, or gone with an edit of their line)
+      marksSoon();
     };
     v.setState = function (s: any) {
       const r = setState.call(this, s);
@@ -300,10 +303,11 @@
     });
   }
 
-  /** Put the cursor at the start of `line` (1-based) and scroll to it. */
-  function gotoLine(line: number): void {
+  /** Put the cursor at `line`'s column `col` (both 1-based; none: the line's start) and scroll to it. */
+  function gotoLine(line: number, col?: number): void {
     const doc = view.state.doc;
-    const at = doc.line(Math.max(1, Math.min(line, doc.lines))).from;
+    const l = doc.line(Math.max(1, Math.min(line, doc.lines)));
+    const at = l.from + Math.max(0, Math.min((col ?? 1) - 1, l.length));
     reveal(at, at, true);
   }
 
@@ -410,16 +414,87 @@
     true,
   );
 
+  /**
+   * The build's problems on the editor's lines (the content script's
+   * `marks`, from the viewer's plain diagnostics): the command each is
+   * about underlined where it is, red for an error, amber for a warning.
+   * Drawn over the editor (a layer in its scroller, under the pointer's
+   * reach), never in it: the editor's text and state are Overleaf's. A
+   * mark is found by its line's text, at its line or near it; an edit of
+   * that line takes it away until the next build says it again.
+   */
+  type Mark = { file: string; line: number; text: string; start: number; len: number; severity: string; message: string };
+  let marks: Mark[] = [];
+  let marksFrame = 0;
+  let marksScroller: any = null;
+  function marksSoon(): void {
+    if (!marksFrame) marksFrame = requestAnimationFrame(() => ((marksFrame = 0), drawMarks()));
+  }
+  function drawMarks(): void {
+    const v = view;
+    const scroller: HTMLElement | undefined = v?.scrollDOM;
+    document.querySelectorAll(".phitex-marks").forEach((el) => el.parentElement !== scroller && el.remove());
+    if (!v || !scroller) return;
+    if (marksScroller !== scroller) {
+      marksScroller = scroller;
+      scroller.addEventListener("scroll", marksSoon, { passive: true });
+      new ResizeObserver(marksSoon).observe(scroller);
+    }
+    let layer = scroller.querySelector<HTMLElement>(":scope > .phitex-marks");
+    const mine = file === null ? [] : marks.filter((m) => m.file === file);
+    if (!mine.length) return void layer?.remove();
+    if (!layer) {
+      layer = document.createElement("div");
+      layer.className = "phitex-marks";
+      layer.setAttribute("aria-hidden", "true");
+      layer.style.cssText = "position:absolute;inset:0 auto auto 0;width:0;height:0;pointer-events:none;z-index:3;";
+      if (getComputedStyle(scroller).position === "static") scroller.style.position = "relative";
+      scroller.append(layer);
+    }
+    const doc = v.state.doc;
+    const box = scroller.getBoundingClientRect();
+    // (elements made, not markup: the page may allow no HTML strings)
+    const out: HTMLElement[] = [];
+    for (const m of mine) {
+      // (its line, or the nearest line within 5 that has its text)
+      let at = 0;
+      for (let d = 0; d <= 5 && !at; d++)
+        for (const n of d ? [m.line - d, m.line + d] : [m.line])
+          if (n >= 1 && n <= doc.lines && doc.line(n).text === m.text) {
+            at = n;
+            break;
+          }
+      if (!at) continue;
+      const l = doc.line(at);
+      const from = l.from + Math.min(m.start, l.length);
+      const to = Math.min(l.to, from + Math.max(1, m.len));
+      const a = v.coordsAtPos(from), b = v.coordsAtPos(to, -1);
+      if (!a || !b) continue;
+      const el = document.createElement("div");
+      el.className = `phitex-mark ${m.severity}`;
+      el.title = m.message;
+      const colour = m.severity === "error" ? "#d0202a" : "#c77700";
+      el.style.cssText = `position:absolute;left:${a.left - box.left + scroller.scrollLeft}px;top:${a.bottom - box.top + scroller.scrollTop - 2}px;width:${Math.max(4, b.left - a.left)}px;height:0;border-bottom:2px solid ${colour};opacity:.9;`;
+      out.push(el);
+    }
+    layer.replaceChildren(...out);
+  }
+
   arrows();
 
   window.addEventListener("message", (e) => {
     if (e.source !== window || e.data?.src !== "phitex-content") return;
     const m = e.data;
     if (m.type === "hello") identify();
+    else if (m.type === "marks" && Array.isArray(m.marks)) {
+      marks = m.marks;
+      marksSoon();
+    }
     else if (m.type === "rootDoc?") post({ type: "rootDoc", path: rootPath });
     else if (m.type === "goto" && view && typeof m.line === "number") {
-      if (m.file === file) gotoLine(m.line);
-      else openThen(m.file, () => gotoLine(m.line));
+      const col = typeof m.col === "number" ? m.col : undefined;
+      if (m.file === file) gotoLine(m.line, col);
+      else openThen(m.file, () => gotoLine(m.line, col));
     } else if (m.type === "gotoRange" && view && typeof m.from === "number") {
       const focus = m.focus !== false;
       if (m.file === file) gotoRange(m.from, m.to, focus);

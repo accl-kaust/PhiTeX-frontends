@@ -1,0 +1,11 @@
+{
+  "users": {
+    "ali": { "id": "5f00000000000000000a1101", "first_name": "Ali", "last_name": "Rahman", "email": "ali@example.org" }
+  },
+  "updates": [
+    { "v": 1, "user": "ali", "ago": "1h", "files": ["main.tex"] },
+    { "v": 2, "user": "ali", "ago": "20m", "files": ["main.tex", "refs.bib"] }
+  ],
+  "labels": [],
+  "versions": { "1": "changes-floats-v1" }
+}

@@ -33,6 +33,7 @@ import { Calm } from "./common/viewer/sheetline.ts";
 import { StripPages } from "./common/strippages.ts";
 import { reportRow } from "./report.ts";
 import { machineLine } from "./common/viewer/machine.ts";
+import { withMarks, type Mark } from "./marks.ts";
 
 /** The panel's preferences, in the extension's own storage (not the page's). */
 const prefs: Prefs = {
@@ -603,7 +604,7 @@ class FrameTransport implements CoreTransport {
   }
 }
 
-const ZOOMS: [string, string][] = [["fit", "Fit width"], ["0.75", "75%"], ["1", "100%"], ["1.5", "150%"], ["2", "200%"]];
+const ZOOMS: [string, string][] = [["fit", "Fit width"], ["page", "Fit page"], ["0.75", "75%"], ["1", "100%"], ["1.5", "150%"], ["2", "200%"]];
 
 /** Changes' Diff (compare.ts's runner): the real one set once the session is up (the toolbar comes first). */
 let diffImpl: ChangesRunner | undefined;
@@ -670,8 +671,6 @@ const DOCK_CSS = `
      ± Changes without its word: each decided on the status's cut, leftSpan), its time never cut */
   #phitex-left > #phitex-status { flex: 0 1 220px; min-width: 0; }
   #phitex-left.tight #phitex-changes .button-content { display: none; }
-  #phitex-left.bare #phitex-status .phitex-st-text { display: none; }
-  #phitex-left.bare > #phitex-status { flex: 0 0 auto; width: auto; }
   #phitex-left.lean #phitex-clean, #phitex-left.lean #phitex-dlmore, #phitex-left.gone > #phitex-status, #phitex-controls.nozoom .dropdown:has(> #phitex-zoom) { display: none !important; }
   /* Overleaf's editor switch pads each label's inner edge more than its outer one: ours centers its text in the pill */
   #phitex-switch .toggle-switch-label > span { padding: 0 var(--spacing-05, 12px) !important; }
@@ -932,14 +931,15 @@ function dockInOverleaf(panel: Panel): Dock {
     c.className = "pdfjs-viewer-controls phitex-keep";
     const gbtn = (id: string, icon: string, label: string) =>
       html`<button type="button" id="${id}" aria-label="${label}" title="${label}" class="d-inline-grid pdf-toolbar-btn pdfjs-toolbar-button btn btn-ghost"><span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">${icon}</span></span></button>`;
-    // (the last: compact, as Overleaf's own narrow layout, page and zoom steps behind ⋯; then ⚡ Instant's Settings, one dialog in every host, the viewer's)
+    // (⋯: the clean rebuild, the build's timings and the keys' help; compact, as Overleaf's own narrow layout,
+    // the page and zoom steps too; then ⚡ Instant's Settings, one dialog in every host, the viewer's)
     c.replaceChildren(html`<div role="group" class="pdfjs-toolbar-buttons btn-group">${gbtn("phitex-prev", "keyboard_arrow_up", "Previous page")}${gbtn("phitex-next", "keyboard_arrow_down", "Next page")}</div>
       <div class="pdfjs-page-number-input"><form id="phitex-pform"><input id="phitex-page" aria-label="Page" inputmode="numeric" value="1"></form><span id="phitex-pages">/ 1</span></div>
       <div class="pdfjs-zoom-controls"><div role="group" class="pdfjs-toolbar-buttons btn-group">${gbtn("phitex-zout", "remove", "Zoom out")}${gbtn("phitex-zin", "add", "Zoom in")}</div>
       <div class="dropdown"><button type="button" id="phitex-zoom" aria-expanded="false" aria-label="PhiTeX zoom level" class="pdf-toolbar-btn pdfjs-zoom-dropdown-button small dropdown-toggle btn btn-link">100%</button>
-      <ul class="dropdown-menu dropdown-menu-end" id="phitex-zoom-menu" role="menu">${ZOOMS.map(([v, l]) => html`<li><button type="button" class="dropdown-item" data-zoom="${v}">${l}</button></li>`)}<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li></ul></div></div>
-      <div class="dropdown phitex-compact-only"><button type="button" id="phitex-more" aria-label="More" class="d-inline-grid pdf-toolbar-btn pdfjs-toolbar-popover-button btn btn-ghost"><span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">more_horiz</span></span></button>
-      <ul class="dropdown-menu dropdown-menu-end" id="phitex-more-menu" role="menu"><li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li><li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="prev">Previous page</button></li><li><button type="button" class="dropdown-item" data-act="next">Next page</button></li><li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item" data-act="zin">Zoom in</button></li><li><button type="button" class="dropdown-item" data-act="zout">Zoom out</button></li></ul></div>${gbtn("phitex-settings", "settings", "⚡ Instant settings")}`);
+      <ul class="dropdown-menu dropdown-menu-end" id="phitex-zoom-menu" role="menu">${ZOOMS.map(([v, l]) => html`<li><button type="button" class="dropdown-item" data-zoom="${v}">${l}</button></li>`)}</ul></div></div>
+      <div class="dropdown"><button type="button" id="phitex-more" aria-label="More" title="More (PhiTeX)" class="d-inline-grid pdf-toolbar-btn pdfjs-toolbar-popover-button btn btn-ghost"><span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">more_horiz</span></span></button>
+      <ul class="dropdown-menu dropdown-menu-end" id="phitex-more-menu" role="menu"><li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li><li><button type="button" class="dropdown-item" data-act="timings" title="The last build's times, step by step (PhiTeX)">Build timings</button></li><li><button type="button" class="dropdown-item" data-act="keys" title="⚡ Instant's keys (PhiTeX)">Keyboard shortcuts</button></li><li class="phitex-compact-only"><hr class="dropdown-divider"></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="prev">Previous page</button></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="next">Next page</button></li><li class="phitex-compact-only"><hr class="dropdown-divider"></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="zin">Zoom in</button></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="zout">Zoom out</button></li></ul></div>${gbtn("phitex-settings", "settings", "⚡ Instant settings")}`);
     const q = (id: string) => c!.querySelector<HTMLElement>(`#${id}`)!;
     q("phitex-prev").onclick = () => panel.prev();
     q("phitex-next").onclick = () => panel.next();
@@ -965,12 +965,17 @@ function dockInOverleaf(panel: Panel): Dock {
       menu.onclick = (e) => {
         const b = (e.target as HTMLElement).closest<HTMLElement>("[data-zoom], [data-act]");
         const act = b?.dataset.act;
+        // (a popover it opens is not closed by this click's way out)
+        if (act === "timings" || act === "keys") e.stopPropagation();
         if (b?.dataset.zoom) panel.zoomTo(b.dataset.zoom);
         if (act === "clean") panel.clean();
         if (act === "prev") panel.prev();
         if (act === "next") panel.next();
         if (act === "zin") panel.zoomStep(1);
         if (act === "zout") panel.zoomStep(-1);
+        // (the timings themselves, not the problems a status with errors opens: under ⋯)
+        if (act === "timings") panel.timingAt(q("phitex-more"), true);
+        if (act === "keys") panel.keyHelp();
         menu.classList.remove("show");
       };
     };
@@ -1406,7 +1411,7 @@ function dockInOverleaf(panel: Panel): Dock {
    * The width the status needs: one width whatever the builds do, the
    * widest of what a build's status says ("Built" or "First page", at the
    * worst time of each unit: "· 999 ms", "· 99.9 s", "· 99 min"), in its
-   * own fonts; its time alone when bare. Never by the words it says now or
+   * own fonts (never a time alone: the status shows whole or not at all). Never by the words it says now or
    * the last build's kind: a first page over a second, then builds of a
    * few ms, moved what gives way and everything after it (a runner's
    * fonts, nightly 45005369645). Its box held at least that wide
@@ -1434,20 +1439,20 @@ function dockInOverleaf(panel: Panel): Dock {
       const tw = Math.max(...["· 999 ms", "· 99.9 s", "· 99 min"].map((t) => measure!.measureText(t).width));
       statusNeeds = [Math.ceil(w + tw + 4 + 16), Math.ceil(tw + 16)];
     }
-    const need = statusNeeds[st.closest(".bare") ? 1 : 0];
+    const need = statusNeeds[0];
     if (st.dataset.need !== String(need)) (st.dataset.need = String(need)), (st.style.minWidth = `${need}px`);
     return need;
   }
-  /** The right side's: its first shown button to its last. */
+  /** The right side's: its first shown button to its last, never a menu's items (a menu opened moved nothing). */
   function rightSpan(right: Element): number {
-    const shown = [...right.querySelectorAll("button")].filter((b) => b.offsetWidth).map((b) => b.getBoundingClientRect());
+    const shown = [...right.querySelectorAll("button")].filter((b) => b.offsetWidth && !b.closest(".dropdown-menu")).map((b) => b.getBoundingClientRect());
     return shown.length ? Math.max(...shown.map((r) => r.right)) - Math.min(...shown.map((r) => r.left)) : 0;
   }
   let swFull = 149, swNarrow = 89;
   /** ± Changes' word's width, measured while shown. */
   let chgWord = 60;
   /** The status's words' width ("Built"), measured while shown. */
-  let statusWord = 40, statusAll = 120, zoomW = 60, leanW = 50;
+  let statusAll = 120, zoomW = 60, leanW = 50;
   /** What the toolbar needs in full, in each mode (0 until it has shown). */
   const needs = { pdf: 0, phitex: 0 };
 
@@ -1514,8 +1519,8 @@ function dockInOverleaf(panel: Panel): Dock {
       // measured while it shows, so flipping the switch never changes its width too)
       if (sw.classList.contains("narrow")) swNarrow = sw.offsetWidth || swNarrow;
       else swFull = sw.offsetWidth || swFull;
-      // (then ± Changes without its word; then the status its time alone ("· 97 ms"), the clean rebuild and the
-      // download's ▾ left to Recompile's menu and the download; then no status at all, never one cut short. Each
+      // (then ± Changes without its word; the clean rebuild (in ⋯ too) and the
+      // download's ▾ left to ⋯ and the download; then no status at all, never one cut short nor its time alone. Each
       // step's room measured while it shows; every step decided on what the bar needs with all of them undone)
       const lf = document.getElementById("phitex-left"), chg = document.getElementById("phitex-changes");
       const ours = lf && chg && mode === "phitex";
@@ -1526,26 +1531,25 @@ function dockInOverleaf(panel: Panel): Dock {
         const lean = [document.getElementById("phitex-clean"), document.getElementById("phitex-dlmore")];
         if (!lf.classList.contains("lean") && lean.every((e) => e?.offsetWidth)) leanW = lean.reduce((n, e) => n + e!.offsetWidth, 0);
         // (the status's steps by what a build's status needs, not by what it says now)
-        if (st && statusNeed(st)) (statusWord = statusNeeds[0] - statusNeeds[1]), (statusAll = statusNeeds[1]);
+        if (st && statusNeed(st)) statusAll = statusNeeds[0];
         const z = document.getElementById("phitex-zoom");
         if (!ctl.classList.contains("nozoom") && z?.offsetWidth) zoomW = z.offsetWidth + 4;
       }
-      const given = ours ? (lf.classList.contains("lean") ? leanW : 0) + (lf.classList.contains("tight") ? chgWord : 0) + (lf.classList.contains("bare") ? statusWord : 0) + (lf.classList.contains("gone") ? statusAll : 0) + (ctl.classList.contains("nozoom") ? zoomW : 0) : 0;
+      const given = ours ? (lf.classList.contains("lean") ? leanW : 0) + (lf.classList.contains("tight") ? chgWord : 0) + (lf.classList.contains("gone") ? statusAll : 0) + (ctl.classList.contains("nozoom") ? zoomW : 0) : 0;
       needs[mode] = leftSpan(left) + rightSpan(right) + 16 + (sw.classList.contains("narrow") ? swFull - swNarrow : 0) + given;
       // (the switch keeps its word, "⚡ Instant", while anything else can give way: it says "PDF | ⚡" only when
       // ⚡ Instant's toolbar with everything given up still has no room, or Overleaf's alone has none. Each mode's
       // least, so flipping the switch never changes its width)
-      const least = needs.phitex ? needs.phitex - (leanW + chgWord + statusWord + statusAll + zoomW) : 0;
+      const least = needs.phitex ? needs.phitex - (leanW + chgWord + statusAll + zoomW) : 0;
       sw.classList.toggle("narrow", Math.max(needs.pdf, least) > bar.clientWidth);
       if (ours) {
         const need = needs[mode] - (sw.classList.contains("narrow") ? swFull - swNarrow : 0);
         // (first what has a menu of its own: the clean rebuild (Recompile's) and the download's ▾ (its button);
-        // then ± Changes' word; then the status's words, then the status; and last the zoom's level (⋯ zooms))
+        // then ± Changes' word; then the status, whole (never its time alone); and last the zoom's level (⋯ zooms))
         let over = need;
         const step = (el: Element, cls: string, saves: number) => (el.classList.toggle(cls, over > bar.clientWidth), (over -= saves));
         step(lf, "lean", leanW);
         step(lf, "tight", chgWord);
-        step(lf, "bare", statusWord);
         step(lf, "gone", statusAll);
         step(ctl, "nozoom", zoomW);
         // (the local mock only: each change of what gave way, with what decided it, for the toolbar's checks)
@@ -1751,7 +1755,8 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     // that one makes Overleaf take the PDF out of this tab, and this preview with it)
     onOpenAt: (k, top) => void window.open(`${project()}#at=${k + 1},${Math.round(top ?? 0)}`, "_blank"),
     // (the hook moves the editor's cursor there: the one thing it writes)
-    onGoto: (file, line) => DETACHED ? ask({ t: "goto", file, line }) : window.postMessage({ src: "phitex-content", type: "goto", file, line }, location.origin),
+    // (a problem's column too, where the viewer gives it: the cursor on the command itself)
+    onGoto: (file: string, line: number, col?: number) => (DETACHED ? ask({ t: "goto", file, line, col }) : window.postMessage({ src: "phitex-content", type: "goto", file, line, col }, location.origin)),
     onSyncSource: (k, x, y) => (DETACHED ? ask({ t: "sync", k, x, y }) : void shown()?.toSource(k, x, y)),
     // (the editor tab's panel does it; a detached tab's, told the same, does not)
     // (the card's choice: this project's engine from now on, kept by project)
@@ -1999,7 +2004,7 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     if (a.t === "need") void session?.fetch(a.k);
     if (a.t === "page") void session?.setPage(a.k);
     if (a.t === "sync") void session?.toSource(a.k, a.x, a.y);
-    if (a.t === "goto") window.postMessage({ src: "phitex-content", type: "goto", file: a.file, line: a.line }, location.origin);
+    if (a.t === "goto") window.postMessage({ src: "phitex-content", type: "goto", file: a.file, line: a.line, col: a.col }, location.origin);
     if (a.t === "core") void answer(ch, a, pages);
   });
   // (when the page highlights the editor's place: "cursor" as it moves,
@@ -2209,7 +2214,9 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
       // (a XeLaTeX project: approximated with pdfLaTeX, unless chosen for it)
       shims: async (main) => (projectEngine || !approximable(main) ? null : shimTexts((p) => platform().asset(p))),
     };
-    const sink = gate(tee(panel, mirrorOut(ch), () => mirrored), () => compare?.showing !== "diff");
+    // (the build's problems marked on the editor's lines, by the hook: the editor's session's alone, the diff shown or not)
+    const marked = (marks: Mark[]) => DETACHED || window.postMessage({ src: "phitex-content", type: "marks", marks }, location.origin);
+    const sink = withMarks(gate(tee(panel, mirrorOut(ch), () => mirrored), () => compare?.showing !== "diff"), marked);
     session = new PreviewSession(host, pages, sink, {
       ...opts,
       // (a double-click's source, and text selected on the pages: bytes of
@@ -2287,7 +2294,16 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     const picked = ((await chrome.storage.local.get("mains")).mains as Record<string, string> | undefined)?.[project()];
     const main = picked && picked in files ? picked : overleafRoot && overleafRoot in files ? overleafRoot : guessMain(files);
     boot.read.main = main ?? "";
-    reading(panel, { h: "Opening the main file (the first build)…", detail: main ?? undefined });
+    reading(panel, { h: "Opening the main file…", detail: main ?? undefined });
+    // ("the first build" only where it is one: graphs kept and none kept for
+    // this document (the core's open says so before its build); a graph
+    // loaded, or graphs off, says nothing more)
+    const firstBuild = (e: CoreEvent) => {
+      const o = e as unknown as { event?: string; main?: string; graphs?: boolean; kept?: boolean };
+      if (o.event !== "opening" || boot.built || !o.graphs || o.kept || o.main !== main) return;
+      if (boot.head === "Opening the main file…") reading(panel, { h: "Opening the main file (the first build)…", detail: main ?? undefined });
+    };
+    transport.onEvent(firstBuild);
     // (no main file chosen for this project yet: the panel asks which it is, the pick above preselected)
     sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), main, !(picked && picked in files));
     resyncMains = () => sink.mains?.(Object.keys(files).filter((f) => f.endsWith(".tex")), session.main);

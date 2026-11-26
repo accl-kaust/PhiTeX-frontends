@@ -168,7 +168,7 @@ const panel = new Panel(
     // saved graph taken, as a fresh engine would; either engine's, through the relay)
     onRebuild: () => void relay.request({ op: "rebuild" }),
     onClean: () => void relay.request({ op: "cold" }),
-    onGoto: (file, line) => void relay.request({ op: "source", file, line, col: 1 }),
+    onGoto: (file, line, col) => void relay.request({ op: "source", file, line, col: col ?? 1 }),
     onSyncSource: (k, x, y) => void shown().toSource(k, x, y),
     // (text selected on the pages: its source selected in the editor, remote.select)
     onSelectPage: (sel) => void shown().selectPage(sel),

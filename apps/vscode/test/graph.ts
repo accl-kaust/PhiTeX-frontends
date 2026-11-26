@@ -6,7 +6,8 @@
 // src/extension.ts). Each open's PDF must be, byte for byte, a clean
 // build's of the folder as it is then (a core of its own, no graph):
 //   the first open, no graph kept: a clean build, its graph saved at the pause;
-//   opened again, nothing changed: the graph loaded, no node run;
+//   opened again a day later, nothing changed: the graph loaded, no node
+//   run, the first's PDF (its date the first build's, as latexmk leaves it);
 //   an \input file edited while closed: loaded, the edit built;
 //   the main file edited, the figure replaced and the .bib edited while closed;
 //   the kept graph damaged (a byte flipped): refused, dropped, a clean build;
@@ -192,7 +193,7 @@ async function checks(): Promise<void> {
     "",
     "\\includegraphics[width=2cm]{fig.png}",
     "\\section{Second}\\label{s:second}",
-    "The second section, after Section~\\ref{s:first}.",
+    "The second section, after Section~\\ref{s:first}, on \\today.",
     "\\bibliographystyle{plain}",
     "\\bibliography{refs}",
     "\\end{document}",
@@ -223,18 +224,24 @@ async function checks(): Promise<void> {
   };
   const stat = (o: Opened) => `${o.build.why}, ${o.build.ran} nodes run, ${Math.round(o.toBuild)} ms to its build; ${notes(o).join(" | ") || "no graph notes"}`;
 
+  // (the job's date fixed, as SOURCE_DATE_EPOCH fixes a native build's: a
+  // clean build's bytes again. 2025-11-26 10:00 UTC)
+  process.env.SOURCE_DATE_EPOCH = "1764151200";
   // (1: the first open, nothing kept)
   let before = graphs.puts();
   const first = await open(true);
   say(!loaded(first) && first.build.ran > 0 && graphs.puts() > before && (await exact(first)), "the first open (none kept): a clean build, its graph saved", stat(first));
 
-  // (2: opened again, nothing changed)
+  // (2: opened again a day later, nothing changed: as latexmk leaves an
+  // up-to-date PDF, its date the build's that made it, nothing runs; the
+  // builds after it, a change's, are the new day's)
+  process.env.SOURCE_DATE_EPOCH = "1764237600";
   before = graphs.puts();
   const same = await open(false);
   // (a little longer than the core's pause: no save follows, the graph is the one kept)
   await new Promise((r) => setTimeout(r, 2500));
   const pdfSame = Buffer.compare(same.pdf, first.pdf) === 0;
-  say(loaded(same) && same.build.ran === 0 && pdfSame && graphs.puts() === before, "opened again, nothing changed: the graph loaded, nothing built", `${stat(same)}; PDF ${pdfSame ? "the first's" : "NOT the first's"}; ${graphs.puts() - before} saves`);
+  say(loaded(same) && same.build.ran === 0 && pdfSame && graphs.puts() === before, "opened again a day later, nothing changed: the graph loaded, nothing built, the first's PDF", `${stat(same)}; PDF ${pdfSame ? "the first's" : "NOT the first's"}; ${graphs.puts() - before} saves`);
 
   // (3: an \input file edited while closed)
   write("part.tex", "The part as edited while VS Code was closed.\n");

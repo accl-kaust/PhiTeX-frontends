@@ -124,7 +124,9 @@ function start(keep: boolean, events: (e: any) => void): { core: Core; session: 
     },
   });
   core.setIndex(index.tsv, index.release, index.table, bundled);
-  return { core, session: new CoreSession(core, { shell: !!runner, threads: 1 }) };
+  // (the job's date fixed, as SOURCE_DATE_EPOCH fixes a native build's: the
+  // PDFs compared byte for byte with a clean build's on another core)
+  return { core, session: new CoreSession(core, { shell: !!runner, threads: 1, date: 1764151200 }) };
 }
 
 /** The project: --doc's folder, else an article made here. */

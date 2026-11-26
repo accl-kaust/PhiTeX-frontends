@@ -161,6 +161,33 @@ export interface Open {
   latexmk?: { files: Record<string, string>; exact: boolean };
   /** Every path of the project (a TEXINPUTS `//` folder's subfolders). */
   projectFiles?: string[];
+  /**
+   * The job's date (`\today`, `\time`, the PDF's): seconds whose UTC fields
+   * are the local date and time, as a TeX Live run reads its clock
+   * ([`localDate`]); 0 is TeX Live's `SOURCE_DATE_EPOCH=0`. A core before
+   * PhiTeX's dates takes none and says January 1, 1970.
+   */
+  date?: number;
+}
+
+/**
+ * The local date and time at `now`, as the core's `date` takes it: seconds
+ * whose UTC fields are the local ones (pdflatex's `\today` and the PDF's
+ * date are the machine's local time, not UTC).
+ */
+export function localDate(now = new Date()): number {
+  return Math.floor(now.getTime() / 1000) - now.getTimezoneOffset() * 60;
+}
+
+/**
+ * A fixed job date where the host has an environment (VS Code's extension
+ * host): `SOURCE_DATE_EPOCH` as TeX Live reads it (seconds, their UTC
+ * fields the date: a clean build's bytes again); none where it is unset or
+ * not a number (each open then takes the local date, [`localDate`]).
+ */
+export function sourceDate(env: Record<string, string | undefined>): number | undefined {
+  const s = env.SOURCE_DATE_EPOCH?.trim();
+  return s && /^-?\d+$/.test(s) ? Number(s) : undefined;
 }
 
 let cores = 0;
@@ -390,6 +417,9 @@ export class Core {
    * rebuild): the one kept dropped, none given, the build made from the
    * start; its own saved as any build's.
    */
+  /** Whether the last `giveGraph` found a graph kept for its document. */
+  graphFound = false;
+
   async giveGraph(doc: string, on: boolean, fresh = false): Promise<boolean> {
     const g = this.o.graphs;
     on &&= !!g;
@@ -403,6 +433,7 @@ export class Core {
       }
     }
     this.graphDoc = on ? doc : undefined;
+    this.graphFound = !!b?.length;
     const d = b ?? new Uint8Array();
     const p = this.put(d);
     this.x.ph_graph_give(p, d.length);
@@ -714,6 +745,11 @@ export class Core {
     this.listeners.push(f);
   }
 
+  /** Tells the core's listeners an event of the host's own, as the core's are told. */
+  tell(e: { event: string; [k: string]: unknown }): void {
+    for (const f of this.listeners) f(e);
+  }
+
   /**
    * Starts the engine's threads for documents opened on `n` threads (the
    * open's `threads`): the client's pool and the engine's kept threads, each
@@ -913,7 +949,12 @@ export class CoreSession implements CoreTransport {
         const text = o.files[o.main] ?? "";
         // (the document's graph, where the host keeps graphs and its setting says so: given before the open)
         const graph = await this.core.giveGraph(o.main, await (this.core.graphs?.on() ?? Promise.resolve(false)).catch(() => false), !!o.clean);
-        this.core.open({ ...this.opts, main: o.main, text, engine: engineFor(text, o.engine ?? this.opts.engine), latexmk: o.latexmk, projectFiles: o.projectFiles, graph });
+        // (what the open starts from, told before its build: a host says "the
+        // first build" only where graphs are kept and none was for this document)
+        this.core.tell?.({ event: "opening", main: o.main, graphs: graph, kept: graph && this.core.graphFound });
+        // (the date at the open, the user's local one unless the host gives
+        // another: every build of the session has it, as a watch's)
+        this.core.open({ ...this.opts, date: this.opts.date ?? localDate(), main: o.main, text, engine: engineFor(text, o.engine ?? this.opts.engine), latexmk: o.latexmk, projectFiles: o.projectFiles, graph });
       } catch (e) {
         return { ok: false, error: String(e) };
       }

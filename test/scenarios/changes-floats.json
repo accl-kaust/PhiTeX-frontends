@@ -1,0 +1,70 @@
+{
+ "project": "test/scenarios/changes-floats",
+ "history": "test/scenarios/changes-floats.history.json",
+ "strict": true,
+ "//": "An early text-only version (v1) against the full one: a display, a figure, a section with a \\cite, a 2x2 table in \\begin{table} and the bibliography added (the Overleaf tester's, 2026-11-26). The Diff keeps the table on its pages; no engine-internal problem (\"hint regime violated: cs:phitexdifleadtype ...\" at main.tex:161, a line of diff.tex); its problems at the user's own lines; each float, display and the bibliography a change of its own, filed under its section (2 changes before, the math paragraph under Results).",
+ "storage": {
+  "tipsSeen": [
+   "compare",
+   "blame",
+   "timing",
+   "clean",
+   "dark",
+   "changes"
+  ],
+  "panel": {},
+  "visits": {}
+ },
+ "steps": [
+  {
+   "onpage": "Introduction",
+   "ms": 60000
+  },
+  {
+   "idle": 1500
+  },
+  {
+   "compare": 1,
+   "has": [
+    "\\\\begin\\{table\\}\\[h\\]",
+    "\\\\bibliography\\{refs\\}"
+   ],
+   "ms": 90000
+  },
+  {
+   "check": "globalThis.__phitexCompare.c.d.changes.map((c) => c.section)",
+   "what": "each unit a change of its own, filed under its section: the paragraph's rest and the math paragraph, the display, the figure under Introduction; the section, its text, the table and the bibliography under Results",
+   "is": [
+    "Introduction",
+    "Introduction",
+    "Introduction",
+    "Results",
+    "Results",
+    "Results",
+    "Results"
+   ]
+  },
+  {
+   "check": "(globalThis.__phitexCompare.show(true), globalThis.__phitexCompare.showing)",
+   "what": "the diff's pages shown",
+   "is": "diff",
+   "ms": 5000
+  },
+  {
+   "check": "(async () => { const c = globalThis.__phitexCompare.c; const t = c.d.tex, a = new TextEncoder().encode(t.slice(0, t.indexOf('A small table'))).length; for (let k = 0; k < 4; k++) if ((await c.session.pageGlyphs(k)).some((g) => g.file === c.file && g.start >= a && g.start < a + 13)) return true; return false; })()",
+   "what": "the diff's pages hold the table (its caption's glyphs)",
+   "ms": 30000
+  },
+  {
+   "check": "globalThis.__phitexCompare.c.session.core.request({ op: 'diagnostics' }).then((r) => (r.json?.items ?? []).filter((i) => /hint regime|undeclared definition/.test(i.message)).map((i) => i.message))",
+   "what": "no engine-internal problem in the diff's build",
+   "is": [],
+   "ms": 5000
+  },
+  {
+   "check": "(() => { const ds = (globalThis.__phitexPanel.lastStatus?.diagnostics ?? []).filter((d) => d.file === 'main.tex'); const user = globalThis.__phitexCompare.c.session ? globalThis.__phitexSession.text('main.tex').split('\\n') : []; return ds.length > 0 && ds.every((d) => d.line >= 1 && d.line <= user.length && (!d.problem?.excerpt || d.problem.excerpt.text === user[d.line - 1])); })()",
+   "what": "the diff's problems at the user's own lines (main.tex has 46), each excerpt that line's text",
+   "ms": 10000
+  }
+ ]
+}

@@ -13,7 +13,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { Core, CoreSession, WASM_THREADS, lostReason } from "../../../common/src/wasm/core.ts";
+import { Core, CoreSession, WASM_THREADS, lostReason, sourceDate } from "../../../common/src/wasm/core.ts";
 import { coreIndex, coreStore, pack, prefetch, texmfFile, type CoreIndex } from "../../../common/src/wasm/host.ts";
 import { mintedShell } from "../../../common/src/wasm/minted.ts";
 import { order } from "../../../common/src/shelf.ts";
@@ -85,7 +85,8 @@ export async function startCore(root: string, folder: () => string, log: (s: str
   });
   // (the engine's threads: the host's to say, wasm has no available_parallelism;
   // at most WASM_THREADS. Every project may use minted: the runner loads only at its first call)
-  const session = new CoreSession(core, { shell: true, threads: Math.min(threads || WASM_THREADS, WASM_THREADS) });
+  // (the job's date: SOURCE_DATE_EPOCH as the native CLI reads it, else each open's local date)
+  const session = new CoreSession(core, { shell: true, threads: Math.min(threads || WASM_THREADS, WASM_THREADS), date: sourceDate(process.env) });
   const index = await coreIndex();
   core.setIndex(index.tsv, index.release, index.table, index.names);
   log(`core started in ${Math.round(performance.now() - t0)} ms`);

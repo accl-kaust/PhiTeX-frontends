@@ -188,3 +188,17 @@ test("Overleaf's colours: its own hue for a user, by the MD5 of the id", () => {
   assert.equal(md5(""), "d41d8cd98f00b204e9800998ecf8427e");
   assert.equal(md5("The quick brown fox jumps over the lazy dog"), "9e107d9d372bb6826bd81d3542a419d6");
 });
+
+test("an Overleaf session's history row says what it did to each file", async () => {
+  const { whatChanged } = await import("../../apps/overleaf/src/blame.ts");
+  assert.equal(whatChanged({ pathnames: ["main.tex"] }), "edited main.tex");
+  assert.equal(whatChanged({ pathnames: ["fig.png"], project_ops: [{ add: { pathname: "fig.png" } }] }), "added fig.png");
+  assert.equal(whatChanged({ project_ops: [{ remove: { pathname: "old.tex" } }] }), "deleted old.tex");
+  assert.equal(whatChanged({ project_ops: [{ rename: { pathname: "a.tex", newPathname: "b.tex" } }] }), "renamed a.tex to b.tex");
+  assert.equal(whatChanged({ project_ops: [{ rename: { pathname: "gone.tex", newPathname: "" } }] }), "deleted gone.tex");
+  assert.equal(
+    whatChanged({ pathnames: ["main.tex", "refs.bib"], project_ops: [{ add: { pathname: "img/a.png" } }, { remove: { pathname: "x.tex" } }] }),
+    "added img/a.png, deleted x.tex, edited main.tex, refs.bib",
+  );
+  assert.equal(whatChanged({}), "edited the project");
+});

@@ -133,6 +133,35 @@ export interface OverleafChangesHost {
   lastVisit(): number | null;
 }
 
+/** A list of files as a row says them: the first three, then how many more. */
+function fileList(fs: string[]): string {
+  return `${fs.slice(0, 3).join(", ")}${fs.length > 3 ? ` +${fs.length - 3}` : ""}`;
+}
+
+/**
+ * What an Overleaf session did, file by file, as its history row says it:
+ * "added fig.png, edited main.tex", "renamed a.tex to b.tex", "deleted
+ * old.tex" (Overleaf's project_ops: an add, a rename, a remove; a rename to
+ * nothing is a deletion); "edited the project" where it names no file.
+ */
+export function whatChanged(u: Pick<OlUpdate, "pathnames" | "project_ops">): string {
+  const added: string[] = [], renamed: string[] = [], deleted: string[] = [];
+  for (const op of u.project_ops ?? []) {
+    if (op.add?.pathname) added.push(op.add.pathname);
+    else if (op.rename?.pathname && op.rename.newPathname) renamed.push(`${op.rename.pathname} to ${op.rename.newPathname}`);
+    else if (op.rename?.pathname) deleted.push(op.rename.pathname);
+    else if (op.remove?.pathname) deleted.push(op.remove.pathname);
+  }
+  const edited = [...new Set(u.pathnames ?? [])].filter((p) => !added.includes(p));
+  const parts = [
+    added.length ? `added ${fileList(added)}` : "",
+    renamed.length ? `renamed ${fileList(renamed)}` : "",
+    deleted.length ? `deleted ${fileList(deleted)}` : "",
+    edited.length ? `edited ${fileList(edited)}` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(", ") : "edited the project";
+}
+
 /** A blame commit with the Overleaf user whose changes it names. */
 type OlCommit = BlameCommit & { user?: string };
 
@@ -161,7 +190,7 @@ export function overleafHistory(o: OverleafChangesHost): { blame: BlameHost; cha
       author: names,
       email: u.meta.users?.[0]?.email ?? "",
       time: u.meta.end_ts / 1000,
-      subject: u.project_ops?.length && !u.pathnames?.length ? `${names} added, moved or deleted ${files(u)}` : `${names} edited ${files(u)}`,
+      subject: `${names} ${whatChanged(u)}`,
       refs: tags.map((name) => ({ name, kind: "tag" as const })),
       ...(visit !== null && u.fromV < visit && visit <= u.toV ? { mark: "your last visit" } : {}),
     };

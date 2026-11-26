@@ -811,7 +811,7 @@ for (const s of sc.steps ?? []) {
   }
   else if (s.parity !== undefined) await parity(s);
   else if (s.shot) await shot(s.shot);
-  else if (s.clean) await evalIn(`(() => { document.getElementById("phitex-zoom")?.click(); document.querySelector("[data-act=clean]")?.click(); })()`);
+  else if (s.clean) await evalIn(`(() => { document.getElementById("phitex-more")?.click(); document.querySelector("#phitex-more-menu [data-act=clean]")?.click(); })()`);
   else if (s.scroll !== undefined) {
     // (the ⚡ view scrolled to page `scroll`, as a reader would)
     await evalIn(`(() => { const r = document.querySelector("phitex-preview").shadowRoot; const el = r.querySelector('.slot[data-k="${s.scroll}"]'); if (el) r.getElementById("stage").scrollTop = el.offsetTop - 12; })()`, true);
