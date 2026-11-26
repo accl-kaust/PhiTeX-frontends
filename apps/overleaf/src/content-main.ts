@@ -707,6 +707,14 @@ const DOCK_CSS = `
   #phitex-news .phitex-news-title { font-weight: 700; margin-bottom: 4px; }
   #phitex-news ul { padding-left: 18px; margin: 0 0 10px; }
   #phitex-news li { margin-bottom: 4px; }
+  #phitex-news .phitex-news-thanks { margin: -2px 0 10px; }
+  #phitex-news .phitex-glow { font-weight: 700; text-decoration: none; color: #b8860b;
+    background: linear-gradient(100deg, #c77d00 20%, #ffd75e 40%, #fff3b0 50%, #ffd75e 60%, #c77d00 80%) 0 0 / 250% 100%;
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 6px rgba(255, 200, 60, .45); animation: phitex-glow 2.6s ease-in-out infinite; }
+  #phitex-news .phitex-glow:hover { text-decoration: underline; }
+  @keyframes phitex-glow { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+  @media (prefers-reduced-motion: reduce) { #phitex-news .phitex-glow { animation: none; background-position: 50% 0; } }
   label.phitex-dot-new { position: relative; }
   label.phitex-dot-new::before { content: ""; position: absolute; top: 2px; right: 4px; width: 7px; height: 7px; border-radius: 50%;
     background: #5b8fd6; box-shadow: 0 0 0 2px var(--bg-dark-primary, #1b222c); }
@@ -1154,6 +1162,14 @@ function dockInOverleaf(panel: Panel): Dock {
     tipBox?.hide();
   }
 
+  /** A release's thank-you: each reporter's name, aglow, linked to their GitHub. */
+  function thanked(logins: string[] | undefined): Node | string {
+    if (!logins?.length) return "";
+    const names = logins.map((l) => html`<a class="phitex-glow" target="_blank" rel="noopener" href="${`https://github.com/${encodeURIComponent(l)}`}">@${l}</a>`);
+    const list = names.flatMap((n, i) => (i === 0 ? [n] : [i === names.length - 1 ? " and " : ", ", n]));
+    return html`<div class="phitex-news-thanks">Thank you ${list} for your reports ♥</div>`;
+  }
+
   /** What's new: once after an update (or from settings), in the tip's style. */
   async function whatsNew(force = false): Promise<void> {
     const current = chrome.runtime.getManifest().version;
@@ -1174,7 +1190,7 @@ function dockInOverleaf(panel: Panel): Dock {
       header: [h("span", { "aria-hidden": "true" }, "✨"), `What's new in PhiTeX ${items[0].version}`],
       // (an item's few inline tags as elements: rich)
       body: [
-        ...items.map((n) => html`<div class="phitex-news-entry"><div class="phitex-news-title">${n.title} <span class="text-muted small">${n.version} · ${n.date}</span></div><ul>${n.items.map((i) => html`<li>${rich(i)}</li>`)}</ul></div>`),
+        ...items.map((n) => html`<div class="phitex-news-entry"><div class="phitex-news-title">${n.title} <span class="text-muted small">${n.version} · ${n.date}</span></div><ul>${n.items.map((i) => html`<li>${rich(i)}</li>`)}</ul>${thanked(n.thanks)}</div>`),
         html`<div class="small text-muted">From the unofficial PhiTeX extension, not Overleaf.</div>`,
       ],
       actions: [...links, ok],

@@ -10,6 +10,8 @@ export interface News {
   date: string;
   title: string;
   items: string[];
+  /** GitHub logins of the people whose reports shaped this release: thanked under its notes, their names aglow. */
+  thanks?: string[];
   /** A button beside "Got it" (e.g. a donation page), opened in a new tab. */
   link?: { label: string; href: string };
 }
