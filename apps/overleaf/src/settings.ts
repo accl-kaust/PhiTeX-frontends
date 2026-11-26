@@ -45,7 +45,8 @@ export async function settled(): Promise<void> {
 /** As just installed: everything stored goes, and this version's notes count as seen (as an install's). */
 export async function resetAll(): Promise<void> {
   await chrome.storage.local.clear();
-  await chrome.storage.local.set({ newsSeen: chrome.runtime.getManifest().version, format: FORMAT });
+  const v = chrome.runtime.getManifest().version;
+  await chrome.storage.local.set({ newsSeen: v, installed: v, format: FORMAT });
 }
 
 /** The engine setting as it runs: a choice of an engine that does not run yet (LuaLaTeX, picked before it left the choices) is Auto. */

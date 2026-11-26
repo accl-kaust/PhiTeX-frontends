@@ -1,0 +1,95 @@
+{
+ "project": "test/scenarios/ci",
+ "name": "onboarding-update",
+ "strict": true,
+ "//": "An update (notes seen at an older version, installed before Changes came): What's new shows alone, and no feature tip opens beside it, however long it is open; its Got it leads to the tips of what it announced (Changes, 'New'); then nothing more this visit. The download menu's Print and Ctrl+P in the ⚡ view print the ⚡ Instant PDF (a frame of it, printed).",
+ "storage": {
+  "newsSeen": "1.0.2",
+  "installed": "1.0.1",
+  "tipsSeen": []
+ },
+ "steps": [
+  {
+   "check": "!!document.getElementById('phitex-news')",
+   "ms": 8000,
+   "what": "What's new after an update"
+  },
+  {
+   "wait": 5000
+  },
+  {
+   "check": "[!!document.getElementById('phitex-feature'), !!document.getElementById('phitex-tip'), !!document.getElementById('phitex-tour')]",
+   "is": [
+    false,
+    false,
+    false
+   ],
+   "what": "nothing beside What's new while it is open"
+  },
+  {
+   "check": "(() => { const t = document.getElementById('phitex-news'); const pane = document.querySelector('.pdf'); if (!t || !pane) return 'none'; const p = pane.getBoundingClientRect(), r = t.getBoundingClientRect(); const cx = p.left + p.width / 2, cy = p.top + p.height / 2; return { inPane: r.left >= p.left - 1 && r.right <= p.right + 1 }; return { step: t.querySelector('.phitex-callout-step')?.textContent ?? '', inPane: r.left >= p.left - 1 && r.right <= p.right + 1, centre: r.left < cx && r.right > cx && r.top < cy && r.bottom > cy }; })()",
+   "is": {
+    "inPane": true
+   },
+   "what": "What's new inside the PDF pane"
+  },
+  {
+   "shot": "whats-new"
+  },
+  {
+   "eval": "(() => { [...document.querySelectorAll('#phitex-news button')].find((b) => b.textContent === 'Got it').click(); return 1; })()",
+   "page": true
+  },
+  {
+   "check": "(() => { const t = document.getElementById('phitex-feature'); return t ? t.querySelector('.popover-header').textContent : 'none'; })()",
+   "is": "NewChanges",
+   "ms": 3000,
+   "what": "then, the tip of what it announced: Changes, New"
+  },
+  {
+   "shot": "after-got-it"
+  },
+  {
+   "eval": "(() => { document.querySelector('#phitex-feature [data-t=next]').click(); return 1; })()",
+   "page": true
+  },
+  {
+   "wait": 6000
+  },
+  {
+   "check": "[!!document.getElementById('phitex-news'), !!document.getElementById('phitex-feature')]",
+   "is": [
+    false,
+    false
+   ],
+   "what": "one round a visit"
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-dlmore').click(); const b = document.querySelector('#phitex-dlmenu [data-dl=print]'); const shown = !!b && document.getElementById('phitex-dlmenu').classList.contains('show'); b?.click(); return shown; })()",
+   "what": "the download menu has Print"
+  },
+  {
+   "check": "(() => { const f = document.getElementById('phitex-print'); return !!f && f.src.startsWith('blob:'); })()",
+   "ms": 5000,
+   "what": "Print: the ⚡ Instant PDF in a frame, printed"
+  },
+  {
+   "eval": "(() => { document.getElementById('phitex-print')?.remove(); return 1; })()",
+   "page": true
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview'); P.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true })); const e = new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, bubbles: true, composed: true, cancelable: true }); P.dispatchEvent(e); return e.defaultPrevented; })()",
+   "what": "Ctrl+P in the ⚡ view is ours"
+  },
+  {
+   "check": "!!document.getElementById('phitex-print')",
+   "ms": 5000,
+   "what": "Ctrl+P prints the ⚡ Instant PDF"
+  },
+  {
+   "check": "(() => { document.getElementById('phitex-print')?.remove(); const c = document.body.appendChild(document.createElement('textarea')); c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); c.focus(); const e = new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, bubbles: true, cancelable: true }); c.dispatchEvent(e); c.remove(); return e.defaultPrevented || !!document.getElementById('phitex-print'); })()",
+   "is": false,
+   "what": "Ctrl+P outside the PDF pane (the editor's side): Overleaf's own"
+  }
+ ]
+}

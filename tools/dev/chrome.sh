@@ -23,5 +23,5 @@ cache="/dev/shm/phitex-chrome-cache-$port"
 nohup "${PHITEX_CHROME:-chromium}" "${headless[@]}" --user-data-dir="$profile" --disk-cache-dir="$cache" --remote-debugging-port="$port" --no-first-run \
   --enable-unsafe-extension-debugging about:blank > /dev/null 2>&1 &
 # (the extension loaded over the protocol: Chromium 153 ignores --load-extension; then the page)
-node tools/dev/load-ext.mjs "$port" > /dev/null
+node tools/dev/load-ext.mjs "$port" "$profile" > /dev/null
 node -e 'fetch(`http://localhost:${process.argv[1]}/json/new?${encodeURIComponent(process.argv[2])}`, { method: "PUT" }).then((r) => r.ok || process.exit(1))' "$port" "${1:-http://localhost:8123/project/mock}"

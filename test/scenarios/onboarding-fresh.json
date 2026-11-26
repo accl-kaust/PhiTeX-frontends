@@ -1,0 +1,140 @@
+{
+ "project": "test/scenarios/ci",
+ "name": "onboarding-fresh",
+ "nofirst": true,
+ "//": "A fresh install (no notes seen, nothing accepted, Overleaf's PDF shown): no What's new and no 'New' tip; the welcome is one card with the terms and their checkbox in it, beside the switch, inside the PDF pane; Enable turns ⚡ Instant on with nothing in the toolbar over anything else in its first frame; then the three-step tour, each card by its control, inside the pane, off the page's middle; then nothing more this visit.",
+ "storage": {
+  "accepted": 0,
+  "view": "pdf",
+  "tipOff": false,
+  "toured": false,
+  "newsSeen": null,
+  "installed": null,
+  "tipsSeen": null,
+  "dlExplained": true
+ },
+ "steps": [
+  {
+   "check": "!!document.querySelector('#phitex-tip #phitex-consent-check')",
+   "ms": 8000,
+   "what": "the welcome, its terms' checkbox in it"
+  },
+  {
+   "check": "[!!document.getElementById('phitex-news'), !!document.getElementById('phitex-feature'), !!document.getElementById('phitex-tour'), !!document.querySelector('#phitex-consent.modal, .modal-backdrop')]",
+   "is": [
+    false,
+    false,
+    false,
+    false
+   ],
+   "what": "nothing else: no What's new, no tip, no tour, no modal"
+  },
+  {
+   "check": "chrome.storage.local.get(['newsSeen', 'installed']).then((s) => s.newsSeen === chrome.runtime.getManifest().version && s.installed === s.newsSeen)",
+   "what": "a fresh install: this version's notes seen, installed at it"
+  },
+  {
+   "check": "(() => { const t = document.getElementById('phitex-tip'); const pane = document.querySelector('.pdf'); if (!t || !pane) return 'none'; const p = pane.getBoundingClientRect(), r = t.getBoundingClientRect(); const cx = p.left + p.width / 2, cy = p.top + p.height / 2; return { inPane: r.left >= p.left - 1 && r.right <= p.right + 1 }; return { step: t.querySelector('.phitex-callout-step')?.textContent ?? '', inPane: r.left >= p.left - 1 && r.right <= p.right + 1, centre: r.left < cx && r.right > cx && r.top < cy && r.bottom > cy }; })()",
+   "is": {
+    "inPane": true
+   },
+   "what": "the welcome inside the PDF pane, by the switch"
+  },
+  {
+   "check": "document.querySelector('#phitex-tip [data-c=yes]').disabled",
+   "what": "Enable waits for the checkbox"
+  },
+  {
+   "shot": "welcome"
+  },
+  {
+   "check": "(async () => { document.getElementById('phitex-consent-check').click(); document.querySelector('#phitex-tip [data-c=yes]').click(); for (let i = 0; i < 20 && !document.querySelector('.phitex-on #phitex-left'); i++) await new Promise((r) => setTimeout(r, 10)); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); return (() => { const els = [...document.querySelectorAll('.compile-button-group, #phitex-switch, #phitex-left > *, #phitex-controls button, #phitex-controls .pdfjs-page-number-input')].filter((e) => e.offsetWidth && getComputedStyle(e).visibility !== 'hidden'); const r = els.map((e) => e.getBoundingClientRect()); const bad = []; for (let i = 0; i < r.length; i++) for (let j = i + 1; j < r.length; j++) { if (els[i].contains(els[j]) || els[j].contains(els[i])) continue; const a = r[i], b = r[j]; if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1) bad.push((els[i].id || els[i].className) + ' x ' + (els[j].id || els[j].className)); } return bad; })(); })()",
+   "is": [],
+   "what": "the first frame after Enable: nothing in the toolbar over anything else"
+  },
+  {
+   "shot": "first-frame"
+  },
+  {
+   "check": "chrome.storage.local.get('accepted').then((s) => s.accepted === 1)",
+   "what": "the terms accepted"
+  },
+  {
+   "check": "(() => { const t = document.getElementById('phitex-tour'); const pane = document.querySelector('.pdf'); if (!t || !pane) return 'none'; const p = pane.getBoundingClientRect(), r = t.getBoundingClientRect(); const cx = p.left + p.width / 2, cy = p.top + p.height / 2; return { step: t.querySelector('.phitex-callout-step')?.textContent ?? '', inPane: r.left >= p.left - 1 && r.right <= p.right + 1, centre: r.left < cx && r.right > cx && r.top < cy && r.bottom > cy }; })()",
+   "is": {
+    "step": "1 of 3",
+    "inPane": true,
+    "centre": false
+   },
+   "ms": 4000,
+   "what": "the tour's first of three steps, by the switch"
+  },
+  {
+   "shot": "tour-1"
+  },
+  {
+   "eval": "(() => { document.querySelector('#phitex-tour [data-t=next]').click(); return 1; })()",
+   "page": true
+  },
+  {
+   "check": "(() => { const t = document.getElementById('phitex-tour'); const pane = document.querySelector('.pdf'); if (!t || !pane) return 'none'; const p = pane.getBoundingClientRect(), r = t.getBoundingClientRect(); const cx = p.left + p.width / 2, cy = p.top + p.height / 2; return { step: t.querySelector('.phitex-callout-step')?.textContent ?? '', inPane: r.left >= p.left - 1 && r.right <= p.right + 1, centre: r.left < cx && r.right > cx && r.top < cy && r.bottom > cy }; })()",
+   "is": {
+    "step": "2 of 3",
+    "inPane": true,
+    "centre": false
+   },
+   "ms": 2000,
+   "what": "step 2 by its control"
+  },
+  {
+   "shot": "tour-2"
+  },
+  {
+   "eval": "(() => { document.querySelector('#phitex-tour [data-t=next]').click(); return 1; })()",
+   "page": true
+  },
+  {
+   "check": "(() => { const t = document.getElementById('phitex-tour'); const pane = document.querySelector('.pdf'); if (!t || !pane) return 'none'; const p = pane.getBoundingClientRect(), r = t.getBoundingClientRect(); const cx = p.left + p.width / 2, cy = p.top + p.height / 2; return { step: t.querySelector('.phitex-callout-step')?.textContent ?? '', inPane: r.left >= p.left - 1 && r.right <= p.right + 1, centre: r.left < cx && r.right > cx && r.top < cy && r.bottom > cy }; })()",
+   "is": {
+    "step": "3 of 3",
+    "inPane": true,
+    "centre": false
+   },
+   "ms": 2000,
+   "what": "step 3 by its control"
+  },
+  {
+   "shot": "tour-3"
+  },
+  {
+   "eval": "(() => { document.querySelector('#phitex-tour [data-t=next]').click(); return 1; })()",
+   "page": true
+  },
+  {
+   "check": "chrome.storage.local.get('toured').then((s) => s.toured === true)",
+   "ms": 2000,
+   "what": "the tour done"
+  },
+  {
+   "wait": 6000
+  },
+  {
+   "check": "[!!document.getElementById('phitex-news'), !!document.getElementById('phitex-feature'), !!document.getElementById('phitex-tour')]",
+   "is": [
+    false,
+    false,
+    false
+   ],
+   "what": "one card a visit: nothing after the tour"
+  },
+  {
+   "check": "(() => { const els = [...document.querySelectorAll('.compile-button-group, #phitex-switch, #phitex-left > *, #phitex-controls button, #phitex-controls .pdfjs-page-number-input')].filter((e) => e.offsetWidth && getComputedStyle(e).visibility !== 'hidden'); const r = els.map((e) => e.getBoundingClientRect()); const bad = []; for (let i = 0; i < r.length; i++) for (let j = i + 1; j < r.length; j++) { if (els[i].contains(els[j]) || els[j].contains(els[i])) continue; const a = r[i], b = r[j]; if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1) bad.push((els[i].id || els[i].className) + ' x ' + (els[j].id || els[j].className)); } return bad; })()",
+   "is": [],
+   "what": "the toolbar: nothing over anything else"
+  },
+  {
+   "check": "getComputedStyle(document.querySelector('#phitex-switch .phitex-sw-word')).display !== 'none'",
+   "what": "the switch keeps its word, ⚡ Instant, at this width"
+  }
+ ]
+}

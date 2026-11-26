@@ -63,6 +63,7 @@
         "dist/platform.js",
         "dist/mirror.js",
         "dist/news.js",
+        "dist/onboarding.js",
         "dist/diffui.js",
         "dist/blame.js",
         "dist/callout.js",

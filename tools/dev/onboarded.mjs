@@ -16,7 +16,7 @@ export function onboarded(version) {
     accepted: 1, // (content-main.ts TERMS)
     view: "phitex", // (open projects in ⚡ Instant)
     tipOff: true, // (the welcome tip)
-    toured: true, // (the 5-step tour)
+    toured: true, // (the tour)
     newsSeen: version, // (the release notes for this version)
     dlExplained: true, // (the first-download popover)
   };

@@ -9,6 +9,7 @@ import { settled } from "./settings.ts";
 import { DEFAULT_CAP_MB, allMeta, capBytes, clearPacks, evict, kvGet, kvSet } from "./common/packstore.ts";
 import { setAheadOff } from "./common/prefetch.ts";
 import { keepDiffPacks } from "./common/wasm/host.ts";
+import { installWrites, type Seen } from "./onboarding.ts";
 
 chrome.runtime.onMessage.addListener((m, _sender, reply) => {
   // (the panel's Clear cache: the packs kept in this browser, and how much they held)
@@ -48,11 +49,14 @@ chrome.runtime.onMessage.addListener((m, _sender, reply) => {
 });
 
 // What's new: after an update, the notes the user hasn't seen show once in
-// Overleaf; a fresh install sees the welcome tip instead, so its notes count
-// as seen.
-chrome.runtime.onInstalled.addListener(({ reason }) => {
+// Overleaf; a fresh install sees the welcome instead, so its notes count as
+// seen and no feature is "New" to it (onboarding.ts).
+chrome.runtime.onInstalled.addListener(({ reason, previousVersion }) => {
   const version = chrome.runtime.getManifest().version;
-  if (reason === "install") void chrome.storage.local.set({ newsSeen: version });
+  void chrome.storage.local.get(["newsSeen"]).then((s) => {
+    const w = installWrites(reason, version, previousVersion, s as Seen);
+    if (Object.keys(w).length) void chrome.storage.local.set(w);
+  });
   // (the settings in this version's format: an update's older ones upgraded)
   void settled().catch((e) => console.error("[phitex] settings:", e));
 });

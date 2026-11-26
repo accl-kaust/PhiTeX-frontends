@@ -28,6 +28,8 @@ export type CalloutOptions = {
   /** The arrow's place, px from the anchor's left (default: its middle). */
   arrowAt?: number;
   width?: number;
+  /** Kept inside this element (Overleaf's PDF pane): never wider than it, never past its edges. */
+  within?: Element | null;
   /** What is ringed while it shows (default, when shiny: the anchor). */
   pulse?: Element | null;
   /** Gone at a click anywhere else. */
@@ -45,19 +47,23 @@ export function callout(o: CalloutOptions): Callout {
   if (o.actions?.length) body.append(h("div", { class: "phitex-callout-actions" }, ...o.actions));
   const el = h("div", { id: o.id, class: `popover bs-popover-bottom show phitex-callout${o.shiny ? " shiny" : ""}${o.inside ? " inside" : ""}`, role: "dialog", "aria-label": o.label },
     h("div", { class: "phitex-callout-clip" }, h("div", { class: "popover-header" }, ...o.header), body));
-  if (o.width) el.style.width = `${o.width}px`;
   document.body.append(el);
   const pulse = o.pulse === undefined ? (o.shiny ? o.anchor : null) : o.pulse;
   pulse?.classList.add("phitex-pulse");
   const place = () => {
     if (!el.isConnected) return hide();
     const r = o.anchor.getBoundingClientRect();
+    // (its room: the window's, or the element it is kept in, as laid out now)
+    const box = o.within?.isConnected ? o.within.getBoundingClientRect() : null;
+    const lo = Math.max(0, box?.left ?? 0) + 8, hi = Math.min(innerWidth, box?.right ?? innerWidth) - 8;
+    el.style.width = `${Math.max(200, Math.min(o.width ?? 320, hi - lo))}px`;
+    el.style.maxWidth = `${Math.max(200, hi - lo)}px`;
     const w = el.offsetWidth;
     const at = r.left + (o.arrowAt ?? r.width / 2);
-    const left = Math.max(8, Math.min(at - w / 2, innerWidth - w - 8));
+    const left = Math.max(lo, Math.min(at - w / 2, hi - w));
     el.style.left = `${left}px`;
     el.style.top = `${o.inside ? r.top + 24 : r.bottom + 10}px`;
-    el.style.setProperty("--arrow", `${at - left}px`);
+    el.style.setProperty("--arrow", `${Math.max(14, Math.min(at - left, w - 14))}px`);
   };
   const away = (e: Event) => {
     if (!el.contains(e.target as Node)) hide();
