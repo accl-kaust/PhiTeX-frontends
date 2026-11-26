@@ -28,12 +28,12 @@
    ]
   },
   {
-   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; const b = document.getElementById('phitex-changes'); b.click(); await sleep(300); return [b.getAttribute('aria-pressed'), C.querySelector('.body .empty b')?.textContent, await (await fetch('/project/mock/hist-count')).json().then((j) => j.reads)]; })()",
-   "what": "a click opens it, starting nothing",
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; const b = document.getElementById('phitex-changes'); b.click(); await sleep(300); const reads = () => fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads); for (const t = Date.now(); (await reads()) < 2 && Date.now() - t < 10000; ) await sleep(200); await sleep(800); return [b.getAttribute('aria-pressed'), C.querySelector('.body .empty b')?.textContent, await reads()]; })()",
+   "what": "a click opens it, starting nothing: the history's first page read at once (its sessions and labels, so a project with none says so up front), nothing more",
    "is": [
     "true",
     "Pick a version to compare with",
-    0
+    2
    ]
   },
   {
@@ -110,9 +110,18 @@
    "shot": "blame"
   },
   {
-   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await sleep(300); return [C.querySelector('.chg-pop').hidden, P.querySelectorAll('.slot .bl').length]; })()",
-   "what": "Esc closes it, its marks gone",
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await sleep(300); return [C.querySelector('.chg-pop').hidden, P.querySelectorAll('.slot .bl').length > 0]; })()",
+   "what": "Esc closes it; Blame stays on the pages until it is turned off",
    "is": [
+    true,
+    true
+   ]
+  },
+  {
+   "check": "(async () => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const row = (i) => C.querySelector(`.phx-commits .row[data-i=\"${i}\"]`); const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, composed: true }; }; document.getElementById('phitex-changes').click(); await sleep(800); C.querySelector('#chg-blame-off')?.click(); for (const t = Date.now(); P.querySelectorAll('.slot .bl').length && Date.now() - t < 5000; ) await sleep(100); const n = P.querySelectorAll('.slot .bl').length; C.querySelector('#chg-x')?.click(); await sleep(300); return [n, C.querySelector('.chg-pop').hidden, P.querySelectorAll('.slot .bl').length]; })()",
+   "what": "opened again, Turn off Blame: its marks gone, and closed, still none",
+   "is": [
+    0,
     true,
     0
    ]
