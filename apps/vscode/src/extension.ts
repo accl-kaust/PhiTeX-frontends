@@ -1,4 +1,4 @@
-// PhiTeX ⚡ Instant in VS Code: "PhiTeX: Open Preview" typesets the project
+// PhiTeX ⚡ Instant in VS Code: "PhiTeX: Open preview" typesets the project
 // the active .tex file is in and shows its pages in a webview beside the
 // editor (webview.ts: the viewer every host shows, its session and panel,
 // the pages drawn there by MuPDF). Its core is the builtin engine (core.ts:
@@ -11,8 +11,7 @@
 import * as vscode from "vscode";
 import { readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { execFile } from "node:child_process";
-import { AbstractMessageReader, AbstractMessageWriter, CloseAction, ErrorAction, ExecuteCommandRequest, LanguageClient, State, type DataCallback, type LanguageClientOptions, type Message, type ShowDocumentParams, type ShowDocumentResult } from "vscode-languageclient/node";
+import { AbstractMessageReader, AbstractMessageWriter, CloseAction, ErrorAction, ExecuteCommandRequest, LanguageClient, RevealOutputChannelOn, State, type DataCallback, type LanguageClientOptions, type Message, type ShowDocumentParams, type ShowDocumentResult } from "vscode-languageclient/node";
 import { join } from "node:path";
 import { availableParallelism } from "node:os";
 import { setPlatform } from "../../../common/src/platform.ts";
@@ -29,6 +28,7 @@ import { compareHost } from "./compare.ts";
 import type { Down } from "./webview.ts";
 import { StatusItem, type EngineStatus } from "./status.ts";
 import { texEngineOf } from "./texengine.ts";
+import { INSTALL_URL, nativeProblem, probeNative, type Native } from "./native.ts";
 import { latexmkFiles } from "../../../common/src/viewer/latexmkrc.ts";
 import { BINARY, CoreFiles, DiskSync, jobPdf, TEXT, walk, type Held } from "./project.ts";
 
@@ -74,7 +74,7 @@ const GRAPH_CAP: GraphCap = { count: 16, bytes: 2 * 1073741824 };
 const graphOn = async () => vscode.workspace.getConfiguration("phitex").get<boolean>("graph") !== false;
 /** The status bar's item (status.ts). */
 let status: StatusItem;
-/** The preview last opened: what the menu's Stop, Restart and Save PDF act on. */
+/** The preview last opened: what the menu's Stop, Restart and Download PDF act on. */
 let current: { folder: string; view: vscode.WebviewPanel; save(): void; rescan?(): Promise<void> } | undefined;
 
 /** The language server of the preview open (the watch's), for the protocol's commands (docs/spec-editor-protocol.md). */
@@ -172,9 +172,10 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("phitex.showLog", () => log.show()),
     // (from scratch: the builtin engine's files read again from disk first, as the watch reads them itself)
     vscode.commands.registerCommand("phitex.rebuild", async () => (await current?.rescan?.(), exec("phitex.rebuild"))),
+    // (Clear cache…: with no scope, the caches listed with their sizes, one or all picked and confirmed
+    // (phitex.caches, its old name, the same); with one (the picker's, a keybinding's), that one cleared)
     vscode.commands.registerCommand("phitex.clearCache", async (scope?: string) => {
-      scope ??= (await vscode.window.showQuickPick(["build", "packages", "all"], { title: "PhiTeX: clear which cache?" })) ?? undefined;
-      if (!scope) return;
+      if (!scope) return void (await vscode.commands.executeCommand("phitex.caches"));
       const r = await exec<{ freed_bytes: number }>("phitex.clearCache", { scope });
       if (r) void vscode.window.showInformationMessage(`PhiTeX: the ${scope === "all" ? "" : scope + " "}cache${scope === "all" ? "s" : ""} cleared, ${size(r.freed_bytes)} freed.`);
     }),
@@ -190,7 +191,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
         scope: c.scope,
       }));
       items.push({ label: "$(trash) Clear all", scope: "all" });
-      const pick = await vscode.window.showQuickPick(items, { title: "PhiTeX: caches (pick one to clear it)" });
+      const pick = await vscode.window.showQuickPick(items, { title: "PhiTeX: Clear cache (pick one, or all)" });
       if (!pick?.scope) return;
       const what = pick.scope === "all" ? "every cache" : `the ${pick.scope} cache`;
       if ((await vscode.window.showWarningMessage(`PhiTeX: clear ${what}?`, { modal: true }, "Clear")) === "Clear") await vscode.commands.executeCommand("phitex.clearCache", pick.scope);
@@ -211,17 +212,17 @@ export function activate(ctx: vscode.ExtensionContext): void {
         ...(current
           ? [
               { label: "$(eye) Show the preview", run: () => current?.view.reveal(vscode.ViewColumn.Beside, true) },
-              { label: "$(file-pdf) Save the PDF…", run: () => current?.save() },
+              { label: "$(file-pdf) Download PDF", run: () => current?.save() },
               { label: "$(debug-restart) Restart", run: restart },
-              ...(server ? [{ label: "$(refresh) Rebuild from scratch", run: () => vscode.commands.executeCommand("phitex.rebuild") }, { label: "$(database) Caches…", run: () => vscode.commands.executeCommand("phitex.caches") }] : []),
+              ...(server ? [{ label: "$(refresh) Clean rebuild", run: () => vscode.commands.executeCommand("phitex.rebuild") }, { label: "$(database) Clear cache…", run: () => vscode.commands.executeCommand("phitex.caches") }] : []),
               { label: "$(debug-stop) Stop", description: "closes the preview", run: stop },
             ]
           : [{ label: "$(zap) Open the preview", description: "Ctrl+Alt+P", run: () => open() }]),
         { label: "$(arrow-swap) Switch engine", description: `to ${other}`, run: () => vscode.commands.executeCommand("phitex.switchEngine") },
-        { label: "$(output) Show the log", run: () => log.show() },
+        { label: "$(output) View log", run: () => log.show() },
         { label: "$(gear) Settings", run: () => vscode.commands.executeCommand("workbench.action.openSettings", "@ext:accl-kaust.phitex") },
       ];
-      const pick = await vscode.window.showQuickPick(items, { title: "PhiTeX", placeHolder: status.state === "off" ? "Not running" : `Running: ${engineSetting()}` });
+      const pick = await vscode.window.showQuickPick(items, { title: "PhiTeX: Show actions", placeHolder: status.state === "off" ? "Not running" : `Running: ${engineSetting()}` });
       await pick?.run();
     }),
   );
@@ -238,9 +239,9 @@ function disconnected(view: vscode.WebviewPanel, why: string): void {
 /** The engine stopped by itself: the status bar says so, and a notification offers what to do. */
 function crashed(why: string, log: vscode.OutputChannel): void {
   status.set({ state: "crashed" });
-  void vscode.window.showErrorMessage(`PhiTeX: ${why}`, "Restart", "Show log").then((a) => {
+  void vscode.window.showErrorMessage(`PhiTeX: ${why}`, "Restart", "View log").then((a) => {
     if (a === "Restart") void vscode.commands.executeCommand("phitex.restart");
-    if (a === "Show log") log.show();
+    if (a === "View log") log.show();
   });
 }
 
@@ -270,6 +271,9 @@ function tabsAt(ext: vscode.Uri, from: vscode.WebviewPanel, engine: "builtin" | 
 let restored: vscode.WebviewPanel | undefined;
 
 /** A preview's tab: the restored one if there is one (its options given again), else a new one beside the editor. */
+/** The preview tab's name: the PDF it shows, after the main file ("⚡ paper.pdf"), as either engine makes it. */
+export const tabTitle = (main: string) => `⚡ ${main.replace(/^.*[\\/]/, "").replace(/\.tex$/i, "")}.pdf`;
+
 function previewPanel(type: string, title: string, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
   const r = restored;
   restored = undefined;
@@ -277,6 +281,17 @@ function previewPanel(type: string, title: string, options: vscode.WebviewPanelO
   r.webview.options = options;
   r.title = title;
   return r;
+}
+
+/** Said once a window: in Restricted Mode the native engine is off, the builtin one previews. */
+let restrictedSaid = false;
+function restricted(): void {
+  if (restrictedSaid) return;
+  restrictedSaid = true;
+  const trust = "Manage Workspace Trust";
+  void vscode.window
+    .showInformationMessage("PhiTeX: this folder is in Restricted Mode, so the native engine (phitex watch, which runs TeX on your machine) is off. The builtin engine, sandboxed in VS Code, previews it instead. Trust the folder to use phitex watch.", trust)
+    .then((a) => a === trust && void vscode.commands.executeCommand("workbench.trust.manage"));
 }
 
 async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.OutputChannel, at?: string): Promise<void> {
@@ -287,7 +302,10 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     return;
   }
   const folder = ws.uri.fsPath;
-  if (engineSetting() === "phitex watch") return previewWatch(ctx.extensionUri, folder, ed, log);
+  // (Restricted Mode: never the native phitex, which runs TeX (and its shell escape) on this machine; the
+  // builtin engine, sandboxed in WebAssembly, previews the folder instead, and says why once)
+  if (engineSetting() === "phitex watch" && !vscode.workspace.isTrusted) restricted();
+  else if (engineSetting() === "phitex watch") return previewWatch(ctx.extensionUri, folder, ed, log);
   if (!builtin) {
     const go = await downloads(ctx);
     if (go === "watch") return previewWatch(ctx.extensionUri, folder, ed, log);
@@ -321,7 +339,7 @@ async function preview(ctx: vscode.ExtensionContext, root: string, log: vscode.O
     void started.then(({ session }) => session.onEvent((e) => status.event(e as never)), () => undefined);
   }
 
-  const view = previewPanel("phitex.preview", "⚡ PhiTeX", {
+  const view = previewPanel("phitex.preview", tabTitle(main), {
     enableScripts: true,
     retainContextWhenHidden: true,
     localResourceRoots: [vscode.Uri.joinPath(ctx.extensionUri, "dist"), vscode.Uri.joinPath(ctx.extensionUri, "fonts")],
@@ -496,6 +514,10 @@ function clientOptions(folder: string, log: vscode.OutputChannel): LanguageClien
     // under the preview, the builtin's document is the preview's; an exit is said, with
     // Restart offered: crashed())
     errorHandler: { error: () => ({ action: ErrorAction.Continue }), closed: () => ({ action: CloseAction.DoNotRestart, handled: true }) },
+    // (its failures to start said by this extension once, in words (nativeFailed, startWatch), never as the
+    // client's own "couldn't create connection" / "Server initialization failed" / "write EPIPE" toasts; in the log)
+    revealOutputChannelOn: RevealOutputChannelOn.Never,
+    initializationFailedHandler: (e) => (log.appendLine(`PhiTeX: the engine's initialization failed: ${e instanceof Error ? e.message : JSON.stringify(e)}`), false),
     // (a double-click on the pages: its source in the editor beside them, never over them)
     middleware: { window: { showDocument: (params) => showSource(params) } },
   };
@@ -594,8 +616,29 @@ const watches = new Set<LanguageClient>();
 const stopping = new Set<Promise<void>>();
 /** A folder's preview by its watch: one a folder, shown again when asked again. */
 const watchViews = new Map<string, vscode.WebviewPanel | "starting">();
-/** Whether the phitex command runs (its --version), for the watch engine: the user's own TeX Live. */
-const phitexRuns = (cmd: string) => new Promise<boolean>((ok) => execFile(cmd, ["--version"], { timeout: 5000 }, (e) => ok(!e)));
+/** Whether the phitex command runs the preview (found, `watch --lsp`), for the watch engine: the user's own TeX Live. */
+const phitexRuns = async (cmd: string) => (await probeNative(cmd)).ok;
+
+/**
+ * A phitex that can't run the preview (none at phitex.path or on the PATH,
+ * one too old for `watch --lsp`, one that fails): said once, in words, with
+ * what to do: its install page, the builtin engine (nothing to install), the
+ * setting. Nothing is started, so the language client says nothing of its own.
+ */
+function nativeFailed(n: Exclude<Native, { ok: true }>, open: () => unknown): void {
+  status.set({ state: "off" });
+  const install = "Install phitex", builtin = "Use builtin engine", setting = "Open setting";
+  void vscode.window.showErrorMessage(nativeProblem(n), install, builtin, setting).then(async (a) => {
+    if (a === install) void vscode.env.openExternal(vscode.Uri.parse(INSTALL_URL));
+    if (a === setting) void vscode.commands.executeCommand("workbench.action.openSettings", "phitex.path");
+    if (a === builtin) {
+      const set = vscode.workspace.getConfiguration("phitex").inspect<string>("engine");
+      const target = set?.workspaceFolderValue !== undefined ? vscode.ConfigurationTarget.WorkspaceFolder : set?.workspaceValue !== undefined ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+      await vscode.workspace.getConfiguration("phitex").update("engine", "builtin", target);
+      await open();
+    }
+  });
+}
 
 /**
  * The builtin engine's downloads, asked once before the first: it reads TeX Live's packages
@@ -607,7 +650,8 @@ const phitexRuns = (cmd: string) => new Promise<boolean>((ok) => execFile(cmd, [
 async function downloads(ctx: vscode.ExtensionContext): Promise<"builtin" | "watch" | null> {
   if (ctx.globalState.get("phitex.downloads") === "allowed") return "builtin";
   const cmd = vscode.workspace.getConfiguration("phitex").get<string>("path") || "phitex";
-  const watch = await phitexRuns(cmd);
+  // (in Restricted Mode, the native command is neither run nor offered)
+  const watch = vscode.workspace.isTrusted && (await phitexRuns(cmd));
   const local = "Use my TeX Live", allow = "Allow downloads";
   const pick = await vscode.window.showInformationMessage(
     "PhiTeX: download TeX Live packages?",
@@ -642,6 +686,8 @@ async function previewWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEdit
 }
 
 async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor | undefined, log: vscode.OutputChannel): Promise<void> {
+  // (the one place the native command starts: never in Restricted Mode, whoever asks)
+  if (!vscode.workspace.isTrusted) return restricted();
   const files: Record<string, string> = {};
   for (const p of await walk(folder)) {
     const r = relPath(folder, p);
@@ -650,11 +696,20 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
   const active = ed ? (relPath(folder, ed.document.uri.fsPath) ?? undefined) : undefined;
   const main = settings().main ?? findMain(files, active);
   if (!main) return void vscode.window.showErrorMessage("PhiTeX: no .tex file with \\documentclass in this folder.");
-  const cmd = vscode.workspace.getConfiguration("phitex").get<string>("path") || "phitex";
-  log.appendLine(`phitex watch: ${cmd} watch ${main} --lsp (in ${folder})`);
+  const setting = vscode.workspace.getConfiguration("phitex").get<string>("path") || "phitex";
+  // (which file that is, and whether it can: a missing or old one said once, nothing started)
+  const native = await probeNative(setting, folder);
+  if (!native.ok) {
+    log.appendLine(`phitex watch: ${nativeProblem(native)}`);
+    return nativeFailed(native, () => vscode.commands.executeCommand("phitex.preview"));
+  }
+  // (the very file found, not the name again: what runs is what the status bar names)
+  const cmd = native.path;
+  status.binary(`${native.path} ${native.version}`);
+  log.appendLine(`phitex watch: ${cmd} (${native.version}) watch ${main} --lsp (in ${folder})`);
   // (the tab at once, saying what the watch does until its viewer is up: a
   // first run builds the format, seconds)
-  const view = previewPanel("phitex.watch", "⚡ phitex watch", {
+  const view = previewPanel("phitex.watch", tabTitle(main), {
     enableScripts: true,
     retainContextWhenHidden: true,
     localResourceRoots: [vscode.Uri.joinPath(ext, "dist"), vscode.Uri.joinPath(ext, "fonts")],
@@ -719,7 +774,10 @@ async function startWatch(ext: vscode.Uri, folder: string, ed: vscode.TextEditor
     watches.delete(client);
     view.dispose();
     status.set({ state: "off" });
-    void vscode.window.showErrorMessage(`PhiTeX: \`${cmd} watch --lsp\` did not start (see the PhiTeX output). Install phitex, or set phitex.path, or phitex.engine to "builtin".`, "Show output").then((a) => a && log.show());
+    void vscode.window.showErrorMessage(`PhiTeX: phitex ${native.version} (${cmd}) did not start its preview (see the PhiTeX output).`, "View log", "Use builtin engine").then(async (a) => {
+      if (a === "View log") log.show();
+      if (a === "Use builtin engine") await vscode.workspace.getConfiguration("phitex").update("engine", "builtin", vscode.ConfigurationTarget.Global), void vscode.commands.executeCommand("phitex.preview");
+    });
     return;
   }
   // (the viewer in the webview, its core the watch's, through this host:

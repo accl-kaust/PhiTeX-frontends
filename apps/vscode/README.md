@@ -16,8 +16,12 @@ bug: please report it.
 ## Getting started
 
 Open a `.tex` file and press **Ctrl+Alt+P** (**Cmd+Alt+P** on a Mac), or
-click the ⚡ button in the editor's title bar. The preview opens beside the
-editor.
+click the **Φ** button in the editor's title bar. The preview opens beside
+the editor, in a tab named after the PDF it shows (`⚡ paper.pdf`).
+
+Nothing else needs installing: the builtin engine runs inside VS Code. The
+`phitex` command-line tool is optional, for the native engine (see
+[Engines](#engines)).
 
 The builtin engine downloads the TeX packages a project uses, and asks
 before its first download. They are kept for next time, so later builds
@@ -69,9 +73,26 @@ command (the setting `phitex.engine`, `"phitex watch"`).
 - **phitex watch**: the native `phitex` command, if you have it installed
   (set `phitex.path`).
 
-**Switch Engine** in the command palette changes between them.
+**PhiTeX: Switch engine** in the command palette changes between them. If
+the `phitex` command is missing, or too old for the preview (it needs
+`phitex watch --lsp`, PhiTeX 1.0 or later), one notification says which
+file it found and offers to install it, to use the builtin engine, or to
+open the setting. The status bar's tooltip names the `phitex` file and
+version in use.
+
+**Restricted Mode**: in a folder you haven't trusted, only the builtin
+engine runs (sandboxed in WebAssembly); the native engine, which runs TeX
+on your machine, waits until you trust the folder.
+
+The commands are in the palette under **PhiTeX:** (Open preview, Clean
+rebuild, Download PDF, View log, Clear cache…, Switch engine, Restart,
+Stop), and **PhiTeX: Show actions** (or a click on the status bar item)
+lists them.
 
 ## Settings
+
+The preview's Settings dialog (⚙) shows and changes these same settings:
+change one in either place and the other follows.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -80,6 +101,7 @@ command (the setting `phitex.engine`, `"phitex watch"`).
 | `phitex.texEngine` | `auto` | The builtin engine's TeX: `auto` (a `% !TEX program` line, else the preamble), `pdflatex` or `xelatex`. |
 | `phitex.main` | (empty) | The project's main `.tex` file, relative to its folder. Empty: the open file if it has `\documentclass`, else the folder's file that has it. |
 | `phitex.follow` | `cursor` | What the pages mark of where you are in the source: `cursor`, `selection` or `dblclick`. |
+| `phitex.graph` | `true` | Keep each document's engine state between sessions, so reopening it builds only what changed (the builtin engine; `phitex watch` has `phitex config graph`). |
 | `phitex.threads` | `0` | The builtin engine's threads. `0`: one per core of this machine, at most 4. |
 | `phitex.darkPdf` | `off` | Dark pages: `off`, `on`, or `theme` (when VS Code's theme is dark). |
 | `phitex.opening` | `random` | The loading animations: `random`, `all`, `off`, or those picked, comma separated. |

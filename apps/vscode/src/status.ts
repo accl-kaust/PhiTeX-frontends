@@ -33,6 +33,13 @@ export class StatusItem implements vscode.Disposable {
     this.item.show();
   }
 
+  /** The native engine's file and version ("/usr/local/bin/phitex 1.0.5"), named in the tooltip while it runs: which phitex the PATH gave. */
+  private nativeBinary = "";
+  binary(b: string): void {
+    this.nativeBinary = b;
+    this.draw();
+  }
+
   get state(): EngineState {
     return this.now.state;
   }
@@ -56,7 +63,7 @@ export class StatusItem implements vscode.Disposable {
   private draw(): void {
     const s = this.now;
     const it = this.item;
-    const engine = s.engine === "native" ? "phitex watch (native)" : s.engine === "wasm" ? "builtin (WebAssembly)" : "";
+    const engine = s.engine === "native" ? `phitex watch (native${this.nativeBinary ? `: ${this.nativeBinary}` : ""})` : s.engine === "wasm" ? "builtin (WebAssembly)" : "";
     const problems = `${s.errors ? ` $(error) ${s.errors}` : ""}${s.warnings ? ` $(warning) ${s.warnings}` : ""}`;
     it.backgroundColor = s.state === "crashed" ? new vscode.ThemeColor("statusBarItem.errorBackground") : s.state === "failed" ? new vscode.ThemeColor("statusBarItem.warningBackground") : undefined;
     switch (s.state) {

@@ -37,6 +37,9 @@ export type Relayed = Omit<CoreTransport, "onEvent"> & { onEvent(cb: (e: CoreEve
  */
 export function relay(view: vscode.WebviewPanel, core: Relayed, folder: string, pdf: () => void, log?: (s: string) => void, openAt?: (k: number, top: number | null) => void): vscode.Disposable {
   const off = core.onEvent((e: CoreEvent) => void view.webview.postMessage({ t: "event", e } satisfies Down));
+  // (a phitex.* setting changed anywhere (VS Code's Settings, settings.json): the preview's dialog and its
+  // own choices read it again, so the two never differ; VS Code's setting is the one source)
+  const conf = vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration("phitex") && void view.webview.postMessage({ t: "settings" } satisfies Down));
   const asks = view.webview.onDidReceiveMessage(async (m: Up) => {
     // (the webview's trace: errors and blocks always, the rest with phitex.trace)
     if (m.t === "log") {
@@ -68,7 +71,7 @@ export function relay(view: vscode.WebviewPanel, core: Relayed, folder: string, 
             : await core.request(m.op as never).catch((e): CoreRes => ({ ok: false, error: String(e) }));
     void view.webview.postMessage({ t: "res", id: m.id, r } satisfies Down);
   });
-  return { dispose: () => (off(), asks.dispose()) };
+  return { dispose: () => (off(), asks.dispose(), conf.dispose()) };
 }
 
 /** A project file's text (Copy for an AI assistant): its editor's, unsaved edits in, else the disk's; a file of the project only, at most 2 MB. */
@@ -86,7 +89,7 @@ async function source(folder: string, file: string): Promise<CoreRes> {
 }
 
 /** The settings the preview's Settings dialog shows and sets: VS Code's `phitex.*`. */
-const SETTINGS = ["engine", "texEngine", "follow", "threads", "main", "path", "trace", "darkPdf", "opening", "underline"];
+const SETTINGS = ["engine", "texEngine", "follow", "threads", "main", "path", "trace", "graph", "darkPdf", "opening", "underline"];
 
 /** Their values now, and this machine's cores (Threads' list). */
 function settingsNow(): CoreRes {

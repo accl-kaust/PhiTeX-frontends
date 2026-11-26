@@ -29,11 +29,21 @@
     "onWebviewPanel:phitex.preview",
     "onWebviewPanel:phitex.watch"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In Restricted Mode the builtin engine (PhiTeX in WebAssembly, sandboxed in VS Code) previews the folder; the native engine (phitex watch), which runs TeX on your machine, does not run. A folder's own phitex.path and phitex.engine are ignored there.",
+      "restrictedConfigurations": [
+        "phitex.path",
+        "phitex.engine"
+      ]
+    }
+  },
   "contributes": {
     "commands": [
       {
         "command": "phitex.preview",
-        "title": "Open Preview",
+        "title": "Open preview",
         "category": "PhiTeX",
         "icon": {
           "light": "media/phi-light.svg",
@@ -52,39 +62,39 @@
       },
       {
         "command": "phitex.switchEngine",
-        "title": "Switch Engine (builtin ↔ phitex watch)",
+        "title": "Switch engine (builtin ↔ phitex watch)",
         "category": "PhiTeX"
       },
       {
         "command": "phitex.savePdf",
-        "title": "Save PDF…",
+        "title": "Download PDF",
         "category": "PhiTeX"
       },
       {
         "command": "phitex.showLog",
-        "title": "Show Log",
+        "title": "View log",
         "category": "PhiTeX"
       },
       {
         "command": "phitex.menu",
-        "title": "Menu",
+        "title": "Show actions",
         "category": "PhiTeX"
       },
       {
         "command": "phitex.rebuild",
-        "title": "Rebuild from Scratch",
+        "title": "Clean rebuild",
         "category": "PhiTeX",
         "enablement": "phitex.lsp"
       },
       {
         "command": "phitex.caches",
-        "title": "Caches…",
+        "title": "Clear cache…",
         "category": "PhiTeX",
         "enablement": "phitex.lsp"
       },
       {
         "command": "phitex.clearCache",
-        "title": "Clear Cache…",
+        "title": "Clear cache…",
         "category": "PhiTeX",
         "enablement": "phitex.lsp"
       }
@@ -95,6 +105,12 @@
           "command": "phitex.preview",
           "when": "editorLangId == latex",
           "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "phitex.caches",
+          "when": "false"
         }
       ]
     },

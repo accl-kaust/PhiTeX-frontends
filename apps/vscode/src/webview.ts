@@ -47,7 +47,9 @@ export type Down =
   | { t: "texts"; main: string; files: Record<string, string> }
   | { t: "cmp-ready"; error?: string }
   /** The engine lost (the watch exited, the core trapped): the pages dimmed under a banner saying why. */
-  | { t: "connection"; up: boolean; why?: string };
+  | { t: "connection"; up: boolean; why?: string }
+  /** A phitex.* setting changed in VS Code: read them again (the dialog's rows, the panel's own choices). */
+  | { t: "settings" };
 
 const vscode = acquireVsCodeApi();
 const up = (m: Up) => vscode.postMessage(m);
@@ -247,10 +249,14 @@ const panel = new Panel(
 );
 /** The panel's own choices, by their VS Code settings' names. */
 const PREF_KEYS: Record<keyof ViewPrefs, string> = { "dark-pdf": "darkPdf", opening: "opening", underline: "underline" };
-void relay.request({ op: "vsc-settings" }).then((r) => {
-  const c = r.json ?? {};
-  if (r.ok) panel.viewPrefs({ "dark-pdf": c.darkPdf, opening: c.opening, underline: c.underline !== false });
-});
+/** The panel's own choices as VS Code's settings say them: at the start, and again whenever one changes there. */
+const readPrefs = () =>
+  void relay.request({ op: "vsc-settings" }).then((r) => {
+    const c = r.json ?? {};
+    if (r.ok) panel.viewPrefs({ "dark-pdf": c.darkPdf, opening: c.opening, underline: c.underline !== false });
+  });
+readPrefs();
+addEventListener("message", (m: MessageEvent<Down>) => m.data.t === "settings" && readPrefs());
 
 /** The Settings dialog's VS Code rows: phitex.* (set here, kept by VS Code), and the watch's user file's with that engine. */
 async function vscodeSettings(): Promise<SettingsGroup[]> {
@@ -296,11 +302,12 @@ async function vscodeSettings(): Promise<SettingsGroup[]> {
           set: (v) => set("threads")(Number(v)),
         },
         { id: "v-path", label: "The phitex command", help: "phitex.path, for the phitex watch engine", kind: "action", button: c.path ? String(c.path) : "phitex", set: open("path") },
+        { id: "v-graph", label: "Keep the engine's state", help: watch ? "phitex.graph: the builtin engine's. phitex watch keeps its own (phitex config graph)" : "phitex.graph: each document's state kept between sessions, so reopening it builds only what changed", kind: "toggle", value: c.graph !== false, set: set("graph") },
         { id: "v-trace", label: "Trace", help: "What the preview does, each request and page with its time, in the PhiTeX output", kind: "toggle", value: c.trace === true, set: set("trace") },
         ...(watch ? [wtoggle("watch-write", "Write the PDF into the folder", "phitex watch: after each build, the PDF with its .synctex.gz. From the next watch on."), wtoggle("synctex", "SyncTeX file with a written PDF", "JOB.synctex.gz beside the PDF, for a PDF viewer's jumps")] : []),
       ],
     },
-    { title: "Packages", rows: [{ id: "v-cache", label: "Caches", help: "The packages and formats kept on this machine: listed, one cleared", kind: "action", button: "Show…", set: () => up({ t: "cmd", cmd: "phitex.caches" }) }] },
+    { title: "Packages", rows: [{ id: "v-cache", label: "Cache", help: "The packages and formats kept on this machine: listed with their sizes, one or all cleared", kind: "action", button: "Clear cache…", set: () => up({ t: "cmd", cmd: "phitex.clearCache" }) }] },
     { title: "Updates and tips", rows: watch ? [wtoggle("update-check", "Say when a newer PhiTeX is out", "phitex watch asks once a day")] : [] },
   ];
 }
