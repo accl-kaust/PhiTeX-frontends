@@ -111,8 +111,9 @@
   {
    "check": "fetch('/project/mock/hist-count').then((r) => r.json()).then((j) => j.reads)",
    "page": true,
-   "what": "opened: still nothing read",
-   "is": 0
+   "what": "opened: the history's first page read at once (its sessions and labels, so a project with none says so up front), nothing more",
+   "is": 2,
+   "ms": 10000
   },
   {
    "check": "!globalThis.__phitexCompare.c",
@@ -157,8 +158,8 @@
    "what": "opened again"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const l = C.querySelector('#chg-look'); return !!l && C.querySelector('.body').firstElementChild === l && l.offsetHeight > 0 && !C.querySelector('.lookbox, .lookhead, details'); })()",
-   "what": "Diff's look at the top of the list, open, no fold"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const l = C.querySelector('#chg-look'); return !!l && C.querySelector('.body').firstElementChild === l && l.classList.contains('folded') && l.offsetHeight === 0 && C.querySelector('#chg-gear').getAttribute('aria-expanded') === 'false' && !C.querySelector('.lookbox, .lookhead, details'); })()",
+   "what": "Diff's look at the top of the list, folded until \u2699 opens it (what is compared first), \u2699 saying so"
   },
   {
    "click": "#chg-start"
@@ -208,8 +209,8 @@
    "ms": 500
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Now click the other end/.test(C.querySelector('#chg-hint').textContent); })()",
-   "what": "one end clicked: the hint asks for the other"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const g = [C.querySelector('#chg-from code')?.textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to b')?.textContent, C.querySelector('.chg-pop').dataset.view].join(' '), w = [globalThis.__ids[5], 'Your edits now', 'diff-pick'].join(' '); return /^Compared with now/.test(C.querySelector('#chg-hint').textContent) && (g === w || `${g} for ${w}`); })()",
+   "what": "one click: that session compared with now at once, the picker open for another (the hint says so)"
   },
   {
    "pointer": ".phx-commits .row[data-i=\"2\"]",
@@ -256,8 +257,8 @@
    "ms": 400
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Click one end/.test(C.querySelector('#chg-hint').textContent) && C.querySelector('.chg-pop').dataset.view === 'diff-pick'; })()",
-   "what": "the same again cancels"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Click a version to compare it with now/.test(C.querySelector('#chg-hint').textContent) && C.querySelector('.chg-pop').dataset.view === 'diff-pick'; })()",
+   "what": "the same again cancels: the hint asks for a first click again, the picker stays"
   },
   {
    "pointer": ".phx-commits .row[data-i=\"4\"]",
@@ -270,8 +271,28 @@
    "vk": 27
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Click one end/.test(C.querySelector('#chg-hint').textContent) && C.querySelector('.chg-pop').dataset.view === 'diff-pick'; })()",
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Click a version to compare it with now/.test(C.querySelector('#chg-hint').textContent) && C.querySelector('.chg-pop').dataset.view === 'diff-pick'; })()",
    "what": "Esc lets go of the first end, the picker stays"
+  },
+  {
+   "pointer": ".phx-commits .row[data-i=\"4\"]",
+   "press": true,
+   "ms": 500
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const g = [C.querySelector('#chg-from code')?.textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to b')?.textContent, C.querySelector('.chg-pop').dataset.view].join(' '), w = [globalThis.__ids[4], 'Your edits now', 'diff-pick'].join(' '); return g === w || `${g} for ${w}`; })()",
+   "what": "a click: that session with now"
+  },
+  {
+   "click": "#chg-done"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; const g = [C.querySelector('#chg-from code')?.textContent.split(' \u00b7 ')[0], C.querySelector('#chg-to b')?.textContent, C.querySelector('.chg-pop').dataset.view].join(' '), w = [globalThis.__ids[4], 'Your edits now', 'diff'].join(' '); return (g === w && /^\\d+ changes?$/.test(C.querySelector('.foot .count')?.textContent ?? '')) || `${g} for ${w}: ${C.querySelector('.foot .count')?.textContent}`; })()",
+   "what": "Done compares what the list shows: that session with now, its changes counted, the list back",
+   "ms": 120000
+  },
+  {
+   "click": "#chg-from"
   },
   {
    "pointer": ".phx-commits .row[data-i=\"3\"]",
@@ -309,8 +330,8 @@
    "click": "#chg-to"
   },
   {
-   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Now click the other end/.test(C.querySelector('#chg-hint').textContent); })()",
-   "what": "opened from To: From is the first end already"
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return /^Compared with now/.test(C.querySelector('#chg-hint').textContent) && C.querySelector('#chg-from code')?.textContent.split(' \u00b7 ')[0] === globalThis.__ids[6]; })()",
+   "what": "opened from To: From is the first end already, the next click its other end"
   },
   {
    "pointer": ".phx-commits .row[data-i=\"0\"]",
@@ -1341,8 +1362,33 @@
    "is": "false"
   },
   {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl').length > 0; })()",
+   "what": "closed: Blame stays on the pages until it is turned off"
+  },
+  {
+   "pointer": "#phitex-changes",
+   "press": true,
+   "ms": 800
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return !C.querySelector('.chg-pop').hidden && !!C.querySelector('#chg-blame-off') && C.querySelector('.boff').innerText.includes('until you turn it off'); })()",
+   "what": "opened again: Blame says it stays, and Turn off Blame"
+  },
+  {
+   "click": "#chg-blame-off"
+  },
+  {
    "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl').length; })()",
-   "what": "closed: no marks",
+   "what": "Turn off Blame: no marks",
+   "is": 0,
+   "ms": 5000
+  },
+  {
+   "click": "#chg-x"
+  },
+  {
+   "check": "(() => { const P = document.querySelector('phitex-preview').shadowRoot, C = P.querySelector('#chg').shadowRoot; return P.querySelectorAll('.slot .bl').length; })()",
+   "what": "closed: still none",
    "is": 0
   },
   {
@@ -1357,9 +1403,9 @@
    "idle": 2500
   },
   {
-   "check": "!document.getElementById('phitex-feature')",
+   "check": "!(document.getElementById('phitex-feature')?.textContent ?? '').includes('Changes')",
    "page": true,
-   "what": "the Changes tip never again"
+   "what": "the Changes tip never again (another feature's tip may show)"
   },
   {
    "pointer": "#phitex-changes",
