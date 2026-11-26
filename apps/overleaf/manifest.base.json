@@ -75,6 +75,7 @@
         "dist/common/format.js",
         "dist/history.js",
         "dist/olhistory.js",
+        "dist/marks.js",
         "dist/common/platform.js",
         "dist/common/zip.js",
         "dist/common/version.js",

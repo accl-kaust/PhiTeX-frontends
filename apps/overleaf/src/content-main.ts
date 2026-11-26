@@ -656,6 +656,10 @@ const DOCK_CSS = `
   /* its controls' wrapper keeps only the invert button: no room held for the hidden rest */
   .phitex-on #toolbar-pdf-controls, .phitex-on #toolbar-pdf-controls > * { flex: 0 0 auto !important; width: auto !important; }
   #phitex-controls:not(.compact) .phitex-compact-only { display: none; }
+  /* past everything else, the download, the problems' button and the settings go into ⋯, in that order */
+  .phitex-nodl #phitex-dlgroup, .phitex-nologs #phitex-logs, .phitex-noset #phitex-settings { display: none !important; }
+  #phitex-more-menu .if-nodl, #phitex-more-menu .if-nologs, #phitex-more-menu .if-noset { display: none; }
+  .phitex-nodl #phitex-more-menu .if-nodl, .phitex-nologs #phitex-more-menu .if-nologs, .phitex-noset #phitex-more-menu .if-noset { display: list-item; }
   #phitex-controls.compact .pdfjs-toolbar-buttons, #phitex-controls.compact .pdfjs-page-number-input { display: none; }
   #phitex-switch { margin: 0 4px 0 8px; display: inline-flex; align-items: center; position: relative; }
   #phitex-switch .toggle-switch { margin: 0; }
@@ -939,7 +943,7 @@ function dockInOverleaf(panel: Panel): Dock {
       <div class="dropdown"><button type="button" id="phitex-zoom" aria-expanded="false" aria-label="PhiTeX zoom level" class="pdf-toolbar-btn pdfjs-zoom-dropdown-button small dropdown-toggle btn btn-link">100%</button>
       <ul class="dropdown-menu dropdown-menu-end" id="phitex-zoom-menu" role="menu">${ZOOMS.map(([v, l]) => html`<li><button type="button" class="dropdown-item" data-zoom="${v}">${l}</button></li>`)}</ul></div></div>
       <div class="dropdown"><button type="button" id="phitex-more" aria-label="More" title="More (PhiTeX)" class="d-inline-grid pdf-toolbar-btn pdfjs-toolbar-popover-button btn btn-ghost"><span class="button-content" aria-hidden="false"><span class="material-symbols" aria-hidden="true" translate="no">more_horiz</span></span></button>
-      <ul class="dropdown-menu dropdown-menu-end" id="phitex-more-menu" role="menu"><li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li><li><button type="button" class="dropdown-item" data-act="timings" title="The last build's times, step by step (PhiTeX)">Build timings</button></li><li><button type="button" class="dropdown-item" data-act="keys" title="⚡ Instant's keys (PhiTeX)">Keyboard shortcuts</button></li><li class="phitex-compact-only"><hr class="dropdown-divider"></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="prev">Previous page</button></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="next">Next page</button></li><li class="phitex-compact-only"><hr class="dropdown-divider"></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="zin">Zoom in</button></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="zout">Zoom out</button></li></ul></div>${gbtn("phitex-settings", "settings", "⚡ Instant settings")}`);
+      <ul class="dropdown-menu dropdown-menu-end" id="phitex-more-menu" role="menu"><li><button type="button" class="dropdown-item" data-act="clean" title="Read the project again and typeset it from the start (PhiTeX)">Clean rebuild</button></li><li><button type="button" class="dropdown-item" data-act="timings" title="The last build's times, step by step (PhiTeX)">Build timings</button></li><li><button type="button" class="dropdown-item" data-act="keys" title="⚡ Instant's keys (PhiTeX)">Keyboard shortcuts</button></li><li class="if-nologs"><button type="button" class="dropdown-item" data-act="problems">Problems</button></li><li class="if-nodl"><button type="button" class="dropdown-item" data-act="dl">Download ⚡ Instant PDF</button></li><li class="if-nodl"><button type="button" class="dropdown-item" data-act="compiled">Download Overleaf's compiled PDF</button></li><li class="if-noset"><button type="button" class="dropdown-item" data-act="settings">⚡ Instant settings</button></li><li class="phitex-compact-only"><hr class="dropdown-divider"></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="prev">Previous page</button></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="next">Next page</button></li><li class="phitex-compact-only"><hr class="dropdown-divider"></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="zin">Zoom in</button></li><li class="phitex-compact-only"><button type="button" class="dropdown-item" data-act="zout">Zoom out</button></li></ul></div>${gbtn("phitex-settings", "settings", "⚡ Instant settings")}`);
     const q = (id: string) => c!.querySelector<HTMLElement>(`#${id}`)!;
     q("phitex-prev").onclick = () => panel.prev();
     q("phitex-next").onclick = () => panel.next();
@@ -976,6 +980,10 @@ function dockInOverleaf(panel: Panel): Dock {
         // (the timings themselves, not the problems a status with errors opens: under ⋯)
         if (act === "timings") panel.timingAt(q("phitex-more"), true);
         if (act === "keys") panel.keyHelp();
+        if (act === "problems") panel.diagnostics();
+        if (act === "dl") panel.pdf();
+        if (act === "compiled") compiledLink()?.click();
+        if (act === "settings") void panel.settings();
         menu.classList.remove("show");
       };
     };
@@ -1452,7 +1460,9 @@ function dockInOverleaf(panel: Panel): Dock {
   /** ± Changes' word's width, measured while shown. */
   let chgWord = 60;
   /** The status's words' width ("Built"), measured while shown. */
-  let statusAll = 120, zoomW = 60, leanW = 50;
+  let statusAll = 120, zoomW = 60, leanW = 50, dlW = 40, logsW = 36, setW = 36;
+  /** What goes into ⋯ last, in this order: the download, the problems' button, the settings (classes on the pane). */
+  const INTO_MORE = ["phitex-nodl", "phitex-nologs", "phitex-noset"] as const;
   /** What the toolbar needs in full, in each mode (0 until it has shown). */
   const needs = { pdf: 0, phitex: 0 };
 
@@ -1534,13 +1544,18 @@ function dockInOverleaf(panel: Panel): Dock {
         if (st && statusNeed(st)) statusAll = statusNeeds[0];
         const z = document.getElementById("phitex-zoom");
         if (!ctl.classList.contains("nozoom") && z?.offsetWidth) zoomW = z.offsetWidth + 4;
+        const dl = document.getElementById("phitex-dlgroup"), logs = document.getElementById("phitex-logs"), set = document.getElementById("phitex-settings");
+        if (!pane.classList.contains("phitex-nodl") && dl?.offsetWidth) dlW = dl.offsetWidth + 4;
+        if (!pane.classList.contains("phitex-nologs") && logs?.offsetWidth) logsW = logs.offsetWidth + 4;
+        if (!pane.classList.contains("phitex-noset") && set?.offsetWidth) setW = set.offsetWidth + 4;
       }
-      const given = ours ? (lf.classList.contains("lean") ? leanW : 0) + (lf.classList.contains("tight") ? chgWord : 0) + (lf.classList.contains("gone") ? statusAll : 0) + (ctl.classList.contains("nozoom") ? zoomW : 0) : 0;
+      const intoMore = (pane.classList.contains("phitex-nodl") ? dlW : 0) + (pane.classList.contains("phitex-nologs") ? logsW : 0) + (pane.classList.contains("phitex-noset") ? setW : 0);
+      const given = ours ? (lf.classList.contains("lean") ? leanW : 0) + (lf.classList.contains("tight") ? chgWord : 0) + (lf.classList.contains("gone") ? statusAll : 0) + (ctl.classList.contains("nozoom") ? zoomW : 0) + intoMore : 0;
       needs[mode] = leftSpan(left) + rightSpan(right) + 16 + (sw.classList.contains("narrow") ? swFull - swNarrow : 0) + given;
       // (the switch keeps its word, "⚡ Instant", while anything else can give way: it says "PDF | ⚡" only when
       // ⚡ Instant's toolbar with everything given up still has no room, or Overleaf's alone has none. Each mode's
       // least, so flipping the switch never changes its width)
-      const least = needs.phitex ? needs.phitex - (leanW + chgWord + statusAll + zoomW) : 0;
+      const least = needs.phitex ? needs.phitex - (leanW + chgWord + statusAll + zoomW + dlW + logsW + setW) : 0;
       sw.classList.toggle("narrow", Math.max(needs.pdf, least) > bar.clientWidth);
       if (ours) {
         const need = needs[mode] - (sw.classList.contains("narrow") ? swFull - swNarrow : 0);
@@ -1552,6 +1567,9 @@ function dockInOverleaf(panel: Panel): Dock {
         step(lf, "tight", chgWord);
         step(lf, "gone", statusAll);
         step(ctl, "nozoom", zoomW);
+        step(pane, INTO_MORE[0], dlW);
+        step(pane, INTO_MORE[1], logsW);
+        step(pane, INTO_MORE[2], setW);
         // (the local mock only: each change of what gave way, with what decided it, for the toolbar's checks)
         if (location.hostname === "localhost") {
           const k = `${lf.className}|${ctl.className}|${sw.className}`;
@@ -1563,7 +1581,7 @@ function dockInOverleaf(panel: Panel): Dock {
           }
         }
       }
-      const now = `${document.getElementById("phitex-left")?.className}|${ctl.className}|${sw.className}`;
+      const now = `${document.getElementById("phitex-left")?.className}|${ctl.className}|${sw.className}|${INTO_MORE.filter((c) => pane.classList.contains(c)).join(" ")}`;
       if (now === was) break;
       was = now;
     }

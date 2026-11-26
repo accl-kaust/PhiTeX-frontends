@@ -1,0 +1,15 @@
+{
+ "project": "test/scenarios/ci",
+ "strict": false,
+ "//": "The build's problems marked on the editor's lines: an undefined command typed, its command underlined in red where it is (the hook's layer over the editor, from the viewer's plainDiagnostics), gone once the line is fixed.",
+ "storage": { "tipsSeen": ["compare", "blame", "timing", "clean", "dark", "changes"], "panel": {}, "visits": {} },
+ "steps": [
+  { "onpage": "", "ms": 60000 },
+  { "idle": 1500 },
+  { "type": " \\foobar", "after": "The release gate's project", "keys": 30 },
+  { "check": "(() => { const m = document.querySelector('.phitex-marks .phitex-mark.error'); if (!m) return false; const r = m.getBoundingClientRect(); const t = [...document.querySelectorAll('.cm-line')].find((l) => l.textContent.includes('\\\\foobar')); if (!t) return 'no line'; const range = document.createRange(); const n = [...t.childNodes].flatMap((c) => c.nodeType === 3 ? [c] : [...c.childNodes].filter((x) => x.nodeType === 3)).find((x) => x.textContent.includes('\\\\foobar')); if (!n) return 'no text'; const i = n.textContent.indexOf('\\\\foobar'); range.setStart(n, i); range.setEnd(n, i + 7); const w = range.getBoundingClientRect(); return Math.abs(r.left - w.left) < 3 && Math.abs(r.width - w.width) < 4 && r.top >= w.top && r.top <= w.bottom + 3; })()", "page": true, "what": "the undefined command underlined in red under itself on the editor's line", "ms": 30000 },
+  { "shot": "marked" },
+  { "replace": " \\foobar", "with": "" },
+  { "check": "document.querySelectorAll('.phitex-marks .phitex-mark').length", "page": true, "what": "fixed: no mark left", "is": 0, "ms": 30000 }
+ ]
+}
