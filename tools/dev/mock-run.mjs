@@ -31,6 +31,7 @@
 //       { "dbltext": "Every writer" }, // double-click the editor at that text: the page's highlight boxes after
 //       { "dbloutline": "Section 3" }, // double-click that heading in the file outline
 //       { "replacefile": "fig.png", "b64": "…", "ms": 60000 }, // the binary file replaced as Overleaf says it is; until the session's PDF changes, else the run fails
+//       { "addfile": "img/fig.png", "b64": "…", "ms": 60000 }, // a file new to the project (its folder too) uploaded as Overleaf says it is; until the session's PDF changes, else the run fails
 //       { "compare": 1, "has": ["regex"], "ms": 60000 }, // Changes' Diff from version 1, as clicked; until its footer counts changes and diff.tex has each regex, else the run fails
 //       { "onpage": "Typed words", "ms": 60000 }, // until that text is on a page, else the run fails
 //       { "reload": 3, "ms": 120000 }, // the tab reloaded 3 times, each until its first page, else the run fails
@@ -562,13 +563,14 @@ for (const s of sc.steps ?? []) {
     if (measuring) console.log("cpu while typing:", JSON.stringify((s.result = await measuring), null, 1));
   } else if (s.replace !== undefined) {
     await evalIn(`(() => { const t = mockEditor.text(), i = t.indexOf(${JSON.stringify(s.replace)}); if (i >= 0) mockEditor.replace(i, i + ${JSON.stringify(s.replace)}.length, ${JSON.stringify(s.with ?? "")}); })()`);
-  } else if (s.replacefile !== undefined) {
+  } else if (s.replacefile !== undefined || s.addfile !== undefined) {
     const digest = `(async () => { const b = await globalThis.__phitexSession.pdf(); return b ? [...new Uint8Array(await crypto.subtle.digest("SHA-256", b))].join() : ""; })()`;
     const was = await evalIn(digest, true);
-    await fetch(`http://localhost:${MOCK}/project/mock/replace?path=${encodeURIComponent(s.replacefile)}`, { method: "POST", body: Buffer.from(s.b64, "base64") });
+    const [what, file] = s.addfile !== undefined ? ["add", s.addfile] : ["replace", s.replacefile];
+    await fetch(`http://localhost:${MOCK}/project/mock/${what}?path=${encodeURIComponent(file)}`, { method: "POST", body: Buffer.from(s.b64, "base64") });
     let now = was;
     for (const t0 = Date.now(); now === was && Date.now() - t0 < (s.ms ?? 60000); ) (now = await evalIn(digest, true)) === was && (await sleep(200));
-    console.log(`replacefile ${s.replacefile}: the PDF ${now === was ? "UNCHANGED" : "changed"}`);
+    console.log(`${what}file ${file}: the PDF ${now === was ? "UNCHANGED" : "changed"}`);
     if (now === was) (steps.push({ t: Date.now() - T0, k: "STEP FAILED", d: s }), (process.exitCode = 1));
   } else if (s.compare !== undefined) {
     // (`{"compare": 1, "has": ["regex"]}`: Changes' Diff from version 1 to the editor's text, as

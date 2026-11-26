@@ -40,9 +40,9 @@
   // (only Overleaf's editor: /project/<24 hex id>; the local mock too)
   if (!/^\/project\/([0-9a-f]{24}|mock)\/?$/.test(location.pathname)) return;
 
-  // A figure uploaded or replaced: Overleaf tells each editor of the project on
-  // its socket (socket.io 0.9's event frame, `5:::{"name":"reciveNewFile","args":
-  // [folder, file, ...]}`: EditorController's addFile and replaceFile), and in
+  // A figure uploaded or replaced, or a doc made: Overleaf tells each editor of the
+  // project on its socket (socket.io 0.9's event frame, `5:::{"name":"reciveNewFile","args":
+  // [folder, file, ...]}`: EditorController's addFile and replaceFile; `reciveNewDoc`), and in
   // nothing the page shows. Only heard, each frame still Overleaf's. On its
   // xhr-polling fallback nothing is heard: the figure is new at the next load.
   //
@@ -89,11 +89,13 @@
     constructor(url: string | URL, protocols?: string | string[]) {
       super(url, protocols);
       this.addEventListener("message", (e) => {
-        if (typeof e.data !== "string" || !/"(reciveNewFile|joinProjectResponse|rootDocUpdated)"/.test(e.data)) return;
+        if (typeof e.data !== "string" || !/"(reciveNewFile|reciveNewDoc|joinProjectResponse|rootDocUpdated)"/.test(e.data)) return;
         const m = /^5:[^:]*:[^:]*:([\s\S]*)$/.exec(e.data);
         try {
           const f = m && JSON.parse(m[1]);
           if (f?.name === "reciveNewFile" && f.args?.[1]?._id) post({ type: "fileReplaced", id: f.args[1]._id, name: f.args[1].name });
+          // (a doc made or uploaded, a .tex the build may look for: `\input` search, `\IfFileExists`)
+          if (f?.name === "reciveNewDoc" && f.args?.[1]?._id) post({ type: "docAdded", id: f.args[1]._id, name: f.args[1].name });
           if (f?.name === "joinProjectResponse" && f.args?.[0]?.project) {
             const p = f.args[0].project;
             folders = Array.isArray(p.rootFolder) ? p.rootFolder[0] : null;

@@ -1,0 +1,9 @@
+\documentclass{article}
+\usepackage{graphicx}
+% img/ first: a picture made there later wins over fig/'s
+\graphicspath{{img/}{fig/}}
+\begin{document}
+A picture: \includegraphics[width=3cm]{pic}
+
+\IfFileExists{extra.tex}{\input{extra}}{No extra file yet.}
+\end{document}

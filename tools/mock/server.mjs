@@ -27,7 +27,8 @@ let n = 0;
 const TEXT = /\.(tex|bib|cls|sty|bst|bbx|cbx|lbx|dbx|cfg|def|clo|fd|ltx|txt|md|ist|tikz|pgf|dtx|ins)$/i;
 // (the editor's socket as Overleaf's speaks it: server to client text frames
 // only; POST /project/mock/replace?path=fig.png with the new bytes says what
-// a replaced file says: a new id, `removeEntity`, then `reciveNewFile`)
+// a replaced file says: a new id, `removeEntity`, then `reciveNewFile`; POST
+// /project/mock/add?path=img/fig.png a file new to the project, its folder too)
 // The join's answer on each new socket, as Overleaf's real-time service
 // sends it (`joinProjectResponse`: the project's root doc and folder tree),
 // and a change of the root doc (POST /project/mock/root-doc?path=main.tex:
@@ -445,6 +446,32 @@ const handle = (req, res) => {
       files.set(p, Buffer.concat(parts));
       fileIds.set(id, p);
       say("removeEntity", ["old", "upload"]);
+      say("reciveNewFile", ["root", { _id: id, name: path.basename(p) }, "upload", null, "me"]);
+      send(204, "text/plain", "");
+    });
+    return;
+  }
+  // (POST /project/mock/add?path=img/fig.png with the bytes: a file uploaded where the
+  // project had none, its folder made first if new, as Overleaf's socket says them:
+  // `reciveNewFolder` for each new folder, then `reciveNewFile`, no `removeEntity`)
+  if (u.pathname === "/project/mock/add" && req.method === "POST") {
+    const parts = [];
+    req.on("data", (c) => parts.push(c));
+    req.on("end", () => {
+      const p = u.searchParams.get("path"), id = `f${String(++n).padStart(23, "0")}`;
+      const known = new Set([...files.keys(), ...[...docs.values()].map((d) => d.path)].map((f) => path.dirname(f)));
+      const dir = path.dirname(p);
+      if (dir !== "." && !known.has(dir)) say("reciveNewFolder", ["root", { _id: `d${String(++n).padStart(23, "0")}`, name: path.basename(dir), docs: [], fileRefs: [], folders: [] }, "me"]);
+      const b = Buffer.concat(parts);
+      // (a text file: a doc, as Overleaf makes an uploaded .tex one, `reciveNewDoc`)
+      if (TEXT.test(p) && !b.includes(0)) {
+        const d = `d${String(++n).padStart(23, "0")}`;
+        docs.set(d, { path: p, text: b.toString("utf8") });
+        say("reciveNewDoc", ["root", { _id: d, name: path.basename(p) }, "upload", "me"]);
+        return send(204, "text/plain", "");
+      }
+      files.set(p, b);
+      fileIds.set(id, p);
       say("reciveNewFile", ["root", { _id: id, name: path.basename(p) }, "upload", null, "me"]);
       send(204, "text/plain", "");
     });

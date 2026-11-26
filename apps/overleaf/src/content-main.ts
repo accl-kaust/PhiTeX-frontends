@@ -2050,6 +2050,23 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     // (those files read again, nothing else checked)
     await transport.request({ op: "changed", files: paths.filter((p) => p in lastBinaries) } as never);
   };
+  /**
+   * A doc made or uploaded (hook.ts): its text given to the core at once, as a
+   * refresh gives a closed doc's, so a build that looked for it (`\input`'s
+   * search, `\IfFileExists`) runs again. The refresh found it only once the
+   * file tree showed it, which a folder never opened does not.
+   */
+  const added = async (id: string, name: string) => {
+    if (!session) return;
+    const r = await pageFetch(`${project()}/entities`, { credentials: "include" });
+    if (!r.ok) return;
+    const { entities } = (await r.json()) as { entities: { path: string; type: string }[] };
+    const paths = entities.filter((e) => e.type === "doc" && e.path.split("/").pop() === name).map((e) => e.path.replace(/^\//, ""));
+    const p = paths.find((x) => session?.text(x) === undefined);
+    if (!p) return;
+    const d = await pageFetch(`${project()}/doc/${id}/download`, { credentials: "include" });
+    if (d.ok) session.refresh({ [p]: await d.text() });
+  };
   // Overleaf's main document (the project's root doc, the hook's `rootDoc`):
   // the session's main unless one was picked in the settings (kept by
   // project), as its Recompile builds it. Asked once now: the hook may have
@@ -2070,6 +2087,7 @@ const MOCK_EDITOR = /^\/project\/mock(\/detache[dr])?\/?$/;
     if (e.source !== window || e.data?.src !== "phitex-hook") return;
     if (e.data.type === "sync") void session?.toPage(e.data.file, e.data.pos);
     if (e.data.type === "fileReplaced") void replaced(String(e.data.id), String(e.data.name));
+    if (e.data.type === "docAdded") void added(String(e.data.id), String(e.data.name));
     // (Overleaf's main document, as its socket told the hook: followed unless one was picked here)
     if (e.data.type === "rootDoc") {
       overleafRoot = typeof e.data.path === "string" ? e.data.path : null;
