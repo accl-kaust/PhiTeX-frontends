@@ -360,7 +360,8 @@ local function start(buf, mode)
       -- (attached, and the watch in the terminal ended: one started here for the buffers it
       -- served, so the pages and problems go on)
       if was then
-        vim.schedule(function()
+        -- (once the ended client is gone from the list a start looks in)
+        vim.defer_fn(function()
           vim.notify("PhiTeX: the watch in the terminal ended; starting one here.")
           local started = false
           for b in pairs(bufs) do
@@ -369,7 +370,7 @@ local function start(buf, mode)
             end
           end
           if not started and next(bufs) then trouble("PhiTeX: no watch could be started here.") end
-        end)
+        end, 100)
         return
       end
       -- (an exit not asked for: said, with how to start it again)
@@ -382,6 +383,8 @@ local function start(buf, mode)
     -- (a watch already running in a folder holding this file, its phitex/status
     -- root: one started for a chapter that found its main file a folder up)
     reuse_client = function(c, config)
+      -- (a client ending, its watch gone: never the one a new start joins)
+      if c:is_stopped() or ending[c.id] then return false end
       local r = status[c.id] and status[c.id].root
       if type(r) == "string" and r ~= "" and vim.startswith(file, r .. "/") then return true end
       return c.name == config.name and c.root_dir == config.root_dir
@@ -469,9 +472,16 @@ vim.api.nvim_create_autocmd("LspDetach", {
     local c = vim.lsp.get_client_by_id(ev.data.client_id)
     if not c or c.name ~= "phitex" then return end
     vim.schedule(function()
+      if c:is_stopped() then return end
+      -- (the buffer read again (:e!), still loaded: the same watch, attached again;
+      -- only a buffer closed leaves it)
+      if vim.api.nvim_buf_is_loaded(ev.buf) then
+        if not vim.lsp.buf_is_attached(ev.buf, c.id) then vim.lsp.buf_attach_client(ev.buf, c.id) end
+        return
+      end
       if served[c.id] then served[c.id][ev.buf] = nil end
       local left = vim.tbl_filter(function(b) return b ~= ev.buf and vim.api.nvim_buf_is_loaded(b) end, vim.tbl_keys(c.attached_buffers))
-      if #left == 0 and not c:is_stopped() then stop(c) end
+      if #left == 0 then stop(c) end
     end)
   end,
 })

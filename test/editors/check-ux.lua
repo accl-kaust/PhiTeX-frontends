@@ -4,7 +4,7 @@
 -- PHITEX_NVIM_CONFIG; each line "ok NAME" or "FAIL NAME: why"; exit 1 on a failure.
 local failed = false
 local function check(name, ok, why)
-  io.stdout:write((ok and ("ok " .. name) or ("FAIL " .. name .. ": " .. tostring(why))) .. "\n")
+  io.stdout:write("\n" .. (ok and ("ok " .. name) or ("FAIL " .. name .. ": " .. tostring(why))) .. "\n")
   if not ok then failed = true end
 end
 local notes = {}
@@ -41,8 +41,11 @@ check(":e! clears the error and the status",
   PhitexStatus() .. " " .. #vim.diagnostic.get(buf))
 
 -- (the terminal's watch ends: one started here, said so, never "it keeps running")
+local pid = vim.fn.jobpid(watch)
 vim.fn.jobstop(watch)
-check("its end is said", vim.wait(30000, function() return said("the watch in the terminal ended; starting one here") ~= nil end, 100), table.concat(notes, " | "))
+check("its end is said", vim.wait(30000, function() return said("the watch in the terminal ended; starting one here") ~= nil end, 100),
+  table.concat(notes, " | ") .. string.format(" [watch alive %s, clients %d, stopped %s]", tostring(vim.uv.kill(pid, 0) == 0),
+    #clients(), tostring(clients()[1] and clients()[1]:is_stopped())))
 check("never 'keeps running where it was started'", not said("keeps running"), table.concat(notes, " | "))
 check("a watch is started here", vim.wait(60000, function()
   local c = vim.lsp.get_clients({ bufnr = buf, name = "phitex" })[1]
